@@ -101,9 +101,12 @@ export function Component() {
             </label>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            {tiers.find((tr) => tr.amount === amount)?.perk ?? tiers[tiers.length - 1]!.perk}
-          </p>
+          {(() => {
+            const reached = [...tiers].reverse().find((tr) => amount >= tr.amount);
+            return reached ? (
+              <p className="text-sm text-muted-foreground">{reached.perk}</p>
+            ) : null;
+          })()}
 
           <Button size="lg" className="self-start" onClick={() => setPayOpen(true)}>
             <SparklesIcon className="size-4" />
