@@ -598,3 +598,14 @@
     transform: scale(1.14) translate3d(1.5%, 1.5%, 0);
   }
 }
+
+/* Fill bar under the active spotlight thumbnail, timed to the auto-rotate
+   interval — a visual countdown to the next slide. */
+@keyframes spotlight-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

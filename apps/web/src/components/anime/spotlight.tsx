@@ -30,6 +30,7 @@ function prefersReducedMotion() {
  * embedded video, so there's nothing for YouTube's bot-check to break.
  */
 export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
+  const labels = useLabels();
   const slides = items.slice(0, 6);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -108,8 +109,10 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
 
         {/* --- legibility gradient --- */}
         {/* Readability scrim. Kept low on the bright end so the artwork never
-            washes out to a white glare on the light theme. */}
+            washes out to a white glare on the light theme. Extra weight at the
+            very bottom so the thumbnail strip always reads clearly too. */}
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/55 to-transparent sm:bg-gradient-to-r sm:via-card/35 sm:to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-card/90 to-transparent sm:h-32" />
 
         {/* --- content --- */}
         <SlideContent key={anime.id} anime={anime} />
@@ -117,23 +120,53 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         {/* --- controls --- */}
         {count > 1 && (
           <>
+            {/* Pinned to the top corners — text lives at the bottom, the
+                thumbnail strip lives below that, so the arrows never sit on
+                top of either no matter how tall either one gets. */}
             <NavButton side="left" onClick={() => go(-1)} />
             <NavButton side="right" onClick={() => go(1)} />
-            <div className="absolute inset-x-0 bottom-4 z-20 flex justify-center gap-1.5">
-              {slides.map((s, i) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-label={`${i + 1}`}
-                  onClick={() => setIndex(i)}
-                  className={cn(
-                    "h-1.5 rounded-full transition-all",
-                    i === index
-                      ? "w-6 bg-primary"
-                      : "w-1.5 bg-foreground/30 hover:bg-foreground/60",
-                  )}
-                />
-              ))}
+
+            <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center px-3 pb-3 sm:px-6 sm:pb-4">
+              <div className="rail-scroll flex max-w-full gap-2 overflow-x-auto sm:gap-2.5">
+                {slides.map((s, i) => {
+                  const thumb = imageSrc(s.imageLargeUrl ?? s.imageUrl);
+                  const active = i === index;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-label={labels.title(s)}
+                      aria-current={active}
+                      onClick={() => setIndex(i)}
+                      className={cn(
+                        "group relative shrink-0 overflow-hidden rounded-lg ring-2 ring-offset-2 ring-offset-transparent transition-all duration-300 ease-out",
+                        active
+                          ? "h-20 w-14 ring-primary sm:h-24 sm:w-16"
+                          : "h-14 w-10 opacity-55 ring-transparent hover:opacity-90 hover:ring-foreground/40 sm:h-16 sm:w-12",
+                      )}
+                    >
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt=""
+                          loading="lazy"
+                          className="size-full scale-105 object-cover transition-transform duration-300 group-hover:scale-110"
+                        />
+                      ) : (
+                        <PosterFallback title={labels.title(s)} seed={s.id} />
+                      )}
+                      {active && !reduced && count > 1 && !paused && (
+                        <span
+                          key={`${anime.id}-progress`}
+                          aria-hidden
+                          className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-primary"
+                          style={{ animation: `spotlight-progress ${ROTATE_MS}ms linear` }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}
@@ -151,7 +184,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
   return (
-    <div className="reveal-group relative z-10 flex h-full max-w-2xl flex-col justify-end gap-4 p-6 sm:p-10">
+    <div className="reveal-group relative z-10 flex h-full max-w-2xl flex-col justify-end gap-4 p-6 pb-24 sm:p-10 sm:pb-28">
       <div
         className="reveal flex items-center gap-2 text-sm font-medium text-muted-foreground"
         style={step(0)}
@@ -228,8 +261,8 @@ function NavButton({
       onClick={onClick}
       aria-label={side}
       className={cn(
-        "absolute top-1/2 z-20 hidden -translate-y-1/2 rounded-full border border-border/60 bg-background/60 p-2 text-foreground/80 backdrop-blur transition-colors hover:bg-background hover:text-foreground sm:block",
-        side === "left" ? "left-3" : "right-3",
+        "absolute top-4 z-20 hidden rounded-full border border-border/60 bg-background/70 p-2.5 text-foreground/80 shadow-sm backdrop-blur transition-all hover:scale-105 hover:bg-background hover:text-primary sm:block",
+        side === "left" ? "left-4" : "right-4",
       )}
     >
       {side === "left" ? (
