@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 export function Component() {
   const t = useT();
   const [payOpen, setPayOpen] = useState(false);
+  const [amount, setAmount] = useState(10);
 
   const freeFeatures = [
     t("support.feat.catalog"),
@@ -33,9 +34,9 @@ export function Component() {
   ];
 
   const tiers = [
-    { name: t("support.tiers.t1Name"), amount: t("support.tiers.t1Amount"), perk: t("support.tiers.t1Perk") },
-    { name: t("support.tiers.t2Name"), amount: t("support.tiers.t2Amount"), perk: t("support.tiers.t2Perk") },
-    { name: t("support.tiers.t3Name"), amount: t("support.tiers.t3Amount"), perk: t("support.tiers.t3Perk") },
+    { amount: 3, name: t("support.tiers.t1Name"), perk: t("support.tiers.t1Perk") },
+    { amount: 10, name: t("support.tiers.t2Name"), perk: t("support.tiers.t2Perk") },
+    { amount: 25, name: t("support.tiers.t3Name"), perk: t("support.tiers.t3Perk") },
   ];
 
   return (
@@ -48,10 +49,73 @@ export function Component() {
         <p className="max-w-prose text-lg text-muted-foreground">{t("support.lead")}</p>
       </header>
 
+      {/* Donate — the primary CTA, right up top, with a free-entry amount. */}
+      <section
+        className="reveal relative overflow-hidden rounded-2xl border border-primary/40 bg-primary/[0.06] p-6 shadow-[0_0_50px_-16px] shadow-primary/30 sm:p-8"
+        style={{ "--i": 1 } as CSSProperties}
+      >
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center gap-2">
+            <HeartIcon className="size-5 text-primary" />
+            <h2 className="font-display text-xl">{t("support.donateTitle")}</h2>
+          </div>
+          <p className="max-w-prose text-muted-foreground">{t("support.donateBody")}</p>
+
+          <div className="flex flex-wrap gap-2">
+            {tiers.map((tier) => (
+              <button
+                key={tier.amount}
+                type="button"
+                onClick={() => setAmount(tier.amount)}
+                className={cn(
+                  "flex flex-col items-start gap-0.5 rounded-xl border px-4 py-2.5 text-left transition-colors",
+                  amount === tier.amount
+                    ? "border-primary bg-primary/15"
+                    : "border-border/60 bg-card/40 hover:border-primary/40",
+                )}
+              >
+                <span className="font-display text-lg">${tier.amount}</span>
+                <span className="text-xs text-muted-foreground">{tier.name}</span>
+              </button>
+            ))}
+
+            <label
+              className={cn(
+                "flex items-center gap-1.5 rounded-xl border px-4 py-2.5 transition-colors",
+                !tiers.some((tr) => tr.amount === amount)
+                  ? "border-primary bg-primary/15"
+                  : "border-border/60 bg-card/40 hover:border-primary/40",
+              )}
+            >
+              <span className="font-display text-lg text-muted-foreground">$</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={amount}
+                onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 0))}
+                aria-label={t("support.donate.customPlaceholder")}
+                placeholder={t("support.donate.customPlaceholder")}
+                className="w-16 bg-transparent font-display text-lg outline-none"
+              />
+            </label>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            {tiers.find((tr) => tr.amount === amount)?.perk ?? tiers[tiers.length - 1]!.perk}
+          </p>
+
+          <Button size="lg" className="self-start" onClick={() => setPayOpen(true)}>
+            <SparklesIcon className="size-4" />
+            {t("support.donate.supportWith", { amount })}
+          </Button>
+        </div>
+      </section>
+
       {/* Plans */}
       <section
         className="reveal flex flex-col gap-4"
-        style={{ "--i": 1 } as CSSProperties}
+        style={{ "--i": 2 } as CSSProperties}
       >
         <h2 className="font-display text-xl">{t("support.plansTitle")}</h2>
         <div className="grid gap-4 md:grid-cols-2">
@@ -82,40 +146,6 @@ export function Component() {
             }
           />
         </div>
-      </section>
-
-      {/* Sponsorship */}
-      <section
-        className="reveal flex flex-col gap-4"
-        style={{ "--i": 2 } as CSSProperties}
-      >
-        <div className="flex items-center gap-2">
-          <HeartIcon className="size-5 text-primary" />
-          <h2 className="font-display text-xl">{t("support.donateTitle")}</h2>
-        </div>
-        <p className="max-w-prose text-muted-foreground">{t("support.donateBody")}</p>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {tiers.map((tier) => (
-            <div
-              key={tier.name}
-              className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card/40 p-4"
-            >
-              <span className="font-display text-lg text-primary">{tier.amount}</span>
-              <span className="font-medium">{tier.name}</span>
-              <span className="text-sm text-muted-foreground">{tier.perk}</span>
-            </div>
-          ))}
-        </div>
-
-        <Button
-          variant="secondary"
-          className="self-start"
-          onClick={() => setPayOpen(true)}
-        >
-          <SparklesIcon className="size-4" />
-          {t("support.donateCta")}
-        </Button>
       </section>
 
       <Leaderboard />

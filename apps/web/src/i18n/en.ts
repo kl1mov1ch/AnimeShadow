@@ -330,7 +330,7 @@ export const en = {
   },
   support: {
     title: "Support the project",
-    lead: "AnimeShadow runs on enthusiasm. PRO and donations cover the servers and keep the site growing.",
+    lead: "AnimeShadow is free and stays that way. PRO and donations are an optional extra — a way to say thanks and pick up a few nice perks.",
     plansTitle: "Subscription",
     free: {
       name: "Free",
@@ -384,18 +384,23 @@ export const en = {
       empty: "No one yet. Be the first.",
       chartTitle: "Top 10 this month",
     },
-    donateTitle: "Sponsorship",
+    donateTitle: "One-off support",
     donateBody:
-      "A one-off or recurring donation goes to servers, traffic and development. Sponsors are listed on the supporters page with a 影 badge next to their name.",
-    donateCta: "Donate",
+      "A one-off donation goes to servers, traffic and development. Pick an amount or set your own — sponsors are listed in the hall of fame with a 影 badge next to their name.",
+    donateCta: "Support",
+    donate: {
+      amountLabel: "Amount",
+      customPlaceholder: "Custom amount",
+      supportWith: "Support · ${amount}",
+    },
     tiers: {
-      t1Name: "Genin",
+      t1Name: "Viewer",
       t1Amount: "$3",
       t1Perk: "Your name in the hall of fame",
-      t2Name: "Jonin",
+      t2Name: "Projectionist",
       t2Amount: "$10",
       t2Perk: "PRO for a year + a 影 badge by your name",
-      t3Name: "Hokage",
+      t3Name: "Director",
       t3Amount: "$25",
       t3Perk: "All of the above + a say in the roadmap",
     },

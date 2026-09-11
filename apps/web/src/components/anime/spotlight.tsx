@@ -87,7 +87,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
                 src={heroImg}
                 alt=""
                 aria-hidden
-                className="absolute inset-0 hidden size-full scale-110 object-cover opacity-60 blur-2xl sm:block"
+                className="absolute inset-0 hidden size-full scale-110 object-cover opacity-60 blur-2xl brightness-[0.4] sm:block dark:brightness-100"
               />
               <img
                 key={heroImg}
@@ -95,7 +95,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
                 alt=""
                 fetchPriority="high"
                 className={cn(
-                  "absolute inset-0 size-full object-cover",
+                  "absolute inset-0 size-full object-cover brightness-[0.4] dark:brightness-100",
                   landscape ? "object-center" : "object-[center_22%]",
                   desktop && "hero-pan",
                 )}

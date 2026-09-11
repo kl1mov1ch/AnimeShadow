@@ -259,6 +259,12 @@ model Anime {
   progress          WatchProgress[]
   comments          Comment[]
 
+  // Our own site traffic, not an upstream number — incremented once per real
+  // detail-page request (see CatalogService.recordView). Feeds the future
+  // admin "most viewed" report; comment counts are already fully queryable
+  // via the `comments` relation, so no separate counter is needed there.
+  viewCount Int @default(0)
+
   // Cache bookkeeping — `syncedAt` drives freshness (see ANIME_CACHE_TTL_SECONDS).
   detailSyncedAt DateTime?
   syncedAt       DateTime @default(now())
@@ -271,6 +277,7 @@ model Anime {
   @@index([members])
   @@index([airing])
   @@index([year, season])
+  @@index([viewCount(sort: Desc)])
 }
 
 /// Whether an embed player (Kodik / Alloha) has this title, cached so the

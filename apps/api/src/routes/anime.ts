@@ -29,6 +29,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/anime/:id", async (request) => {
     const { id } = parse(idParams, request.params);
     const { lang } = parse(localeQuerySchema, request.query);
+    catalog.recordView(id);
     return catalog.getAnimeById(id, lang);
   });
 
@@ -42,6 +43,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: { members: "desc" },
     });
     if (!row) throw new NotFoundError("Аниме не найдено.");
+    catalog.recordView(row.id);
     return catalog.getAnimeById(row.id, lang);
   });
 

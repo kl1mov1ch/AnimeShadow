@@ -527,6 +527,18 @@ export class CatalogService {
     }
   }
 
+  /**
+   * Our own "most viewed" signal, admin-only for now (no endpoint reads it
+   * yet — this just starts collecting it). Called from the detail-page
+   * routes only, never from internal reuse of getAnimeById (e.g. spotlight
+   * ranking), so it reflects real visits and not incidental lookups.
+   */
+  recordView(id: number): void {
+    void this.prisma.anime
+      .update({ where: { id }, data: { viewCount: { increment: 1 } } })
+      .catch(() => undefined);
+  }
+
   async getCharacters(id: number): Promise<Character[]> {
     return this.auxCache.wrap(`characters:${id}`, async () => {
       try {
