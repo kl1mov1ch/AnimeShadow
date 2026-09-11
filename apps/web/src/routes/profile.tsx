@@ -5,7 +5,9 @@ import type {
   ProgressDetail,
   PublicProfile,
   Rank,
+  TitleIcon,
 } from "@animeshadow/shared";
+import { TITLE_ICONS } from "@animeshadow/shared";
 import { type CSSProperties, useRef, useState } from "react";
 import {
   AwardIcon,
@@ -22,6 +24,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AchievementBadge } from "@/components/achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { TITLE_ICON_COMPONENT, UserTitleBadge } from "@/components/user-title-badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -34,7 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
@@ -148,8 +151,9 @@ const RANK_RING: Record<Rank, string> = {
 
 function ProfileHeader({ profile }: { profile: PublicProfile }) {
   const t = useT();
+  const { locale } = useLocale();
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
-  const memberSince = new Date(profile.memberSince).toLocaleDateString("ru", {
+  const memberSince = new Date(profile.memberSince).toLocaleDateString(locale, {
     month: "long",
     year: "numeric",
   });
@@ -171,6 +175,7 @@ function ProfileHeader({ profile }: { profile: PublicProfile }) {
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-display text-2xl">{profile.displayName}</h1>
+          <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} />
           <AchievementBadge id={profile.showcaseAchievementId} />
           {profile.isPro && (
             <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
@@ -219,8 +224,9 @@ function fmtDuration(t: TFn, seconds: number) {
 
 function StatsStrip({ stats }: { stats: ProfileStats }) {
   const t = useT();
+  const { locale } = useLocale();
   const day = stats.mostProductiveDay
-    ? new Date(stats.mostProductiveDay).toLocaleDateString("ru", {
+    ? new Date(stats.mostProductiveDay).toLocaleDateString(locale, {
         day: "numeric",
         month: "short",
       })
@@ -231,7 +237,9 @@ function StatsStrip({ stats }: { stats: ProfileStats }) {
     [t("profile.summary.mostProductiveDay"), day],
     [
       t("profile.summary.avgPerSession"),
-      stats.avgSessionMinutes != null ? `${stats.avgSessionMinutes} мин` : "—",
+      stats.avgSessionMinutes != null
+        ? t("profile.summary.minutesShort", { minutes: stats.avgSessionMinutes })
+        : "—",
     ],
   ];
   return (
@@ -385,7 +393,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
   const onFile = async (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Файл больше 5 МБ");
+      toast.error(t("profile.settings.fileTooLarge"));
       return;
     }
     const dataUrl = await cropToSquareDataUrl(file);
@@ -596,6 +604,8 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
       <ShowcaseSection profile={profile} update={update} />
 
+      {profile.isPro && <TitleSection profile={profile} update={update} />}
+
       <GenrePreferencesSection />
     </div>
   );
@@ -649,6 +659,80 @@ function ShowcaseSection({
             {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
           </button>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/** PRO-only: a custom tag + icon shown next to your name in your profile and comments. */
+function TitleSection({
+  profile,
+  update,
+}: {
+  profile: MyProfile;
+  update: ReturnType<typeof useUpdateProfile>;
+}) {
+  const t = useT();
+  const [prefix, setPrefix] = useState(profile.titlePrefix ?? "");
+  const [icon, setIcon] = useState<TitleIcon>(profile.titleIcon ?? "star");
+
+  const save = () => {
+    const value = prefix.trim();
+    update.mutate(
+      { titlePrefix: value || null, titleIcon: value ? icon : null },
+      {
+        onSuccess: () =>
+          toast.success(
+            value ? t("profile.settings.titleSaved") : t("profile.settings.titleCleared"),
+          ),
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : t("errors.genericTitle")),
+      },
+    );
+  };
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="font-display text-lg">{t("profile.settings.titlePro")}</h2>
+      <p className="text-xs text-muted-foreground">{t("profile.settings.titleProHint")}</p>
+
+      <div className="flex flex-wrap gap-1.5">
+        {TITLE_ICONS.map((key) => {
+          const Icon = TITLE_ICON_COMPONENT[key];
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setIcon(key)}
+              aria-label={key}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-md border transition-colors",
+                icon === key
+                  ? "border-primary/50 bg-primary/15 text-primary"
+                  : "border-border/60 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value.slice(0, 20))}
+          maxLength={20}
+          placeholder={t("profile.settings.titlePlaceholder")}
+          className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <Button size="sm" disabled={update.isPending} onClick={save}>
+          {t("profile.settings.save")}
+        </Button>
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>{t("common.preview")}</span>
+        <UserTitleBadge prefix={prefix.trim() || null} icon={icon} />
       </div>
     </section>
   );

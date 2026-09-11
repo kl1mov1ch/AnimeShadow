@@ -8,6 +8,24 @@ export type Rank = z.infer<typeof rankSchema>;
 export const onlineStatusSchema = z.enum(["ONLINE", "OFFLINE", "DND"]);
 export type OnlineStatus = z.infer<typeof onlineStatusSchema>;
 
+/** Curated icon set for a PRO title — a fixed key, never a URL/free-form SVG. */
+export const TITLE_ICONS = [
+  "sword",
+  "flame",
+  "crown",
+  "star",
+  "heart",
+  "skull",
+  "ghost",
+  "zap",
+  "gem",
+  "moon",
+  "sparkles",
+  "shield",
+] as const;
+export const titleIconSchema = z.enum(TITLE_ICONS);
+export type TitleIcon = z.infer<typeof titleIconSchema>;
+
 export const profileStatsSchema = z.object({
   episodesWatched: z.number().int(),
   hoursWatched: z.number(),
@@ -32,6 +50,9 @@ export const publicProfileSchema = z.object({
   stats: profileStatsSchema,
   achievements: z.array(earnedAchievementSchema),
   showcaseAchievementId: z.string().nullable(),
+  /** PRO-only custom title next to the name. Both null unless the account is PRO. */
+  titlePrefix: z.string().nullable(),
+  titleIcon: titleIconSchema.nullable(),
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 
@@ -49,6 +70,14 @@ export const updateProfileInputSchema = z.object({
     .nullable()
     .optional(),
   showcaseAchievementId: z.string().nullable().optional(),
+  titlePrefix: z
+    .string()
+    .trim()
+    .min(1)
+    .max(20)
+    .nullable()
+    .optional(),
+  titleIcon: titleIconSchema.nullable().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>;
 

@@ -34,6 +34,7 @@ export const en = {
     allTime: "All time",
     day: "Day",
     none: "None",
+    preview: "Preview:",
   },
   card: {
     watch: "Watch",
@@ -48,7 +49,7 @@ export const en = {
   footer: {
     tagline: "A dark room where all the attention goes to the anime.",
     description:
-      "One catalogue, a watch list and per-episode progress — no ads, no clutter.",
+      "One catalogue, a watch list and per-episode progress — no clutter.",
     nav: "Navigation",
     project: "Project",
     social: "Find us",
@@ -315,6 +316,7 @@ export const en = {
     groupSynopsis: "Found in the synopsis",
     detectedAs: "Read as: {genres}",
     open: "Open search",
+    smartSearch: "smart search",
   },
   errors: {
     genericTitle: "That didn't load",
@@ -350,7 +352,6 @@ export const en = {
       resume: "Resume playback across all your devices",
       unlimited: "Unlimited list",
       hd: "HD sources first",
-      noPromo: "No promo blocks",
       badge: "A 影 badge on your reviews",
       early: "Early access to new features",
     },
@@ -403,7 +404,7 @@ export const en = {
     lead: "AnimeShadow is a quiet, dark room where the interface steps back and the light goes to the poster.",
     whyTitle: "Why it exists",
     whyBody:
-      "Russian anime sites drown in ads, banners and pop-ups. We wanted a place where you can just watch and keep a list — fast, calm, no noise.",
+      "Russian anime sites are often cluttered and hard to use. We wanted a place where you can just watch and keep a list — fast, calm, no noise.",
     whatTitle: "What it's for",
     whatBody:
       "One Russian-language catalogue, watch tracking, per-episode progress and reviews from real people. An account is only needed for your list — browsing is open to everyone.",
@@ -416,7 +417,7 @@ export const en = {
       playerTitle: "Built-in player",
       playerBody: "Where a source exists, watch right on the title's page.",
       calmTitle: "Nothing extra",
-      calmBody: "No promo blocks, no blinking banners. Just anime.",
+      calmBody: "One calm screen with nothing extra on it. Just anime.",
     },
     howTitle: "How it works",
     howBody:
@@ -468,10 +469,12 @@ export const en = {
       durationDHM: "{d}d {h}h {m}m",
       durationHM: "{h}h {m}m",
       hoursShort: "{hours}h watched",
+      minutesShort: "{minutes} min",
     },
     settings: {
       avatar: "Avatar",
       avatarUpload: "Upload (JPG/PNG, up to 5 MB)",
+      fileTooLarge: "File is larger than 5 MB",
       save: "Save",
       bio: "Profile bio",
       bioHint: "up to 500 characters",
@@ -490,6 +493,12 @@ export const en = {
       usernameSet: "Username saved",
       usernamePlaceholder: "e.g. shadow_fan",
       copyProfileLink: "Copy profile link",
+      titlePro: "Custom title",
+      titleProHint: "PRO-only: pick a short tag and an icon to show next to your name.",
+      titlePlaceholder: "e.g. Anime lord",
+      titleSaved: "Title saved",
+      titleCleared: "Title removed",
+      titleClear: "Remove",
     },
   },
   achievements: {
@@ -652,7 +661,7 @@ export const en = {
     ongoing: "Ongoing",
     firstVisit: {
       title: "New to AnimeShadow?",
-      text: "One catalogue, a watch list and per-episode progress — no ads.",
+      text: "One catalogue, a watch list and per-episode progress.",
       link: "See how it works",
     },
   },
@@ -666,6 +675,9 @@ export const en = {
     titleTemplate: "Watch {title} online — every episode",
     descriptionTemplate:
       "{title} — {type}, {year}. Rating {score}. Genres: {genres}. Watch online.",
+    homeTitle: "AnimeShadow — watch anime online",
+    homeDescription:
+      "Anime catalogue: reviews, ratings, a watchlist and episode progress. Watch online.",
   },
 } as const;
 

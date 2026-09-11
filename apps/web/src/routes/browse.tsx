@@ -27,7 +27,6 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useI18n } from "@/i18n";
 import { hasActiveFilters, parseBrowseParams } from "@/lib/browse-params";
-import { useLabels } from "@/lib/labels";
 import {
   type BrowseParams,
   useBrowse,
@@ -221,7 +220,6 @@ function SearchResults({
   onRetry: () => void;
 }) {
   const { t } = useI18n();
-  const labels = useLabels();
   const { data, isPending, isFetching, isError } = query;
 
   if (isError) return <ErrorState onRetry={onRetry} />;
@@ -267,7 +265,7 @@ function SearchResults({
           count: groups.reduce((n, g) => n + g.items.length, 0),
         })}
         {" · "}
-        {labels.locale === "ru" ? "умный поиск" : "smart search"}
+        {t("search.smartSearch")}
       </p>
     </div>
   );

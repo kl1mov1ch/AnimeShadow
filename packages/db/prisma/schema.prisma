@@ -32,6 +32,11 @@ model User {
   onlineStatus  String          @default("OFFLINE") // ONLINE | OFFLINE | DND
   proSince      DateTime?
   showcaseAchievementId String?
+  /// PRO-only custom title shown next to the display name. Free text,
+  /// profanity-checked server-side before it's ever saved.
+  titlePrefix           String?
+  /// Icon key for the title above — one of a fixed curated set, not a URL.
+  titleIcon             String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]

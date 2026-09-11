@@ -23,9 +23,8 @@ export function Component() {
   const labels = useLabels();
   const { status } = useAuth();
   useDocumentHead({
-    title: "AnimeShadow — смотреть аниме онлайн",
-    description:
-      "Каталог аниме на русском: обзоры, рейтинги, список просмотра и прогресс по эпизодам. Смотрите онлайн.",
+    title: t("seo.homeTitle"),
+    description: t("seo.homeDescription"),
     path: "/",
   });
   const isAuthed = status === "authenticated";

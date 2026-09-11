@@ -201,7 +201,6 @@ function Player({
           src={current.embedUrl}
           title={`${title} — ${current.title}`}
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-          allowFullScreen
           referrerPolicy="no-referrer"
           onLoad={() => setLoaded(true)}
           className="size-full"

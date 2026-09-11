@@ -21,6 +21,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -59,6 +64,16 @@ export function SiteHeader() {
   const { t } = useI18n();
   const { status } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const surprise = async () => {
+    try {
+      const r = await apiRequest<{ slug: string }>("/anime/random");
+      navigate(`/anime/${r.slug}`);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const nav = [
     { to: "/", label: t("nav.discover"), end: true, Icon: CompassIcon },
@@ -119,6 +134,19 @@ export function SiteHeader() {
             <SearchBox />
           </div>
           <div className="hidden md:flex">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={surprise}
+                  aria-label={t("footer.randomAnime")}
+                >
+                  <ShuffleIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("footer.randomAnime")}</TooltipContent>
+            </Tooltip>
             <LanguageSwitcher />
             <ThemeToggle />
           </div>

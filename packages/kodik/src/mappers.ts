@@ -113,6 +113,8 @@ export function toAnimeSummary(group: KodikGroup): AnimeSummary {
     titleLocalized: md.anime_title ?? md.title ?? null,
     hasPlayer: true,
     rating: null,
+    scoredBy: md.shikimori_votes ?? null,
+    trailerEmbedUrl: null,
   };
 }
 

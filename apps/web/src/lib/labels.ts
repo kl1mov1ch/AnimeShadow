@@ -42,14 +42,16 @@ export function useLabels() {
     ): string | null => {
       if (type === "MOVIE") return t("common.feature");
       if (!episodes) return null;
-      const word = locale === "ru" ? "эп." : episodes === 1 ? "episode" : "episodes";
+      const word = episodes === 1 ? t("common.episode") : t("common.episodes");
       return `${episodes} ${word}`;
     };
 
     const title = (anime: TitleLike): string =>
       locale === "ru"
         ? anime.titleLocalized?.trim() || anime.titleEnglish?.trim() || anime.title
-        : anime.titleEnglish?.trim() || anime.titleLocalized?.trim() || anime.title;
+        // Never fall back to the Russian localized title in English mode —
+        // the original (usually romaji) title reads fine in either language.
+        : anime.titleEnglish?.trim() || anime.title;
 
     return {
       locale,

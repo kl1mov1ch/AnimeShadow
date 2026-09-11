@@ -79,79 +79,109 @@ export function BrowseFilters({
   const minScore = params.minScore ?? 0;
 
   return (
-    <FieldGroup className="gap-5">
+    <FieldGroup className="gap-3.5">
       <Field>
-        <FieldLabel htmlFor="browse-search">{t("browse.search")}</FieldLabel>
+        <FieldLabel htmlFor="browse-search" className="text-xs">
+          {t("browse.search")}
+        </FieldLabel>
         <Input
           id="browse-search"
           value={term}
           onChange={(event) => setTerm(event.target.value)}
           placeholder={t("browse.searchPlaceholder")}
           type="search"
+          className="h-9"
         />
       </Field>
 
-      <Field>
-        <FieldLabel htmlFor="browse-sort">{t("browse.sortBy")}</FieldLabel>
-        <Select
-          value={params.orderBy ?? "popularity"}
-          onValueChange={(value) => onChange({ orderBy: value })}
-        >
-          <SelectTrigger id="browse-sort">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_VALUES.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(`sort.${value}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field>
+          <FieldLabel htmlFor="browse-sort" className="text-xs">
+            {t("browse.sortBy")}
+          </FieldLabel>
+          <Select
+            value={params.orderBy ?? "popularity"}
+            onValueChange={(value) => onChange({ orderBy: value })}
+          >
+            <SelectTrigger id="browse-sort" className="h-9 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_VALUES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`sort.${value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="browse-format" className="text-xs">
+            {t("browse.format")}
+          </FieldLabel>
+          <Select
+            value={params.type ?? ANY}
+            onValueChange={(value) => onChange({ type: value === ANY ? null : value })}
+          >
+            <SelectTrigger id="browse-format" className="h-9 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{t("browse.anyFormat")}</SelectItem>
+              {TYPE_VALUES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {labels.typeLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field>
+          <FieldLabel htmlFor="browse-status" className="text-xs">
+            {t("browse.status")}
+          </FieldLabel>
+          <Select
+            value={params.airing ?? ANY}
+            onValueChange={(value) => onChange({ airing: value === ANY ? null : value })}
+          >
+            <SelectTrigger id="browse-status" className="h-9 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>{t("browse.anyStatus")}</SelectItem>
+              {AIRING_VALUES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {labels.airingLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="browse-year" className="text-xs">
+            {t("browse.year")}
+          </FieldLabel>
+          <Input
+            id="browse-year"
+            type="number"
+            inputMode="numeric"
+            min={1917}
+            max={new Date().getFullYear() + 2}
+            value={params.year ?? ""}
+            onChange={(event) => onChange({ year: event.target.value || null })}
+            placeholder={t("browse.anyYear")}
+            className="h-9"
+          />
+        </Field>
+      </div>
 
       <Field>
-        <FieldLabel htmlFor="browse-format">{t("browse.format")}</FieldLabel>
-        <Select
-          value={params.type ?? ANY}
-          onValueChange={(value) => onChange({ type: value === ANY ? null : value })}
-        >
-          <SelectTrigger id="browse-format">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>{t("browse.anyFormat")}</SelectItem>
-            {TYPE_VALUES.map((value) => (
-              <SelectItem key={value} value={value}>
-                {labels.typeLabel(value)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="browse-status">{t("browse.status")}</FieldLabel>
-        <Select
-          value={params.airing ?? ANY}
-          onValueChange={(value) => onChange({ airing: value === ANY ? null : value })}
-        >
-          <SelectTrigger id="browse-status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ANY}>{t("browse.anyStatus")}</SelectItem>
-            {AIRING_VALUES.map((value) => (
-              <SelectItem key={value} value={value}>
-                {labels.airingLabel(value)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <Field>
-        <FieldLabel>
+        <FieldLabel className="text-xs">
           {minScore > 0
             ? t("browse.minScoreValue", { value: minScore })
             : t("browse.minScore")}
@@ -169,24 +199,13 @@ export function BrowseFilters({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="browse-year">{t("browse.year")}</FieldLabel>
-        <Input
-          id="browse-year"
-          type="number"
-          inputMode="numeric"
-          min={1917}
-          max={new Date().getFullYear() + 2}
-          value={params.year ?? ""}
-          onChange={(event) => onChange({ year: event.target.value || null })}
-          placeholder={t("browse.anyYear")}
-        />
-      </Field>
-
-      <Field>
-        <FieldLabel>{t("browse.genres")}</FieldLabel>
+        <FieldLabel className="text-xs">{t("browse.genres")}</FieldLabel>
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="justify-between font-normal">
+            <Button
+              variant="outline"
+              className="h-9 justify-between font-normal"
+            >
               {selectedGenres.size > 0
                 ? t("browse.genresSelected", { count: selectedGenres.size })
                 : t("browse.anyGenre")}
@@ -221,7 +240,7 @@ export function BrowseFilters({
       </Field>
 
       <Field orientation="horizontal" className="justify-between">
-        <FieldLabel htmlFor="browse-has-player" className="font-normal">
+        <FieldLabel htmlFor="browse-has-player" className="text-xs font-normal">
           {t("browse.onlyWithPlayer")}
         </FieldLabel>
         <Switch
@@ -234,7 +253,12 @@ export function BrowseFilters({
       </Field>
 
       {showReset && (
-        <Button variant="ghost" onClick={onReset} className="justify-start px-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onReset}
+          className="justify-start px-2 text-muted-foreground"
+        >
           {t("browse.clearAll")}
         </Button>
       )}

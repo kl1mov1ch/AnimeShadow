@@ -14,8 +14,8 @@
 */
 
 :root {
-  /* Light — cool gallery paper, deliberately not cream */
-  --background: #f2f1ee;
+  /* Light — warm gallery paper (not grey); the colour comes from the wash below */
+  --background: #f8f5f1;
   --foreground: #17181d;
 
   --card: #ffffff;
@@ -182,6 +182,23 @@
 
   p {
     text-wrap: pretty;
+  }
+
+  /* Light theme: a soft multi-hue wash behind every page so it never reads as
+     flat grey/white. Fixed, static, very low-opacity — a wash, not a decoration
+     that competes with content. Dark theme keeps its own deliberately quiet
+     surface (plus the per-title ambient glow below), so this is light-only. */
+  html:not(.dark) body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -20;
+    pointer-events: none;
+    background:
+      radial-gradient(46% 38% at 4% -6%, color-mix(in oklab, var(--chart-1) 20%, transparent) 0%, transparent 70%),
+      radial-gradient(44% 40% at 102% -2%, color-mix(in oklab, var(--chart-2) 18%, transparent) 0%, transparent 70%),
+      radial-gradient(48% 42% at 96% 104%, color-mix(in oklab, var(--chart-5) 15%, transparent) 0%, transparent 72%),
+      radial-gradient(52% 44% at -2% 104%, color-mix(in oklab, var(--chart-3) 15%, transparent) 0%, transparent 72%);
   }
 
   /* Faint film grain over the dark "screening room" — barely perceptible. */

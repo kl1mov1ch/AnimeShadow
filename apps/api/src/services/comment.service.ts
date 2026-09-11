@@ -23,6 +23,8 @@ const COMMENT_INCLUDE = {
       avatarUrl: true,
       proSince: true,
       showcaseAchievementId: true,
+      titlePrefix: true,
+      titleIcon: true,
     },
   },
 } satisfies Prisma.CommentInclude;
@@ -188,6 +190,8 @@ export class CommentService {
           rank: null,
           isPro: false,
           showcaseAchievementId: null,
+          titlePrefix: null,
+          titleIcon: null,
         }
       : anon
         ? {
@@ -198,6 +202,8 @@ export class CommentService {
             rank: null,
             isPro: false,
             showcaseAchievementId: null,
+            titlePrefix: null,
+            titleIcon: null,
           }
         : {
             kind: "user",
@@ -207,6 +213,10 @@ export class CommentService {
             rank: null,
             isPro: this.proForAll || row.user.proSince != null,
             showcaseAchievementId: row.user.showcaseAchievementId,
+            // Saving these already requires real PRO (not proForAll), so no
+            // extra gate is needed here beyond passing the stored value through.
+            titlePrefix: row.user.titlePrefix,
+            titleIcon: row.user.titleIcon as CommentAuthor["titleIcon"],
           };
 
     return {

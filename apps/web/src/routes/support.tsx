@@ -28,7 +28,6 @@ export function Component() {
     t("support.feat.resume"),
     t("support.feat.unlimited"),
     t("support.feat.hd"),
-    t("support.feat.noPromo"),
     t("support.feat.badge"),
     t("support.feat.early"),
   ];

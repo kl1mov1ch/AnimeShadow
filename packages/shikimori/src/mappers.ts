@@ -160,6 +160,8 @@ export function toAnimeSummary(anime: ShikiAnimeShort | ShikiAnimeFull): AnimeSu
     titleLocalized: anime.russian ?? null,
     hasPlayer: null,
     rating: full ? mapRating(full.rating) : null,
+    scoredBy: full ? sumStats(full.rates_scores_stats) : null,
+    trailerEmbedUrl: full ? trailerEmbed(full.videos) : null,
   };
 }
 

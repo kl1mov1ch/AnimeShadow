@@ -10,6 +10,7 @@ import type {
   UpdateProfileInput,
 } from "@animeshadow/shared";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors.js";
+import { isProfane } from "../lib/profanity.js";
 import type { AchievementService } from "./achievement.service.js";
 
 export interface ProfileServiceDeps {
@@ -61,6 +62,20 @@ export class ProfileService {
       );
       if (!ok) throw new BadRequestError("Эта ачивка вам недоступна.");
     }
+
+    if (input.titlePrefix !== undefined || input.titleIcon !== undefined) {
+      const user = await this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { proSince: true },
+      });
+      if (user.proSince == null) {
+        throw new BadRequestError("Свой значок и подпись доступны только с PRO.");
+      }
+      if (input.titlePrefix && isProfane(input.titlePrefix)) {
+        throw new BadRequestError("Недопустимый текст в подписи.");
+      }
+    }
+
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -72,6 +87,8 @@ export class ProfileService {
         ...(input.showcaseAchievementId !== undefined
           ? { showcaseAchievementId: input.showcaseAchievementId }
           : {}),
+        ...(input.titlePrefix !== undefined ? { titlePrefix: input.titlePrefix } : {}),
+        ...(input.titleIcon !== undefined ? { titleIcon: input.titleIcon } : {}),
       },
     });
     return this.getMine(userId);
@@ -194,6 +211,11 @@ export class ProfileService {
       )
         ? user.showcaseAchievementId
         : null,
+      // PRO-only — re-checked on every read, not just at save time, so a
+      // lapsed subscription can't leave a stale title on display.
+      titlePrefix: user.proSince != null ? user.titlePrefix : null,
+      titleIcon:
+        user.proSince != null ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
     };
   }
 

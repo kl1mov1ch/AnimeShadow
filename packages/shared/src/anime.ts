@@ -40,6 +40,10 @@ export const animeSummarySchema = z.object({
   hasPlayer: z.boolean().nullable().default(null),
   /** MAL-style content rating ("Rx" = hentai) — null until the title's been detail-synced. */
   rating: z.string().nullable().default(null),
+  /** How many users scored it — the card's "votes" figure. Null until detail-synced. */
+  scoredBy: z.number().int().nullable().default(null),
+  /** YouTube-nocookie (or provider) embed URL — the card's trailer link. */
+  trailerEmbedUrl: z.string().nullable().default(null),
 });
 export type AnimeSummary = z.infer<typeof animeSummarySchema>;
 
@@ -49,10 +53,8 @@ export const animeDetailSchema = animeSummarySchema.extend({
   duration: z.string().nullable(),
   popularity: z.number().int().nullable(),
   favorites: z.number().int().nullable(),
-  scoredBy: z.number().int().nullable(),
   airedFrom: z.string().nullable(),
   airedTo: z.string().nullable(),
-  trailerEmbedUrl: z.string().nullable(),
   studios: z.array(z.string()),
   genresDetailed: z.array(genreSchema),
   themes: z.array(z.string()),
@@ -95,7 +97,9 @@ export type CharacterDetail = z.infer<typeof characterDetailSchema>;
  */
 export const animeQuerySchema = z.object({
   q: z.string().trim().min(1).max(120).optional(),
-  page: z.coerce.number().int().positive().max(100).default(1),
+  // Sanity ceiling only — the catalogue is already past the old cap of 100
+  // pages, which made every page beyond it 422 instead of just "empty".
+  page: z.coerce.number().int().positive().max(2000).default(1),
   perPage: z.coerce.number().int().positive().max(48).default(24),
   type: animeTypeSchema.optional(),
   airing: animeAiringSchema.optional(),

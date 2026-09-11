@@ -11,6 +11,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { AchievementBadge } from "@/components/achievement-badge";
+import { UserTitleBadge } from "@/components/user-title-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import {
   useComments,
@@ -229,6 +230,7 @@ function CommentItem({
   depth: number;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const { user } = useAuth();
   const vote = useVoteComment(animeId);
   const edit = useEditComment(animeId);
@@ -247,7 +249,7 @@ function CommentItem({
     comment.author.kind === "user" &&
     user != null &&
     comment.author.displayName === user.displayName;
-  const when = new Date(comment.createdAt).toLocaleDateString("ru", {
+  const when = new Date(comment.createdAt).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -297,6 +299,11 @@ function CommentItem({
               PRO
             </Badge>
           )}
+          <UserTitleBadge
+            prefix={comment.author.titlePrefix}
+            icon={comment.author.titleIcon}
+            className="h-4 px-1 py-0"
+          />
           <AchievementBadge id={comment.author.showcaseAchievementId} className="h-4 px-1 py-0" />
           <span className="text-muted-foreground">{when}</span>
           {comment.editedAt && (

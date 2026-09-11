@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { titleIconSchema } from "./profile.js";
 
 export const commentModeSchema = z.enum(["PUBLIC", "ANON", "SUPPORTER"]);
 export type CommentMode = z.infer<typeof commentModeSchema>;
@@ -11,6 +12,8 @@ export const commentAuthorSchema = z.object({
   rank: z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]).nullable(),
   isPro: z.boolean(),
   showcaseAchievementId: z.string().nullable(),
+  titlePrefix: z.string().nullable(),
+  titleIcon: titleIconSchema.nullable(),
 });
 export type CommentAuthor = z.infer<typeof commentAuthorSchema>;
 

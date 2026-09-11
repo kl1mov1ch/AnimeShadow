@@ -119,6 +119,8 @@ export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
     airedFrom: row.airedFrom?.toISOString() ?? null,
     hasPlayer: row.watchAvailability?.hasPlayer ?? null,
     rating: row.rating,
+    scoredBy: row.scoredBy,
+    trailerEmbedUrl: row.trailerEmbedUrl,
   };
 }
 
@@ -130,10 +132,8 @@ export function toDetailDto(row: AnimeWithGenres): AnimeDetail {
     duration: row.duration,
     popularity: row.popularity,
     favorites: row.favorites,
-    scoredBy: row.scoredBy,
     airedFrom: row.airedFrom?.toISOString() ?? null,
     airedTo: row.airedTo?.toISOString() ?? null,
-    trailerEmbedUrl: row.trailerEmbedUrl,
     studios: row.studios,
     screenshots: row.screenshots ?? [],
     genresDetailed: row.genres.map((link) => ({
