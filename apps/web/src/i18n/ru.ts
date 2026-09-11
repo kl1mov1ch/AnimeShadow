@@ -3,6 +3,10 @@ import type { Dict } from "./en";
 export const ru: Dict = {
   brand: { tagline: "Зал для просмотра аниме." },
   nav: { discover: "Обзор", browse: "Каталог", library: "Мой список" },
+  cookies: {
+    text: "Сайт использует куки, чтобы не разлогинивать вас и помнить настройки.",
+    accept: "Понятно",
+  },
   common: {
     search: "Поиск аниме",
     searchShort: "Поиск",

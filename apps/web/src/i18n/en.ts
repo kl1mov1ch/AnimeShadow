@@ -1,6 +1,10 @@
 export const en = {
   brand: { tagline: "A screening room for anime." },
   nav: { discover: "Discover", browse: "Browse", library: "My list" },
+  cookies: {
+    text: "This site uses cookies to keep you signed in and remember your preferences.",
+    accept: "Got it",
+  },
   common: {
     search: "Search anime",
     searchShort: "Search",

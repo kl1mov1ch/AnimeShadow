@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { AchievementWatcher } from "@/components/achievement-watcher";
+import { CookieConsent } from "@/components/cookie-consent";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
@@ -23,6 +24,7 @@ export function AppShell() {
       </div>
       <Toaster position="bottom-right" />
       <AchievementWatcher />
+      <CookieConsent />
       <ScrollRestoration />
     </TooltipProvider>
   );

@@ -41,8 +41,10 @@ import { cn } from "@/lib/utils";
 
 function navClass({ isActive }: { isActive: boolean }): string {
   return cn(
-    "text-sm font-medium transition-colors",
-    isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+    "rounded-full px-3.5 py-1.5 text-sm font-semibold transition-all",
+    isActive
+      ? "bg-primary/15 text-primary"
+      : "text-muted-foreground hover:bg-accent hover:text-foreground",
   );
 }
 
@@ -111,7 +113,7 @@ export function SiteHeader() {
           <Wordmark />
         </div>
 
-        <nav className="hidden items-center gap-5 md:flex lg:gap-6">
+        <nav className="hidden items-center gap-1.5 md:flex">
           {nav.map((item, i) => (
             <NavLink
               key={item.to}
@@ -120,9 +122,10 @@ export function SiteHeader() {
               className={navClass}
             >
               <span
-                className="reveal inline-block whitespace-nowrap"
+                className="reveal inline-flex items-center gap-1.5 whitespace-nowrap"
                 style={{ "--i": i + 1 } as CSSProperties}
               >
+                <item.Icon className="size-4" />
                 {item.label}
               </span>
             </NavLink>
