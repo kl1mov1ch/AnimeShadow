@@ -7,7 +7,7 @@ Type=simple
 User=kl1mov1ch.exe
 WorkingDirectory=/var/www/animeshadow/apps/api
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node dist/server.js
+ExecStart=/usr/bin/node --env-file=/var/www/animeshadow/.env dist/server.js
 Restart=on-failure
 RestartSec=3
 StandardOutput=journal

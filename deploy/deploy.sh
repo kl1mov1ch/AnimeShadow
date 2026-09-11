@@ -22,10 +22,13 @@ $AS_APP_USER "cd '$APP_DIR' && pnpm build"
 echo "==> apply migrations"
 $AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
 
-echo "==> restart api"
+echo "==> sync systemd unit + restart api"
+cp "$APP_DIR/deploy/animeshadow-api.service" /etc/systemd/system/animeshadow-api.service
+systemctl daemon-reload
 systemctl restart animeshadow-api
 
-echo "==> reload caddy"
+echo "==> sync caddy config + reload"
+cp "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
 systemctl reload caddy
 
 echo "Deployed $(cd "$APP_DIR" && git rev-parse --short HEAD)"

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch src/server.ts",
     "build": "tsup",
-    "start": "cross-env NODE_ENV=production node dist/server.js",
+    "start": "cross-env NODE_ENV=production node --env-file=../../.env dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },
