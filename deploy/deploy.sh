@@ -1,28 +1,31 @@
 #!/usr/bin/env bash
 # Re-deploy: pull latest main, rebuild, apply migrations, restart the API.
-# Run from anywhere: bash /var/www/animeshadow/deploy/deploy.sh
+# Run as root: bash /var/www/animeshadow/deploy/deploy.sh
 set -euo pipefail
-cd /var/www/animeshadow
+
+APP_DIR="/var/www/animeshadow"
+APP_USER="kl1mov1ch.exe"
+AS_APP_USER="sudo -u $APP_USER COREPACK_ENABLE_DOWNLOAD_PROMPT=0 bash -lc"
 
 echo "==> git pull"
-git pull --ff-only
+$AS_APP_USER "cd '$APP_DIR' && git pull --ff-only"
 
 echo "==> install deps"
-pnpm install --frozen-lockfile
+$AS_APP_USER "cd '$APP_DIR' && pnpm install --frozen-lockfile"
 
 echo "==> prisma generate"
-pnpm db:generate
+$AS_APP_USER "cd '$APP_DIR' && pnpm db:generate"
 
 echo "==> build"
-pnpm build
+$AS_APP_USER "cd '$APP_DIR' && pnpm build"
 
 echo "==> apply migrations"
-pnpm --filter @animeshadow/db migrate:deploy
+$AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
 
 echo "==> restart api"
-sudo systemctl restart animeshadow-api
+systemctl restart animeshadow-api
 
 echo "==> reload caddy"
-sudo systemctl reload caddy
+systemctl reload caddy
 
-echo "Deployed $(git rev-parse --short HEAD)"
+echo "Deployed $(cd "$APP_DIR" && git rev-parse --short HEAD)"

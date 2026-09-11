@@ -25,12 +25,16 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-echo "==> node 20 + pnpm"
-if ! command -v node >/dev/null 2>&1 || [[ "$(node -v)" != v20* ]]; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+echo "==> node 22 + pnpm"
+# pnpm 11 itself requires Node >=22.13 to run (the app only needs >=20.11,
+# but the pnpm CLI is the stricter constraint here).
+NODE_MAJOR="$(node -v 2>/dev/null | sed -n 's/^v\([0-9]*\).*/\1/p')"
+if [ "${NODE_MAJOR:-0}" -lt 22 ]; then
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
 corepack enable
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 corepack prepare pnpm@11.3.0 --activate
 
 echo "==> caddy"
@@ -68,6 +72,7 @@ fi
 
 echo "==> app dir + clone"
 mkdir -p "$APP_DIR"
+git config --system --add safe.directory "$APP_DIR"
 if [ ! -d "$APP_DIR/.git" ]; then
   if [ -n "${GH_TOKEN:-}" ]; then
     git clone "https://${GH_TOKEN}@github.com/kl1mov1ch/AnimeShadow.git" "$APP_DIR"
@@ -98,11 +103,12 @@ chmod 600 "$APP_DIR/.env"
 
 echo "==> build"
 cd "$APP_DIR"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm install --frozen-lockfile"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm db:generate"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm build"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && pnpm db:seed"
+AS_APP_USER="sudo -u $APP_USER COREPACK_ENABLE_DOWNLOAD_PROMPT=0 bash -lc"
+$AS_APP_USER "cd '$APP_DIR' && pnpm install --frozen-lockfile"
+$AS_APP_USER "cd '$APP_DIR' && pnpm db:generate"
+$AS_APP_USER "cd '$APP_DIR' && pnpm build"
+$AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
+$AS_APP_USER "cd '$APP_DIR' && pnpm db:seed"
 
 echo "==> systemd service"
 cp "$APP_DIR/deploy/animeshadow-api.service" /etc/systemd/system/animeshadow-api.service
