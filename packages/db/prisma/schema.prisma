@@ -1,0 +1,333 @@
+// AnimeShadow database schema.
+//
+// Postgres plays two roles here:
+//   1. a read-through cache of anime metadata sourced from the Jikan API, so the
+//      app is fast and resilient to upstream rate limits / outages, and
+//   2. the system of record for everything users create — accounts and the
+//      personal library (watch status, score, progress, notes).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users & personal library
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  displayName   String
+  passwordHash  String
+  username      String?         @unique
+  bio           String?
+  avatarUrl     String?
+  accentColor   String?
+  onlineStatus  String          @default("OFFLINE") // ONLINE | OFFLINE | DND
+  proSince      DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  library       LibraryEntry[]
+  reviews       Review[]
+  progress      WatchProgress[]
+  comments      Comment[]
+  commentVotes  CommentVote[]
+  sessions      WatchSession[]
+  achievements  UserAchievement[]
+  genrePrefs    UserGenrePreference[]
+}
+
+/** Genres a user explicitly picked as favourites — feeds their recommendations. */
+model UserGenrePreference {
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  genreId Int
+
+  @@id([userId, genreId])
+  @@index([genreId])
+}
+
+/// A comment on an anime page. `mode` controls attribution: PUBLIC shows the
+/// user, ANON shows "Аниме-ниндзя #<anonSeq>", SUPPORTER is a public comment
+/// flagged as donator-only in the filters.
+model Comment {
+  id           String    @id @default(cuid())
+  anime        Anime     @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId      Int
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  parent       Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId     String?
+  replies      Comment[] @relation("CommentReplies")
+  body         String
+  mode         String    @default("PUBLIC") // PUBLIC | ANON | SUPPORTER
+  anonSeq      Int? // stable per (userId, animeId) once assigned
+  likeCount    Int       @default(0)
+  dislikeCount Int       @default(0)
+  editedAt     DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  votes        CommentVote[]
+
+  @@index([animeId, createdAt])
+  @@index([userId])
+  @@index([parentId])
+}
+
+model CommentVote {
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  value     Int // 1 | -1
+  createdAt DateTime @default(now())
+
+  @@id([commentId, userId])
+}
+
+/// One viewing session — opened on play, closed on pause / tab hide / unload.
+/// Powers "current session", "most productive day" and "average per session".
+model WatchSession {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  animeId   Int
+  episode   Int       @default(1)
+  startedAt DateTime
+  endedAt   DateTime?
+  seconds   Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, startedAt])
+}
+
+/// An earned achievement. The catalogue itself is code-defined
+/// (packages/shared achievements.ts); this table only records what a user has.
+model UserAchievement {
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+
+  @@id([userId, achievementId])
+  @@index([userId])
+}
+
+/// Per-episode viewing progress, updated live from the player (roughly every
+/// 15s while watching, and on pause / episode change / close). Powers
+/// "continue watching" and the resume position.
+model WatchProgress {
+  id              String   @id @default(cuid())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  anime           Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId         Int
+  episode         Int      @default(1)
+  positionSeconds Int      @default(0)
+  durationSeconds Int?
+  completed       Boolean  @default(false)
+  /// Kodik translation/voiceover id last used, if any.
+  translationId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, animeId, episode])
+  @@index([userId, updatedAt])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  anime     Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId   Int
+  rating    Int // 1..10
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, animeId])
+  @@index([animeId, createdAt])
+}
+
+enum LibraryStatus {
+  WATCHING
+  PLANNED
+  COMPLETED
+  ON_HOLD
+  DROPPED
+}
+
+model LibraryEntry {
+  id        String        @id @default(cuid())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  anime     Anime         @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId   Int
+  status    LibraryStatus
+  score     Int? // 1..10, user's personal rating
+  progress  Int           @default(0) // episodes watched
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([userId, animeId])
+  @@index([userId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Cached anime catalogue (mirrors Jikan / MyAnimeList)
+// ---------------------------------------------------------------------------
+
+enum AnimeType {
+  TV
+  MOVIE
+  OVA
+  ONA
+  SPECIAL
+  MUSIC
+  UNKNOWN
+}
+
+enum AnimeAiring {
+  AIRING
+  FINISHED
+  UPCOMING
+  UNKNOWN
+}
+
+enum AnimeSeason {
+  winter
+  spring
+  summer
+  fall
+}
+
+model Anime {
+  id              Int            @id // MyAnimeList / Shikimori id (they match)
+  slug            String
+  kinopoiskId     Int? // for the Alloha player provider
+  title           String
+  titleEnglish    String?
+  titleJapanese   String?
+  titleLocalized  String? // Russian title (Shikimori)
+  synopsis        String?
+  background      String?
+  imageUrl        String?
+  imageLargeUrl   String?
+  screenshots     String[]
+  type            AnimeType      @default(UNKNOWN)
+  airing          AnimeAiring    @default(UNKNOWN)
+  episodes        Int?
+  duration        String?
+  rating          String?
+  source          String?
+  score           Float?
+  scoredBy        Int?
+  rank            Int?
+  popularity      Int?
+  members         Int?
+  favorites       Int?
+  year            Int?
+  season          AnimeSeason?
+  airedFrom       DateTime?
+  airedTo         DateTime?
+  trailerEmbedUrl String?
+  studios         String[]
+  themes          String[]
+  demographics    String[]
+  genres            GenreOnAnime[]
+  libraryEntries    LibraryEntry[]
+  reviews           Review[]
+  translations      AnimeTranslation[]
+  watchAvailability WatchAvailability?
+  playerSources     PlayerSource[]
+  progress          WatchProgress[]
+  comments          Comment[]
+
+  // Cache bookkeeping — `syncedAt` drives freshness (see ANIME_CACHE_TTL_SECONDS).
+  detailSyncedAt DateTime?
+  syncedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([score(sort: Desc)])
+  @@index([popularity])
+  @@index([rank])
+  @@index([members])
+  @@index([airing])
+  @@index([year, season])
+}
+
+/// Whether an embed player (Kodik / Alloha) has this title, cached so the
+/// catalogue can badge cards without a lookup per card. `hasPlayer` null means
+/// "not yet checked" or "every provider was unavailable".
+model WatchAvailability {
+  anime       Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId     Int      @id
+  hasPlayer   Boolean?
+  sourceCount Int      @default(0)
+  provider    String?
+  checkedAt   DateTime @default(now())
+
+  @@index([hasPlayer])
+}
+
+/// A single playable variant (one dub/sub from one provider) for an anime.
+/// Populated by the watch service so the detail page renders without a live
+/// provider call.
+model PlayerSource {
+  anime         Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId       Int
+  provider      String // "kodik" | "alloha"
+  sourceKey     String // translation id (kodik) or "alloha:<id>"
+  title         String
+  kind          String // "voice" | "subtitles" | "unknown"
+  embedUrl      String
+  quality       String?
+  episodesCount Int?
+  position      Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@id([animeId, provider, sourceKey])
+  @@index([animeId])
+}
+
+/// Machine translations of free-text anime fields, cached forever (source text
+/// doesn't change). `field` is e.g. "synopsis" | "background".
+model AnimeTranslation {
+  anime     Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId   Int
+  lang      String // BCP-47-ish: "ru"
+  field     String
+  value     String
+  createdAt DateTime @default(now())
+
+  @@id([animeId, lang, field])
+}
+
+model Genre {
+  id        Int            @id // mal_id
+  name      String         @unique
+  anime     GenreOnAnime[]
+  animeCount Int           @default(0)
+  preferredBy UserGenrePreference[]
+}
+
+model GenreOnAnime {
+  anime   Anime @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId Int
+  genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  genreId Int
+
+  @@id([animeId, genreId])
+  @@index([genreId])
+}

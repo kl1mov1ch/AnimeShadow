@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# prisma generated client
+packages/db/src/generated/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# vite
+apps/web/dist/
+apps/web/.vite/
+
+# misc
+coverage/
+
+# local agent tooling (not part of the app)
+.agents/
+skills-lock.json
