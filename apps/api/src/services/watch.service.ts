@@ -3,7 +3,7 @@ import {
   type KodikClient,
   toWatchSources as kodikToSources,
 } from "@animeshadow/kodik";
-import type { AllohaClient } from "@animeshadow/alloha";
+import type { AllohaClient, AllohaResult } from "@animeshadow/alloha";
 import type { WatchResponse, WatchSource } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
 
@@ -22,6 +22,11 @@ export interface WatchServiceDeps {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const RECHECK_MS = 3 * 24 * 60 * 60_000;
+// Mirrors rotate/die far faster than the 3-day provider re-resolve above —
+// without its own short leash, a source that goes down right after being
+// probed would keep ranking as "stable" (and getting served as the default
+// pick) for up to 3 days, which is exactly what produces a long stuck load.
+const SOURCE_RECHECK_MS = 6 * 60 * 60_000;
 const MAX_ALLOHA_DUBS = 6;
 const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_CONCURRENCY = 4;
@@ -179,9 +184,18 @@ export class WatchService {
       stable: r.stable,
     }));
 
-    // Never probed (or gone stale)? Check in the background so the next open
-    // gets a verified pick; this response still goes out immediately.
-    if (rows.some((r) => r.stable == null || r.stableAt == null)) {
+    // Never probed, or the verdict is old enough that a mirror could have
+    // died since? Check in the background so the next open gets a fresh
+    // pick; this response still goes out immediately with what we have.
+    const staleProbeBefore = Date.now() - SOURCE_RECHECK_MS;
+    if (
+      rows.some(
+        (r) =>
+          r.stable == null ||
+          r.stableAt == null ||
+          r.stableAt.getTime() < staleProbeBefore,
+      )
+    ) {
       void this.probeAndPersist(malId, sources).catch(() => undefined);
     }
 
@@ -224,13 +238,64 @@ export class WatchService {
     );
   }
 
+  /** Alloha's payload turned into our source rows — shared by both call sites below. */
+  private allohaResultToSources(result: AllohaResult): WatchSource[] {
+    const perDub = Object.entries(result.translationIframes).slice(0, MAX_ALLOHA_DUBS);
+    if (perDub.length === 0) {
+      return [
+        {
+          id: "alloha:main",
+          title: "Alloha (агрегатор)",
+          kind: "unknown",
+          embedUrl: result.iframe,
+          quality: result.quality,
+          episodesCount: null,
+          stable: null,
+        },
+      ];
+    }
+    return perDub.map(([tid, iframe]) => ({
+      id: `alloha:${tid}`,
+      title: `${result.translations.find((t) => t.id === tid)?.name ?? `Озвучка ${tid}`} · Alloha`,
+      kind: "voice" as const,
+      embedUrl: iframe,
+      quality: result.quality,
+      episodesCount: null,
+      stable: null,
+    }));
+  }
+
+  private async fetchAlloha(
+    kinopoiskId: number,
+    malId: number,
+    quiet: boolean,
+  ): Promise<AllohaResult | null> {
+    try {
+      return await this.alloha.getByKinopoiskId(kinopoiskId);
+    } catch (error) {
+      if (!quiet) this.logger.warn({ error, malId }, "alloha lookup failed");
+      return null;
+    }
+  }
+
   private async resolveAndPersist(
     malId: number,
     quiet = false,
   ): Promise<WatchResponse> {
     const sources: WatchSource[] = [];
-    let kinopoiskId: number | null = null;
     let provider: string | null = null;
+
+    // A Kinopoisk id from a previous resolve lets Alloha run *alongside*
+    // Kodik instead of waiting on it — on the common re-resolve path (every
+    // RECHECK_MS) that halves the worst-case cold latency instead of
+    // stacking both providers' timeouts back to back.
+    const existing = await this.prisma.anime.findUnique({
+      where: { id: malId },
+      select: { kinopoiskId: true },
+    });
+    let kinopoiskId = existing?.kinopoiskId ?? null;
+    const eagerAlloha =
+      kinopoiskId != null ? this.fetchAlloha(kinopoiskId, malId, quiet) : null;
 
     // 1. Kodik
     try {
@@ -247,53 +312,18 @@ export class WatchService {
       if (!quiet) this.logger.warn({ error, malId }, "kodik lookup failed");
     }
 
-    // 2. Alloha (needs a Kinopoisk id — from Kodik or a prior persist)
-    if (kinopoiskId == null) {
-      const anime = await this.prisma.anime.findUnique({
-        where: { id: malId },
-        select: { kinopoiskId: true },
-      });
-      kinopoiskId = anime?.kinopoiskId ?? null;
-    }
-    if (kinopoiskId != null) {
-      try {
-        const result = await this.alloha.getByKinopoiskId(kinopoiskId);
-        if (result) {
-          const perDub = Object.entries(result.translationIframes).slice(
-            0,
-            MAX_ALLOHA_DUBS,
-          );
-          if (perDub.length > 0) {
-            for (const [tid, iframe] of perDub) {
-              const name =
-                result.translations.find((t) => t.id === tid)?.name ??
-                `Озвучка ${tid}`;
-              sources.push({
-                id: `alloha:${tid}`,
-                title: `${name} · Alloha`,
-                kind: "voice",
-                embedUrl: iframe,
-                quality: result.quality,
-                episodesCount: null,
-                stable: null,
-              });
-            }
-          } else {
-            sources.push({
-              id: "alloha:main",
-              title: "Alloha (агрегатор)",
-              kind: "unknown",
-              embedUrl: result.iframe,
-              quality: result.quality,
-              episodesCount: null,
-              stable: null,
-            });
-          }
-          provider = provider ?? "alloha";
-        }
-      } catch (error) {
-        if (!quiet) this.logger.warn({ error, malId }, "alloha lookup failed");
-      }
+    // 2. Alloha — the concurrent lookup above if we had a Kinopoisk id
+    // already, otherwise (first-ever resolve) fall back to a fresh one now
+    // that Kodik may have just given us the id.
+    const allohaResult =
+      eagerAlloha != null
+        ? await eagerAlloha
+        : kinopoiskId != null
+          ? await this.fetchAlloha(kinopoiskId, malId, quiet)
+          : null;
+    if (allohaResult) {
+      sources.push(...this.allohaResultToSources(allohaResult));
+      provider = provider ?? "alloha";
     }
 
     // 3. Custom template fallback

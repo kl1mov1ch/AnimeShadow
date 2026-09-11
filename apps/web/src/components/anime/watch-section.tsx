@@ -121,6 +121,10 @@ function Player({
   const [showAll, setShowAll] = useState(false);
   const [stalled, setStalled] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Every source this session has already stalled on — so a dead top pick
+  // doesn't leave the user staring at it for minutes: we cycle through the
+  // rest automatically and only ask them to pick once nothing loads.
+  const [triedIds, setTriedIds] = useState<string[]>([]);
 
   const current = useMemo(
     () => data.sources.find((s) => s.id === selectedId) ?? data.sources[0],
@@ -132,13 +136,23 @@ function Player({
   useEffect(() => {
     setLoaded(false);
     setStalled(false);
-    const timer = setTimeout(() => setStalled(true), STALL_MS);
+    const timer = setTimeout(() => {
+      setStalled(true);
+      setTriedIds((tried) => {
+        const nextTried = current ? [...tried, current.id] : tried;
+        const next = data.sources.find((s) => !nextTried.includes(s.id));
+        if (next) setSelectedId(next.id);
+        return nextTried;
+      });
+    }, STALL_MS);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.embedUrl]);
 
   if (!current) return null;
 
   const alternatives = data.sources.filter((s) => s.id !== current.id);
+  const exhausted = data.sources.every((s) => triedIds.includes(s.id));
   const pickerOpen = showAll || (stalled && !loaded);
 
   const pick = (id: string) => {
@@ -164,10 +178,14 @@ function Player({
         )}
       </div>
 
-      {/* Only nudge the user to switch once the current embed actually stalls. */}
+      {/* Only nudge the user once the current embed actually stalls — while
+          alternatives remain we're already auto-switching, so say that
+          instead of asking them to do it manually. */}
       {stalled && !loaded && alternatives.length > 0 && (
         <Alert>
-          <AlertDescription>{t("watch.stalledHint")}</AlertDescription>
+          <AlertDescription>
+            {exhausted ? t("watch.allFailedHint") : t("watch.stalledHint")}
+          </AlertDescription>
         </Alert>
       )}
 
