@@ -417,6 +417,22 @@
     animation: ambient-drift 34s ease-in-out infinite alternate;
   }
 }
+
+/* No artwork at all — a plain seeded colour wash instead of an image layer,
+   so the backdrop is never empty (see AmbientBackdrop in anime-detail.tsx). */
+.ambient-backdrop__layer--fallback {
+  background-image: radial-gradient(
+    circle at 30% 20%,
+    rgb(var(--ambient-rgb, 120 120 140) / 0.9),
+    rgb(var(--ambient-rgb, 120 120 140) / 0.35) 55%,
+    transparent 85%
+  );
+  filter: blur(48px) saturate(1.6);
+  opacity: 0.5;
+}
+.dark .ambient-backdrop__layer--fallback {
+  opacity: 0.6;
+}
 @keyframes ambient-drift {
   from {
     transform: scale(1.1) translate3d(-2%, -1%, 0);

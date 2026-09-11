@@ -23,7 +23,7 @@ import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useAnime, useCharacters, useSimilarAnime } from "@/lib/query";
 import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
-import { useImagePalette } from "@/hooks/use-image-palette";
+import { paletteFromSeed, useImagePalette } from "@/hooks/use-image-palette";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -120,7 +120,7 @@ function AnimeDetailView({ param }: { param: string }) {
 
   return (
     <article className="relative flex flex-col gap-6">
-      <AmbientBackdrop src={backdrop} genres={data.genres} />
+      <AmbientBackdrop src={backdrop} genres={data.genres} seed={data.id} />
 
       {/* Banner — sits directly on the ambient wash, no frame */}
       <header className="flex flex-col gap-3">
@@ -253,25 +253,34 @@ function ambientMood(genres: string[]): string {
 function AmbientBackdrop({
   src,
   genres,
+  seed,
 }: {
   src: string | undefined;
   genres: string[];
+  seed: number;
 }) {
   const palette = useImagePalette(src);
   const mood = ambientMood(genres);
-  if (!src) return null;
-  const tintVars = palette
-    ? ({ "--ambient-rgb": palette.rgb } as CSSProperties)
+  // No artwork at all — never leave the page flat; use a seeded stand-in
+  // wash instead (same treatment PosterFallback gives the poster box).
+  const fallback = src ? null : paletteFromSeed(String(seed));
+  const effective = palette ?? fallback;
+  const tintVars = effective
+    ? ({ "--ambient-rgb": effective.rgb } as CSSProperties)
     : undefined;
   return (
     <>
       <div className="ambient-backdrop" aria-hidden>
-        <div
-          className="ambient-backdrop__layer"
-          style={{ "--ambient-image": `url("${src}")` } as CSSProperties}
-        />
+        {src ? (
+          <div
+            className="ambient-backdrop__layer"
+            style={{ "--ambient-image": `url("${src}")` } as CSSProperties}
+          />
+        ) : (
+          <div className="ambient-backdrop__layer ambient-backdrop__layer--fallback" style={tintVars} />
+        )}
       </div>
-      {palette && (
+      {effective && (
         <>
           <div className="ambient-tint" style={tintVars} data-mood={mood} aria-hidden />
           <span

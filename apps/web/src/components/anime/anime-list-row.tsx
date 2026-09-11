@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
-import { useImagePalette } from "@/hooks/use-image-palette";
+import { paletteFromSeed, useImagePalette } from "@/hooks/use-image-palette";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
@@ -36,6 +36,9 @@ export function AnimeListRow({
   const title = labels.title(anime);
   const src = imageSrc(anime.imageUrl);
   const palette = useImagePalette(src);
+  // No poster at all — never let the row go flat/grey; wash it with a
+  // seeded colour instead (same treatment PosterFallback gives the thumbnail).
+  const fallbackPalette = src ? null : paletteFromSeed(String(anime.id));
   const isAdult = isAdultRating(anime.rating);
   const [adultConfirmed] = useAdultConfirmed();
   const blurPoster = isAdult && !adultConfirmed;
@@ -69,7 +72,15 @@ export function AnimeListRow({
           />
         </div>
       )}
-      {!src && <div aria-hidden className="absolute inset-0 -z-10 bg-card/40" />}
+      {fallbackPalette && (
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-card/40"
+          style={{
+            backgroundImage: `radial-gradient(120% 100% at 0% 0%, rgb(${fallbackPalette.rgb} / 0.28), transparent 70%)`,
+          }}
+        />
+      )}
 
       <Link to={animeHref(anime)} className="relative flex min-w-0 flex-1 gap-3 sm:gap-4">
         <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-muted sm:h-36 sm:w-24">

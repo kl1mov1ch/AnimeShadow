@@ -62,6 +62,16 @@ function fallbackHue(seed: string): number {
 }
 
 /**
+ * Same vivid wash as `useImagePalette`, but derived purely from a stable seed
+ * (no image to sample) — for titles with no artwork at all, so the ambient
+ * backdrop always has *some* colour instead of going flat.
+ */
+export function paletteFromSeed(seed: string): Palette {
+  const rgb = hslToRgb(fallbackHue(seed), OUT_SATURATION, OUT_LIGHTNESS);
+  return { rgb: `${rgb[0]}, ${rgb[1]}, ${rgb[2]}`, isDark: OUT_LIGHTNESS < 0.5 };
+}
+
+/**
  * Picks the title's *dominant* colour (not its average) and re-emits it at a
  * fixed vivid saturation/lightness, so the page wash is always a pleasant
  * bright hue — dark or washed-out artwork can't drag it to grey. Pixels with
