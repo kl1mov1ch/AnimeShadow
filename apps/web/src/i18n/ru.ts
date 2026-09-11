@@ -312,6 +312,7 @@ export const ru: Dict = {
     seeAll: "Показать все результаты по «{query}»",
     recent: "Недавнее",
     tryMood: "Попробуйте настроение",
+    forYou: "Для вас",
     groupTitle: "По названию",
     groupCharacter: "Персонаж: {name}",
     groupMood: "По настроению",

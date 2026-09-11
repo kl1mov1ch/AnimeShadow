@@ -310,6 +310,7 @@ export const en = {
     seeAll: "See all results for “{query}”",
     recent: "Recent",
     tryMood: "Try a vibe",
+    forYou: "For you",
     groupTitle: "By title",
     groupCharacter: "Character: {name}",
     groupMood: "By vibe",

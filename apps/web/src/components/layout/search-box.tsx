@@ -12,10 +12,11 @@ import {
 } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
 import {animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useSmartSearch } from "@/lib/query";
+import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
 
 type MatchMap = Map<number, ReadonlyArray<readonly [number, number]>>;
 
@@ -57,8 +58,19 @@ export function SearchBox() {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
+  const { status } = useAuth();
+  const labels = useLabels();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isAuthed = status === "authenticated";
+  const { data: genres = [] } = useGenres();
+  const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed);
+  const favoriteGenres = favoriteGenreIds
+    .map((id) => genres.find((g) => g.id === id))
+    .filter((g): g is NonNullable<typeof g> => g != null)
+    .slice(0, 4)
+    .map((g) => ({ id: g.id, label: labels.genreLabel(g.name) }));
 
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
@@ -123,6 +135,12 @@ export function SearchBox() {
     setOpen(true);
   };
 
+  const pickGenre = (id: number) => {
+    setOpen(false);
+    inputRef.current?.blur();
+    navigate(`/browse?genres=${id}`);
+  };
+
   return (
     <div ref={rootRef} className="relative w-full min-w-0 sm:w-[min(360px,42vw)]">
       <Command
@@ -176,6 +194,9 @@ export function SearchBox() {
                   onPick={pick}
                   recentLabel={t("search.recent")}
                   moodLabel={t("search.tryMood")}
+                  favoriteGenres={favoriteGenres}
+                  favoriteGenresLabel={t("search.forYou")}
+                  onPickGenre={pickGenre}
                 />
               ) : isFetching && !data ? (
                 <LoadingRows />
@@ -245,12 +266,18 @@ function IdleState({
   onPick,
   recentLabel,
   moodLabel,
+  favoriteGenres,
+  favoriteGenresLabel,
+  onPickGenre,
 }: {
   recent: string[];
   moods: string[];
   onPick: (value: string) => void;
   recentLabel: string;
   moodLabel: string;
+  favoriteGenres: Array<{ id: number; label: string }>;
+  favoriteGenresLabel: string;
+  onPickGenre: (id: number) => void;
 }) {
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -262,6 +289,18 @@ function IdleState({
               <Chip key={value} onClick={() => onPick(value)}>
                 <ClockIcon className="size-3" />
                 {value}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
+      {favoriteGenres.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground">{favoriteGenresLabel}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {favoriteGenres.map((genre) => (
+              <Chip key={genre.id} onClick={() => onPickGenre(genre.id)}>
+                {genre.label}
               </Chip>
             ))}
           </div>
