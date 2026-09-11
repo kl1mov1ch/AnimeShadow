@@ -1,12 +1,16 @@
 import type { AnimeSummary, SmartSearchResponse } from "@animeshadow/shared";
-import { Loader2Icon, SlidersHorizontalIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { LayoutGridIcon, ListIcon, Loader2Icon, SlidersHorizontalIcon } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   BrowseFilters,
   type FilterPatch,
 } from "@/components/anime/browse-filters";
-import { AnimeGrid, AnimeGridSkeleton } from "@/components/anime/anime-grid";
+import {
+  AnimeGrid,
+  AnimeGridSkeleton,
+  type AnimeViewMode,
+} from "@/components/anime/anime-grid";
 import { PageHeader } from "@/components/common/page-header";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { ErrorState, NoResultsState } from "@/components/common/states";
@@ -20,6 +24,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useI18n } from "@/i18n";
 import { hasActiveFilters, parseBrowseParams } from "@/lib/browse-params";
 import { useLabels } from "@/lib/labels";
@@ -31,11 +36,33 @@ import {
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
+const VIEW_KEY = "animeshadow.browse.view.v1";
+
+function readStoredView(): AnimeViewMode {
+  try {
+    const raw = localStorage.getItem(VIEW_KEY);
+    return raw === "list" ? "list" : "grid";
+  } catch {
+    return "grid";
+  }
+}
+
 export function Component() {
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const params = useMemo(() => parseBrowseParams(searchParams), [searchParams]);
   const isSearch = Boolean(params.q);
+  const [view, setView] = useState<AnimeViewMode>(readStoredView);
+
+  const changeView = (next: string) => {
+    if (next !== "grid" && next !== "list") return;
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const { data: genres = [] } = useGenres();
   const browse = useBrowse(params, !isSearch);
@@ -110,12 +137,13 @@ export function Component() {
             <SearchResults
               query={search}
               params={params}
+              view={view}
               onRetry={() => void search.refetch()}
             />
           ) : browse.isError ? (
             <ErrorState onRetry={() => void browse.refetch()} />
           ) : browse.isPending ? (
-            <AnimeGridSkeleton />
+            <AnimeGridSkeleton view={view} />
           ) : browse.data.items.length === 0 ? (
             <NoResultsState />
           ) : (
@@ -126,12 +154,28 @@ export function Component() {
               )}
               aria-busy={browse.isPlaceholderData}
             >
-              <p className="text-sm text-muted-foreground">
-                {t("common.results", {
-                  count: browse.data.meta.total.toLocaleString(),
-                })}
-              </p>
-              <AnimeGrid items={browse.data.items} priorityCount={6} />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {t("common.results", {
+                    count: browse.data.meta.total.toLocaleString(),
+                  })}
+                </p>
+                <ToggleGroup
+                  type="single"
+                  value={view}
+                  onValueChange={changeView}
+                  variant="outline"
+                  className="h-8 [&>*]:h-8 [&>*]:w-8"
+                >
+                  <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
+                    <LayoutGridIcon className="size-3.5" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="list" aria-label={t("library.viewList")}>
+                    <ListIcon className="size-3.5" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <AnimeGrid items={browse.data.items} priorityCount={6} view={view} />
               <PaginationBar
                 page={params.page}
                 hasNextPage={browse.data.meta.hasNextPage}
@@ -168,10 +212,12 @@ function applyClientFilters(
 function SearchResults({
   query,
   params,
+  view,
   onRetry,
 }: {
   query: ReturnType<typeof useSmartSearch>;
   params: BrowseParams;
+  view: AnimeViewMode;
   onRetry: () => void;
 }) {
   const { t } = useI18n();
@@ -179,7 +225,7 @@ function SearchResults({
   const { data, isPending, isFetching, isError } = query;
 
   if (isError) return <ErrorState onRetry={onRetry} />;
-  if (isPending || !data) return <AnimeGridSkeleton count={12} />;
+  if (isPending || !data) return <AnimeGridSkeleton count={12} view={view} />;
 
   const groups = data.groups
     .map((g) => ({ ...g, items: applyClientFilters(g.items, params) }))
@@ -213,7 +259,7 @@ function SearchResults({
               <Loader2Icon className="ml-2 inline size-3.5 animate-spin text-muted-foreground" />
             )}
           </h2>
-          <AnimeGrid items={group.items} priorityCount={index === 0 ? 6 : 0} />
+          <AnimeGrid items={group.items} priorityCount={index === 0 ? 6 : 0} view={view} />
         </section>
       ))}
       <p className="text-xs text-muted-foreground">
