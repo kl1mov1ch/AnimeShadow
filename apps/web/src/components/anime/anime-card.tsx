@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { ScoreBadge } from "@/components/anime/score-badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
@@ -43,6 +44,9 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const airing = anime.airing === "AIRING";
   const unreleased = anime.airing === "UPCOMING";
   const countdown = useReleaseCountdown(anime.airedFrom);
+  const isAdult = isAdultRating(anime.rating);
+  const [adultConfirmed] = useAdultConfirmed();
+  const blurPoster = isAdult && !adultConfirmed;
 
   return (
     <Link
@@ -57,28 +61,34 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             loading={priority ? "eager" : "lazy"}
             decoding="async"
             fetchPriority={priority ? "high" : "auto"}
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
+            className={cn(
+              "size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none",
+              blurPoster && "blur-lg scale-110",
+            )}
           />
         ) : (
           <PosterFallback title={title} seed={anime.id} />
+        )}
+
+        {isAdult && (
+          <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur">
+            18+
+          </span>
         )}
 
         {/* One signal, top-left: the score, or a countdown when there's no score yet. */}
         {hasScore ? (
           <ScoreBadge score={anime.score} className="absolute left-2 top-2 z-10" />
         ) : countdown ? (
-          <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground backdrop-blur">
-            <ClockIcon className="size-3 text-primary" />
+          <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/90 backdrop-blur">
+            <ClockIcon className="size-3 text-muted-foreground/70" />
             {countdown}
           </span>
         ) : null}
 
-        {/* Status: static "airing" tag, or "coming soon" — no blinking dot, no "watch" chip. */}
-        {airing ? (
-          <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-primary backdrop-blur">
-            {t("airing.airingShort")}
-          </span>
-        ) : unreleased ? (
+        {/* "Coming soon" only — the "airing" tag added noise without telling the
+            user anything they don't already get from the season/year line. */}
+        {unreleased ? (
           <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur">
             {t("card.soon")}
           </span>
@@ -90,7 +100,15 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           {title}
         </h3>
         <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate">{metaLine}</span>
+          <span className="min-w-0 truncate">
+            {metaLine}
+            {airing && (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-primary">
+                <span aria-hidden className="size-1.5 rounded-full bg-primary" />
+                {t("airing.airingShort")}
+              </span>
+            )}
+          </span>
           {when && <span className="shrink-0 tabular-nums">{when}</span>}
         </div>
         {(genreLine || anime.members != null) && (
@@ -108,9 +126,9 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   );
 }
 
-export function AnimeCardSkeleton() {
+export function AnimeCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cn("flex flex-col gap-2", className)}>
       <Skeleton className="aspect-[2/3] w-full rounded-xl" />
       <Skeleton className="h-4 w-4/5" />
       <Skeleton className="h-3 w-2/5" />

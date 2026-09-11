@@ -22,6 +22,9 @@
     "studio": "dotenv -e ../../.env -- prisma studio",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "grant-pro": "dotenv -e ../../.env -- node scripts/grant-all-pro.mjs",
+    "bulk-seed": "dotenv -e ../../.env -- node scripts/bulk-seed.mjs",
+    "heal-genres": "dotenv -e ../../.env -- node scripts/heal-genres.mjs",
+    "heal-images": "dotenv -e ../../.env -- node scripts/heal-images.mjs",
     "typecheck": "tsc --noEmit"
   },
   "prisma": {

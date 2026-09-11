@@ -112,6 +112,7 @@ export function toAnimeSummary(group: KodikGroup): AnimeSummary {
     airedFrom: md.aired_at ?? null,
     titleLocalized: md.anime_title ?? md.title ?? null,
     hasPlayer: true,
+    rating: null,
   };
 }
 
@@ -174,6 +175,7 @@ export function toWatchSources(group: KodikGroup): WatchSource[] {
       embedUrl: row.link.startsWith("//") ? `https:${row.link}` : row.link,
       quality: row.quality ?? null,
       episodesCount: row.episodes_count ?? row.last_episode ?? null,
+      stable: null,
     }))
     .sort((a, b) => {
       if (a.kind !== b.kind) return a.kind === "voice" ? -1 : 1;

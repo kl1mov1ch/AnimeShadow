@@ -1,10 +1,9 @@
 import type { AnimeSummary } from "@animeshadow/shared";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimeCard, AnimeCardSkeleton } from "@/components/anime/anime-card";
 import { Button } from "@/components/ui/button";
-import { useIsDesktop } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
 
 interface AnimeRailProps {
@@ -15,9 +14,12 @@ interface AnimeRailProps {
   loading?: boolean;
 }
 
+const SKELETON_COUNT = 6;
+
 /**
- * A row of anime, paged with buttons — no scrollbar. Shows a page of N cards;
- * the arrows step between pages.
+ * A horizontally scrolling row — native smooth scroll-snap, not a page swap.
+ * The arrows nudge by one viewport's worth; touch/trackpad scrolling works
+ * the same way a native app carousel does.
  */
 export function AnimeRail({
   title,
@@ -27,16 +29,26 @@ export function AnimeRail({
   loading = false,
 }: AnimeRailProps) {
   const t = useT();
-  const isDesktop = useIsDesktop();
-  const [page, setPage] = useState(0);
-
-  const perPage = isDesktop ? 6 : 3;
-  const pageCount = Math.max(1, Math.ceil(items.length / perPage));
-  const clamped = Math.min(page, pageCount - 1);
-  const start = clamped * perPage;
-  const visible = items.slice(start, start + perPage);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
 
   if (!loading && items.length === 0) return null;
+
+  const updateEdges = () => {
+    const el = trackRef.current;
+    if (!el) return;
+    setAtStart(el.scrollLeft <= 4);
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+  };
+
+  const nudge = (dir: 1 | -1) => {
+    const el = trackRef.current;
+    if (!el) return;
+    // One "page" ≈ the visible width, so a click feels like turning a page
+    // while the motion itself stays a smooth scroll, not a hard cut.
+    el.scrollBy({ left: dir * el.clientWidth * 0.92, behavior: "smooth" });
+  };
 
   return (
     <section className="flex flex-col gap-3">
@@ -53,15 +65,15 @@ export function AnimeRail({
               <Link to={href}>{t("common.browseCatalogue")}</Link>
             </Button>
           )}
-          {pageCount > 1 && (
-            <div className="flex gap-1">
+          {items.length > 3 && (
+            <div className="hidden gap-1 sm:flex">
               <Button
                 variant="outline"
                 size="icon"
                 className="size-8"
                 aria-label={t("common.previous")}
-                disabled={clamped === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={atStart}
+                onClick={() => nudge(-1)}
               >
                 <ChevronLeftIcon />
               </Button>
@@ -70,8 +82,8 @@ export function AnimeRail({
                 size="icon"
                 className="size-8"
                 aria-label={t("common.next")}
-                disabled={clamped >= pageCount - 1}
-                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                disabled={atEnd}
+                onClick={() => nudge(1)}
               >
                 <ChevronRightIcon />
               </Button>
@@ -80,14 +92,24 @@ export function AnimeRail({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
+      <div
+        ref={trackRef}
+        onScroll={updateEdges}
+        className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {loading
-          ? Array.from({ length: perPage }, (_, i) => <AnimeCardSkeleton key={i} />)
-          : visible.map((anime, i) => (
+          ? Array.from({ length: SKELETON_COUNT }, (_, i) => (
+              <AnimeCardSkeleton
+                key={i}
+                className="w-[calc((100%-4*1rem)/5)] shrink-0 snap-start sm:w-[calc((100%-3*1rem)/4)] lg:w-[calc((100%-5*1rem)/6)]"
+              />
+            ))
+          : items.map((anime, i) => (
               <AnimeCard
                 key={anime.id}
                 anime={anime}
-                priority={clamped === 0 && i < 4}
+                priority={i < 6}
+                className="w-[calc((100%-4*1rem)/2.4)] shrink-0 snap-start sm:w-[calc((100%-3*1rem)/4)] lg:w-[calc((100%-5*1rem)/6)]"
               />
             ))}
       </div>

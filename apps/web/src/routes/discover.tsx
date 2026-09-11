@@ -9,6 +9,7 @@ import {
 import { ErrorState } from "@/components/common/states";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
+import { useLabels } from "@/lib/labels";
 import {
   useContinueWatching,
   useDiscover,
@@ -19,6 +20,7 @@ import { useDocumentHead } from "@/lib/seo";
 
 export function Component() {
   const t = useT();
+  const labels = useLabels();
   const { status } = useAuth();
   useDocumentHead({
     title: "AnimeShadow — смотреть аниме онлайн",
@@ -72,7 +74,7 @@ export function Component() {
                 className="reveal rounded-full border border-border/60 bg-card/40 px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                 style={{ "--i": i % 8 } as CSSProperties}
               >
-                {g.name}
+                {labels.genreLabel(g.name)}
               </Link>
             ))}
           </div>

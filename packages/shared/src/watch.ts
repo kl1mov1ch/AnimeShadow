@@ -11,6 +11,8 @@ export const watchSourceSchema = z.object({
   embedUrl: z.string(),
   quality: z.string().nullable(),
   episodesCount: z.number().int().nullable(),
+  /** Reachability probe: true = verified playable, false = failed, null = not checked yet. */
+  stable: z.boolean().nullable().default(null),
 });
 export type WatchSource = z.infer<typeof watchSourceSchema>;
 

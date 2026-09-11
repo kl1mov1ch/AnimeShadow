@@ -68,15 +68,17 @@ export function createServices(deps: ContainerDeps): Services {
   });
   const alloha = new AllohaClient({ token: deps.watch.allohaToken });
 
+  const translator = deps.translate.enabled
+    ? chainTranslators([
+        new GoogleTranslator(),
+        new MyMemoryTranslator({ email: deps.translate.email }),
+      ])
+    : identityTranslator;
+
   const translation = new TranslationService({
     prisma: deps.prisma,
     enabled: deps.translate.enabled,
-    translator: deps.translate.enabled
-      ? chainTranslators([
-          new GoogleTranslator(),
-          new MyMemoryTranslator({ email: deps.translate.email }),
-        ])
-      : identityTranslator,
+    translator,
   });
 
   const catalog = new CatalogService({
@@ -86,6 +88,7 @@ export function createServices(deps: ContainerDeps): Services {
     cacheTtlSeconds: deps.cacheTtlSeconds,
     logger: deps.logger,
     translation,
+    translator,
   });
 
   const achievements = new AchievementService({

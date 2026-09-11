@@ -39,6 +39,7 @@ export default defineConfig(({ mode }) => {
       // Proxy /api during dev so the browser talks to one origin (no CORS dance).
       proxy: {
         "/api": { target: apiUrl, changeOrigin: true },
+        "/uploads": { target: apiUrl, changeOrigin: true },
       },
     },
     preview: { port: 5173 },

@@ -1,6 +1,13 @@
-import { LibraryIcon, LogOutIcon } from "lucide-react";
+import {
+  LibraryIcon,
+  LogOutIcon,
+  SettingsIcon,
+  SparklesIcon,
+  TrophyIcon,
+  UserIcon,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
+import { imageSrc } from "@/lib/format";
 
 function initials(name: string): string {
   return name
@@ -47,6 +55,7 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label={t("common.account")}>
           <Avatar className="size-8">
+            {user.avatarUrl && <AvatarImage src={imageSrc(user.avatarUrl)} alt="" />}
             <AvatarFallback className="text-xs font-semibold">
               {initials(user.displayName)}
             </AvatarFallback>
@@ -63,12 +72,37 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
+            <Link to="/profile">
+              <UserIcon />
+              {t("profile.title")}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to="/profile?tab=achievements">
+              <TrophyIcon />
+              {t("profile.tabs.achievements")}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to="/profile?tab=settings">
+              <SettingsIcon />
+              {t("profile.tabs.settings")}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
             <Link to="/library">
               <LibraryIcon />
               {t("nav.library")}
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/support">
+            <SparklesIcon />
+            {t("footer.pro")}
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

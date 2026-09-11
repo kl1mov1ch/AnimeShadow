@@ -118,6 +118,7 @@ export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
     synopsis: row.synopsis,
     airedFrom: row.airedFrom?.toISOString() ?? null,
     hasPlayer: row.watchAvailability?.hasPlayer ?? null,
+    rating: row.rating,
   };
 }
 
@@ -126,7 +127,6 @@ export function toDetailDto(row: AnimeWithGenres): AnimeDetail {
     ...toSummaryDto(row),
     background: row.background,
     source: row.source,
-    rating: row.rating,
     duration: row.duration,
     popularity: row.popularity,
     favorites: row.favorites,

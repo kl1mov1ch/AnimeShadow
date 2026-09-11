@@ -11,13 +11,16 @@ import {
   AwardIcon,
   ClockIcon,
   CrownIcon,
+  Loader2Icon,
   LockIcon,
   MedalIcon,
+  PencilIcon,
   StarIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AchievementBadge } from "@/components/achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,16 +95,30 @@ function PublicView({ username }: { username: string }) {
   );
 }
 
+const PROFILE_TABS = ["progress", "settings", "achievements"] as const;
+type ProfileTab = (typeof PROFILE_TABS)[number];
+
 function OwnView() {
   const t = useT();
   const { data: profile, isPending } = useMyProfile();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get("tab");
+  const tab: ProfileTab = PROFILE_TABS.includes(requested as ProfileTab)
+    ? (requested as ProfileTab)
+    : "progress";
+
   if (isPending || !profile) return <ProfileSkeleton />;
 
   return (
     <div className="flex flex-col gap-8">
       <ProfileHeader profile={profile} />
-      <Tabs defaultValue="progress">
-        <TabsList className="w-full justify-start overflow-x-auto">
+      <Tabs
+        value={tab}
+        onValueChange={(v) =>
+          setSearchParams(v === "progress" ? {} : { tab: v }, { replace: true })
+        }
+      >
+        <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger value="progress">{t("profile.tabs.progress")}</TabsTrigger>
           <TabsTrigger value="settings">{t("profile.tabs.settings")}</TabsTrigger>
           <TabsTrigger value="achievements">{t("profile.tabs.achievements")}</TabsTrigger>
@@ -154,6 +171,7 @@ function ProfileHeader({ profile }: { profile: PublicProfile }) {
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-display text-2xl">{profile.displayName}</h1>
+          <AchievementBadge id={profile.showcaseAchievementId} />
           {profile.isPro && (
             <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
               PRO
@@ -354,6 +372,7 @@ function ProgressRow({ row }: { row: ProgressDetail }) {
 function SettingsTab({ profile }: { profile: MyProfile }) {
   const t = useT();
   const { setTheme, theme } = useTheme();
+  const { updateUser } = useAuth();
   const update = useUpdateProfile();
   const uploadAvatar = useUploadAvatar();
   const setUsername = useSetUsername();
@@ -371,7 +390,12 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
     }
     const dataUrl = await cropToSquareDataUrl(file);
     uploadAvatar.mutate(dataUrl, {
-      onSuccess: () => toast.success(t("common.save")),
+      onSuccess: (res) => {
+        toast.success(t("common.save"));
+        // The header's avatar comes from the lightweight auth session, not
+        // the profile query — patch it directly so it updates immediately.
+        updateUser({ avatarUrl: res.avatarUrl });
+      },
     });
   };
 
@@ -445,34 +469,39 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
       {/* avatar */}
       <section className="flex flex-col gap-3">
         <h2 className="font-display text-lg">{t("profile.settings.avatar")}</h2>
-        <div className="flex items-center gap-4">
-          <div className="size-16 overflow-hidden rounded-full bg-muted">
-            {profile.avatarUrl ? (
-              <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploadAvatar.isPending}
+          aria-label={t("profile.settings.avatarUpload")}
+          className="group relative size-20 shrink-0 self-start overflow-hidden rounded-full bg-muted disabled:opacity-60"
+        >
+          {profile.avatarUrl ? (
+            <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
+          ) : (
+            <div className="flex size-full items-center justify-center font-display text-2xl">
+              {profile.displayName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          {/* Pencil overlay — always visible on touch, fades in on hover for mouse users. */}
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/60 py-1.5 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+            {uploadAvatar.isPending ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
             ) : (
-              <div className="flex size-full items-center justify-center font-display text-xl">
-                {profile.displayName.charAt(0).toUpperCase()}
-              </div>
+              <PencilIcon className="size-3.5" />
             )}
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploadAvatar.isPending}
-          >
-            {t("profile.settings.avatarUpload")}
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/jpeg"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onFile(f);
-            }}
-          />
-        </div>
+          </span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void onFile(f);
+          }}
+        />
       </section>
 
       {/* bio */}
@@ -565,14 +594,70 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         </div>
       </section>
 
+      <ShowcaseSection profile={profile} update={update} />
+
       <GenrePreferencesSection />
     </div>
+  );
+}
+
+/** Pick one earned achievement to display as a badge next to your name. */
+function ShowcaseSection({
+  profile,
+  update,
+}: {
+  profile: MyProfile;
+  update: ReturnType<typeof useUpdateProfile>;
+}) {
+  const t = useT();
+  const { data: achievements } = useAchievements();
+  const earned = (achievements ?? []).filter((a) => a.earned);
+
+  if (earned.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="font-display text-lg">{t("profile.settings.showcase")}</h2>
+      <p className="text-xs text-muted-foreground">
+        {t("profile.settings.showcaseHint")}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => update.mutate({ showcaseAchievementId: null })}
+          className={cn(
+            "rounded-full border px-2.5 py-1 text-xs transition-colors",
+            profile.showcaseAchievementId == null
+              ? "border-primary/50 bg-primary/15 text-primary"
+              : "border-border/60 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t("common.none")}
+        </button>
+        {earned.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => update.mutate({ showcaseAchievementId: a.id })}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-xs transition-colors",
+              profile.showcaseAchievementId === a.id
+                ? "border-primary/50 bg-primary/15 text-primary"
+                : "border-border/60 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
 /** Favourite-genre picker — feeds the home rail and every title's "similar to". */
 function GenrePreferencesSection() {
   const t = useT();
+  const labels = useLabels();
   const { data: allGenres } = useGenres();
   const { data: selected } = useGenrePreferences();
   const setPrefs = useSetGenrePreferences();
@@ -612,7 +697,7 @@ function GenrePreferencesSection() {
                   : "border-border/60 text-muted-foreground hover:text-foreground",
               )}
             >
-              {g.name}
+              {labels.genreLabel(g.name)}
             </button>
           );
         })}
@@ -669,6 +754,16 @@ const RARITY_ICON: Record<string, typeof AwardIcon> = {
   rare: MedalIcon,
   epic: StarIcon,
   legendary: CrownIcon,
+};
+
+/** Medallion face per rarity — a real gradient disc rather than a flat glyph chip. */
+const RARITY_MEDAL: Record<string, string> = {
+  common:
+    "bg-[radial-gradient(circle_at_30%_25%,oklch(0.78_0.02_250),oklch(0.55_0.02_250))] text-white/90",
+  rare: "bg-[radial-gradient(circle_at_30%_25%,oklch(0.82_0.13_230),oklch(0.52_0.16_245))] text-white",
+  epic: "bg-[radial-gradient(circle_at_30%_25%,oklch(0.80_0.16_305),oklch(0.48_0.20_295))] text-white",
+  legendary:
+    "bg-[radial-gradient(circle_at_30%_25%,oklch(0.90_0.15_95),oklch(0.62_0.17_65))] text-black/80",
 };
 
 function AchievementsTab() {
@@ -773,11 +868,20 @@ function AchievementCard({ a }: { a: EarnedAchievement }) {
     >
       <span
         className={cn(
-          "flex size-9 items-center justify-center rounded-full",
-          a.earned ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground",
+          "relative flex size-12 items-center justify-center rounded-full ring-1 transition-transform duration-200 group-hover:scale-105",
+          a.earned
+            ? cn(RARITY_MEDAL[a.rarity], "ring-white/25 shadow-md")
+            : "bg-secondary text-muted-foreground/70 ring-border/60",
         )}
       >
-        <Icon className="size-4.5" />
+        {/* glossy highlight so the disc reads as a medal, not a flat circle */}
+        {a.earned && (
+          <span
+            aria-hidden
+            className="absolute inset-0 rounded-full bg-gradient-to-b from-white/35 via-transparent to-black/15"
+          />
+        )}
+        <Icon className="relative size-5.5" />
       </span>
       <span className="text-sm font-medium leading-tight">
         {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}

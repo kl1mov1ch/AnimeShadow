@@ -2,6 +2,7 @@ import type {
   AnimeDetail,
   AnimeSummary,
   Character,
+  CharacterDetail,
   DiscoverResponse,
   Genre,
   LibraryEntry,
@@ -135,6 +136,17 @@ export function useCharacters(id: number, enabled = true) {
       apiRequest<{ items: Character[] }>(`/anime/${id}/characters`, { signal }).then(
         (r) => r.items,
       ),
+    staleTime: 30 * 60_000,
+  });
+}
+
+export function useCharacterDetail(id: number | null) {
+  const { locale } = useLocale();
+  return useQuery({
+    queryKey: ["character", id, locale],
+    enabled: id != null,
+    queryFn: ({ signal }) =>
+      apiRequest<CharacterDetail>(`/characters/${id}`, { signal, query: { lang: locale } }),
     staleTime: 30 * 60_000,
   });
 }

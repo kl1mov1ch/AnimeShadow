@@ -31,6 +31,7 @@ model User {
   accentColor   String?
   onlineStatus  String          @default("OFFLINE") // ONLINE | OFFLINE | DND
   proSince      DateTime?
+  showcaseAchievementId String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]
@@ -295,6 +296,9 @@ model PlayerSource {
   quality       String?
   episodesCount Int?
   position      Int      @default(0)
+  /// Reachability probe result: null = never checked, true = embed responded OK.
+  stable        Boolean?
+  stableAt      DateTime?
   updatedAt     DateTime @updatedAt
 
   @@id([animeId, provider, sourceKey])

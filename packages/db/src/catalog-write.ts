@@ -83,10 +83,20 @@ export async function persistAnimeDetail(
 
   const genreIds = await resolveGenreIds(detail.genresDetailed);
 
+  // A detail fetch with no art must never blank out a poster a previous list
+  // sync already found — omit (not null) these two on update so they're left
+  // untouched, and let the heal-images fallback chain fill genuinely-missing
+  // ones instead.
+  const updateRow = {
+    ...row,
+    ...(row.imageUrl == null ? { imageUrl: undefined } : {}),
+    ...(row.imageLargeUrl == null ? { imageLargeUrl: undefined } : {}),
+  };
+
   await prisma.anime.upsert({
     where: { id: detail.id },
     create: row,
-    update: row,
+    update: updateRow,
   });
   await reconcileGenreLinks(detail.id, genreIds);
 

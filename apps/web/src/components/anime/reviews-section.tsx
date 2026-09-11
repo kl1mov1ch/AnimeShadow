@@ -3,14 +3,11 @@ import { StarIcon } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -131,6 +128,7 @@ function ReviewForm({
   const [rating, setRating] = useState(String(existing?.rating ?? 8));
   const [body, setBody] = useState(existing?.body ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setRating(String(existing?.rating ?? 8));
@@ -158,59 +156,66 @@ function ReviewForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="flex flex-col gap-4 rounded-lg border bg-card p-4"
+      className="flex flex-col gap-2.5 rounded-lg border bg-card p-3"
     >
-      <p className="text-sm font-medium">
-        {existing ? t("reviews.edit") : t("reviews.write")}
-      </p>
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="review-rating">{t("reviews.ratingLabel")}</FieldLabel>
-          <Select value={rating} onValueChange={setRating}>
-            <SelectTrigger id="review-rating" className="w-[130px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RATINGS.map((value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {value} / 10
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field data-invalid={error ? true : undefined}>
-          <FieldLabel htmlFor="review-body">{t("reviews.bodyLabel")}</FieldLabel>
-          <Textarea
-            id="review-body"
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder={t("reviews.bodyPlaceholder")}
-            rows={4}
-            aria-invalid={error ? true : undefined}
-          />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </Field>
-      </FieldGroup>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">
+          {existing ? t("reviews.edit") : t("reviews.write")}
+        </p>
+        <Select value={rating} onValueChange={setRating}>
+          <SelectTrigger id="review-rating" className="h-8 w-[92px] text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RATINGS.map((value) => (
+              <SelectItem key={value} value={String(value)}>
+                {value} / 10
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <Field data-invalid={error ? true : undefined}>
+        <Textarea
+          id="review-body"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder={t("reviews.bodyPlaceholder")}
+          rows={2}
+          className="resize-y"
+          aria-invalid={error ? true : undefined}
+        />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </Field>
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={upsert.isPending}>
+        <Button type="submit" size="sm" disabled={upsert.isPending}>
           {existing ? t("reviews.update") : t("reviews.submit")}
         </Button>
         {existing && (
           <Button
             type="button"
             variant="ghost"
+            size="sm"
             disabled={remove.isPending}
-            onClick={() =>
-              remove.mutate(undefined, {
-                onSuccess: () => toast.success(t("reviews.deleted")),
-              })
-            }
+            onClick={() => setConfirmDelete(true)}
           >
             {t("reviews.delete")}
           </Button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t("reviews.confirmDeleteTitle")}
+        description={t("reviews.confirmDeleteBody")}
+        pending={remove.isPending}
+        onConfirm={() =>
+          remove.mutate(undefined, {
+            onSuccess: () => toast.success(t("reviews.deleted")),
+          })
+        }
+      />
     </form>
   );
 }

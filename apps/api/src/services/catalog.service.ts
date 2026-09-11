@@ -15,6 +15,7 @@ import {
   toAnimeDetail as shikiToDetail,
   toAnimeSummary as shikiToSummary,
   toCharacters as shikiToCharacters,
+  toCharacterDetail as shikiToCharacterDetail,
   toGenreList as shikiToGenres,
 } from "@animeshadow/shikimori";
 import {
@@ -23,6 +24,7 @@ import {
   type AnimeQuery,
   type AnimeSummary,
   type Character,
+  type CharacterDetail,
   DEFAULT_LOCALE,
   type DiscoverResponse,
   type Genre,
@@ -35,6 +37,7 @@ import { TtlCache } from "../lib/cache.js";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
 import { NotFoundError, UpstreamUnavailableError } from "../lib/errors.js";
 import type { TranslationService } from "./translation.service.js";
+import type { Translator } from "./translator.js";
 
 interface CatalogLogger {
   warn: (obj: unknown, msg?: string) => void;
@@ -48,6 +51,7 @@ export interface CatalogServiceDeps {
   cacheTtlSeconds: number;
   logger: CatalogLogger;
   translation: TranslationService;
+  translator: Translator;
 }
 
 const CURRENT_SEASON = (() => {
@@ -92,6 +96,7 @@ export class CatalogService {
   private readonly ttlMs: number;
   private readonly logger: CatalogLogger;
   private readonly translation: TranslationService;
+  private readonly translator: Translator;
 
   private readonly discoverCache = new TtlCache<DiscoverResponse>(10 * 60_000, 4);
   private readonly auxCache = new TtlCache<unknown>(60 * 60_000, 256);
@@ -109,6 +114,7 @@ export class CatalogService {
     this.ttlMs = deps.cacheTtlSeconds * 1000;
     this.logger = deps.logger;
     this.translation = deps.translation;
+    this.translator = deps.translator;
   }
 
   // -- Discover ---------------------------------------------------------
@@ -310,15 +316,23 @@ export class CatalogService {
         : summaries;
       const hasNextPage = list.length === query.perPage;
 
+      // A rolling "one page ahead" guess made the pager claim the catalogue
+      // ended after a couple of pages. The local cache knows how many titles
+      // actually match, so use that as the floor for the real total.
+      const cachedTotal = await this.prisma.anime
+        .count({ where: this.buildWhere(query) })
+        .catch(() => 0);
+      const seenSoFar =
+        (query.page - 1) * query.perPage +
+        items.length +
+        (hasNextPage ? query.perPage : 0);
+
       return {
         items,
         meta: {
           page: query.page,
           perPage: query.perPage,
-          total:
-            (query.page - 1) * query.perPage +
-            items.length +
-            (hasNextPage ? query.perPage : 0),
+          total: Math.max(cachedTotal, seenSoFar),
           hasNextPage,
         },
       };
@@ -501,6 +515,42 @@ export class CatalogService {
         return [];
       }
     }) as Promise<Character[]>;
+  }
+
+  /** Full bio for the character modal — image + description, translated on request. */
+  async getCharacterDetail(id: number, lang: Locale = DEFAULT_LOCALE): Promise<CharacterDetail | null> {
+    const base = await this.auxCache.wrap(`character:${id}`, async () => {
+      try {
+        return shikiToCharacterDetail(await this.shikimori.getCharacter(id));
+      } catch (error) {
+        this.logger.warn({ error, id }, "character detail fetch failed");
+        return null;
+      }
+    }) as CharacterDetail | null;
+
+    if (!base || lang === "ru") return base;
+    if (!base.description && base.facts.length === 0) return base;
+
+    return this.auxCache.wrap(`character:${id}:en`, async () => {
+      const [translatedBio, translatedFacts] = await Promise.all([
+        base.description
+          ? this.translator.translate(base.description, "ru", "en").catch(() => null)
+          : Promise.resolve(null),
+        Promise.all(
+          base.facts.map((fact) =>
+            this.translator.translate(fact, "ru", "en").catch(() => null),
+          ),
+        ),
+      ]);
+      const facts = base.facts.map((fact, i) => translatedFacts[i] ?? fact);
+      const bioOk = !base.description || translatedBio != null;
+      return {
+        ...base,
+        description: translatedBio ?? base.description,
+        facts,
+        translated: bioOk,
+      };
+    }) as Promise<CharacterDetail>;
   }
 
   async getRecommendations(id: number): Promise<RecommendationItem[]> {

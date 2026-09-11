@@ -5,10 +5,11 @@ import {
   type AnimeSummary,
   type AnimeType,
   type Character,
+  type CharacterDetail,
   type Genre,
   slugify,
 } from "@animeshadow/shared";
-import { stripShikimoriMarkup } from "./markup.js";
+import { splitCharacterFacts, stripShikimoriMarkup } from "./markup.js";
 import type {
   ShikiAnimeFull,
   ShikiAnimeShort,
@@ -158,6 +159,7 @@ export function toAnimeSummary(anime: ShikiAnimeShort | ShikiAnimeFull): AnimeSu
     airedFrom: toIso(anime.aired_on),
     titleLocalized: anime.russian ?? null,
     hasPlayer: null,
+    rating: full ? mapRating(full.rating) : null,
   };
 }
 
@@ -193,9 +195,19 @@ export function toAnimeDetail(anime: ShikiAnimeFull): AnimeDetail {
 }
 
 export function toGenreList(genres: ShikiGenre[]): Genre[] {
+  // Shikimori has separate Anime/Manga catalogs and some genres exist twice
+  // under the same name with different ids (Ecchi = 9 for anime, 51 for
+  // manga). We're an anime site — an anime-typed id always wins the dedup,
+  // otherwise `genre=<id>` on the anime list endpoint silently matches
+  // nothing. Themes/demographics carry no entry_type at all; keep those too.
+  const ordered = [...genres].sort((a, b) => {
+    const aAnime = a.entry_type == null || a.entry_type === "Anime" ? 0 : 1;
+    const bAnime = b.entry_type == null || b.entry_type === "Anime" ? 0 : 1;
+    return aAnime - bAnime;
+  });
   const seen = new Set<string>();
   const out: Genre[] = [];
-  for (const g of genres) {
+  for (const g of ordered) {
     const name = g.russian || g.name;
     if (seen.has(name)) continue;
     seen.add(name);
@@ -226,6 +238,27 @@ export function toCharacters(roles: ShikiRole[]): Character[] {
     })
     .sort((a, b) => rolePriority(a.role) - rolePriority(b.role))
     .slice(0, 24);
+}
+
+export function toCharacterDetail(raw: {
+  id: number;
+  name: string;
+  russian: string | null;
+  japanese?: string | null;
+  image?: { original?: string | null; preview?: string | null } | null;
+  description?: string | null;
+}): CharacterDetail {
+  const { bio, facts } = splitCharacterFacts(raw.description);
+  return {
+    id: raw.id,
+    name: raw.russian || raw.name,
+    japaneseName: raw.japanese ?? null,
+    imageUrl: imageUrl(raw.image?.preview ?? raw.image?.original),
+    imageLargeUrl: imageUrl(raw.image?.original ?? raw.image?.preview),
+    description: bio,
+    facts,
+    translated: true, // Shikimori descriptions are already Russian
+  };
 }
 
 function rolePriority(role: string): number {

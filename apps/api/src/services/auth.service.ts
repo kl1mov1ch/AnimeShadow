@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient, type User } from "@animeshadow/db";
 import type {
   LoginInput,
@@ -6,6 +7,11 @@ import type {
 } from "@animeshadow/shared";
 import bcrypt from "bcryptjs";
 import { ConflictError, UnauthorizedError } from "../lib/errors.js";
+
+/** A distinct, cute character-style default avatar for every new account (until they upload their own). */
+function defaultAvatarUrl(): string {
+  return `https://api.dicebear.com/9.x/adventurer/svg?seed=${randomUUID()}&radius=50&backgroundType=gradientLinear`;
+}
 
 const BCRYPT_ROUNDS = 12;
 
@@ -23,6 +29,7 @@ export class AuthService {
           email: input.email,
           displayName: input.displayName,
           passwordHash,
+          avatarUrl: defaultAvatarUrl(),
           // Open-testing mode: new accounts get PRO on by default, but they
           // can switch it off in Settings to see the free experience.
           ...(this.proForAll ? { proSince: new Date() } : {}),
@@ -67,6 +74,7 @@ function toPublicUser(user: User): PublicUser {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
     createdAt: user.createdAt.toISOString(),
   };
 }

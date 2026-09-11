@@ -317,6 +317,21 @@
   }
 }
 
+/* 404 page: the 影 between the two digits drifts gently. */
+@keyframes lost-glyph-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-4deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .not-found-glyph {
+    animation: none !important;
+  }
+}
+
 @keyframes reveal-up {
   from {
     opacity: 0;
@@ -369,12 +384,16 @@
   background-image: var(--ambient-image);
   background-size: cover;
   background-position: center;
-  filter: blur(72px) saturate(1.7);
-  opacity: 0.2;
+  /* Colourful, not a grey haze — but on the light theme the surface underneath
+     is already near-white, so brightening there just blows the hero out.
+     Saturate on both, lift brightness only in the dark theme. */
+  filter: blur(72px) saturate(1.9);
+  opacity: 0.22;
   transform: scale(1.12);
 }
 .dark .ambient-backdrop__layer {
-  opacity: 0.26;
+  filter: blur(72px) saturate(2.2) brightness(1.12);
+  opacity: 0.46;
 }
 @media (prefers-reduced-motion: no-preference) {
   .ambient-backdrop__layer {
@@ -399,7 +418,7 @@
 @media (max-width: 640px) {
   .ambient-backdrop__layer {
     animation: none !important;
-    filter: blur(44px) saturate(1.5);
+    filter: blur(44px) saturate(1.8);
     transform: none;
     inset: -4%;
   }
@@ -429,36 +448,79 @@
   z-index: -9;
   pointer-events: none;
   background: rgb(var(--ambient-rgb, 120 120 140));
-  opacity: 0.1;
+  opacity: calc(0.2 * var(--ambient-boost, 1));
   mix-blend-mode: soft-light;
 }
 .dark .ambient-tint {
-  opacity: 0.14;
+  opacity: calc(0.3 * var(--ambient-boost, 1));
 }
 .ambient-orb {
   position: fixed;
   z-index: -9;
   pointer-events: none;
-  width: 45vmax;
-  height: 45vmax;
-  border-radius: 999px;
-  filter: blur(90px);
-  opacity: 0.16;
+  width: var(--orb-size, 48vmax);
+  height: var(--orb-size, 48vmax);
+  border-radius: var(--orb-radius, 999px);
+  filter: blur(var(--orb-blur, 80px)) saturate(var(--orb-saturate, 1.5));
+  opacity: calc(0.3 * var(--ambient-boost, 1));
   background: radial-gradient(
     circle at center,
     rgb(var(--ambient-rgb, 120 120 140)) 0%,
-    transparent 70%
+    rgb(var(--ambient-rgb, 120 120 140) / 0.45) 42%,
+    transparent 72%
   );
 }
 .ambient-orb--a {
   top: -10vmax;
   left: -8vmax;
-  animation: orb-drift-a 26s ease-in-out infinite alternate;
+  animation: orb-drift-a var(--orb-speed, 26s) ease-in-out infinite alternate;
 }
 .ambient-orb--b {
   bottom: -12vmax;
   right: -10vmax;
-  animation: orb-drift-b 32s ease-in-out infinite alternate;
+  animation: orb-drift-b calc(var(--orb-speed, 26s) * 1.25) ease-in-out infinite
+    alternate;
+}
+
+/* Per-genre character: each title's backdrop moves and sits differently.
+   Set from the anime's own genres (see ambientMood in anime-detail.tsx). */
+[data-mood="action"] {
+  --ambient-boost: 1.25;
+  --orb-speed: 14s;
+  --orb-blur: 62px;
+  --orb-size: 42vmax;
+  --orb-saturate: 1.9;
+  --orb-radius: 42% 58% 46% 54% / 52% 44% 56% 48%;
+}
+[data-mood="dark"] {
+  --ambient-boost: 0.85;
+  --orb-speed: 40s;
+  --orb-blur: 110px;
+  --orb-size: 55vmax;
+  --orb-saturate: 0.8;
+}
+[data-mood="romance"] {
+  --ambient-boost: 1.1;
+  --orb-speed: 34s;
+  --orb-blur: 95px;
+  --orb-size: 50vmax;
+  --orb-saturate: 1.6;
+}
+[data-mood="fantasy"] {
+  --ambient-boost: 1.2;
+  --orb-speed: 24s;
+  --orb-blur: 85px;
+  --orb-size: 56vmax;
+  --orb-saturate: 1.8;
+  --orb-radius: 58% 42% 55% 45% / 44% 56% 44% 56%;
+}
+[data-mood="tech"] {
+  --ambient-boost: 1.15;
+  --orb-speed: 18s;
+  --orb-blur: 70px;
+  --orb-size: 46vmax;
+  --orb-saturate: 1.7;
+  --orb-radius: 28%;
 }
 @keyframes orb-drift-a {
   to {

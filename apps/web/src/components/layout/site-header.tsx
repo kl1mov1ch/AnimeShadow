@@ -1,16 +1,15 @@
 import {
   BookmarkIcon,
   CompassIcon,
-  InfoIcon,
   LanguagesIcon,
   LayoutGridIcon,
   LogOutIcon,
   MenuIcon,
   MoonStarIcon,
   ShuffleIcon,
-  SparklesIcon,
   SunIcon,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useNavigate } from "react-router-dom";
@@ -18,7 +17,7 @@ import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { SearchBox } from "@/components/layout/search-box";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -32,6 +31,7 @@ import { LOCALE_LABELS, LOCALES, type Locale } from "@animeshadow/shared";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
 import { apiRequest } from "@/lib/api";
+import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 function navClass({ isActive }: { isActive: boolean }): string {
@@ -57,19 +57,24 @@ function Wordmark() {
 
 export function SiteHeader() {
   const { t } = useI18n();
+  const { status } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const nav = [
     { to: "/", label: t("nav.discover"), end: true, Icon: CompassIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
-    { to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon },
-    { to: "/about", label: t("footer.about"), end: false, Icon: InfoIcon },
-    { to: "/support", label: t("footer.pro"), end: false, Icon: SparklesIcon },
+    ...(status === "authenticated"
+      ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
+      : []),
   ];
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:gap-5">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      />
+      <div className="reveal-group mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:gap-5">
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
           <SheetTrigger asChild>
             <Button
@@ -87,17 +92,24 @@ export function SiteHeader() {
           />
         </Sheet>
 
-        <Wordmark />
+        <div className="reveal" style={{ "--i": 0 } as CSSProperties}>
+          <Wordmark />
+        </div>
 
         <nav className="hidden items-center gap-5 md:flex lg:gap-6">
-          {nav.map((item) => (
+          {nav.map((item, i) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               className={navClass}
             >
-              <span className="whitespace-nowrap">{item.label}</span>
+              <span
+                className="reveal inline-block whitespace-nowrap"
+                style={{ "--i": i + 1 } as CSSProperties}
+              >
+                {item.label}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -164,11 +176,12 @@ function MobileMenu({
       <div className="p-3">
         {authed ? (
           <Link
-            to="/library"
+            to="/profile"
             onClick={onNavigate}
             className="flex items-center gap-3 rounded-xl bg-accent/50 p-3 transition-colors hover:bg-accent"
           >
             <Avatar className="size-10">
+              {user.avatarUrl && <AvatarImage src={imageSrc(user.avatarUrl)} alt="" />}
               <AvatarFallback className="text-sm font-semibold">
                 {user.displayName.slice(0, 2).toUpperCase()}
               </AvatarFallback>

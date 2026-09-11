@@ -23,6 +23,72 @@ export interface WatchServiceDeps {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const RECHECK_MS = 3 * 24 * 60 * 60_000;
 const MAX_ALLOHA_DUBS = 6;
+const PROBE_TIMEOUT_MS = 5_000;
+const PROBE_CONCURRENCY = 4;
+
+/** Dub studios that have historically been the least flaky — a nudge, not a gate. */
+const TRUSTED_STUDIOS =
+  /anilibria|animevost|shiza|studio.?band|dreamcast|anidub|jam.?club|kodik/i;
+
+/**
+ * How good a source is as the *default* pick. Verified-reachable beats
+ * everything; after that prefer Kodik (best anime coverage), a real dub over
+ * subs, fuller episode lists, and studios that tend to stay up.
+ */
+function rankSource(s: WatchSource): number {
+  let score = 0;
+  if (s.stable === true) score += 1000;
+  else if (s.stable === false) score -= 1000;
+
+  const provider = s.id.split(":")[0] ?? "";
+  if (provider === "kodik") score += 100;
+  else if (provider === "alloha") score += 50;
+  else score += 10;
+
+  if (s.kind === "voice") score += 30;
+  else if (s.kind === "subtitles") score += 15;
+
+  if (TRUSTED_STUDIOS.test(s.title)) score += 25;
+  score += Math.min(s.episodesCount ?? 0, 50);
+  return score;
+}
+
+function sortByStability(sources: WatchSource[]): WatchSource[] {
+  return [...sources].sort((a, b) => rankSource(b) - rankSource(a));
+}
+
+/**
+ * Split a source id into its stored composite key. Kodik hands us bare
+ * translation ids ("609"), everything else is already "provider:key" — both
+ * the row writer and the stability probe must agree on this or they address
+ * different rows.
+ */
+function keyOf(id: string): { provider: string; sourceKey: string } {
+  if (!id.includes(":")) return { provider: "kodik", sourceKey: id };
+  const [provider, ...rest] = id.split(":");
+  return { provider: provider || "kodik", sourceKey: rest.join(":") || id };
+}
+
+/**
+ * Is this embed actually reachable right now? Providers rotate/retire mirrors
+ * constantly, so a stored URL is no guarantee. We only look at the status —
+ * the body is never read.
+ */
+async function probeEmbed(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      headers: { "user-agent": "Mozilla/5.0 (AnimeShadow player check)" },
+    });
+    // Drain nothing; just release the socket.
+    void response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Resolves playable sources for an anime across providers — Kodik first (best
@@ -103,19 +169,59 @@ export class WatchService {
       orderBy: { position: "asc" },
     });
     if (rows.length === 0) return null;
+    const sources: WatchSource[] = rows.map((r) => ({
+      id: `${r.provider}:${r.sourceKey}`,
+      title: r.title,
+      kind: r.kind as WatchSource["kind"],
+      embedUrl: r.embedUrl,
+      quality: r.quality,
+      episodesCount: r.episodesCount,
+      stable: r.stable,
+    }));
+
+    // Never probed (or gone stale)? Check in the background so the next open
+    // gets a verified pick; this response still goes out immediately.
+    if (rows.some((r) => r.stable == null || r.stableAt == null)) {
+      void this.probeAndPersist(malId, sources).catch(() => undefined);
+    }
+
     return {
       available: true,
       reason: "ok",
       provider: availability.provider ?? "kodik",
-      sources: rows.map((r) => ({
-        id: `${r.provider}:${r.sourceKey}`,
-        title: r.title,
-        kind: r.kind as WatchSource["kind"],
-        embedUrl: r.embedUrl,
-        quality: r.quality,
-        episodesCount: r.episodesCount,
-      })),
+      sources: sortByStability(sources),
     };
+  }
+
+  /** Probe each embed and store the verdict so ranking improves over time. */
+  private async probeAndPersist(
+    malId: number,
+    sources: WatchSource[],
+  ): Promise<void> {
+    const queue = [...sources];
+    const checkedAt = new Date();
+
+    const worker = async () => {
+      for (;;) {
+        const source = queue.shift();
+        if (!source) return;
+        const ok = await probeEmbed(source.embedUrl);
+        source.stable = ok;
+        const { provider, sourceKey } = keyOf(source.id);
+        // updateMany: a row may legitimately be gone (re-resolved meanwhile),
+        // and a missing row must not blow up the probe pass.
+        await this.prisma.playerSource
+          .updateMany({
+            where: { animeId: malId, provider, sourceKey },
+            data: { stable: ok, stableAt: checkedAt },
+          })
+          .catch(() => undefined);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(PROBE_CONCURRENCY, sources.length) }, worker),
+    );
   }
 
   private async resolveAndPersist(
@@ -169,6 +275,7 @@ export class WatchService {
                 embedUrl: iframe,
                 quality: result.quality,
                 episodesCount: null,
+                stable: null,
               });
             }
           } else {
@@ -179,6 +286,7 @@ export class WatchService {
               embedUrl: result.iframe,
               quality: result.quality,
               episodesCount: null,
+              stable: null,
             });
           }
           provider = provider ?? "alloha";
@@ -197,6 +305,7 @@ export class WatchService {
         embedUrl: this.embedTemplate.replace(/\{mal_?id\}/gi, String(malId)),
         quality: null,
         episodesCount: null,
+        stable: null,
       });
       provider = "custom";
     }
@@ -206,7 +315,13 @@ export class WatchService {
     if (sources.length === 0) {
       return { available: false, reason: "not_found", provider: null, sources: [] };
     }
-    return { available: true, reason: "ok", provider, sources };
+
+    // The warm pass can afford to wait for verdicts; a live request can't, so
+    // it ships the static ranking now and improves on the next open.
+    if (quiet) await this.probeAndPersist(malId, sources).catch(() => undefined);
+    else void this.probeAndPersist(malId, sources).catch(() => undefined);
+
+    return { available: true, reason: "ok", provider, sources: sortByStability(sources) };
   }
 
   private async persist(
@@ -251,19 +366,18 @@ export class WatchService {
       this.prisma.playerSource.deleteMany({ where: { animeId: malId } }),
       this.prisma.playerSource.createMany({
         data: sources.map((s, index) => {
-          const [prov, ...rest] = s.id.includes(":")
-            ? s.id.split(":")
-            : ["kodik", s.id];
+          const { provider: prov, sourceKey } = keyOf(s.id);
           return {
             animeId: malId,
-            provider: prov ?? "kodik",
-            sourceKey: rest.join(":") || s.id,
+            provider: prov,
+            sourceKey,
             title: s.title,
             kind: s.kind,
             embedUrl: s.embedUrl,
             quality: s.quality,
             episodesCount: s.episodesCount,
             position: index,
+            stable: s.stable,
           };
         }),
         skipDuplicates: true,

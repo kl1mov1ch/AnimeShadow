@@ -31,6 +31,8 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => void;
+  /** Patch the cached user (e.g. after an avatar/name change) without a full re-login. */
+  updateUser: (patch: Partial<PublicUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -65,6 +67,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     writeSession(session);
     setUser(session.user);
     setStatus("authenticated");
+  }, []);
+
+  const updateUser = useCallback((patch: Partial<PublicUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      const session = readSession();
+      if (session) writeSession({ ...session, user: next });
+      return next;
+    });
   }, []);
 
   const clearSession = useCallback(() => {
@@ -114,8 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, login, register, logout: clearSession }),
-    [status, user, login, register, clearSession],
+    () => ({ status, user, login, register, logout: clearSession, updateUser }),
+    [status, user, login, register, clearSession, updateUser],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
@@ -127,6 +139,7 @@ const FALLBACK_AUTH: AuthContextValue = {
   login: async () => {},
   register: async () => {},
   logout: () => {},
+  updateUser: () => {},
 };
 
 export function useAuth(): AuthContextValue {

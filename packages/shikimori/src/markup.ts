@@ -22,3 +22,31 @@ export function stripShikimoriMarkup(input: string | null | undefined): string |
 
   return text.trim() || null;
 }
+
+/**
+ * Shikimori editors tag genuinely-interesting trivia (backstory reveals,
+ * little-known details) inside `[spoiler]...[/spoiler]` — pull those out as
+ * distinct "facts" instead of leaving them flattened into one wall of text.
+ * Must run on the *raw* markup before `stripShikimoriMarkup`, which only
+ * strips the tag itself and leaves the spoiler's text in place.
+ */
+export function splitCharacterFacts(
+  input: string | null | undefined,
+): { bio: string | null; facts: string[] } {
+  if (!input) return { bio: null, facts: [] };
+
+  const facts: string[] = [];
+  const bioRaw = input.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner: string) => {
+    // A spoiler block can itself contain several sentences — keep it as one
+    // fact if short, otherwise split on sentence boundaries.
+    const cleaned = stripShikimoriMarkup(inner)?.trim();
+    if (!cleaned) return "";
+    for (const part of cleaned.split(/(?<=[.!?])\s+(?=[А-ЯA-Z])/)) {
+      const trimmed = part.trim();
+      if (trimmed) facts.push(trimmed);
+    }
+    return "";
+  });
+
+  return { bio: stripShikimoriMarkup(bioRaw), facts };
+}

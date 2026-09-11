@@ -92,6 +92,9 @@ export class ShikimoriClient {
     id: number;
     name: string;
     russian: string | null;
+    japanese?: string | null;
+    image?: { original?: string | null; preview?: string | null } | null;
+    description?: string | null;
     animes?: ShikiAnimeShort[];
   }> {
     return this.get(`/api/characters/${id}`);

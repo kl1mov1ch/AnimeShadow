@@ -91,6 +91,7 @@ export function toAnimeSummary(raw: JikanAnime): AnimeSummary {
     airedFrom: raw.aired?.from ?? null,
     titleLocalized: null,
     hasPlayer: null,
+    rating: raw.rating ?? null,
   };
 }
 

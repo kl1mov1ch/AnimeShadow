@@ -3,6 +3,7 @@ import { BookmarkPlusIcon, NotebookPenIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -17,6 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
@@ -43,6 +49,7 @@ export function LibraryControls({ animeId, title }: LibraryControlsProps) {
   const { data: entries } = useLibrary(undefined, isAuthed);
   const upsert = useUpsertLibraryEntry();
   const remove = useRemoveLibraryEntry();
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const entry = entries?.find((item) => item.anime.id === animeId);
 
@@ -161,16 +168,29 @@ export function LibraryControls({ animeId, title }: LibraryControlsProps) {
       {entry && <NotesButton note={entry.notes} onSave={handleNotes} busy={busy} />}
 
       {entry && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRemove}
-          disabled={busy}
-          aria-label={t("library.removeFromLibrary", { title })}
-        >
-          <Trash2Icon />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setConfirmRemove(true)}
+              disabled={busy}
+              aria-label={t("library.removeFromLibrary", { title })}
+            >
+              <Trash2Icon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("library.removeFromLibrary", { title })}</TooltipContent>
+        </Tooltip>
       )}
+
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title={t("library.confirmRemoveTitle", { title })}
+        pending={remove.isPending}
+        onConfirm={handleRemove}
+      />
     </div>
   );
 }

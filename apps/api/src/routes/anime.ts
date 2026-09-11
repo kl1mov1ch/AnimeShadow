@@ -50,6 +50,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     return { items: await catalog.getCharacters(id) };
   });
 
+  fastify.get("/characters/:id", async (request) => {
+    const { id } = parse(idParams, request.params);
+    const { lang } = parse(localeQuerySchema, request.query);
+    const detail = await catalog.getCharacterDetail(id, lang);
+    if (!detail) throw new NotFoundError("Персонаж не найден.");
+    return detail;
+  });
+
   fastify.get("/anime/:id/recommendations", async (request) => {
     const { id } = parse(idParams, request.params);
     return { items: await catalog.getRecommendations(id) };

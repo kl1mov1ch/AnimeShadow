@@ -54,6 +54,13 @@ export class ProfileService {
   }
 
   async update(userId: string, input: UpdateProfileInput): Promise<MyProfile> {
+    if (input.showcaseAchievementId !== undefined && input.showcaseAchievementId !== null) {
+      const earned = await this.achievements.list(userId);
+      const ok = earned.some(
+        (a) => a.id === input.showcaseAchievementId && a.earned,
+      );
+      if (!ok) throw new BadRequestError("Эта ачивка вам недоступна.");
+    }
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -61,6 +68,9 @@ export class ProfileService {
         ...(input.onlineStatus ? { onlineStatus: input.onlineStatus } : {}),
         ...(input.accentColor !== undefined
           ? { accentColor: input.accentColor }
+          : {}),
+        ...(input.showcaseAchievementId !== undefined
+          ? { showcaseAchievementId: input.showcaseAchievementId }
           : {}),
       },
     });
@@ -179,6 +189,11 @@ export class ProfileService {
       memberSince: user.createdAt.toISOString(),
       stats,
       achievements,
+      showcaseAchievementId: achievements.some(
+        (a) => a.id === user.showcaseAchievementId && a.earned,
+      )
+        ? user.showcaseAchievementId
+        : null,
     };
   }
 

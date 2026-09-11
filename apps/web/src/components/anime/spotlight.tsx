@@ -107,7 +107,9 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         </div>
 
         {/* --- legibility gradient --- */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/80 to-card/30 sm:bg-gradient-to-r sm:via-card/60 sm:to-transparent" />
+        {/* Readability scrim. Kept low on the bright end so the artwork never
+            washes out to a white glare on the light theme. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/55 to-transparent sm:bg-gradient-to-r sm:via-card/35 sm:to-transparent" />
 
         {/* --- content --- */}
         <SlideContent key={anime.id} anime={anime} />

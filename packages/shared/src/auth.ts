@@ -26,6 +26,7 @@ export const publicUserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   displayName: z.string(),
+  avatarUrl: z.string().nullable().default(null),
   createdAt: z.string(),
 });
 export type PublicUser = z.infer<typeof publicUserSchema>;

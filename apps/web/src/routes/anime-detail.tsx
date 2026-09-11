@@ -1,9 +1,10 @@
-import type { AnimeDetail } from "@animeshadow/shared";
+import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
+import { CharacterModal } from "@/components/anime/character-modal";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { LibraryControls } from "@/components/anime/library-controls";
@@ -13,6 +14,7 @@ import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
 import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
@@ -20,6 +22,7 @@ import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useAnime, useCharacters, useSimilarAnime } from "@/lib/query";
+import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
 import { useImagePalette } from "@/hooks/use-image-palette";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
@@ -41,6 +44,7 @@ function AnimeDetailView({ param }: { param: string }) {
   const t = useT();
   const labels = useLabels();
   const { data, isPending, isError, error, refetch } = useAnime(param);
+  const [adultConfirmed, confirmAdult] = useAdultConfirmed();
 
   const seoTitle = data ? labels.title(data) : "AnimeShadow";
   useDocumentHead(
@@ -96,6 +100,10 @@ function AnimeDetailView({ param }: { param: string }) {
     );
   }
 
+  if (isAdultRating(data.rating) && !adultConfirmed) {
+    return <AdultContentGate title={data.titleLocalized ?? data.title} onConfirm={confirmAdult} />;
+  }
+
   const title = labels.title(data);
   const backdrop = imageSrc(data.imageLargeUrl ?? data.imageUrl);
   const poster = imageSrc(data.imageLargeUrl ?? data.imageUrl);
@@ -112,7 +120,7 @@ function AnimeDetailView({ param }: { param: string }) {
 
   return (
     <article className="relative flex flex-col gap-6">
-      <AmbientBackdrop src={backdrop} />
+      <AmbientBackdrop src={backdrop} genres={data.genres} />
 
       {/* Banner — sits directly on the ambient wash, no frame */}
       <header className="flex flex-col gap-3">
@@ -222,8 +230,35 @@ function AnimeDetailView({ param }: { param: string }) {
 
 /* ---------------- pieces ---------------- */
 
-function AmbientBackdrop({ src }: { src: string | undefined }) {
+/**
+ * Maps a title's genres onto one of a few ambient "moods", which CSS turns into
+ * a different backdrop character per anime — tighter and faster for action,
+ * soft and slow for romance, and so on. Purely cosmetic; falls back to calm.
+ */
+function ambientMood(genres: string[]): string {
+  const joined = genres.join(" ").toLowerCase();
+  if (/ужас|триллер|психолог|horror|thriller|psycholog|seinen|детектив/.test(joined))
+    return "dark";
+  if (/экшен|сражения|боевы|сёнен|спорт|action|shounen|sports|martial/.test(joined))
+    return "action";
+  if (/романтика|повседнев|сёдзё|romance|slice|shoujo|музыка|music/.test(joined))
+    return "romance";
+  if (/фэнтези|магия|приключения|изекай|fantasy|magic|adventure|isekai|mytholog/.test(joined))
+    return "fantasy";
+  if (/фантастика|меха|космос|sci-?fi|mecha|space|киберпанк|cyber/.test(joined))
+    return "tech";
+  return "calm";
+}
+
+function AmbientBackdrop({
+  src,
+  genres,
+}: {
+  src: string | undefined;
+  genres: string[];
+}) {
   const palette = useImagePalette(src);
+  const mood = ambientMood(genres);
   if (!src) return null;
   const tintVars = palette
     ? ({ "--ambient-rgb": palette.rgb } as CSSProperties)
@@ -238,9 +273,19 @@ function AmbientBackdrop({ src }: { src: string | undefined }) {
       </div>
       {palette && (
         <>
-          <div className="ambient-tint" style={tintVars} aria-hidden />
-          <span className="ambient-orb ambient-orb--a" style={tintVars} aria-hidden />
-          <span className="ambient-orb ambient-orb--b" style={tintVars} aria-hidden />
+          <div className="ambient-tint" style={tintVars} data-mood={mood} aria-hidden />
+          <span
+            className="ambient-orb ambient-orb--a"
+            style={tintVars}
+            data-mood={mood}
+            aria-hidden
+          />
+          <span
+            className="ambient-orb ambient-orb--b"
+            style={tintVars}
+            data-mood={mood}
+            aria-hidden
+          />
         </>
       )}
     </>
@@ -423,6 +468,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
   const t = useT();
   const { data, isPending } = useCharacters(animeId);
   const [expanded, setExpanded] = useState(false);
+  const [selected, setSelected] = useState<Character | null>(null);
 
   if (!isPending && (!data || data.length === 0)) return null;
 
@@ -456,9 +502,10 @@ function CharactersBlock({ animeId }: { animeId: number }) {
         <>
           <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-6">
             {visible.map((c) => (
-              <CharacterCard key={c.id} character={c} compact />
+              <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}
           </div>
+          <CharacterModal character={selected} onOpenChange={(open) => !open && setSelected(null)} />
           {hidden > 0 && (
             <button
               type="button"
@@ -511,6 +558,39 @@ function RelatedSection({ anime }: { anime: AnimeDetail }) {
             ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Interstitial for "Rx"-rated titles — everything about the page (poster,
+ * synopsis, player) stays out of the DOM until the viewer confirms, not just
+ * visually hidden behind it. Confirmation is remembered site-wide, so this
+ * only shows once.
+ */
+function AdultContentGate({
+  title,
+  onConfirm,
+}: {
+  title: string;
+  onConfirm: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+      <span className="rounded-md bg-rose-600 px-2.5 py-1 text-sm font-bold text-white">
+        18+
+      </span>
+      <h1 className="font-display text-xl">{t("detail.adultGate.title")}</h1>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        {t("detail.adultGate.body", { title })}
+      </p>
+      <div className="mt-2 flex gap-3">
+        <Button variant="outline" asChild>
+          <Link to="/">{t("detail.adultGate.leave")}</Link>
+        </Button>
+        <Button onClick={onConfirm}>{t("detail.adultGate.confirm")}</Button>
+      </div>
+    </div>
   );
 }
 

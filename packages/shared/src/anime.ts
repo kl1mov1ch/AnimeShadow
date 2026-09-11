@@ -38,13 +38,14 @@ export const animeSummarySchema = z.object({
   titleLocalized: z.string().nullable().default(null),
   /** true = an embed player has this title; false = confirmed none; null = unknown. */
   hasPlayer: z.boolean().nullable().default(null),
+  /** MAL-style content rating ("Rx" = hentai) — null until the title's been detail-synced. */
+  rating: z.string().nullable().default(null),
 });
 export type AnimeSummary = z.infer<typeof animeSummarySchema>;
 
 export const animeDetailSchema = animeSummarySchema.extend({
   background: z.string().nullable(),
   source: z.string().nullable(),
-  rating: z.string().nullable(),
   duration: z.string().nullable(),
   popularity: z.number().int().nullable(),
   favorites: z.number().int().nullable(),
@@ -73,6 +74,20 @@ export const characterSchema = z.object({
     .nullable(),
 });
 export type Character = z.infer<typeof characterSchema>;
+
+export const characterDetailSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  japaneseName: z.string().nullable(),
+  imageUrl: z.string().nullable(),
+  imageLargeUrl: z.string().nullable(),
+  description: z.string().nullable(),
+  /** Trivia/backstory reveals the source tags separately — shown as its own section. */
+  facts: z.array(z.string()).default([]),
+  /** True when `description` is already in the requested locale. */
+  translated: z.boolean().default(false),
+});
+export type CharacterDetail = z.infer<typeof characterDetailSchema>;
 
 /**
  * Browse / search query. Everything is optional; the API applies defaults.

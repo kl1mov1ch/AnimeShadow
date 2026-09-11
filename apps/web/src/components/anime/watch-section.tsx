@@ -2,17 +2,11 @@ import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/share
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
 import { useWatchSources } from "@/lib/query";
+import { cn } from "@/lib/utils";
 
 interface WatchSectionProps {
   anime: Pick<AnimeDetail, "id" | "airing" | "airedFrom">;
@@ -109,6 +103,9 @@ function Countdown({ target }: { target: Date }) {
 
 /* ---------- player ---------- */
 
+/** If the embed hasn't reported `load` by now, assume it's not coming up. */
+const STALL_MS = 9_000;
+
 function Player({
   data,
   title,
@@ -119,34 +116,82 @@ function Player({
   animeId: number;
 }) {
   const t = useT();
+  // Sources arrive ranked best-first (verified-reachable ones lead).
   const [selectedId, setSelectedId] = useState(data.sources[0]?.id ?? "");
+  const [showAll, setShowAll] = useState(false);
+  const [stalled, setStalled] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
   const current = useMemo(
     () => data.sources.find((s) => s.id === selectedId) ?? data.sources[0],
     [data.sources, selectedId],
   );
   useWatchSession({ animeId, episode: 1, active: true });
+
+  // Reset the stall watch whenever we switch embeds.
+  useEffect(() => {
+    setLoaded(false);
+    setStalled(false);
+    const timer = setTimeout(() => setStalled(true), STALL_MS);
+    return () => clearTimeout(timer);
+  }, [current?.embedUrl]);
+
   if (!current) return null;
 
+  const alternatives = data.sources.filter((s) => s.id !== current.id);
+  const pickerOpen = showAll || (stalled && !loaded);
+
+  const pick = (id: string) => {
+    setSelectedId(id);
+    setShowAll(false);
+  };
+
   return (
-    <div className="mx-auto flex w-full min-w-0 flex-col gap-3 sm:w-[88%]">
-      {data.sources.length > 1 && (
-        <div className="flex items-center gap-2">
-          <Select value={current.id} onValueChange={setSelectedId}>
-            <SelectTrigger
-              className="w-full max-w-xs"
-              aria-label={t("watch.voiceover")}
+    <div className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]">
+      {/* Current pick — one line, not a wall of options. */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="min-w-0 truncate font-medium">{current.title}</span>
+        <SourceKindBadge source={current} />
+        <StabilityMark stable={current.stable} />
+        {alternatives.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="ml-auto shrink-0 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+          >
+            {showAll ? t("common.cancel") : t("watch.notWorking")}
+          </button>
+        )}
+      </div>
+
+      {/* Only nudge the user to switch once the current embed actually stalls. */}
+      {stalled && !loaded && alternatives.length > 0 && (
+        <Alert>
+          <AlertDescription>{t("watch.stalledHint")}</AlertDescription>
+        </Alert>
+      )}
+
+      {pickerOpen && alternatives.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-lg border border-border/60 bg-card/40 p-1.5">
+          {data.sources.map((source) => (
+            <button
+              key={source.id}
+              type="button"
+              onClick={() => pick(source.id)}
+              aria-current={source.id === current.id}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                source.id === current.id
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+              )}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {data.sources.map((source) => (
-                <SelectItem key={source.id} value={source.id}>
-                  {sourceLabel(source, t)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <SourceKindBadge source={current} />
+              <span className="min-w-0 flex-1 truncate">
+                {sourceLabel(source, t)}
+              </span>
+              <StabilityMark stable={source.stable} />
+            </button>
+          ))}
         </div>
       )}
 
@@ -158,10 +203,37 @@ function Player({
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           allowFullScreen
           referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
           className="size-full"
         />
       </div>
     </div>
+  );
+}
+
+/** Server-side reachability verdict, so the user can tell picks apart at a glance. */
+function StabilityMark({ stable }: { stable: boolean | null }) {
+  const t = useT();
+  if (stable == null) return null;
+  return (
+    <span
+      title={stable ? t("watch.stableHint") : t("watch.unstableHint")}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+        stable
+          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+          : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-500",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "size-1.5 rounded-full",
+          stable ? "bg-emerald-500" : "bg-amber-500",
+        )}
+      />
+      {stable ? t("watch.stable") : t("watch.unstable")}
+    </span>
   );
 }
 

@@ -10,6 +10,8 @@ import {
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { AchievementBadge } from "@/components/achievement-badge";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -235,6 +237,11 @@ function CommentItem({
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment.body);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // Long walls of text stay clamped so a thread is skimmable.
+  const isLong = comment.body.length > 320 || comment.body.split("\n").length > 5;
 
   const isMine =
     comment.author.kind === "user" &&
@@ -290,6 +297,7 @@ function CommentItem({
               PRO
             </Badge>
           )}
+          <AchievementBadge id={comment.author.showcaseAchievementId} className="h-4 px-1 py-0" />
           <span className="text-muted-foreground">{when}</span>
           {comment.editedAt && (
             <span className="text-muted-foreground/70">· {t("comments.edited")}</span>
@@ -323,9 +331,25 @@ function CommentItem({
             </div>
           </div>
         ) : (
-          <p className="whitespace-pre-line text-sm text-foreground/90">
-            {comment.body}
-          </p>
+          <div className="flex flex-col items-start gap-0.5">
+            <p
+              className={cn(
+                "whitespace-pre-line text-sm text-foreground/90",
+                !expanded && isLong && "line-clamp-4",
+              )}
+            >
+              {comment.body}
+            </p>
+            {isLong && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              >
+                {expanded ? t("common.showLess") : t("common.showMore")}
+              </button>
+            )}
+          </div>
         )}
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -381,11 +405,7 @@ function CommentItem({
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  del.mutate(comment.id, {
-                    onSuccess: () => toast.success(t("comments.deleted")),
-                  })
-                }
+                onClick={() => setConfirmDelete(true)}
                 className="inline-flex items-center gap-1 hover:text-destructive"
               >
                 <Trash2Icon className="size-3.5" /> {t("comments.actions.delete")}
@@ -393,6 +413,19 @@ function CommentItem({
             </>
           )}
         </div>
+
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={t("comments.confirmDeleteTitle")}
+          description={t("comments.confirmDeleteBody")}
+          pending={del.isPending}
+          onConfirm={() =>
+            del.mutate(comment.id, {
+              onSuccess: () => toast.success(t("comments.deleted")),
+            })
+          }
+        />
 
         {replying && (
           <div className="mt-1">

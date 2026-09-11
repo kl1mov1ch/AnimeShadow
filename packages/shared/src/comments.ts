@@ -10,6 +10,7 @@ export const commentAuthorSchema = z.object({
   avatarUrl: z.string().nullable(),
   rank: z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]).nullable(),
   isPro: z.boolean(),
+  showcaseAchievementId: z.string().nullable(),
 });
 export type CommentAuthor = z.infer<typeof commentAuthorSchema>;
 

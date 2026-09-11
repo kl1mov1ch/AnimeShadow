@@ -22,6 +22,7 @@ const COMMENT_INCLUDE = {
       username: true,
       avatarUrl: true,
       proSince: true,
+      showcaseAchievementId: true,
     },
   },
 } satisfies Prisma.CommentInclude;
@@ -186,6 +187,7 @@ export class CommentService {
           avatarUrl: null,
           rank: null,
           isPro: false,
+          showcaseAchievementId: null,
         }
       : anon
         ? {
@@ -195,6 +197,7 @@ export class CommentService {
             avatarUrl: null,
             rank: null,
             isPro: false,
+            showcaseAchievementId: null,
           }
         : {
             kind: "user",
@@ -203,6 +206,7 @@ export class CommentService {
             avatarUrl: row.user.avatarUrl,
             rank: null,
             isPro: this.proForAll || row.user.proSince != null,
+            showcaseAchievementId: row.user.showcaseAchievementId,
           };
 
     return {

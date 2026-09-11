@@ -31,6 +31,7 @@ export const publicProfileSchema = z.object({
   memberSince: z.string(),
   stats: profileStatsSchema,
   achievements: z.array(earnedAchievementSchema),
+  showcaseAchievementId: z.string().nullable(),
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 
@@ -47,6 +48,7 @@ export const updateProfileInputSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/)
     .nullable()
     .optional(),
+  showcaseAchievementId: z.string().nullable().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>;
 

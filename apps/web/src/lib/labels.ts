@@ -4,7 +4,7 @@ import type {
   AnimeType,
 } from "@animeshadow/shared";
 import { useMemo } from "react";
-import { GENRE_RU } from "@/i18n/genres";
+import { localizeGenre } from "@/i18n/genres";
 import { useI18n } from "@/i18n";
 
 type TitleLike = Pick<AnimeSummary, "title" | "titleEnglish"> & {
@@ -25,8 +25,7 @@ export function useLabels() {
     const typeLabel = (type: AnimeType) => t(`type.${type}`);
     const airingLabel = (airing: AnimeAiring) => t(`airing.${airing}`);
     const statusLabel = (status: string) => t(`status.${status}`);
-    const genreLabel = (name: string) =>
-      locale === "ru" ? (GENRE_RU[name] ?? name) : name;
+    const genreLabel = (name: string) => localizeGenre(name, locale);
 
     const seasonYearLabel = (
       anime: Pick<AnimeSummary, "season" | "year">,
@@ -48,7 +47,9 @@ export function useLabels() {
     };
 
     const title = (anime: TitleLike): string =>
-      anime.titleLocalized?.trim() || anime.titleEnglish?.trim() || anime.title;
+      locale === "ru"
+        ? anime.titleLocalized?.trim() || anime.titleEnglish?.trim() || anime.title
+        : anime.titleEnglish?.trim() || anime.titleLocalized?.trim() || anime.title;
 
     return {
       locale,

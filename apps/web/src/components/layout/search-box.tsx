@@ -1,6 +1,6 @@
 import type { AnimeSummary, SearchGroup } from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ClockIcon, PlayIcon, SearchIcon, XIcon } from "lucide-react";
+import { ClockIcon, SearchIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -342,11 +342,6 @@ function ResultGroup({
                 .join(" · ")}
             </span>
           </span>
-          {anime.hasPlayer === true ? (
-            <PlayIcon className="size-3.5 shrink-0 fill-primary text-primary" />
-          ) : (
-            <ClockIcon className="size-3.5 shrink-0 text-muted-foreground/70" />
-          )}
         </CommandItem>
       ))}
     </CommandGroup>
