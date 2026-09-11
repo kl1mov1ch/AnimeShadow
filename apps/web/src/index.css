@@ -503,16 +503,40 @@
     transparent 72%
   );
 }
+/* Two animations per orb: the slow positional drift (existing), plus a
+   border-radius morph on its own, unsynced period — the mismatch between the
+   two loops is what keeps the shape reading as fluid smoke instead of an
+   obviously-looping blob. Both animate only transform/border-radius, so this
+   stays compositor-cheap — no canvas, no WebGL, no per-frame JS. */
 .ambient-orb--a {
   top: -10vmax;
   left: -8vmax;
-  animation: orb-drift-a var(--orb-speed, 26s) ease-in-out infinite alternate;
+  animation:
+    orb-drift-a var(--orb-speed, 26s) ease-in-out infinite alternate,
+    smoke-morph-a calc(var(--orb-speed, 26s) * 0.62) ease-in-out infinite alternate;
 }
 .ambient-orb--b {
   bottom: -12vmax;
   right: -10vmax;
-  animation: orb-drift-b calc(var(--orb-speed, 26s) * 1.25) ease-in-out infinite
-    alternate;
+  animation:
+    orb-drift-b calc(var(--orb-speed, 26s) * 1.25) ease-in-out infinite alternate,
+    smoke-morph-b calc(var(--orb-speed, 26s) * 0.85) ease-in-out infinite alternate;
+}
+/* Faint wisp layer — smaller, softer, faster — the "second smoke tone" that
+   trails the two main cores instead of a single flat glow. */
+.ambient-orb--c {
+  top: 20vmax;
+  left: 30vmax;
+  width: calc(var(--orb-size, 48vmax) * 0.55);
+  height: calc(var(--orb-size, 48vmax) * 0.55);
+  filter: blur(calc(var(--orb-blur, 80px) * 0.7)) saturate(var(--orb-saturate, 1.5));
+  opacity: calc(0.16 * var(--ambient-boost, 1));
+  animation:
+    orb-drift-a calc(var(--orb-speed, 26s) * 0.7) ease-in-out infinite alternate-reverse,
+    smoke-morph-a calc(var(--orb-speed, 26s) * 0.45) ease-in-out infinite alternate;
+}
+.dark .ambient-orb--c {
+  opacity: calc(0.22 * var(--ambient-boost, 1));
 }
 
 /* Per-genre character: each title's backdrop moves and sits differently.
@@ -565,11 +589,45 @@
     transform: translate3d(-5vmax, -6vmax, 0) scale(1.2);
   }
 }
+/* Organic blob-shape morphs — the "fluid smoke" curl. Pure border-radius
+   interpolation, no images/canvas; four uneven steps read as smoke rather
+   than a shape visibly cycling back to its start. */
+@keyframes smoke-morph-a {
+  0% {
+    border-radius: 42% 58% 46% 54% / 52% 44% 56% 48%;
+  }
+  28% {
+    border-radius: 58% 42% 38% 62% / 46% 60% 40% 54%;
+  }
+  62% {
+    border-radius: 46% 54% 62% 38% / 62% 38% 58% 42%;
+  }
+  100% {
+    border-radius: 54% 46% 44% 56% / 40% 56% 44% 60%;
+  }
+}
+@keyframes smoke-morph-b {
+  0% {
+    border-radius: 55% 45% 40% 60% / 48% 52% 48% 52%;
+  }
+  40% {
+    border-radius: 38% 62% 58% 42% / 60% 40% 55% 45%;
+  }
+  75% {
+    border-radius: 60% 40% 48% 52% / 44% 58% 42% 56%;
+  }
+  100% {
+    border-radius: 45% 55% 55% 45% / 55% 45% 50% 50%;
+  }
+}
 @media (max-width: 640px) {
   .ambient-orb {
     animation: none !important;
     filter: blur(60px);
     opacity: 0.1;
+  }
+  .ambient-orb--c {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -295,6 +295,12 @@ function AmbientBackdrop({
             data-mood={mood}
             aria-hidden
           />
+          <span
+            className="ambient-orb ambient-orb--c"
+            style={tintVars}
+            data-mood={mood}
+            aria-hidden
+          />
         </>
       )}
     </>
