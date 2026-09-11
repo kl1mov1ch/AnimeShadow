@@ -168,7 +168,7 @@ export function Component() {
   const total = summary?.total ?? 0;
 
   return (
-    <div className="reveal-group flex flex-col gap-6">
+    <div className="reveal-group flex flex-col gap-4">
       <PageHeader
         title={t("library.title")}
         description={
@@ -179,7 +179,7 @@ export function Component() {
       />
 
       {/* Status dashboard — clickable stat cards double as the filter. */}
-      <div className="reveal grid grid-cols-3 gap-2 sm:grid-cols-6">
+      <div className="reveal grid grid-cols-3 gap-1.5 sm:grid-cols-6">
         <StatCard
           label={t("common.all")}
           count={total}
@@ -199,14 +199,14 @@ export function Component() {
       </div>
 
       {/* Toolbar */}
-      <div className="reveal flex flex-wrap items-center gap-2">
+      <div className="reveal flex flex-wrap items-center gap-1.5">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
-          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("library.searchPlaceholder")}
-            className="h-9 w-full rounded-md border border-border bg-transparent pl-8 pr-8 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 w-full rounded-md border border-border/60 bg-transparent pl-7 pr-7 text-sm text-foreground/90 outline-none placeholder:text-muted-foreground/70 focus-visible:border-border focus-visible:ring-1 focus-visible:ring-ring"
           />
           {query && (
             <button
@@ -221,7 +221,10 @@ export function Component() {
         </div>
 
         <Select value={sortBy} onValueChange={(v) => changeSort(v as SortKey)}>
-          <SelectTrigger className="h-9 w-[150px]" aria-label={t("library.sortBy")}>
+          <SelectTrigger
+            className="h-8 w-[140px] border-border/60 text-sm"
+            aria-label={t("library.sortBy")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -237,13 +240,13 @@ export function Component() {
           value={view}
           onValueChange={(v) => changeView(v as ViewMode)}
           variant="outline"
-          className="ml-auto"
+          className="ml-auto h-8 [&>*]:h-8 [&>*]:w-8"
         >
           <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
-            <LayoutGridIcon className="size-4" />
+            <LayoutGridIcon className="size-3.5" />
           </ToggleGroupItem>
           <ToggleGroupItem value="list" aria-label={t("library.viewList")}>
-            <ListIcon className="size-4" />
+            <ListIcon className="size-3.5" />
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -271,7 +274,7 @@ export function Component() {
           }
         />
       ) : view === "grid" ? (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {filtered.map((entry, i) => (
             <div
               key={entry.anime.id}
@@ -312,14 +315,14 @@ function StatCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-colors",
+        "flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2 text-center transition-colors",
         active
-          ? "border-primary/50 bg-primary/10 text-primary"
-          : "border-border/60 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground",
+          ? "border-foreground/25 bg-card text-foreground"
+          : "border-border/50 bg-card/30 text-muted-foreground hover:border-border/70 hover:text-foreground/80",
       )}
     >
-      {Icon && <Icon className="size-4" />}
-      <span className="font-display text-lg tabular-nums leading-none">{count}</span>
+      {Icon && <Icon className="size-3.5" />}
+      <span className="font-display text-base tabular-nums leading-none">{count}</span>
       <span className="text-[11px] leading-tight">{label}</span>
     </button>
   );
@@ -363,7 +366,7 @@ function LibraryRow({ entry, index }: { entry: LibraryEntry; index: number }) {
 
   return (
     <div
-      className="reveal flex flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-3 sm:flex-row sm:items-center sm:gap-4"
+      className="reveal flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card/30 p-2.5 sm:flex-row sm:items-center sm:gap-3"
       style={{ "--i": index % 12 } as CSSProperties}
     >
       <Link
