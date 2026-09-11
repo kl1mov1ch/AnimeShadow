@@ -483,6 +483,8 @@
   background: rgb(var(--ambient-rgb, 120 120 140));
   opacity: calc(0.2 * var(--ambient-boost, 1));
   mix-blend-mode: soft-light;
+  filter: hue-rotate(var(--orb-hue, 0deg));
+  animation: ambient-hue-drift 22s ease-in-out infinite alternate;
 }
 .dark .ambient-tint {
   opacity: calc(0.3 * var(--ambient-boost, 1));
@@ -494,7 +496,8 @@
   width: var(--orb-size, 48vmax);
   height: var(--orb-size, 48vmax);
   border-radius: var(--orb-radius, 999px);
-  filter: blur(var(--orb-blur, 80px)) saturate(var(--orb-saturate, 1.5));
+  filter: blur(var(--orb-blur, 80px)) saturate(var(--orb-saturate, 1.5))
+    hue-rotate(var(--orb-hue, 0deg));
   opacity: calc(0.3 * var(--ambient-boost, 1));
   background: radial-gradient(
     circle at center,
@@ -503,24 +506,28 @@
     transparent 72%
   );
 }
-/* Two animations per orb: the slow positional drift (existing), plus a
-   border-radius morph on its own, unsynced period — the mismatch between the
-   two loops is what keeps the shape reading as fluid smoke instead of an
-   obviously-looping blob. Both animate only transform/border-radius, so this
-   stays compositor-cheap — no canvas, no WebGL, no per-frame JS. */
+/* Three animations per orb: the slow positional drift and a border-radius
+   morph (existing, unsynced periods so the shape never looks like an
+   obvious loop), plus a hue-rotate drift on its own period so the colour
+   itself slowly shifts instead of sitting at one flat tint all session —
+   still just the poster's own hue wandering a little, not a rainbow cycle.
+   All three only touch transform/border-radius/filter, so this stays
+   compositor-cheap — no canvas, no WebGL, no per-frame JS. */
 .ambient-orb--a {
   top: -10vmax;
   left: -8vmax;
   animation:
     orb-drift-a var(--orb-speed, 26s) ease-in-out infinite alternate,
-    smoke-morph-a calc(var(--orb-speed, 26s) * 0.62) ease-in-out infinite alternate;
+    smoke-morph-a calc(var(--orb-speed, 26s) * 0.62) ease-in-out infinite alternate,
+    ambient-hue-drift calc(var(--orb-speed, 26s) * 0.8) ease-in-out infinite alternate;
 }
 .ambient-orb--b {
   bottom: -12vmax;
   right: -10vmax;
   animation:
     orb-drift-b calc(var(--orb-speed, 26s) * 1.25) ease-in-out infinite alternate,
-    smoke-morph-b calc(var(--orb-speed, 26s) * 0.85) ease-in-out infinite alternate;
+    smoke-morph-b calc(var(--orb-speed, 26s) * 0.85) ease-in-out infinite alternate,
+    ambient-hue-drift calc(var(--orb-speed, 26s) * 1.1) ease-in-out infinite alternate-reverse;
 }
 /* Faint wisp layer — smaller, softer, faster — the "second smoke tone" that
    trails the two main cores instead of a single flat glow. */
@@ -529,11 +536,13 @@
   left: 30vmax;
   width: calc(var(--orb-size, 48vmax) * 0.55);
   height: calc(var(--orb-size, 48vmax) * 0.55);
-  filter: blur(calc(var(--orb-blur, 80px) * 0.7)) saturate(var(--orb-saturate, 1.5));
+  filter: blur(calc(var(--orb-blur, 80px) * 0.7)) saturate(var(--orb-saturate, 1.5))
+    hue-rotate(var(--orb-hue, 0deg));
   opacity: calc(0.16 * var(--ambient-boost, 1));
   animation:
     orb-drift-a calc(var(--orb-speed, 26s) * 0.7) ease-in-out infinite alternate-reverse,
-    smoke-morph-a calc(var(--orb-speed, 26s) * 0.45) ease-in-out infinite alternate;
+    smoke-morph-a calc(var(--orb-speed, 26s) * 0.45) ease-in-out infinite alternate,
+    ambient-hue-drift calc(var(--orb-speed, 26s) * 0.5) ease-in-out infinite alternate;
 }
 .dark .ambient-orb--c {
   opacity: calc(0.22 * var(--ambient-boost, 1));
@@ -620,6 +629,24 @@
     border-radius: 45% 55% 55% 45% / 55% 45% 50% 50%;
   }
 }
+/* Lets --orb-hue interpolate smoothly through a @keyframes animation instead
+   of jumping at each stop — plain custom properties don't animate without
+   this. Falls back gracefully (a static hue) wherever @property isn't
+   supported. */
+@property --orb-hue {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+@keyframes ambient-hue-drift {
+  0%,
+  100% {
+    --orb-hue: 0deg;
+  }
+  50% {
+    --orb-hue: 22deg;
+  }
+}
 @media (max-width: 640px) {
   .ambient-orb {
     animation: none !important;
@@ -629,9 +656,15 @@
   .ambient-orb--c {
     display: none;
   }
+  .ambient-tint {
+    animation: none !important;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .ambient-orb {
+    animation: none !important;
+  }
+  .ambient-tint {
     animation: none !important;
   }
 }

@@ -14,6 +14,11 @@
     <!-- Warms the connection for the hero's trailer embed before it's needed. -->
     <link rel="preconnect" href="https://www.youtube-nocookie.com" />
     <link rel="dns-prefetch" href="https://i.ytimg.com" />
+    <!-- Kodik is the most common watch-player provider — warm its embed
+         domain up front so the handshake isn't sitting on the critical path
+         the first time a detail page actually needs the iframe. -->
+    <link rel="preconnect" href="https://kodikplayer.com" crossorigin />
+    <link rel="dns-prefetch" href="https://kodikplayer.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap"
       rel="stylesheet"

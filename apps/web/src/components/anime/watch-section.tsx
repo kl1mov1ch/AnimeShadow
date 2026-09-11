@@ -23,6 +23,10 @@ export function WatchSection({ anime, title, active }: WatchSectionProps) {
     releaseDate.getTime() > Date.now();
 
   const { data, isPending } = useWatchSources(anime.id, active && !notYetOut);
+  // Warm the TCP/TLS handshake for the top few candidate embeds the moment
+  // we know them — that connection setup is otherwise dead time that only
+  // starts once the iframe itself is in the DOM.
+  usePreconnect(data?.sources);
 
   if (notYetOut && releaseDate) {
     return <Countdown target={releaseDate} />;
@@ -48,6 +52,39 @@ export function WatchSection({ anime, title, active }: WatchSectionProps) {
       <AlertDescription>{notice}</AlertDescription>
     </Alert>
   );
+}
+
+/**
+ * Injects <link rel="preconnect"> for the first few distinct embed origins,
+ * cleaning them up on change/unmount. Best-effort — a bad URL just gets
+ * skipped, never thrown.
+ */
+function usePreconnect(sources: WatchSource[] | undefined): void {
+  useEffect(() => {
+    if (!sources || sources.length === 0) return;
+    const origins = new Set<string>();
+    for (const source of sources) {
+      if (origins.size >= 3) break;
+      try {
+        origins.add(new URL(source.embedUrl).origin);
+      } catch {
+        /* not an absolute URL — skip */
+      }
+    }
+
+    const links = [...origins].map((origin) => {
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = origin;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+      return link;
+    });
+
+    return () => {
+      for (const link of links) link.remove();
+    };
+  }, [sources]);
 }
 
 /* ---------- countdown ---------- */

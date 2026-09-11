@@ -109,6 +109,10 @@ export class WatchService {
   private readonly embedTemplate?: string;
   private readonly logger: WatchLogger;
   private readonly cache = new TtlCache<WatchResponse>(30 * 60_000, 512);
+  // Anime ids currently being refreshed in the background — so a stale
+  // cache hit doesn't fire a duplicate full re-resolve on every request that
+  // lands while the first refresh is still in flight.
+  private readonly refreshingIds = new Set<number>();
 
   constructor(deps: WatchServiceDeps) {
     this.prisma = deps.prisma;
@@ -159,13 +163,21 @@ export class WatchService {
     const availability = await this.prisma.watchAvailability.findUnique({
       where: { animeId: malId },
     });
-    if (
-      !availability ||
-      availability.hasPlayer == null ||
-      Date.now() - availability.checkedAt.getTime() > RECHECK_MS
-    ) {
-      return null;
+    if (!availability || availability.hasPlayer == null) return null;
+
+    // Past the recheck window: a full re-resolve can itself take several
+    // seconds (network calls to Kodik/Alloha) — the single biggest
+    // contributor to a slow player open. Rather than block this request on
+    // that, serve what we already have (near-certainly still valid — mirrors
+    // don't all disappear at once) and refresh in the background instead.
+    const stale = Date.now() - availability.checkedAt.getTime() > RECHECK_MS;
+    if (stale && !this.refreshingIds.has(malId)) {
+      this.refreshingIds.add(malId);
+      void this.resolveAndPersist(malId, true)
+        .catch(() => undefined)
+        .finally(() => this.refreshingIds.delete(malId));
     }
+
     if (!availability.hasPlayer) {
       return { available: false, reason: "not_found", provider: null, sources: [] };
     }
@@ -173,6 +185,8 @@ export class WatchService {
       where: { animeId: malId },
       orderBy: { position: "asc" },
     });
+    // Nothing to serve yet even though hasPlayer was true — only case left
+    // is a genuinely first-ever resolve racing us; fall through to a live one.
     if (rows.length === 0) return null;
     const sources: WatchSource[] = rows.map((r) => ({
       id: `${r.provider}:${r.sourceKey}`,

@@ -360,20 +360,28 @@ function EntryMeta({ entry }: { entry: LibraryEntry }) {
 }
 
 function LibraryRow({ entry, index }: { entry: LibraryEntry; index: number }) {
+  const t = useT();
   const labels = useLabels();
   const title = labels.title(entry.anime);
   const total = entry.anime.episodes ?? 0;
+  const metaLine = [
+    labels.typeLabel(entry.anime.type),
+    labels.seasonYearLabel(entry.anime),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const genreLine = entry.anime.genres.slice(0, 3).map(labels.genreLabel).join(", ");
 
   return (
     <div
-      className="reveal flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card/30 p-2.5 sm:flex-row sm:items-center sm:gap-3"
+      className="reveal flex flex-col gap-2.5 rounded-lg border border-border/50 bg-card/30 p-2.5 sm:flex-row sm:items-center sm:gap-3.5"
       style={{ "--i": index % 12 } as CSSProperties}
     >
       <Link
         to={animeHref(entry.anime)}
-        className="flex min-w-0 flex-1 items-center gap-3"
+        className="flex min-w-0 flex-1 items-center gap-3.5"
       >
-        <div className="h-20 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
+        <div className="h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
           {entry.anime.imageUrl ? (
             <img
               src={imageSrc(entry.anime.imageUrl)}
@@ -386,22 +394,44 @@ function LibraryRow({ entry, index }: { entry: LibraryEntry; index: number }) {
             <PosterFallback title={title} seed={entry.anime.id} />
           )}
         </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="truncate font-medium hover:text-primary">{title}</p>
-          <p className="text-xs text-muted-foreground">
-            {total > 0
-              ? `${entry.progress}/${total}`
-              : entry.progress > 0
-                ? String(entry.progress)
-                : null}
-          </p>
-          <div className="w-40">
-            <ProgressBar entry={entry} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="truncate font-medium hover:text-primary">{title}</p>
+            <Badge variant="secondary" className="shrink-0 font-normal">
+              {t(`status.${entry.status}`)}
+            </Badge>
           </div>
-          {entry.notes && (
-            <p className="line-clamp-1 max-w-sm text-xs text-muted-foreground/80">
-              «{entry.notes}»
-            </p>
+          {metaLine && <p className="text-xs text-muted-foreground">{metaLine}</p>}
+          {genreLine && (
+            <p className="truncate text-xs text-muted-foreground/70">{genreLine}</p>
+          )}
+
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="tabular-nums">
+              {total > 0
+                ? `${entry.progress}/${total}`
+                : entry.progress > 0
+                  ? String(entry.progress)
+                  : null}
+            </span>
+            <div className="w-32 max-w-[40%]">
+              <ProgressBar entry={entry} />
+            </div>
+          </div>
+
+          {(entry.score != null || entry.notes) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {entry.score != null && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 font-medium text-foreground">
+                  {t("library.scoreValue", { value: entry.score })}
+                </span>
+              )}
+              {entry.notes && (
+                <p className="line-clamp-1 min-w-0 text-muted-foreground/80">
+                  «{entry.notes}»
+                </p>
+              )}
+            </div>
           )}
         </div>
       </Link>

@@ -155,6 +155,8 @@ function AnimeDetailView({ param }: { param: string }) {
           )}
         </div>
 
+        {/* Genres sit right of the score, same row, instead of a separate
+            line below it — keeps the header compact. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
           <ScoreBadge score={data.score} size="md" />
           {data.scoredBy != null && (
@@ -165,22 +167,24 @@ function AnimeDetailView({ param }: { param: string }) {
               {t("detail.machineTranslated")}
             </Badge>
           )}
+          {data.genresDetailed.length > 0 && (
+            <>
+              <Dot />
+              <div className="flex flex-wrap gap-1.5">
+                {data.genresDetailed.slice(0, 10).map((genre) => (
+                  <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
+                    <Badge
+                      variant="secondary"
+                      className="cursor-pointer font-normal transition-colors hover:border-primary/50 hover:text-foreground"
+                    >
+                      {labels.genreLabel(genre.name)}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-
-        {data.genresDetailed.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {data.genresDetailed.slice(0, 10).map((genre) => (
-              <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
-                <Badge
-                  variant="secondary"
-                  className="cursor-pointer font-normal transition-colors hover:border-primary/50 hover:text-foreground"
-                >
-                  {labels.genreLabel(genre.name)}
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        )}
 
         <ShareButtons path={animeUrl(data)} title={title} className="pt-1" />
       </header>
