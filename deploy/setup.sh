@@ -13,12 +13,11 @@ REPO_SSH="git@github.com:kl1mov1ch/AnimeShadow.git"
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "==> apt update/upgrade"
+echo "==> apt update"
 apt-get update -y
-apt-get upgrade -y
 
 echo "==> base packages"
-apt-get install -y curl git ca-certificates gnupg ufw postgresql postgresql-contrib openssl
+apt-get install -y curl git ca-certificates gnupg ufw postgresql postgresql-contrib
 
 echo "==> firewall"
 ufw allow OpenSSH
