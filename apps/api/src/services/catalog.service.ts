@@ -106,6 +106,9 @@ export class CatalogService {
     200,
   );
   private seeded = false;
+  // Ids currently being healed across providers — dedupes concurrent requests
+  // for the same poster-less row instead of piling on the same external calls.
+  private readonly healingIds = new Set<number>();
 
   constructor(deps: CatalogServiceDeps) {
     this.prisma = deps.prisma;
@@ -314,6 +317,7 @@ export class CatalogService {
       const items = query.hasPlayer
         ? summaries.filter((s) => s.hasPlayer === true)
         : summaries;
+      this.scheduleHealMissingPosters(items);
       const hasNextPage = list.length === query.perPage;
 
       // A rolling "one page ahead" guess made the pager claim the catalogue
@@ -381,6 +385,7 @@ export class CatalogService {
       const items = query.hasPlayer
         ? summaries.filter((s) => s.hasPlayer === true)
         : summaries;
+      this.scheduleHealMissingPosters(items);
 
       return {
         items,
@@ -503,6 +508,22 @@ export class CatalogService {
     } catch (error) {
       this.logger.warn({ error, id: row.id }, "poster heal failed");
       return row;
+    }
+  }
+
+  /**
+   * Any listing (browse/search/discover/recommendations) can surface a row
+   * with no poster yet. Rather than block that response on a cross-provider
+   * search, heal it in the background — the DB gets fixed for next time, and
+   * a still-open request for the same id is skipped instead of duplicated.
+   */
+  private scheduleHealMissingPosters(
+    items: ReadonlyArray<{ id: number; imageUrl: string | null; title?: string }>,
+  ): void {
+    for (const item of items) {
+      if (item.imageUrl || this.healingIds.has(item.id)) continue;
+      this.healingIds.add(item.id);
+      void this.healPoster(item).finally(() => this.healingIds.delete(item.id));
     }
   }
 
@@ -662,8 +683,10 @@ export class CatalogService {
     query: AnimeQuery,
   ): Paginated<AnimeSummary> {
     const skip = (query.page - 1) * query.perPage;
+    const items = rows.map(toSummaryDto);
+    this.scheduleHealMissingPosters(items);
     return {
-      items: rows.map(toSummaryDto),
+      items,
       meta: {
         page: query.page,
         perPage: query.perPage,
@@ -684,7 +707,9 @@ export class CatalogService {
       take,
       include: ANIME_WITH_GENRES_INCLUDE,
     });
-    return rows.map(toSummaryDto);
+    const items = rows.map(toSummaryDto);
+    this.scheduleHealMissingPosters(items);
+    return items;
   }
 
   private async queryCacheAsc(
@@ -698,7 +723,9 @@ export class CatalogService {
       take,
       include: ANIME_WITH_GENRES_INCLUDE,
     });
-    return rows.map(toSummaryDto);
+    const items = rows.map(toSummaryDto);
+    this.scheduleHealMissingPosters(items);
+    return items;
   }
 
   private toShikiListParams(query: AnimeQuery): Record<string, unknown> {
