@@ -216,6 +216,17 @@ export const ru: Dict = {
   },
   library: {
     title: "Мой список",
+    searchPlaceholder: "Поиск по названию…",
+    noSearchResults: "Ничего не найдено",
+    sortBy: "Сортировка",
+    sort: {
+      recent: "По дате",
+      title: "По названию",
+      score: "По оценке",
+      progress: "По прогрессу",
+    },
+    viewGrid: "Сетка",
+    viewList: "Список",
     signedOutTitle: "Здесь будет ваш список",
     signedOutBody:
       "Войдите, чтобы отмечать, что смотрите, планировать сезоны и ставить оценки завершённому.",

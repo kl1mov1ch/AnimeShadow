@@ -214,6 +214,17 @@ export const en = {
   },
   library: {
     title: "My list",
+    searchPlaceholder: "Search by title…",
+    noSearchResults: "Nothing found",
+    sortBy: "Sort by",
+    sort: {
+      recent: "Recently updated",
+      title: "Title",
+      score: "Score",
+      progress: "Progress",
+    },
+    viewGrid: "Grid",
+    viewList: "List",
     signedOutTitle: "Your list lives here",
     signedOutBody:
       "Sign in to track what you're watching, plan future seasons, and score the ones you've finished.",
