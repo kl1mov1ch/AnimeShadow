@@ -1,0 +1,18 @@
+[Unit]
+Description=AnimeShadow API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=kl1mov1ch.exe
+WorkingDirectory=/var/www/animeshadow/apps/api
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=animeshadow-api
+
+[Install]
+WantedBy=multi-user.target
