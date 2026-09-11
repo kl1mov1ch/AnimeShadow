@@ -61,12 +61,23 @@ END
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'animeshadow'" | grep -q 1 || \
   sudo -u postgres createdb -O animeshadow animeshadow
 
+echo "==> app user"
+if ! id "$APP_USER" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "$APP_USER"
+  usermod -aG sudo "$APP_USER"
+fi
+
 echo "==> app dir + clone"
 mkdir -p "$APP_DIR"
-chown "$APP_USER":"$APP_USER" "$APP_DIR"
 if [ ! -d "$APP_DIR/.git" ]; then
-  sudo -u "$APP_USER" git clone "$REPO_SSH" "$APP_DIR"
+  if [ -n "${GH_TOKEN:-}" ]; then
+    git clone "https://${GH_TOKEN}@github.com/kl1mov1ch/AnimeShadow.git" "$APP_DIR"
+    git -C "$APP_DIR" remote set-url origin "https://github.com/kl1mov1ch/AnimeShadow.git"
+  else
+    git clone "$REPO_SSH" "$APP_DIR"
+  fi
 fi
+chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
 
 echo "==> .env"
 JWT_SECRET="${JWT_SECRET:-$(openssl rand -hex 32)}"
