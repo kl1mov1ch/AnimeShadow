@@ -17,6 +17,7 @@ import { useI18n } from "@/i18n";
 import {animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
+import { cn } from "@/lib/utils";
 
 type MatchMap = Map<number, ReadonlyArray<readonly [number, number]>>;
 
@@ -185,7 +186,7 @@ export function SearchBox() {
         </div>
 
         {open && (
-          <div className="animate-in fade-in-0 zoom-in-95 absolute left-0 right-auto top-full z-50 mt-1.5 w-[min(440px,calc(100vw-1.5rem))] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg duration-150">
+          <div className="animate-in fade-in-0 zoom-in-95 absolute left-0 right-auto top-full z-50 mt-1.5 w-[min(30rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg duration-150">
             <CommandList className="max-h-[min(70vh,28rem)]">
               {!showResults ? (
                 <IdleState
@@ -249,7 +250,7 @@ function LoadingRows() {
     <div className="flex flex-col gap-2 p-3">
       {Array.from({ length: 4 }, (_, i) => (
         <div key={i} className="flex gap-3">
-          <Skeleton className="h-11 w-8 rounded" />
+          <Skeleton className="h-16 w-11 rounded-md" />
           <div className="flex flex-1 flex-col gap-1.5 pt-1">
             <Skeleton className="h-3.5 w-2/3" />
             <Skeleton className="h-3 w-1/3" />
@@ -357,10 +358,10 @@ function ResultGroup({
           key={anime.id}
           value={`${group.reason}-${anime.id}`}
           onSelect={() => onSelect(anime)}
-          className="animate-in fade-in slide-in-from-top-1 gap-3 duration-200"
+          className="animate-in fade-in slide-in-from-top-1 gap-3 py-2 duration-200"
           style={{ animationDelay: `${i * 22}ms` }}
         >
-          <span className="h-11 w-8 shrink-0 overflow-hidden rounded bg-muted">
+          <span className="h-16 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
             {anime.imageUrl && (
               <img
                 src={imageSrc(anime.imageUrl)}
@@ -370,10 +371,11 @@ function ResultGroup({
               />
             )}
           </span>
-          <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <Highlighted
               text={labels.title(anime)}
               ranges={matches.get(anime.id)}
+              className="text-sm font-medium leading-snug"
             />
             <span className="truncate text-xs text-muted-foreground">
               {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime)]
@@ -390,12 +392,14 @@ function ResultGroup({
 function Highlighted({
   text,
   ranges,
+  className,
 }: {
   text: string;
   ranges: ReadonlyArray<readonly [number, number]> | undefined;
+  className?: string;
 }) {
   if (!ranges || ranges.length === 0) {
-    return <span className="truncate">{text}</span>;
+    return <span className={cn("truncate", className)}>{text}</span>;
   }
   const parts: React.ReactNode[] = [];
   let cursor = 0;
@@ -409,7 +413,7 @@ function Highlighted({
     cursor = end + 1;
   }
   if (cursor < text.length) parts.push(text.slice(cursor));
-  return <span className="truncate">{parts}</span>;
+  return <span className={cn("truncate", className)}>{parts}</span>;
 }
 
 /* ---------- helpers ---------- */

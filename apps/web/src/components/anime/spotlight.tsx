@@ -87,7 +87,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
                 src={heroImg}
                 alt=""
                 aria-hidden
-                className="absolute inset-0 hidden size-full scale-110 object-cover opacity-60 blur-2xl brightness-[0.4] sm:block dark:brightness-100"
+                className="absolute inset-0 hidden size-full scale-110 object-cover opacity-60 blur-2xl sm:block"
               />
               <img
                 key={heroImg}
@@ -95,7 +95,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
                 alt=""
                 fetchPriority="high"
                 className={cn(
-                  "absolute inset-0 size-full object-cover brightness-[0.4] dark:brightness-100",
+                  "absolute inset-0 size-full object-cover",
                   landscape ? "object-center" : "object-[center_22%]",
                   desktop && "hero-pan",
                 )}
@@ -107,11 +107,12 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         </div>
 
         {/* --- legibility gradient --- */}
-        {/* Readability scrim. Kept low on the bright end so the artwork never
-            washes out to a white glare on the light theme. Extra weight at the
-            very bottom so the control bar always reads clearly too. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/55 to-transparent sm:bg-gradient-to-r sm:via-card/35 sm:to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-card/90 to-transparent sm:h-24" />
+        {/* Uses the theme's own card colour (light in light mode, dark in
+            dark mode) so the text — which also flips colour with the theme —
+            always has the *correct* contrast direction against it. Kept to a
+            light touch: just enough for the text to not blend into the
+            photo, not a heavy wash over the whole image. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/25 to-transparent sm:bg-gradient-to-r sm:via-card/15 sm:to-transparent" />
 
         {/* --- content --- */}
         <SlideContent key={anime.id} anime={anime} />
