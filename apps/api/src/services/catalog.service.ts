@@ -298,8 +298,12 @@ export class CatalogService {
       });
       const summaries = list.map(shikiToSummary);
 
-      // Persist for the detail cache; link genres we filtered by.
-      void persistAnimeSummaries(summaries).catch((error) =>
+      // Persist for the detail cache; link genres we filtered by. Awaited
+      // (not fire-and-forget) because the response below reads it straight
+      // back — Shikimori's list shape carries no genres/synopsis/rating, so
+      // serving it as-is would blank out richer data a detail-page visit
+      // already found for the exact same titles.
+      await persistAnimeSummaries(summaries).catch((error) =>
         this.logger.warn({ error }, "failed to persist browse page"),
       );
       if (query.genres?.length && summaries.length > 0) {
@@ -313,10 +317,11 @@ export class CatalogService {
           .catch(() => undefined);
       }
 
-      await this.attachPlayerFlags(summaries);
+      const enriched = await this.enrichFromDb(summaries);
+      await this.attachPlayerFlags(enriched);
       const items = query.hasPlayer
-        ? summaries.filter((s) => s.hasPlayer === true)
-        : summaries;
+        ? enriched.filter((s) => s.hasPlayer === true)
+        : enriched;
       this.scheduleHealMissingPosters(items);
       const hasNextPage = list.length === query.perPage;
 
@@ -380,11 +385,12 @@ export class CatalogService {
       await persistAnimeSummaries(summaries).catch((error) =>
         this.logger.warn({ error }, "failed to persist search results"),
       );
-      await this.attachPlayerFlags(summaries);
+      const enriched = await this.enrichFromDb(summaries);
+      await this.attachPlayerFlags(enriched);
 
       const items = query.hasPlayer
-        ? summaries.filter((s) => s.hasPlayer === true)
-        : summaries;
+        ? enriched.filter((s) => s.hasPlayer === true)
+        : enriched;
       this.scheduleHealMissingPosters(items);
 
       return {
@@ -675,6 +681,29 @@ export class CatalogService {
     } catch (error) {
       this.logger.warn({ error, label }, "Shikimori fill failed");
     }
+  }
+
+  /**
+   * Shikimori's list/search shape carries no genres, synopsis, rating,
+   * scoredBy or trailer — only a full detail fetch does. Rather than serve
+   * that thin shape as-is (which is what made list-view catalogue cards look
+   * empty even for titles someone had already opened the detail page for),
+   * swap each summary for whatever richer row is already stored — persisted
+   * detail visits and prior heals both land there. Falls back to the plain
+   * summary for a title that's genuinely never been synced before. Order is
+   * preserved (it's Shikimori's own ranking for this page).
+   */
+  private async enrichFromDb(summaries: AnimeSummary[]): Promise<AnimeSummary[]> {
+    if (summaries.length === 0) return summaries;
+    const rows = await this.prisma.anime.findMany({
+      where: { id: { in: summaries.map((s) => s.id) } },
+      include: ANIME_WITH_GENRES_INCLUDE,
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return summaries.map((s) => {
+      const row = byId.get(s.id);
+      return row ? toSummaryDto(row) : s;
+    });
   }
 
   private async attachPlayerFlags(summaries: AnimeSummary[]): Promise<void> {

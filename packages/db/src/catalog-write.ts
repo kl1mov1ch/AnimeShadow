@@ -125,10 +125,20 @@ export async function persistAnimeSummaries(
 
   for (const summary of summaries) {
     const listRow = toAnimeListRow(summary);
+    // Shikimori's short list/search shape carries no synopsis and often no
+    // poster — the same "don't blank out what a richer sync already found"
+    // rule as persistAnimeDetail applies here too, or a plain browse refresh
+    // would keep wiping out data a detail-page visit previously filled in.
+    const updateRow = {
+      ...listRow,
+      ...(listRow.imageUrl == null ? { imageUrl: undefined } : {}),
+      ...(listRow.imageLargeUrl == null ? { imageLargeUrl: undefined } : {}),
+      ...(listRow.synopsis == null ? { synopsis: undefined } : {}),
+    };
     await prisma.anime.upsert({
       where: { id: summary.id },
       create: listRow,
-      update: listRow,
+      update: updateRow,
     });
     const genreIds = summary.genres
       .map((name) => idByName.get(name))
