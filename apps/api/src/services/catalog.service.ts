@@ -706,9 +706,13 @@ export class CatalogService {
 
   /**
    * The detail page's own cinematic header wants the same wide banner the
-   * spotlight uses. Fire-and-forget (never blocks a page load on an external
-   * lookup) — the first visit falls back to a screenshot, later visits get
-   * the real banner once this resolves and persists it on the row.
+   * spotlight uses — and while we're asking AniList anyway, its cover art is
+   * simply higher-resolution than what most titles have synced from
+   * Shikimori, so the poster gets upgraded in the same pass. This is a
+   * quality upgrade, not a "fix missing data" heal, so it overwrites an
+   * existing poster on purpose. Fire-and-forget (never blocks a page load on
+   * an external lookup); gated on `bannerImage` alone so a title is only
+   * ever put through this once, not re-fetched on every later visit.
    */
   private scheduleHealBanner(row: {
     id: number;
@@ -718,15 +722,18 @@ export class CatalogService {
     if (row.bannerImage) return;
     void (async () => {
       try {
-        const banner =
-          (await anilistBanner(row.id, row.title)) ?? (await kitsuBanner(row.title));
-        if (!banner) return;
-        await this.prisma.anime.update({
-          where: { id: row.id },
-          data: { bannerImage: banner },
-        });
+        const artwork = await anilistArtwork(row.id, row.title);
+        const banner = artwork.banner ?? (await kitsuBanner(row.title));
+        const data: { bannerImage?: string; imageUrl?: string; imageLargeUrl?: string } = {};
+        if (banner) data.bannerImage = banner;
+        if (artwork.poster) {
+          data.imageUrl = artwork.poster;
+          data.imageLargeUrl = artwork.poster;
+        }
+        if (Object.keys(data).length === 0) return;
+        await this.prisma.anime.update({ where: { id: row.id }, data });
       } catch (error) {
-        this.logger.warn({ error, id: row.id }, "detail banner heal failed");
+        this.logger.warn({ error, id: row.id }, "detail artwork heal failed");
       }
     })();
   }
@@ -1155,6 +1162,65 @@ async function anilistBanner(
     );
   }
   return null;
+}
+
+/**
+ * Poster + banner in one request — AniList's own cover art is consistently
+ * higher-resolution than what most titles have synced from Shikimori, so a
+ * detail-page visit upgrades both together instead of spending a second
+ * round-trip just for the poster.
+ */
+async function anilistArtwork(
+  malId: number,
+  title?: string,
+): Promise<{ poster: string | null; banner: string | null }> {
+  const empty = { poster: null, banner: null };
+  const ask = async (
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<{ poster: string | null; banner: string | null } | null> => {
+    try {
+      const res = await fetch(ANILIST_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        data?: {
+          Media?: {
+            coverImage?: { extraLarge?: string; large?: string } | null;
+            bannerImage?: string | null;
+          };
+        };
+      };
+      const media = json.data?.Media;
+      if (!media) return null;
+      const cover = media.coverImage;
+      const poster = cover?.extraLarge ?? cover?.large ?? null;
+      return {
+        poster: poster && !poster.includes("default.jpg") ? poster : null,
+        banner: media.bannerImage ?? null,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const byId = await ask(
+    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){coverImage{extraLarge large} bannerImage}}",
+    { idMal: malId },
+  );
+  if (byId && (byId.poster || byId.banner)) return byId;
+  if (title && title.trim().length >= 2) {
+    const bySearch = await ask(
+      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){coverImage{extraLarge large} bannerImage}}",
+      { search: title.trim() },
+    );
+    if (bySearch) return bySearch;
+  }
+  return empty;
 }
 
 interface AnilistTrendingEntry {
