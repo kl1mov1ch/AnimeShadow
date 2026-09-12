@@ -46,16 +46,15 @@ export function ReviewsSection({ animeId, active }: ReviewsSectionProps) {
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3 text-sm">
-        <span className="inline-flex items-center gap-1 text-base font-semibold">
-          <StarIcon className="size-4 fill-primary text-primary" />
-          {data.summary.average != null ? data.summary.average.toFixed(1) : "—"}
-        </span>
-        <span className="text-muted-foreground">
+    <div className="flex flex-col gap-4">
+      <h2 className="flex items-center gap-2 font-display text-lg tracking-tight sm:text-xl">
+        {t("detail.sections.reviews")}
+        <span className="inline-flex items-center gap-1 text-sm font-normal text-muted-foreground">
+          <StarIcon className="size-3.5 fill-primary text-primary" />
+          {data.summary.average != null ? data.summary.average.toFixed(1) : "—"} ·{" "}
           {t("reviews.count", { count: data.summary.count })}
         </span>
-      </div>
+      </h2>
 
       {authStatus === "authenticated" ? (
         <ReviewForm animeId={animeId} existing={data.mine} />

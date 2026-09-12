@@ -237,9 +237,9 @@ function AnimeDetailView({ param }: { param: string }) {
 
         <CharactersBlock animeId={data.id} />
 
-        <Block title={t("detail.sections.reviews")}>
+        <div className="p-5">
           <ReviewsSection animeId={data.id} active />
-        </Block>
+        </div>
 
         <div className="p-5">
           <CommentsSection animeId={data.id} />

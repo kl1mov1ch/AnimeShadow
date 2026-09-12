@@ -68,38 +68,46 @@ export function CommentsSection({ animeId }: { animeId: number }) {
         </p>
       )}
 
-      {/* toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={query.sort}
-          onValueChange={(v) =>
-            setQuery((q) => ({ ...q, sort: v as CommentQuery["sort"] }))
-          }
-        >
-          <SelectTrigger className="h-8 w-auto gap-1 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="new">{t("comments.sort.newest")}</SelectItem>
-            <SelectItem value="old">{t("comments.sort.oldest")}</SelectItem>
-            <SelectItem value="top">{t("comments.sort.best")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <FilterToggle
-          label={t("comments.filter.donators")}
-          active={Boolean(query.onlyDonor)}
-          onClick={() =>
-            setQuery((q) => ({ ...q, onlyDonor: q.onlyDonor ? undefined : true }))
-          }
-        />
-        <FilterToggle
-          label={t("comments.filter.anon")}
-          active={Boolean(query.onlyAnon)}
-          onClick={() =>
-            setQuery((q) => ({ ...q, onlyAnon: q.onlyAnon ? undefined : true }))
-          }
-        />
-      </div>
+      {/* Nothing to sort or filter yet — skip the toolbar rather than show
+          controls over an empty list. Keep it, though, if a filter is the
+          *reason* the list looks empty — otherwise there'd be no way back. */}
+      {(isPending ||
+        (data?.count ?? 0) > 0 ||
+        query.onlyDonor ||
+        query.onlyAnon ||
+        query.sort !== "new") && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={query.sort}
+            onValueChange={(v) =>
+              setQuery((q) => ({ ...q, sort: v as CommentQuery["sort"] }))
+            }
+          >
+            <SelectTrigger className="h-8 w-auto gap-1 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="new">{t("comments.sort.newest")}</SelectItem>
+              <SelectItem value="old">{t("comments.sort.oldest")}</SelectItem>
+              <SelectItem value="top">{t("comments.sort.best")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <FilterToggle
+            label={t("comments.filter.donators")}
+            active={Boolean(query.onlyDonor)}
+            onClick={() =>
+              setQuery((q) => ({ ...q, onlyDonor: q.onlyDonor ? undefined : true }))
+            }
+          />
+          <FilterToggle
+            label={t("comments.filter.anon")}
+            active={Boolean(query.onlyAnon)}
+            onClick={() =>
+              setQuery((q) => ({ ...q, onlyAnon: q.onlyAnon ? undefined : true }))
+            }
+          />
+        </div>
+      )}
 
       {isPending ? (
         <div className="flex flex-col gap-3">

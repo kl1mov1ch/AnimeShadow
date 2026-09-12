@@ -123,17 +123,36 @@ export class RecommendationService {
     userId: string | null,
     limit = 12,
   ): Promise<RecommendationResponse> {
-    if (genreIds.length === 0) return { items: [], basis: "genre" };
+    let pool =
+      genreIds.length > 0
+        ? await this.prisma.anime.findMany({
+            where: {
+              genres: { some: { genreId: { in: genreIds } } },
+              id: { not: animeId },
+            },
+            orderBy: { score: { sort: "desc", nulls: "last" } },
+            take: 40,
+            include: ANIME_WITH_GENRES_INCLUDE,
+          })
+        : [];
 
-    const pool = await this.prisma.anime.findMany({
-      where: {
-        genres: { some: { genreId: { in: genreIds } } },
-        id: { not: animeId },
-      },
-      orderBy: { score: { sort: "desc", nulls: "last" } },
-      take: 40,
-      include: ANIME_WITH_GENRES_INCLUDE,
-    });
+    // A niche genre (or a title with no genre data at all) can leave this
+    // too thin to fill a rail — every anime page should show *something*
+    // here, so pad out with broadly popular titles instead.
+    if (pool.length < limit) {
+      const exclude = new Set(pool.map((a) => a.id));
+      exclude.add(animeId);
+      const pad = await this.prisma.anime.findMany({
+        where: { id: { notIn: [...exclude] }, score: { not: null } },
+        orderBy: [
+          { members: { sort: "desc", nulls: "last" } },
+          { score: { sort: "desc", nulls: "last" } },
+        ],
+        take: limit * 2,
+        include: ANIME_WITH_GENRES_INCLUDE,
+      });
+      pool = [...pool, ...pad.filter((a) => !exclude.has(a.id))];
+    }
 
     if (userId) {
       const prefs = new Set(await this.getPreferences(userId));
@@ -153,6 +172,6 @@ export class RecommendationService {
 
     const key = `similar:${animeId}:${todayKey()}:${userId ?? "anon"}`;
     const items = seededShuffle(pool, key).slice(0, limit).map(toSummaryDto);
-    return { items, basis: "genre" };
+    return { items, basis: genreIds.length > 0 ? "genre" : "trending" };
   }
 }
