@@ -1,5 +1,5 @@
 import type { AchievementRarity } from "@animeshadow/shared";
-import { AwardIcon, CrownIcon, MedalIcon, StarIcon } from "lucide-react";
+import { AwardIcon, CrownIcon, LockIcon, MedalIcon, StarIcon } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n";
@@ -9,19 +9,22 @@ import { cn } from "@/lib/utils";
 interface HoloAchievementBadgeProps {
   id: string;
   rarity: AchievementRarity;
+  earned: boolean;
   earnedAt?: string | null;
+  /** Only meaningful when `earned` is false. */
+  progress?: { current: number; target: number } | null;
   className?: string;
 }
 
 /**
- * A holographic, 3D-tilting achievement badge — pointer position drives a
- * matrix3d tilt plus a rotating rainbow-foil overlay clipped to the badge
- * shape. The tilt/overlay math is intentionally kept close to the reference
- * implementation (it's the fiddly, well-tested part); only the badge's
- * *content* — colours, icon, text — was rebuilt for AnimeShadow's rarity
- * system. One instance is expensive enough (per-pixel mousemove tracking,
- * a live filter) that this belongs on a single showcased badge, not a grid
- * of dozens — see AchievementBadge for the plain version used everywhere else.
+ * A badge-shaped achievement card, styled after a holographic award badge.
+ * Earned achievements get the full treatment: pointer-tracked 3D tilt (a
+ * matrix3d transform) plus a rotating rainbow-foil overlay clipped to the
+ * badge shape. Everything not yet earned renders the same shape flat and
+ * grey, with no tilt/animation at all — both because "locked" shouldn't
+ * look like a reward, and because a grid can hold dozens of these; only the
+ * ones actually worth showing off pay for the live pointer tracking and
+ * SVG filter.
  */
 
 const identityMatrix =
@@ -39,7 +42,7 @@ const RARITY_ICON: Record<AchievementRarity, typeof AwardIcon> = {
   legendary: CrownIcon,
 };
 
-/** Gradient + text/border colours per rarity — echoes RARITY_MEDAL in profile.tsx. */
+/** Gradient + text/border colours per rarity — the only thing that changes per tier. */
 const RARITY_STYLE: Record<
   AchievementRarity,
   { from: string; to: string; text: string; border: string; sheen: string[] }
@@ -74,10 +77,20 @@ const RARITY_STYLE: Record<
   },
 };
 
+/** Flat, colourless — every rarity looks the same until it's earned. */
+const LOCKED_STYLE = {
+  from: "oklch(0.34 0 0)",
+  to: "oklch(0.24 0 0)",
+  text: "oklch(0.7 0 0)",
+  border: "oklch(0.4 0 0 / 0.5)",
+};
+
 export function HoloAchievementBadge({
   id,
   rarity,
+  earned,
   earnedAt,
+  progress,
   className,
 }: HoloAchievementBadgeProps) {
   const t = useT();
@@ -238,8 +251,76 @@ export function HoloAchievementBadge({
     if (isTimeoutFinished) setMatrix(currentMatrix);
   }, [currentMatrix, isTimeoutFinished]);
 
+  const Icon = earned ? RARITY_ICON[rarity] : LockIcon;
+  const title = t(`achievements.items.${id}.title` as "achievements.items.critic.title");
+  const rarityLabel = t(`achievements.rarity.${rarity}` as "achievements.rarity.common");
+  const percent =
+    !earned && progress ? Math.round((progress.current / progress.target) * 100) : null;
+  const gradId = `holo-grad-${id}`;
+  const maskId = `holo-mask-${id}`;
+  const blurId = `holo-blur-${id}`;
+
+  const shortTitle = title.length > 22 ? `${title.slice(0, 21)}…` : title;
+  const tooltip = earnedAt
+    ? t("achievements.earnedOn", { date: labels.formatDate(earnedAt) ?? "" })
+    : percent != null
+      ? `${title} — ${percent}%`
+      : title;
+
+  // Locked/in-progress: the same shape, flat and still — no tilt, no foil,
+  // no per-instance mousemove listeners. Cheap enough for a whole grid of them.
+  if (!earned) {
+    return (
+      <div title={tooltip} className={cn("block w-[190px] select-none", className)}>
+        <svg viewBox="0 0 260 64" className="h-auto w-full opacity-80">
+          <defs>
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={LOCKED_STYLE.from} />
+              <stop offset="100%" stopColor={LOCKED_STYLE.to} />
+            </linearGradient>
+          </defs>
+          <rect width="260" height="64" rx="12" fill={`url(#${gradId})`} />
+          <rect
+            x="3"
+            y="3"
+            width="254"
+            height="58"
+            rx="10"
+            fill="none"
+            stroke={LOCKED_STYLE.border}
+            strokeWidth="1.5"
+          />
+          <foreignObject x="10" y="12" width="40" height="40">
+            <div
+              style={{ color: LOCKED_STYLE.text }}
+              className="flex size-full items-center justify-center"
+            >
+              <Icon className="size-6" strokeWidth={2.25} />
+            </div>
+          </foreignObject>
+          <text
+            x="58"
+            y="27"
+            fontSize="9"
+            fontWeight="700"
+            letterSpacing="0.08em"
+            fill={LOCKED_STYLE.text}
+            opacity="0.75"
+          >
+            {percent != null ? `${percent}%` : rarityLabel.toUpperCase()}
+          </text>
+          <text x="58" y="46" fontSize="14" fontWeight="800" fill={LOCKED_STYLE.text}>
+            {shortTitle}
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  const style = RARITY_STYLE[rarity];
+  const sheenHues = [style.sheen[0], style.sheen[1], style.sheen[2], style.sheen[0], style.sheen[1]];
   // Keyframe names are namespaced by id so more than one badge on a page
-  // (unlikely today, but cheap to guard) never collides.
+  // never collides.
   const kf = (n: number) => `holoOverlay-${id}-${n}`;
   const overlayAnimations = [...Array(10).keys()]
     .map(
@@ -252,19 +333,10 @@ export function HoloAchievementBadge({
     )
     .join(" ");
 
-  const style = RARITY_STYLE[rarity];
-  const Icon = RARITY_ICON[rarity];
-  const title = t(`achievements.items.${id}.title` as "achievements.items.critic.title");
-  const rarityLabel = t(`achievements.rarity.${rarity}` as "achievements.rarity.common");
-  const gradId = `holo-grad-${id}`;
-  const maskId = `holo-mask-${id}`;
-  const blurId = `holo-blur-${id}`;
-  const sheenHues = [style.sheen[0], style.sheen[1], style.sheen[2], style.sheen[0], style.sheen[1]];
-
   return (
     <div
       ref={ref}
-      title={earnedAt ? t("achievements.earnedOn", { date: labels.formatDate(earnedAt) ?? "" }) : title}
+      title={tooltip}
       className={cn("block w-[190px] cursor-pointer select-none", className)}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
@@ -316,7 +388,6 @@ export function HoloAchievementBadge({
           <text
             x="58"
             y="27"
-            fontFamily="inherit"
             fontSize="9"
             fontWeight="700"
             letterSpacing="0.08em"
@@ -325,15 +396,8 @@ export function HoloAchievementBadge({
           >
             {rarityLabel.toUpperCase()}
           </text>
-          <text
-            x="58"
-            y="46"
-            fontFamily="inherit"
-            fontSize="14"
-            fontWeight="800"
-            fill={style.text}
-          >
-            {title.length > 22 ? `${title.slice(0, 21)}…` : title}
+          <text x="58" y="46" fontSize="14" fontWeight="800" fill={style.text}>
+            {shortTitle}
           </text>
 
           {/* Holographic foil — rotating tinted panels blended over the badge,

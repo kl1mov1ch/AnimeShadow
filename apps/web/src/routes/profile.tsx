@@ -10,19 +10,14 @@ import type {
 import { TITLE_ICONS } from "@animeshadow/shared";
 import { type CSSProperties, useRef, useState } from "react";
 import {
-  AwardIcon,
   CalendarDaysIcon,
   ClockIcon,
-  CrownIcon,
   FilmIcon,
   Loader2Icon,
-  LockIcon,
-  MedalIcon,
   PencilIcon,
   PlayCircleIcon,
   SettingsIcon,
   SparklesIcon,
-  StarIcon,
   TimerIcon,
   TrophyIcon,
 } from "lucide-react";
@@ -276,6 +271,7 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
             <HoloAchievementBadge
               id={showcase.id}
               rarity={showcase.rarity}
+              earned
               earnedAt={showcase.earnedAt}
             />
           </div>
@@ -1128,30 +1124,6 @@ function cropToSquareDataUrl(file: File): Promise<string> {
 
 /* ---------------- achievements ---------------- */
 
-const RARITY_RING: Record<string, string> = {
-  common: "",
-  rare: "ring-1 ring-sky-500/40",
-  epic: "ring-1 ring-violet-500/50 shadow-[0_0_20px_-6px] shadow-violet-500/40",
-  legendary: "ring-1 ring-amber-400/60 shadow-[0_0_24px_-6px] shadow-amber-400/50",
-};
-
-const RARITY_ICON: Record<string, typeof AwardIcon> = {
-  common: AwardIcon,
-  rare: MedalIcon,
-  epic: StarIcon,
-  legendary: CrownIcon,
-};
-
-/** Medallion face per rarity — a real gradient disc rather than a flat glyph chip. */
-const RARITY_MEDAL: Record<string, string> = {
-  common:
-    "bg-[radial-gradient(circle_at_30%_25%,oklch(0.78_0.02_250),oklch(0.55_0.02_250))] text-white/90",
-  rare: "bg-[radial-gradient(circle_at_30%_25%,oklch(0.82_0.13_230),oklch(0.52_0.16_245))] text-white",
-  epic: "bg-[radial-gradient(circle_at_30%_25%,oklch(0.80_0.16_305),oklch(0.48_0.20_295))] text-white",
-  legendary:
-    "bg-[radial-gradient(circle_at_30%_25%,oklch(0.90_0.15_95),oklch(0.62_0.17_65))] text-black/80",
-};
-
 function AchievementsTab() {
   const { data } = useAchievements();
   return <AchievementsGrid achievements={data ?? []} />;
@@ -1229,90 +1201,20 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
           {t("achievements.noneInFilter")}
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="flex flex-wrap gap-3">
           {shown.map((a) => (
-            <AchievementCard key={a.id} a={a} />
+            <HoloAchievementBadge
+              key={a.id}
+              id={a.id}
+              rarity={a.rarity}
+              earned={a.earned}
+              earnedAt={a.earnedAt}
+              progress={a.progress}
+            />
           ))}
         </div>
       )}
     </section>
-  );
-}
-
-function AchievementCard({ a }: { a: EarnedAchievement }) {
-  const t = useT();
-  const labels = useLabels();
-  const Icon = a.earned ? (RARITY_ICON[a.rarity] ?? AwardIcon) : LockIcon;
-  const ratio = a.progress
-    ? Math.min(1, a.progress.current / a.progress.target)
-    : 0;
-
-  return (
-    <div
-      className={cn(
-        "group flex h-full flex-col items-center gap-2 rounded-xl border border-border/60 bg-card/40 p-4 text-center transition-transform duration-200 hover:-translate-y-0.5",
-        a.earned ? RARITY_RING[a.rarity] : "opacity-70",
-      )}
-    >
-      <span
-        className={cn(
-          "relative flex size-12 items-center justify-center rounded-full ring-1 transition-transform duration-200 group-hover:scale-105",
-          a.earned
-            ? cn(RARITY_MEDAL[a.rarity], "ring-white/25 shadow-md")
-            : "bg-secondary text-muted-foreground/70 ring-border/60",
-        )}
-      >
-        {/* glossy highlight so the disc reads as a medal, not a flat circle */}
-        {a.earned && (
-          <span
-            aria-hidden
-            className="absolute inset-0 rounded-full bg-gradient-to-b from-white/35 via-transparent to-black/15"
-          />
-        )}
-        <Icon className="relative size-5.5" />
-      </span>
-
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">
-          {t(`achievements.items.${a.id}.title`)}
-        </span>
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground/70">
-          {t(`achievements.rarity.${a.rarity}`)}
-        </span>
-      </div>
-
-      <span className="text-[11px] leading-tight text-muted-foreground">
-        {t(`achievements.items.${a.id}.desc`)}
-      </span>
-
-      <div className="mt-auto w-full pt-2">
-        {a.earned ? (
-          a.earnedAt && (
-            <span className="text-[11px] text-primary/80">
-              {t("achievements.earnedOn", {
-                date: labels.formatDate(a.earnedAt) ?? "",
-              })}
-            </span>
-          )
-        ) : a.progress ? (
-          <div className="flex w-full flex-col gap-1">
-            <div className="h-1 overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${ratio * 100}%` }}
-              />
-            </div>
-            <span className="text-[11px] tabular-nums text-muted-foreground">
-              {a.progress.current}/{a.progress.target}
-            </span>
-          </div>
-        ) : (
-          <span className="text-[11px] text-muted-foreground/70">
-            {a.manual ? t("achievements.manualNote") : t("achievements.locked")}
-          </span>
-        )}
-      </div>
-    </div>
   );
 }
 
