@@ -1,7 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronLeftIcon, ChevronRightIcon, InfoIcon, SearchIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -17,6 +17,7 @@ import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
@@ -155,88 +156,93 @@ function AnimeDetailView({ param }: { param: string }) {
           <ShareButtons path={animeUrl(data)} />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl leading-tight text-foreground sm:text-4xl">
-            {title}
-          </h1>
-          {secondaryTitle && (
-            <p className="text-sm text-foreground/70">{secondaryTitle}</p>
-          )}
-        </div>
-
-        {/* Rating — exactly that, nothing else: score, vote count, rank. */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-foreground/70">
-          <ScoreBadge score={data.score} size="md" />
-          {data.scoredBy != null && (
-            <span>{t("common.ratings", { count: labels.compact(data.scoredBy) })}</span>
-          )}
-          {data.rank != null && data.rank > 0 && (
-            <span className="tabular-nums">{t("detail.ranked", { rank: data.rank })}</span>
-          )}
-          {data.translated && (
-            <Badge variant="outline" className="border-foreground/30 text-[11px] text-foreground/80">
-              {t("detail.machineTranslated")}
-            </Badge>
-          )}
-        </div>
-
-        {data.genresDetailed.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {data.genresDetailed.slice(0, 10).map((genre) => (
-              <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
-                <Badge
-                  variant="secondary"
-                  className="cursor-pointer border-transparent bg-background/60 font-normal backdrop-blur-sm transition-colors hover:border-primary/50 hover:text-foreground"
-                >
-                  {labels.genreLabel(genre.name)}
-                </Badge>
-              </Link>
-            ))}
+        {/* Poster alongside everything else, not stacked in a separate
+            sidebar below — the header is the one place all of a title's
+            identity (art, name, rating, genres, actions) lives together. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="mx-auto w-28 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted shadow-lg sm:mx-0 sm:w-36 lg:w-40">
+            <PosterImage src={poster} title={title} seed={data.id} />
           </div>
-        )}
+
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <h1 className="font-display text-2xl leading-tight text-foreground sm:text-4xl">
+                {title}
+              </h1>
+              {secondaryTitle && (
+                <p className="text-sm text-foreground/70">{secondaryTitle}</p>
+              )}
+            </div>
+
+            {/* Rating — exactly that, nothing else: score, vote count, rank. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-foreground/70">
+              <ScoreBadge score={data.score} size="md" />
+              {data.scoredBy != null && (
+                <span>{t("common.ratings", { count: labels.compact(data.scoredBy) })}</span>
+              )}
+              {data.rank != null && data.rank > 0 && (
+                <span className="tabular-nums">{t("detail.ranked", { rank: data.rank })}</span>
+              )}
+              {data.translated && (
+                <Badge variant="outline" className="border-foreground/30 text-[11px] text-foreground/80">
+                  {t("detail.machineTranslated")}
+                </Badge>
+              )}
+            </div>
+
+            {data.genresDetailed.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {data.genresDetailed.slice(0, 10).map((genre) => (
+                  <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
+                    <Badge
+                      variant="secondary"
+                      className="cursor-pointer border-transparent bg-background/60 font-normal backdrop-blur-sm transition-colors hover:border-primary/50 hover:text-foreground"
+                    >
+                      {labels.genreLabel(genre.name)}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <LibraryControls animeId={data.id} title={title} />
+              <TrailerButton url={data.trailerEmbedUrl} title={title} />
+            </div>
+          </div>
+        </div>
       </CinematicHeader>
 
-      {/* One continuous surface: left rail + stacked sections, hairline-separated */}
-      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
-        <div className="grid lg:grid-cols-[288px_minmax(0,1fr)] lg:divide-x lg:divide-border/60">
-          <aside className="flex flex-col gap-4 border-b border-border/60 p-5 lg:border-b-0">
-            <div className="mx-auto w-40 overflow-hidden rounded-xl border border-border/60 bg-muted sm:w-48 lg:mx-0 lg:w-full">
-              <PosterImage src={poster} title={title} seed={data.id} />
-            </div>
-            <LibraryControls animeId={data.id} title={title} />
-            <TrailerButton url={data.trailerEmbedUrl} title={title} />
-          </aside>
+      {/* One continuous surface, hairline-separated sections — no more
+          poster sidebar, since the header above already carries it. */}
+      <div className="flex flex-col divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
+        <Block title={t("detail.sections.watch")}>
+          <WatchSection
+            anime={data}
+            title={title}
+            active
+            episode={episode}
+            onEpisodeChange={setEpisode}
+          />
+        </Block>
 
-          <div className="flex min-w-0 flex-col divide-y divide-border/60">
-            <Block title={t("detail.sections.watch")}>
-              <WatchSection
-                anime={data}
-                title={title}
-                active
-                episode={episode}
-                onEpisodeChange={setEpisode}
-              />
-            </Block>
+        <EpisodesSection
+          animeId={data.id}
+          episodesTotal={data.episodes}
+          currentEpisode={episode}
+          onSelect={setEpisode}
+        />
 
-            <EpisodesSection
-              animeId={data.id}
-              episodesTotal={data.episodes}
-              currentEpisode={episode}
-              onSelect={setEpisode}
-            />
+        <OverviewBlock anime={data} oneLiner={oneLiner} />
 
-            <OverviewBlock anime={data} oneLiner={oneLiner} />
+        <CharactersBlock animeId={data.id} />
 
-            <CharactersBlock animeId={data.id} />
+        <Block title={t("detail.sections.reviews")}>
+          <ReviewsSection animeId={data.id} active />
+        </Block>
 
-            <Block title={t("detail.sections.reviews")}>
-              <ReviewsSection animeId={data.id} active />
-            </Block>
-
-            <div className="p-5">
-              <CommentsSection animeId={data.id} />
-            </div>
-          </div>
+        <div className="p-5">
+          <CommentsSection animeId={data.id} />
         </div>
       </div>
 
@@ -478,15 +484,15 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   );
 }
 
-const EPISODES_PER_PAGE = 50;
+const EPISODES_PER_PAGE = 24;
 
 /**
- * A jump-to-any-episode grid, separate from the player's own compact
+ * A jump-to-any-episode strip, separate from the player's own compact
  * stepper — this is for scanning watch history at a glance (which episodes
- * are done) and jumping further than one step at a time. Windowed at 50 per
- * page so a 1000+ episode long-runner doesn't turn into an unusable wall of
- * buttons. Signed-in only: nothing persists per-episode otherwise, so there'd
- * be no watched state to show.
+ * are done) and jumping further than one step at a time. One row, horizontal
+ * scroll instead of wrapping — a 1000+ episode long-runner never turns into
+ * a tall wall of buttons. Signed-in only: nothing persists per-episode
+ * otherwise, so there'd be no watched state to show.
  */
 function EpisodesSection({
   animeId,
@@ -526,9 +532,25 @@ function EpisodesSection({
   return (
     <section className="flex flex-col gap-3 p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg tracking-tight sm:text-xl">
-          {t("detail.sections.episodes")}
-        </h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="font-display text-lg tracking-tight sm:text-xl">
+            {t("detail.sections.episodes")}
+          </h2>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("watch.episodeHelp")}
+                className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-foreground"
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-56 text-xs leading-relaxed">
+              {t("detail.episodesHelpBody")}
+            </TooltipContent>
+          </Tooltip>
+        </div>
         {totalPages > 1 && (
           <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             <button
@@ -555,7 +577,7 @@ function EpisodesSection({
           </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {episodes.map((ep) => {
           const done = completed.has(ep);
           const active = ep === currentEpisode;
@@ -566,7 +588,7 @@ function EpisodesSection({
               onClick={() => onSelect(ep)}
               aria-current={active}
               className={cn(
-                "flex size-9 items-center justify-center rounded-md border text-xs font-medium tabular-nums transition-colors",
+                "flex size-8 shrink-0 items-center justify-center rounded-md border text-xs font-medium tabular-nums transition-colors",
                 active
                   ? "border-primary bg-primary text-primary-foreground"
                   : done
@@ -589,29 +611,60 @@ function CharactersBlock({ animeId }: { animeId: number }) {
   const t = useT();
   const { data, isPending } = useCharacters(animeId);
   const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Character | null>(null);
 
-  if (!isPending && (!data || data.length === 0)) return null;
+  // A character with no photo has nothing worth a slot in the grid, and
+  // nothing to open a modal to either — skip them outright rather than
+  // showing an empty placeholder.
+  const withArt = (data ?? []).filter((c) => c.imageUrl != null);
+
+  if (!isPending && withArt.length === 0) return null;
 
   // Mains first, then the rest — one dense grid, 3 per row on mobile.
-  const ordered = [...(data ?? [])].sort(
+  const ordered = [...withArt].sort(
     (a, b) =>
       Number(b.role.toLowerCase() === "main") -
       Number(a.role.toLowerCase() === "main"),
   );
-  const visible = expanded ? ordered : ordered.slice(0, CHARACTERS_COLLAPSED);
-  const hidden = ordered.length - CHARACTERS_COLLAPSED;
+
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+  const matched = searching
+    ? ordered.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.role.toLowerCase().includes(q) ||
+          (c.voiceActor?.name.toLowerCase().includes(q) ?? false),
+      )
+    : ordered;
+  const visible = searching || expanded ? matched : matched.slice(0, CHARACTERS_COLLAPSED);
+  const hidden = matched.length - CHARACTERS_COLLAPSED;
 
   return (
     <section className="flex flex-col gap-4 p-5">
-      <h2 className="font-display text-lg tracking-tight sm:text-xl">
-        {t("detail.sections.mainCharacters")}
-        {data && data.length > 0 && (
-          <span className="ml-2 text-sm font-normal text-muted-foreground">
-            {data.length}
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg tracking-tight sm:text-xl">
+          {t("detail.sections.mainCharacters")}
+          {ordered.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {ordered.length}
+            </span>
+          )}
+        </h2>
+        {ordered.length > CHARACTERS_COLLAPSED && (
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("detail.searchCharacters")}
+              className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus:border-primary/50 sm:w-48"
+            />
+          </div>
         )}
-      </h2>
+      </div>
 
       {isPending ? (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
@@ -619,6 +672,8 @@ function CharactersBlock({ animeId }: { animeId: number }) {
             <Skeleton key={i} className="aspect-square rounded-full" />
           ))}
         </div>
+      ) : visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("detail.noCharactersMatch")}</p>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-6">
@@ -627,7 +682,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
             ))}
           </div>
           <CharacterModal character={selected} onOpenChange={(open) => !open && setSelected(null)} />
-          {hidden > 0 && (
+          {!searching && hidden > 0 && (
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
@@ -719,17 +774,9 @@ function DetailSkeleton() {
   return (
     <div className="flex flex-col gap-6">
       <Skeleton className="h-[320px] w-full rounded-2xl sm:h-[380px]" />
-      <div className="rounded-2xl border border-border/60">
-        <div className="grid lg:grid-cols-[288px_minmax(0,1fr)]">
-          <div className="flex flex-col gap-4 p-5">
-            <Skeleton className="mx-auto aspect-[2/3] w-40 rounded-xl lg:mx-0 lg:w-full" />
-            <Skeleton className="h-10 w-full rounded-lg" />
-          </div>
-          <div className="flex flex-col gap-6 p-5">
-            <Skeleton className="h-72 w-full rounded-xl" />
-            <Skeleton className="h-40 w-full rounded-xl" />
-          </div>
-        </div>
+      <div className="flex flex-col gap-6 rounded-2xl border border-border/60 p-5">
+        <Skeleton className="h-72 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       </div>
     </div>
   );

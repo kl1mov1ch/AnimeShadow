@@ -136,6 +136,8 @@ export const en = {
     machineTranslated: "Auto-translated",
     ranked: "Ranked #{rank}",
     airedOf: "{episodes} ep. total",
+    episodesHelpBody:
+      "Marks an episode as current and saves your progress — the player itself switches episodes in its own menu; this just tells the site where you left off.",
     themes: "Themes",
     audience: "Audience",
     oneLiner: "{type}, {year} · {genres}",
@@ -145,6 +147,8 @@ export const en = {
     mainRole: "Main character",
     showAllCharacters: "Show all ({count})",
     collapseCharacters: "Show fewer",
+    searchCharacters: "Search characters…",
+    noCharactersMatch: "No one matches that search.",
     characterModal: {
       voicedBy: "Voiced by",
       japaneseName: "Japanese name",

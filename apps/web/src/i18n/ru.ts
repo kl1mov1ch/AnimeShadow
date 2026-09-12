@@ -138,6 +138,8 @@ export const ru: Dict = {
     machineTranslated: "Автоперевод",
     ranked: "В рейтинге #{rank}",
     airedOf: "эпизодов: {episodes}",
+    episodesHelpBody:
+      "Отмечает серию как текущую и сохраняет прогресс — сам плеер переключает серии в своём собственном меню, здесь вы просто говорите сайту, на чём остановились.",
     themes: "Темы",
     audience: "Аудитория",
     oneLiner: "{type}, {year} · {genres}",
@@ -147,6 +149,8 @@ export const ru: Dict = {
     mainRole: "Главный герой",
     showAllCharacters: "Показать всех ({count})",
     collapseCharacters: "Свернуть",
+    searchCharacters: "Поиск персонажа…",
+    noCharactersMatch: "Никого не нашлось по этому запросу.",
     characterModal: {
       voicedBy: "Озвучивает",
       japaneseName: "Японское имя",

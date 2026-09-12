@@ -6,8 +6,10 @@ import { useT } from "@/i18n";
 const STORAGE_KEY = "animeshadow.cookie-consent.v1";
 
 /**
- * Small, dismissible side notice — not a full-width bar, not a blocking
- * modal. Shown once; dismissing it (either button) remembers the choice.
+ * Small, dismissible corner notice — not a full-width bar, not a blocking
+ * modal. Anchored to the bottom-right so it never sits over the middle of
+ * the viewport (which, on an anime page, is exactly where the player is).
+ * Shown once; dismissing it (either button) remembers the choice.
  */
 export function CookieConsent() {
   const t = useT();
@@ -40,7 +42,7 @@ export function CookieConsent() {
   return (
     <div
       role="status"
-      className="animate-in slide-in-from-right-4 fade-in fixed right-3 top-1/2 z-50 w-[min(15.5rem,calc(100vw-1.5rem))] -translate-y-1/2 rounded-xl border border-border/60 bg-card/95 p-3.5 shadow-lg backdrop-blur duration-300 sm:right-5"
+      className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-3 right-3 z-50 w-[min(15.5rem,calc(100vw-1.5rem))] rounded-xl border border-border/60 bg-card/95 p-3.5 shadow-lg backdrop-blur duration-300 sm:bottom-5 sm:right-5"
     >
       <button
         type="button"
