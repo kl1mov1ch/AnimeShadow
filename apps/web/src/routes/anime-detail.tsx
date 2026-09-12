@@ -165,9 +165,8 @@ function AnimeDetailView({ param }: { param: string }) {
               {t("detail.machineTranslated")}
             </Badge>
           )}
+          <ShareButtons path={animeUrl(data)} />
         </div>
-
-        <ShareButtons path={animeUrl(data)} />
 
         {data.genresDetailed.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">

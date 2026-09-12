@@ -29,7 +29,7 @@ import {
 import { useTheme } from "next-themes";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AchievementBadge } from "@/components/achievement-badge";
+import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { TITLE_ICON_COMPONENT, UserTitleBadge } from "@/components/user-title-badge";
 import { Button } from "@/components/ui/button";
@@ -228,6 +228,9 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
     month: "long",
     year: "numeric",
   });
+  const showcase = profile.achievements.find(
+    (a) => a.id === profile.showcaseAchievementId && a.earned,
+  );
 
   return (
     <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
@@ -254,7 +257,6 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
             {profile.displayName}
           </h1>
           <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} />
-          <AchievementBadge id={profile.showcaseAchievementId} />
         </div>
         {profile.username && (
           <p className="truncate text-sm text-muted-foreground">
@@ -269,6 +271,15 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
         <p className="text-xs text-muted-foreground/80">
           {t("profile.memberSince", { date: memberSince })}
         </p>
+        {showcase && (
+          <div className="reveal pt-1" style={{ "--i": 1.5 } as CSSProperties}>
+            <HoloAchievementBadge
+              id={showcase.id}
+              rarity={showcase.rarity}
+              earnedAt={showcase.earnedAt}
+            />
+          </div>
+        )}
       </div>
 
       <div
