@@ -264,29 +264,38 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
             {t("profile.handle", { username: profile.username })}
           </p>
         )}
-        {profile.bio && (
-          <p className="max-w-prose text-sm leading-relaxed text-foreground/90">
-            {profile.bio}
-          </p>
+        {/* Bio shares its line with the pinned achievements instead of its
+            own row — truncated to one line (it already can't be wider than
+            the name/handle above it, all being siblings in the same column)
+            so a long bio can't push the achievement circles off-screen. */}
+        {(profile.bio || pinned.length > 0) && (
+          <div className="flex items-center gap-2">
+            {profile.bio && (
+              <p className="min-w-0 flex-1 truncate text-sm leading-relaxed text-foreground/90">
+                {profile.bio}
+              </p>
+            )}
+            {pinned.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                {pinned.map((a) => (
+                  <HoloAchievementBadge
+                    key={a.id}
+                    id={a.id}
+                    rarity={a.rarity}
+                    earned
+                    earnedAt={a.earnedAt}
+                    variant="circle"
+                    className="size-8"
+                    onClick={() => setOpened(a)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
         <p className="text-xs text-muted-foreground/80">
           {t("profile.memberSince", { date: memberSince })}
         </p>
-        {pinned.length > 0 && (
-          <div className="reveal flex items-center gap-2 pt-1" style={{ "--i": 1.5 } as CSSProperties}>
-            {pinned.map((a) => (
-              <HoloAchievementBadge
-                key={a.id}
-                id={a.id}
-                rarity={a.rarity}
-                earned
-                earnedAt={a.earnedAt}
-                variant="circle"
-                onClick={() => setOpened(a)}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       <div

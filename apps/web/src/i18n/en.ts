@@ -194,6 +194,10 @@ export const en = {
     episodeBare: "Episode {episode}",
     prevEpisode: "Previous episode",
     nextEpisode: "Next episode",
+    episodeInputLabel: "Episode number",
+    episodeHelp: "About this",
+    episodeHelpBody:
+      "The player can't tell us which episode or how far in you are — set it yourself. Type a number directly, or hold the arrows to move through episodes faster.",
     comingOn: "Airs on {date}",
     days: "days",
     hours: "hrs",

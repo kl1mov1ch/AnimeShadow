@@ -196,6 +196,10 @@ export const ru: Dict = {
     episodeBare: "Серия {episode}",
     prevEpisode: "Предыдущая серия",
     nextEpisode: "Следующая серия",
+    episodeInputLabel: "Номер серии",
+    episodeHelp: "Что это",
+    episodeHelpBody:
+      "Плеер не может сказать нам, на какой вы серии и насколько далеко — укажите это сами. Введите номер вручную или зажмите стрелки, чтобы быстро пролистать серии.",
     comingOn: "Выходит {date}",
     days: "дн.",
     hours: "ч.",

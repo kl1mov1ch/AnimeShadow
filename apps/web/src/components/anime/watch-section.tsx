@@ -1,6 +1,11 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -207,6 +212,161 @@ function Countdown({ target }: { target: Date }) {
 
 /** If the embed hasn't reported `load` by now, assume it's not coming up. */
 const STALL_MS = 9_000;
+const HOLD_REPEAT_DELAY_MS = 380;
+const HOLD_REPEAT_INTERVAL_MS = 90;
+
+/**
+ * A button that fires `onClick` for a normal press (mouse click or keyboard
+ * Enter/Space — both raise a native "click", so that's the single source of
+ * truth for "short press"), but switches to firing `onRepeat` on an interval
+ * once held past HOLD_REPEAT_DELAY_MS, for fast-scrolling through episodes.
+ * The click that naturally follows releasing a hold is swallowed once so it
+ * doesn't also count as a step.
+ */
+function useHoldRepeat(onClick: () => void, onRepeat: () => void) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heldRef = useRef(false);
+
+  const clear = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    timeoutRef.current = null;
+    intervalRef.current = null;
+  };
+  useEffect(() => clear, []);
+
+  return {
+    onPointerDown: () => {
+      timeoutRef.current = setTimeout(() => {
+        heldRef.current = true;
+        onRepeat();
+        intervalRef.current = setInterval(onRepeat, HOLD_REPEAT_INTERVAL_MS);
+      }, HOLD_REPEAT_DELAY_MS);
+    },
+    onPointerUp: clear,
+    onPointerLeave: clear,
+    onClick: () => {
+      clear();
+      if (heldRef.current) {
+        heldRef.current = false; // trailing click after a hold — already stepped, ignore
+        return;
+      }
+      onClick();
+    },
+  };
+}
+
+/**
+ * Which episode you're on, editable directly — the embed can't tell us this,
+ * so the viewer does. Arrows step by one on a normal click and fast-scroll on
+ * hold; the number itself is a plain text field so you can jump straight to
+ * wherever you actually left off instead of clicking through every episode.
+ */
+function EpisodeStepper({
+  episode,
+  episodesTotal,
+  onSeek,
+  onAdvanceClick,
+  onRetreatClick,
+}: {
+  episode: number;
+  episodesTotal: number | null;
+  /** Pure reposition — hold-to-repeat and manual entry, no side effects. */
+  onSeek: (next: number) => void;
+  /** A single click on the arrows — may carry side effects (see Player). */
+  onAdvanceClick: () => void;
+  onRetreatClick: () => void;
+}) {
+  const t = useT();
+  const [draft, setDraft] = useState(String(episode));
+  const [editing, setEditing] = useState(false);
+  // The repeat interval's own callback is created once per hold and never
+  // re-reads props/state from a fresh render, so it needs a ref to see the
+  // current episode instead of a value closed over when the hold started.
+  const episodeRef = useRef(episode);
+  useEffect(() => {
+    episodeRef.current = episode;
+    if (!editing) setDraft(String(episode));
+  }, [episode, editing]);
+
+  const step = (dir: 1 | -1) => {
+    const next = episodeRef.current + dir;
+    if (next < 1) return;
+    if (episodesTotal != null && next > episodesTotal) return;
+    onSeek(next);
+  };
+
+  const commit = () => {
+    setEditing(false);
+    const parsed = Number.parseInt(draft, 10);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(episode));
+      return;
+    }
+    const clamped = Math.max(1, episodesTotal != null ? Math.min(episodesTotal, parsed) : parsed);
+    onSeek(clamped);
+  };
+
+  const prevHold = useHoldRepeat(onRetreatClick, () => step(-1));
+  const nextHold = useHoldRepeat(onAdvanceClick, () => step(1));
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-border/60 bg-card/60 py-1 pl-1 pr-1.5">
+      <button
+        type="button"
+        {...prevHold}
+        disabled={episode <= 1}
+        aria-label={t("watch.prevEpisode")}
+        className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      >
+        <ChevronLeftIcon className="size-3.5" />
+      </button>
+
+      <input
+        type="text"
+        inputMode="numeric"
+        value={editing ? draft : String(episode)}
+        aria-label={t("watch.episodeInputLabel")}
+        onFocus={() => setEditing(true)}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        className="w-6 shrink-0 bg-transparent text-center text-sm font-medium tabular-nums outline-none"
+      />
+      {episodesTotal != null && (
+        <span className="shrink-0 text-xs text-muted-foreground">/ {episodesTotal}</span>
+      )}
+
+      <button
+        type="button"
+        {...nextHold}
+        disabled={episodesTotal != null && episode >= episodesTotal}
+        aria-label={t("watch.nextEpisode")}
+        className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      >
+        <ChevronRightIcon className="size-3.5" />
+      </button>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("watch.episodeHelp")}
+            className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-foreground"
+          >
+            <InfoIcon className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-56 text-xs leading-relaxed">
+          {t("watch.episodeHelpBody")}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
 
 function Player({
   data,
@@ -316,39 +476,20 @@ function Player({
 
   return (
     <div className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]">
-      {/* Which episode — the embed can't tell us, so the viewer does. Only
-          shown signed-in: for an anonymous visit nothing here is saved, so a
-          control that quietly does nothing would just be confusing. */}
-      {authed && (
-        <div className="flex items-center justify-center gap-1 self-center rounded-full border border-border/60 bg-card/60 p-1">
-          <button
-            type="button"
-            onClick={() => goToEpisode(episode - 1, false)}
-            disabled={episode <= 1}
-            aria-label={t("watch.prevEpisode")}
-            className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-          >
-            <ChevronLeftIcon className="size-4" />
-          </button>
-          <span className="min-w-0 truncate px-1.5 text-sm font-medium tabular-nums">
-            {episodesTotal
-              ? t("watch.episodeOf", { episode, total: episodesTotal })
-              : t("watch.episodeBare", { episode })}
-          </span>
-          <button
-            type="button"
-            onClick={() => goToEpisode(episode + 1, true)}
-            disabled={episodesTotal != null && episode >= episodesTotal}
-            aria-label={t("watch.nextEpisode")}
-            className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-          >
-            <ChevronRightIcon className="size-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Current pick — one line, not a wall of options. */}
+      {/* Current pick, one line — the episode control lives right in it
+          (only for signed-in viewers: nothing persists otherwise, so a
+          control that quietly does nothing would just be confusing)
+          instead of floating on its own row above the player. */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
+        {authed && (
+          <EpisodeStepper
+            episode={episode}
+            episodesTotal={episodesTotal}
+            onSeek={(next) => setEpisode(next)}
+            onAdvanceClick={() => goToEpisode(episode + 1, true)}
+            onRetreatClick={() => goToEpisode(episode - 1, false)}
+          />
+        )}
         <span className="min-w-0 truncate font-medium">{current.title}</span>
         <SourceKindBadge source={current} />
         <StabilityMark stable={current.stable} />
