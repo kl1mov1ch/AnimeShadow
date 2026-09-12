@@ -46,18 +46,22 @@ export function CharacterModal({
               <DialogDescription>{character.role}</DialogDescription>
             </DialogHeader>
 
-            {/* Full portrait, not a cropped circle — the art stays intact. */}
-            <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted">
-              {photo ? (
-                <img
-                  src={imageSrc(photo)}
-                  alt=""
-                  className="size-full object-cover object-top"
-                />
-              ) : (
-                <PosterFallback title={character.name} seed={character.id} />
-              )}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/70 to-transparent px-5 pb-3 pt-10">
+            {/* A round avatar reads as a portrait, not a stretched banner —
+                and at this size a modest-resolution photo stays crisp
+                instead of getting smeared across a big rectangle. */}
+            <div className="flex flex-col items-center gap-3 border-b border-border/60 bg-gradient-to-b from-primary/[0.07] to-transparent px-5 pb-5 pt-7 text-center">
+              <div className="size-28 shrink-0 overflow-hidden rounded-full border-2 border-border/60 bg-muted shadow-md">
+                {photo ? (
+                  <img
+                    src={imageSrc(photo)}
+                    alt=""
+                    className="size-full object-cover object-top"
+                  />
+                ) : (
+                  <PosterFallback title={character.name} seed={character.id} variant="avatar" />
+                )}
+              </div>
+              <div className="flex flex-col gap-0.5">
                 <h2 className="font-display text-xl text-foreground">
                   {character.name}
                 </h2>
@@ -68,7 +72,7 @@ export function CharacterModal({
             </div>
 
             <div className="flex flex-col gap-4 p-5">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-medium text-primary">
                   {character.role}
                 </span>
@@ -102,9 +106,13 @@ export function CharacterModal({
               ) : (
                 <>
                   {data?.description ? (
-                    <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
-                      {data.description}
-                    </p>
+                    // Set apart in its own bordered/tinted block instead of
+                    // running text, so it reads as "the bio" at a glance.
+                    <div className="rounded-xl border border-border/60 bg-card/60 p-4">
+                      <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+                        {data.description}
+                      </p>
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       {t("detail.characterModal.noDescription")}

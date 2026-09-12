@@ -22,17 +22,25 @@ interface CharacterCardProps {
   onSelect?: (character: Character) => void;
 }
 
-/** Hover preview: a one-line teaser, fetched only once the user actually hovers. */
-function HoverPreview({ character }: { character: Character }) {
+/**
+ * Hover preview: a one-line teaser, fetched only once the user actually
+ * hovers. Wraps the whole card as the trigger (not just an overlay behind
+ * the name) so hovering the avatar itself shows it too, not only the text.
+ */
+function HoverPreview({
+  character,
+  children,
+}: {
+  character: Character;
+  children: React.ReactNode;
+}) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const { data, isPending } = useCharacterDetail(open ? character.id : null);
 
   return (
     <Tooltip onOpenChange={setOpen}>
-      <TooltipTrigger asChild>
-        <span className="absolute inset-0" />
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent side="top" className="max-w-56 text-left">
         <p className="font-medium">{character.name}</p>
         {isPending ? (
@@ -63,41 +71,42 @@ export function CharacterCard({
 
   if (compact) {
     return (
-      <button
-        type="button"
-        onClick={() => onSelect?.(character)}
-        className="group relative flex flex-col items-center gap-1.5 text-center"
-      >
-        <HoverPreview character={character} />
-        <div className="size-16 overflow-hidden rounded-full border border-border/60 bg-muted transition-transform duration-200 group-hover:-translate-y-0.5 sm:size-20">
-          {character.imageUrl ? (
-            <img
-              src={imageSrc(character.imageUrl)}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="size-full object-cover"
-            />
-          ) : (
-            <PosterFallback
-              title={character.name}
-              seed={character.id}
-              variant="avatar"
-            />
-          )}
-        </div>
-        <p className="line-clamp-2 text-xs font-medium leading-tight">
-          {character.name}
-        </p>
-        <p
-          className={cn(
-            "text-[11px]",
-            isMain ? "text-primary" : "text-muted-foreground",
-          )}
+      <HoverPreview character={character}>
+        <button
+          type="button"
+          onClick={() => onSelect?.(character)}
+          className="group flex flex-col items-center gap-1.5 text-center"
         >
-          {roleLabel}
-        </p>
-      </button>
+          <div className="size-16 overflow-hidden rounded-full border border-border/60 bg-muted transition-transform duration-200 group-hover:-translate-y-0.5 sm:size-20">
+            {character.imageUrl ? (
+              <img
+                src={imageSrc(character.imageUrl)}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="size-full object-cover"
+              />
+            ) : (
+              <PosterFallback
+                title={character.name}
+                seed={character.id}
+                variant="avatar"
+              />
+            )}
+          </div>
+          <p className="line-clamp-2 text-xs font-medium leading-tight">
+            {character.name}
+          </p>
+          <p
+            className={cn(
+              "text-[11px]",
+              isMain ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            {roleLabel}
+          </p>
+        </button>
+      </HoverPreview>
     );
   }
 
