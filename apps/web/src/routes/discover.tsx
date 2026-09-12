@@ -96,27 +96,13 @@ export function Component() {
         />
       )}
 
-      {/* A poster wall instead of a slider — this is the one rail people tend
-          to actually scan for "what's hot", so letting several rows sit
-          visible at once beats scrolling one at a time. Also breaks up a
-          page that would otherwise be nothing but horizontal carousels. */}
-      {(isPending || (data?.trendingNow?.length ?? 0) > 0) && (
-        <HomeSection
-          title={t("home.trendingNow")}
-          subtitle={t("home.trendingNowSub")}
-          href="/browse?orderBy=popularity"
-        >
-          {isPending ? (
-            <AnimeGridSkeletonRow count={10} />
-          ) : (
-            <AnimeGrid
-              items={(data?.trendingNow ?? []).slice(0, 10)}
-              priorityCount={5}
-            />
-          )}
-        </HomeSection>
-      )}
-
+      <AnimeRail
+        title={t("home.trendingNow")}
+        subtitle={t("home.trendingNowSub")}
+        items={data?.trendingNow ?? []}
+        loading={isPending}
+        href="/browse?orderBy=popularity"
+      />
       <AnimeRail
         title={t("home.trendingMonth")}
         subtitle={t("home.trendingMonthSub")}

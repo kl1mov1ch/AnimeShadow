@@ -138,7 +138,7 @@ export class CatalogService {
         this.queryCache({ score: { not: null } }, "score", 20),
         // Low ids ≈ long-established classics — a distinct rail from "top rated".
         this.queryCacheAsc({}, "id", 20),
-        this.mostWatchedRecently(2, 20),
+        this.trendingNowBlended(20),
         this.mostWatchedRecently(30, 20),
         this.queryCacheAsc(
           { airing: "UPCOMING", airedFrom: { gte: new Date() } },
@@ -226,6 +226,99 @@ export class CatalogService {
       .map(toSummaryDto);
     this.scheduleHealMissingDetail(items);
     return items;
+  }
+
+  /**
+   * "Watching right now" — our own real WatchSession activity first (that's
+   * genuinely what's playing on this site), padded out with titles AniList's
+   * whole community is currently trending (a real cross-site aggregate, not
+   * a guess) whenever our own traffic alone is too thin to fill the row. Only
+   * pads with titles already in our catalogue — never fetches a brand-new
+   * title just to fill a slot. Every item is guaranteed a poster before it's
+   * returned; nothing reaches the client blank.
+   */
+  private async trendingNowBlended(limit: number): Promise<AnimeSummary[]> {
+    const own = await this.mostWatchedRecently(2, limit);
+    if (own.length >= limit) return this.ensureImages(own);
+
+    const seen = new Set(own.map((a) => a.id));
+    const external = await this.externalTrendingMap();
+    const padIds = [...external.keys()].filter((id) => !seen.has(id));
+
+    let pad: AnimeSummary[] = [];
+    if (padIds.length > 0) {
+      const rows = await this.prisma.anime.findMany({
+        where: { id: { in: padIds } },
+        include: ANIME_WITH_GENRES_INCLUDE,
+      });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      // Preserve AniList's own trending order, not the DB's arbitrary order.
+      pad = padIds
+        .map((id) => byId.get(id))
+        .filter((r): r is (typeof rows)[number] => r != null)
+        .map(toSummaryDto);
+    }
+
+    const combined = [...own, ...pad].slice(0, limit);
+    this.scheduleHealMissingDetail(combined);
+    return this.ensureImages(combined, external);
+  }
+
+  /**
+   * AniList's own trending ranking — computed by an entirely separate site
+   * from its entire community, so it's a genuine second "popularity" signal
+   * beyond our own traffic. One request, cached for the whole hour; every
+   * entry already carries a poster/banner, which `ensureImages` reuses for
+   * free instead of making a second round of lookups.
+   */
+  private async externalTrendingMap(): Promise<Map<number, AnilistTrendingEntry>> {
+    const entries = (await this.auxCache.wrap("anilist-trending", async () =>
+      anilistTrendingBatch(),
+    )) as AnilistTrendingEntry[];
+    return new Map(entries.map((e) => [e.idMal, e]));
+  }
+
+  /**
+   * Guarantees every summary in the list has a poster before it reaches the
+   * client. Cheap when `external` already carries a cover for the id (no
+   * extra request); otherwise falls back to the same cross-provider cascade
+   * poster-healing uses elsewhere. Only touches items missing an image.
+   */
+  private async ensureImages(
+    items: AnimeSummary[],
+    external?: Map<number, AnilistTrendingEntry>,
+  ): Promise<AnimeSummary[]> {
+    return Promise.all(
+      items.map(async (item) => {
+        if (item.imageUrl || item.imageLargeUrl) return item;
+        try {
+          const fromBatch = external?.get(item.id)?.coverImage;
+          const cover = fromBatch?.extraLarge ?? fromBatch?.large ?? null;
+          const externalPoster =
+            cover ??
+            (await anilistPoster(item.id, item.title)) ??
+            (await kitsuPoster(item.title)) ??
+            (await anilibriaPoster(item.title));
+
+          let large = externalPoster;
+          let small = externalPoster;
+          if (!externalPoster) {
+            const poster = await this.jikan.getAnimePoster(item.id);
+            large = poster?.large ?? poster?.small ?? null;
+            small = poster?.small ?? poster?.large ?? null;
+          }
+          if (!large && !small) return item;
+
+          await this.prisma.anime
+            .update({ where: { id: item.id }, data: { imageUrl: small, imageLargeUrl: large } })
+            .catch(() => undefined);
+          return { ...item, imageUrl: small, imageLargeUrl: large };
+        } catch (error) {
+          this.logger.warn({ error, id: item.id }, "trending image heal failed");
+          return item;
+        }
+      }),
+    );
   }
 
   /**
@@ -1033,6 +1126,51 @@ async function anilistBanner(
     );
   }
   return null;
+}
+
+interface AnilistTrendingEntry {
+  idMal: number;
+  trending: number;
+  bannerImage: string | null;
+  coverImage: { extraLarge?: string; large?: string } | null;
+}
+
+/**
+ * AniList's own trending ranking (`Page(sort: TRENDING_DESC)`) — one request
+ * for a whole batch, each entry already carrying its poster and banner. This
+ * is the "what's the rest of the internet watching" half of the homepage's
+ * trending row; our own WatchSession data is the other half. Cached by the
+ * caller (aggressively — this doesn't need to be fresh to the minute).
+ */
+async function anilistTrendingBatch(): Promise<AnilistTrendingEntry[]> {
+  try {
+    const query = `query($page:Int){
+      Page(page:$page,perPage:50){
+        media(type:ANIME,sort:TRENDING_DESC){
+          idMal
+          trending
+          bannerImage
+          coverImage{extraLarge large}
+        }
+      }
+    }`;
+    const res = await fetch(ANILIST_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ query, variables: { page: 1 } }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      data?: { Page?: { media?: Array<Partial<AnilistTrendingEntry>> } };
+    };
+    const media = json.data?.Page?.media ?? [];
+    return media.filter(
+      (m): m is AnilistTrendingEntry => typeof m.idMal === "number",
+    );
+  } catch {
+    return [];
+  }
 }
 
 /** A poster from Kitsu by title text search. Allows hot-linking. Null on failure. */
