@@ -1,5 +1,5 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -158,6 +158,12 @@ function Player({
   const [showAll, setShowAll] = useState(false);
   const [stalled, setStalled] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Mirrors `loaded` for the stall timer's closure below — plain state would
+  // be stale by the time the timeout fires (it captures the value from when
+  // the effect ran, not the current one), which was the actual bug: a
+  // perfectly fine, already-loaded embed still got force-switched every
+  // STALL_MS because the check for "did it load?" was missing entirely.
+  const loadedRef = useRef(false);
   // Every source this session has already stalled on — so a dead top pick
   // doesn't leave the user staring at it for minutes: we cycle through the
   // rest automatically and only ask them to pick once nothing loads.
@@ -171,9 +177,11 @@ function Player({
 
   // Reset the stall watch whenever we switch embeds.
   useEffect(() => {
+    loadedRef.current = false;
     setLoaded(false);
     setStalled(false);
     const timer = setTimeout(() => {
+      if (loadedRef.current) return; // it loaded fine — nothing to do
       setStalled(true);
       setTriedIds((tried) => {
         const nextTried = current ? [...tried, current.id] : tried;
@@ -257,7 +265,10 @@ function Player({
           title={`${title} — ${current.title}`}
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           referrerPolicy="no-referrer"
-          onLoad={() => setLoaded(true)}
+          onLoad={() => {
+            loadedRef.current = true;
+            setLoaded(true);
+          }}
           className="size-full"
         />
       </div>
