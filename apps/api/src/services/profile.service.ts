@@ -21,6 +21,9 @@ export interface ProfileServiceDeps {
 }
 
 const EPISODE_SECONDS = 1440;
+// "Continue watching" on the profile — most-recently-touched titles only,
+// not an ever-growing list of every title ever started.
+const PROGRESS_ANIME_LIMIT = 10;
 
 function rankOf(hours: number): Rank {
   if (hours >= 500) return "LEGEND";
@@ -150,7 +153,20 @@ export class ProfileService {
     );
     const statusByAnime = new Map(library.map((l) => [l.animeId, l.status]));
 
-    return rows.map((r) => ({
+    // One row per anime — its most recently touched episode — not one row
+    // per (anime, episode) pair, and capped to the most recent titles.
+    // `rows` is already ordered by updatedAt desc, so the first row seen
+    // for a given anime is its latest.
+    const seen = new Set<number>();
+    const perAnime: typeof rows = [];
+    for (const r of rows) {
+      if (seen.has(r.animeId)) continue;
+      seen.add(r.animeId);
+      perAnime.push(r);
+      if (perAnime.length >= PROGRESS_ANIME_LIMIT) break;
+    }
+
+    return perAnime.map((r) => ({
       animeId: r.animeId,
       slug: r.anime.slug,
       title: r.anime.titleLocalized ?? r.anime.title,

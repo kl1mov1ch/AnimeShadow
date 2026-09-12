@@ -262,6 +262,7 @@ export function useRemoveLibraryEntry() {
 // ---------------------------------------------------------------------------
 
 import type {
+  AnimeProgress,
   Comment,
   CommentQuery,
   CreateCommentInput,
@@ -270,6 +271,7 @@ import type {
   ProgressDetail,
   PublicProfile,
   UpdateProfileInput,
+  UpsertProgressInput,
 } from "@animeshadow/shared";
 
 export function useMyProfile(enabled = true) {
@@ -295,6 +297,32 @@ export function useMyProgress(enabled = true) {
     enabled,
     queryFn: ({ signal }) =>
       apiRequest<ProgressDetail[]>("/me/progress", { signal }),
+  });
+}
+
+/** Per-episode progress for one title — where to resume, and what's been watched. */
+export function useAnimeProgress(animeId: number, enabled = true) {
+  return useQuery({
+    queryKey: ["anime", animeId, "progress"],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<AnimeProgress>(`/anime/${animeId}/progress`, { signal }),
+  });
+}
+
+export function useUpdateProgress(animeId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpsertProgressInput) =>
+      apiRequest<AnimeProgress>(`/anime/${animeId}/progress`, {
+        method: "PUT",
+        body: input,
+      }),
+    onSuccess: (data) => {
+      client.setQueryData(["anime", animeId, "progress"], data);
+      void client.invalidateQueries({ queryKey: ["me", "progress"] });
+      void client.invalidateQueries({ queryKey: ["me", "continue"] });
+    },
   });
 }
 

@@ -1,15 +1,17 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
-import { useWatchSources } from "@/lib/query";
+import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 interface WatchSectionProps {
-  anime: Pick<AnimeDetail, "id" | "airing" | "airedFrom">;
+  anime: Pick<AnimeDetail, "id" | "airing" | "airedFrom" | "episodes">;
   title: string;
   active: boolean;
 }
@@ -37,7 +39,14 @@ export function WatchSection({ anime, title, active }: WatchSectionProps) {
   }
 
   if (data?.available && data.sources.length > 0) {
-    return <Player data={data} title={title} animeId={anime.id} />;
+    return (
+      <Player
+        data={data}
+        title={title}
+        animeId={anime.id}
+        episodesTotal={anime.episodes}
+      />
+    );
   }
 
   const notice =
@@ -85,6 +94,62 @@ function usePreconnect(sources: WatchSource[] | undefined): void {
       for (const link of links) link.remove();
     };
   }, [sources]);
+}
+
+/**
+ * Records roughly where a signed-in user left off on one episode — the
+ * embed is a third-party iframe we can't read a real seek position from, so
+ * this measures elapsed time the player was open on this episode instead,
+ * added onto whatever was already stored for it. Flushes on visibility
+ * hide, unmount and episode change, same triggers as useWatchSession.
+ */
+function useEpisodeTracking({
+  animeId,
+  episode,
+  seedPosition,
+  active,
+}: {
+  animeId: number;
+  episode: number;
+  seedPosition: number;
+  active: boolean;
+}): void {
+  const { status } = useAuth();
+  const authed = status === "authenticated";
+  const update = useUpdateProgress(animeId);
+  const baseRef = useRef(seedPosition);
+
+  useEffect(() => {
+    baseRef.current = seedPosition;
+  }, [episode, seedPosition]);
+
+  useEffect(() => {
+    if (!authed || !active) return;
+    let start = Date.now();
+
+    const flush = () => {
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      start = Date.now(); // reset so a resume doesn't double-count
+      if (elapsed < 15) return;
+      baseRef.current += elapsed;
+      update.mutate({ episode, positionSeconds: baseRef.current });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+      else start = Date.now();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", flush);
+
+    return () => {
+      flush();
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("beforeunload", flush);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed, active, animeId, episode]);
 }
 
 /* ---------- countdown ---------- */
@@ -147,10 +212,12 @@ function Player({
   data,
   title,
   animeId,
+  episodesTotal,
 }: {
   data: WatchResponse;
   title: string;
   animeId: number;
+  episodesTotal: number | null;
 }) {
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead).
@@ -173,7 +240,31 @@ function Player({
     () => data.sources.find((s) => s.id === selectedId) ?? data.sources[0],
     [data.sources, selectedId],
   );
-  useWatchSession({ animeId, episode: 1, active: true });
+
+  // The embed is a third-party iframe (Kodik/Alloha) with its own internal
+  // episode navigation we can't read — so unlike video position, "which
+  // episode" is something the viewer tells us, seeded from wherever they
+  // last left off.
+  const { data: progress } = useAnimeProgress(animeId);
+  const [episode, setEpisode] = useState(1);
+  const resumeAppliedRef = useRef(false);
+  useEffect(() => {
+    if (resumeAppliedRef.current) return;
+    if (progress?.resumeEpisode != null) {
+      setEpisode(progress.resumeEpisode);
+      resumeAppliedRef.current = true;
+    }
+  }, [progress]);
+
+  const episodeRecord = progress?.episodes.find((e) => e.episode === episode);
+  useEpisodeTracking({
+    animeId,
+    episode,
+    seedPosition: episodeRecord?.positionSeconds ?? 0,
+    active: true,
+  });
+  useWatchSession({ animeId, episode, active: true });
+  const update = useUpdateProgress(animeId);
 
   // Reset the stall watch whenever we switch embeds.
   useEffect(() => {
@@ -205,8 +296,48 @@ function Player({
     setShowAll(false);
   };
 
+  const goToEpisode = (next: number, markCurrentDone: boolean) => {
+    if (next < 1) return;
+    if (episodesTotal != null && next > episodesTotal) return;
+    if (markCurrentDone) {
+      update.mutate({
+        episode,
+        positionSeconds: episodeRecord?.positionSeconds ?? 0,
+        completed: true,
+      });
+    }
+    setEpisode(next);
+  };
+
   return (
     <div className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]">
+      {/* Which episode — the embed can't tell us, so the viewer does. */}
+      <div className="flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => goToEpisode(episode - 1, false)}
+          disabled={episode <= 1}
+          aria-label={t("watch.prevEpisode")}
+          className="rounded-full border border-border/60 p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <ChevronLeftIcon className="size-4" />
+        </button>
+        <span className="min-w-0 truncate text-sm font-medium tabular-nums">
+          {episodesTotal
+            ? t("watch.episodeOf", { episode, total: episodesTotal })
+            : t("watch.episodeBare", { episode })}
+        </span>
+        <button
+          type="button"
+          onClick={() => goToEpisode(episode + 1, true)}
+          disabled={episodesTotal != null && episode >= episodesTotal}
+          aria-label={t("watch.nextEpisode")}
+          className="rounded-full border border-border/60 p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <ChevronRightIcon className="size-4" />
+        </button>
+      </div>
+
       {/* Current pick — one line, not a wall of options. */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="min-w-0 truncate font-medium">{current.title}</span>
