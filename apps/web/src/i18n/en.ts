@@ -459,6 +459,7 @@ export const en = {
       dnd: "Do not disturb",
     },
     rank: {
+      label: "Rank",
       novice: "Novice",
       advanced: "Advanced",
       expert: "Expert",
@@ -481,6 +482,11 @@ export const en = {
       durationHM: "{h}h {m}m",
       hoursShort: "{hours}h watched",
       minutesShort: "{minutes} min",
+      topGenres: "Top genres",
+      inProgress: "In progress",
+      completedTitles: "Titles completed",
+      meanScore: "Mean score",
+      lastWatched: "Last watched",
     },
     settings: {
       avatar: "Avatar",
@@ -490,6 +496,7 @@ export const en = {
       bio: "Profile bio",
       bioHint: "up to 500 characters",
       status: "Status",
+      appearance: "Appearance",
       theme: "Theme",
       themeLight: "Light",
       themeDark: "Dark",

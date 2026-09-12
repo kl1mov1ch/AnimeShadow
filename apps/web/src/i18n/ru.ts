@@ -461,6 +461,7 @@ export const ru: Dict = {
       dnd: "Не беспокоить",
     },
     rank: {
+      label: "Ранг",
       novice: "Новичок",
       advanced: "Продвинутый",
       expert: "Эксперт",
@@ -483,6 +484,11 @@ export const ru: Dict = {
       durationHM: "{h} ч {m} м",
       hoursShort: "{hours} ч. в сумме",
       minutesShort: "{minutes} мин",
+      topGenres: "Топ жанров",
+      inProgress: "Смотрю сейчас",
+      completedTitles: "Тайтлов просмотрено",
+      meanScore: "Средняя оценка",
+      lastWatched: "Последний просмотр",
     },
     settings: {
       avatar: "Аватар",
@@ -492,6 +498,7 @@ export const ru: Dict = {
       bio: "Описание профиля",
       bioHint: "до 500 символов",
       status: "Статус",
+      appearance: "Оформление",
       theme: "Тема",
       themeLight: "Светлая",
       themeDark: "Тёмная",
