@@ -117,6 +117,7 @@ function AnimeDetailView({ param }: { param: string }) {
   }
 
   const title = labels.title(data);
+  const hasWideArt = Boolean(data.bannerImage || data.screenshots[0]);
   const banner = imageSrc(
     data.bannerImage ?? data.screenshots[0] ?? data.imageLargeUrl ?? data.imageUrl,
   );
@@ -134,9 +135,14 @@ function AnimeDetailView({ param }: { param: string }) {
 
   return (
     <article className="flex flex-col gap-6">
-      <CinematicHeader src={banner} title={title} seed={data.id}>
+      <CinematicHeader
+        src={banner}
+        isPortraitFallback={!hasWideArt}
+        title={title}
+        seed={data.id}
+      >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground/70">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="text-primary">{labels.airingLabel(data.airing)}</span>
             <Dot />
             <span>{labels.typeLabel(data.type)}</span>
@@ -170,12 +176,12 @@ function AnimeDetailView({ param }: { param: string }) {
                 {title}
               </h1>
               {secondaryTitle && (
-                <p className="text-sm text-foreground/70">{secondaryTitle}</p>
+                <p className="text-sm text-muted-foreground">{secondaryTitle}</p>
               )}
             </div>
 
             {/* Rating — exactly that, nothing else: score, vote count, rank. */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-foreground/70">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
               <ScoreBadge score={data.score} size="md" />
               {data.scoredBy != null && (
                 <span>{t("common.ratings", { count: labels.compact(data.scoredBy) })}</span>
@@ -184,7 +190,7 @@ function AnimeDetailView({ param }: { param: string }) {
                 <span className="tabular-nums">{t("detail.ranked", { rank: data.rank })}</span>
               )}
               {data.translated && (
-                <Badge variant="outline" className="border-foreground/30 text-[11px] text-foreground/80">
+                <Badge variant="outline" className="text-[11px]">
                   {t("detail.machineTranslated")}
                 </Badge>
               )}
@@ -196,7 +202,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
                     <Badge
                       variant="secondary"
-                      className="cursor-pointer border-transparent bg-background/60 font-normal backdrop-blur-sm transition-colors hover:border-primary/50 hover:text-foreground"
+                      className="cursor-pointer font-normal transition-colors hover:border-primary/50 hover:text-foreground"
                     >
                       {labels.genreLabel(genre.name)}
                     </Badge>
@@ -261,17 +267,25 @@ function AnimeDetailView({ param }: { param: string }) {
  */
 function CinematicHeader({
   src,
+  /** True when `src` is a tall poster crop, not a real wide banner/screenshot
+   * — stretching a poster edge-to-edge with `object-cover` zooms into a tiny
+   * sliver of it (usually just its decorative background pattern) and reads
+   * as broken. Toned down to a soft, gently-scaled backdrop instead of trying
+   * to feature the poster twice — the sharp copy already sits in the info
+   * panel below, this is purely atmospheric colour. */
+  isPortraitFallback,
   title,
   seed,
   children,
 }: {
   src: string | undefined;
+  isPortraitFallback: boolean;
   title: string;
   seed: number;
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-h-[320px] w-full overflow-hidden rounded-2xl border border-border/60 bg-card sm:min-h-[380px]">
+    <div className="relative min-h-[360px] w-full overflow-hidden rounded-2xl border border-border/60 bg-card sm:min-h-[420px]">
       <div className="pointer-events-none absolute inset-0">
         {src ? (
           <img
@@ -279,20 +293,28 @@ function CinematicHeader({
             alt=""
             aria-hidden
             fetchPriority="high"
-            className="hero-pan absolute inset-0 size-full object-cover"
+            className={cn(
+              "absolute inset-0 size-full object-cover",
+              isPortraitFallback
+                ? "scale-110 object-top opacity-50 blur-3xl saturate-50"
+                : "hero-pan",
+            )}
           />
         ) : (
           <PosterFallback title={title} seed={seed} />
         )}
-        {/* Same technique as the homepage spotlight: fade to the surface's
-            own colour (light in light mode, dark in dark mode) so the text —
-            which flips colour with the theme too — always has the right
-            contrast, and the image reads as one continuous surface with the
-            info below it instead of two stacked, differently-coloured boxes. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
+        {/* Fades only the lower portion — the top of the image stays clear so
+            there's a genuine "just the picture" band, not text creeping all
+            the way up it. */}
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card via-card/70 to-transparent" />
       </div>
-      <div className="relative flex min-h-[320px] flex-col justify-end gap-3 p-5 sm:min-h-[380px] sm:p-8">
-        {children}
+      <div className="relative flex min-h-[360px] flex-col justify-end p-4 sm:min-h-[420px] sm:p-6">
+        {/* Everything the viewer needs to read or click sits on its own
+            solid-ish panel — a bright, busy frame from the show can otherwise
+            wash out plain overlaid text and make buttons hard to pick out. */}
+        <div className="flex flex-col gap-3 rounded-xl bg-background/70 p-4 shadow-lg backdrop-blur-md sm:p-5">
+          {children}
+        </div>
       </div>
     </div>
   );
