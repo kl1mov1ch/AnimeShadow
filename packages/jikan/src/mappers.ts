@@ -118,6 +118,7 @@ export function toAnimeDetail(raw: JikanAnime): AnimeDetail {
     themes: (raw.themes ?? []).map((t) => t.name),
     demographics: (raw.demographics ?? []).map((d) => d.name),
     screenshots: [],
+    bannerImage: null,
     titleLocalized: null,
     translated: false,
   };

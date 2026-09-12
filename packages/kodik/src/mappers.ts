@@ -138,6 +138,7 @@ export function toAnimeDetail(group: KodikGroup): AnimeDetail {
     themes: [],
     demographics: [],
     screenshots: [],
+    bannerImage: null,
     titleLocalized: md.anime_title ?? md.title ?? null,
     translated: false,
   };
