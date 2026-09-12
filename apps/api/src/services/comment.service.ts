@@ -22,7 +22,7 @@ const COMMENT_INCLUDE = {
       username: true,
       avatarUrl: true,
       proSince: true,
-      showcaseAchievementId: true,
+      showcaseAchievementIds: true,
       titlePrefix: true,
       titleIcon: true,
     },
@@ -212,7 +212,8 @@ export class CommentService {
             avatarUrl: row.user.avatarUrl,
             rank: null,
             isPro: this.proForAll || row.user.proSince != null,
-            showcaseAchievementId: row.user.showcaseAchievementId,
+            // Comments only have room for one badge — the first pinned achievement.
+            showcaseAchievementId: row.user.showcaseAchievementIds[0] ?? null,
             // Saving these already requires real PRO (not proForAll), so no
             // extra gate is needed here beyond passing the stored value through.
             titlePrefix: row.user.titlePrefix,

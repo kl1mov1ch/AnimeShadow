@@ -2,6 +2,9 @@ import { z } from "zod";
 import { earnedAchievementSchema } from "./achievements.js";
 import { libraryStatusSchema } from "./enums.js";
 
+/** Max earned achievements a user can pin to their name at once. */
+export const MAX_SHOWCASE_ACHIEVEMENTS = 3;
+
 export const rankSchema = z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]);
 export type Rank = z.infer<typeof rankSchema>;
 
@@ -49,7 +52,8 @@ export const publicProfileSchema = z.object({
   memberSince: z.string(),
   stats: profileStatsSchema,
   achievements: z.array(earnedAchievementSchema),
-  showcaseAchievementId: z.string().nullable(),
+  /** Up to MAX_SHOWCASE_ACHIEVEMENTS ids, order preserved (first = leftmost circle). */
+  showcaseAchievementIds: z.array(z.string()),
   /** PRO-only custom title next to the name. Both null unless the account is PRO. */
   titlePrefix: z.string().nullable(),
   titleIcon: titleIconSchema.nullable(),
@@ -69,7 +73,7 @@ export const updateProfileInputSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/)
     .nullable()
     .optional(),
-  showcaseAchievementId: z.string().nullable().optional(),
+  showcaseAchievementIds: z.array(z.string()).max(MAX_SHOWCASE_ACHIEVEMENTS).optional(),
   titlePrefix: z
     .string()
     .trim()

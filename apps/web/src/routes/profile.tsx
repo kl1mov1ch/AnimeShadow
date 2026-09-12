@@ -7,10 +7,11 @@ import type {
   Rank,
   TitleIcon,
 } from "@animeshadow/shared";
-import { TITLE_ICONS } from "@animeshadow/shared";
+import { MAX_SHOWCASE_ACHIEVEMENTS, TITLE_ICONS } from "@animeshadow/shared";
 import { type CSSProperties, useRef, useState } from "react";
 import {
   CalendarDaysIcon,
+  CheckIcon,
   ClockIcon,
   FilmIcon,
   Loader2Icon,
@@ -24,6 +25,7 @@ import {
 import { useTheme } from "next-themes";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { TITLE_ICON_COMPONENT, UserTitleBadge } from "@/components/user-title-badge";
@@ -223,11 +225,15 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
     month: "long",
     year: "numeric",
   });
-  const showcase = profile.achievements.find(
-    (a) => a.id === profile.showcaseAchievementId && a.earned,
-  );
+  // Order preserved server-side (first = leftmost); only ever contains ids
+  // the user has actually earned (re-checked on every profile read).
+  const pinned = profile.showcaseAchievementIds
+    .map((id) => profile.achievements.find((a) => a.id === id && a.earned))
+    .filter((a): a is EarnedAchievement => a != null);
+  const [opened, setOpened] = useState<EarnedAchievement | null>(null);
 
   return (
+    <>
     <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
       <div
         className={cn(
@@ -266,14 +272,19 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
         <p className="text-xs text-muted-foreground/80">
           {t("profile.memberSince", { date: memberSince })}
         </p>
-        {showcase && (
-          <div className="reveal pt-1" style={{ "--i": 1.5 } as CSSProperties}>
-            <HoloAchievementBadge
-              id={showcase.id}
-              rarity={showcase.rarity}
-              earned
-              earnedAt={showcase.earnedAt}
-            />
+        {pinned.length > 0 && (
+          <div className="reveal flex items-center gap-2 pt-1" style={{ "--i": 1.5 } as CSSProperties}>
+            {pinned.map((a) => (
+              <HoloAchievementBadge
+                key={a.id}
+                id={a.id}
+                rarity={a.rarity}
+                earned
+                earnedAt={a.earnedAt}
+                variant="circle"
+                onClick={() => setOpened(a)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -304,6 +315,11 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
         )}
       </div>
     </header>
+    <AchievementDetailDialog
+      achievement={opened}
+      onOpenChange={(open) => !open && setOpened(null)}
+    />
+    </>
   );
 }
 
@@ -919,7 +935,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
   );
 }
 
-/** Pick one earned achievement to display as a badge next to your name. */
+/** Pick up to MAX_SHOWCASE_ACHIEVEMENTS earned achievements to pin under your name. */
 function ShowcaseChips({
   profile,
   update,
@@ -930,36 +946,47 @@ function ShowcaseChips({
   earned: EarnedAchievement[];
 }) {
   const t = useT();
+  const selected = profile.showcaseAchievementIds;
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter((x) => x !== id)
+      : [...selected, id];
+    update.mutate({ showcaseAchievementIds: next });
+  };
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <button
-        type="button"
-        onClick={() => update.mutate({ showcaseAchievementId: null })}
-        className={cn(
-          "rounded-full border px-2.5 py-1 text-xs transition-colors",
-          profile.showcaseAchievementId == null
-            ? "border-primary/50 bg-primary/15 text-primary"
-            : "border-border/60 text-muted-foreground hover:text-foreground",
-        )}
-      >
-        {t("common.none")}
-      </button>
-      {earned.map((a) => (
-        <button
-          key={a.id}
-          type="button"
-          onClick={() => update.mutate({ showcaseAchievementId: a.id })}
-          className={cn(
-            "rounded-full border px-2.5 py-1 text-xs transition-colors",
-            profile.showcaseAchievementId === a.id
-              ? "border-primary/50 bg-primary/15 text-primary"
-              : "border-border/60 text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {t(`achievements.items.${a.id}.title`)}
-        </button>
-      ))}
+    <div className="flex flex-col gap-2">
+      <span className="text-xs tabular-nums text-muted-foreground">
+        {t("profile.settings.showcaseCount", {
+          count: selected.length,
+          max: MAX_SHOWCASE_ACHIEVEMENTS,
+        })}
+      </span>
+      <div className="flex flex-wrap gap-2.5">
+        {earned.map((a) => {
+          const isSelected = selected.includes(a.id);
+          const atLimit = !isSelected && selected.length >= MAX_SHOWCASE_ACHIEVEMENTS;
+          return (
+            <div key={a.id} className="relative">
+              <HoloAchievementBadge
+                id={a.id}
+                rarity={a.rarity}
+                earned
+                earnedAt={a.earnedAt}
+                variant="circle"
+                onClick={atLimit ? undefined : () => toggle(a.id)}
+                className={cn(atLimit && "opacity-40", !atLimit && "ring-2 ring-offset-2 ring-offset-card", isSelected ? "ring-primary" : "ring-transparent")}
+              />
+              {isSelected && (
+                <span className="pointer-events-none absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <CheckIcon className="size-2.5" strokeWidth={3} />
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1134,6 +1161,7 @@ type AchFilter = "all" | "earned" | "progress";
 function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] }) {
   const t = useT();
   const [filter, setFilter] = useState<AchFilter>("all");
+  const [opened, setOpened] = useState<EarnedAchievement | null>(null);
 
   const order = { legendary: 0, epic: 1, rare: 2, common: 3 };
   const sorted = [...achievements].sort((a, b) => {
@@ -1210,10 +1238,16 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
               earned={a.earned}
               earnedAt={a.earnedAt}
               progress={a.progress}
+              onClick={() => setOpened(a)}
             />
           ))}
         </div>
       )}
+
+      <AchievementDetailDialog
+        achievement={opened}
+        onOpenChange={(open) => !open && setOpened(null)}
+      />
     </section>
   );
 }

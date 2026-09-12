@@ -31,7 +31,10 @@ model User {
   accentColor   String?
   onlineStatus  String          @default("OFFLINE") // ONLINE | OFFLINE | DND
   proSince      DateTime?
-  showcaseAchievementId String?
+  /// Up to 3 earned achievement ids shown as small circles under the
+  /// avatar — order is preserved (first = leftmost). Enforced server-side
+  /// in profile.service.ts, not by the DB.
+  showcaseAchievementIds String[] @default([])
   /// PRO-only custom title shown next to the display name. Free text,
   /// profanity-checked server-side before it's ever saved.
   titlePrefix           String?

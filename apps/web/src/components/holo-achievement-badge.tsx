@@ -13,6 +13,10 @@ interface HoloAchievementBadgeProps {
   earnedAt?: string | null;
   /** Only meaningful when `earned` is false. */
   progress?: { current: number; target: number } | null;
+  /** "badge" (wide, with title/rarity text) or "circle" (icon only, small —
+   * for the pinned-achievement row under a name). Defaults to "badge". */
+  variant?: "badge" | "circle";
+  onClick?: () => void;
   className?: string;
 }
 
@@ -91,10 +95,13 @@ export function HoloAchievementBadge({
   earned,
   earnedAt,
   progress,
+  variant = "badge",
+  onClick,
   className,
 }: HoloAchievementBadgeProps) {
   const t = useT();
   const labels = useLabels();
+  const isCircle = variant === "circle";
   const ref = useRef<HTMLDivElement>(null);
   const [firstOverlayPosition, setFirstOverlayPosition] = useState<number>(0);
   const [matrix, setMatrix] = useState<string>(identityMatrix);
@@ -256,9 +263,9 @@ export function HoloAchievementBadge({
   const rarityLabel = t(`achievements.rarity.${rarity}` as "achievements.rarity.common");
   const percent =
     !earned && progress ? Math.round((progress.current / progress.target) * 100) : null;
-  const gradId = `holo-grad-${id}`;
-  const maskId = `holo-mask-${id}`;
-  const blurId = `holo-blur-${id}`;
+  const gradId = `holo-grad-${id}-${variant}`;
+  const maskId = `holo-mask-${id}-${variant}`;
+  const blurId = `holo-blur-${id}-${variant}`;
 
   const shortTitle = title.length > 22 ? `${title.slice(0, 21)}…` : title;
   const tooltip = earnedAt
@@ -267,51 +274,85 @@ export function HoloAchievementBadge({
       ? `${title} — ${percent}%`
       : title;
 
+  const viewBox = isCircle ? "0 0 64 64" : "0 0 260 64";
+  const polygonPoints = isCircle ? "0,0 64,64 64,0 0,64" : "0,0 260,64 260,0 0,64";
+  const defaultSize = isCircle ? "size-14" : "w-[220px]";
+  const rootClassName = cn(
+    "block select-none",
+    defaultSize,
+    onClick && "cursor-pointer",
+    className,
+  );
+
+  const shape = (fill: string, stroke?: string) =>
+    isCircle ? (
+      <>
+        <circle cx="32" cy="32" r="31" fill={fill} />
+        {stroke && <circle cx="32" cy="32" r="29.5" fill="none" stroke={stroke} strokeWidth="1.5" />}
+      </>
+    ) : (
+      <>
+        <rect width="260" height="64" rx="12" fill={fill} />
+        {stroke && (
+          <rect x="3" y="3" width="254" height="58" rx="10" fill="none" stroke={stroke} strokeWidth="1.5" />
+        )}
+      </>
+    );
+
+  const maskShape = isCircle ? (
+    <circle cx="32" cy="32" r="32" fill="white" />
+  ) : (
+    <rect width="260" height="64" fill="white" rx="12" />
+  );
+
+  const iconBox = isCircle ? { x: 14, y: 14, size: 36 } : { x: 10, y: 12, size: 40 };
+
   // Locked/in-progress: the same shape, flat and still — no tilt, no foil,
   // no per-instance mousemove listeners. Cheap enough for a whole grid of them.
   if (!earned) {
     return (
-      <div title={tooltip} className={cn("block w-[190px] select-none", className)}>
-        <svg viewBox="0 0 260 64" className="h-auto w-full opacity-80">
+      <div
+        title={tooltip}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onClick={onClick}
+        onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
+        className={rootClassName}
+      >
+        <svg viewBox={viewBox} className="h-auto w-full opacity-80">
           <defs>
             <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={LOCKED_STYLE.from} />
               <stop offset="100%" stopColor={LOCKED_STYLE.to} />
             </linearGradient>
           </defs>
-          <rect width="260" height="64" rx="12" fill={`url(#${gradId})`} />
-          <rect
-            x="3"
-            y="3"
-            width="254"
-            height="58"
-            rx="10"
-            fill="none"
-            stroke={LOCKED_STYLE.border}
-            strokeWidth="1.5"
-          />
-          <foreignObject x="10" y="12" width="40" height="40">
+          {shape(`url(#${gradId})`, LOCKED_STYLE.border)}
+          <foreignObject x={iconBox.x} y={iconBox.y} width={iconBox.size} height={iconBox.size}>
             <div
               style={{ color: LOCKED_STYLE.text }}
               className="flex size-full items-center justify-center"
             >
-              <Icon className="size-6" strokeWidth={2.25} />
+              <Icon className={isCircle ? "size-5" : "size-6"} strokeWidth={2.25} />
             </div>
           </foreignObject>
-          <text
-            x="58"
-            y="27"
-            fontSize="9"
-            fontWeight="700"
-            letterSpacing="0.08em"
-            fill={LOCKED_STYLE.text}
-            opacity="0.75"
-          >
-            {percent != null ? `${percent}%` : rarityLabel.toUpperCase()}
-          </text>
-          <text x="58" y="46" fontSize="14" fontWeight="800" fill={LOCKED_STYLE.text}>
-            {shortTitle}
-          </text>
+          {!isCircle && (
+            <>
+              <text
+                x="58"
+                y="27"
+                fontSize="9"
+                fontWeight="700"
+                letterSpacing="0.08em"
+                fill={LOCKED_STYLE.text}
+                opacity="0.75"
+              >
+                {percent != null ? `${percent}%` : rarityLabel.toUpperCase()}
+              </text>
+              <text x="58" y="46" fontSize="14" fontWeight="800" fill={LOCKED_STYLE.text}>
+                {shortTitle}
+              </text>
+            </>
+          )}
         </svg>
       </div>
     );
@@ -319,9 +360,9 @@ export function HoloAchievementBadge({
 
   const style = RARITY_STYLE[rarity];
   const sheenHues = [style.sheen[0], style.sheen[1], style.sheen[2], style.sheen[0], style.sheen[1]];
-  // Keyframe names are namespaced by id so more than one badge on a page
-  // never collides.
-  const kf = (n: number) => `holoOverlay-${id}-${n}`;
+  // Keyframe names are namespaced by id+variant so more than one badge on a
+  // page (the grid, the pinned circles, the dialog) never collides.
+  const kf = (n: number) => `holoOverlay-${id}-${variant}-${n}`;
   const overlayAnimations = [...Array(10).keys()]
     .map(
       (e) => `
@@ -337,7 +378,11 @@ export function HoloAchievementBadge({
     <div
       ref={ref}
       title={tooltip}
-      className={cn("block w-[190px] cursor-pointer select-none", className)}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
+      className={rootClassName}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onMouseEnter={onMouseEnter}
@@ -350,7 +395,7 @@ export function HoloAchievementBadge({
           transition: "transform 200ms ease-out",
         }}
       >
-        <svg viewBox="0 0 260 64" className="h-auto w-full drop-shadow-md">
+        <svg viewBox={viewBox} className="h-auto w-full drop-shadow-md">
           <defs>
             <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={style.from} />
@@ -359,49 +404,41 @@ export function HoloAchievementBadge({
             <filter id={blurId}>
               <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
             </filter>
-            <mask id={maskId}>
-              <rect width="260" height="64" fill="white" rx="12" />
-            </mask>
+            <mask id={maskId}>{maskShape}</mask>
           </defs>
 
-          <rect width="260" height="64" rx="12" fill={`url(#${gradId})`} />
-          <rect
-            x="3"
-            y="3"
-            width="254"
-            height="58"
-            rx="10"
-            fill="none"
-            stroke={style.border}
-            strokeWidth="1.5"
-          />
+          {shape(`url(#${gradId})`, style.border)}
 
-          <foreignObject x="10" y="12" width="40" height="40">
+          <foreignObject x={iconBox.x} y={iconBox.y} width={iconBox.size} height={iconBox.size}>
             <div
               style={{ color: style.text }}
               className="flex size-full items-center justify-center"
             >
-              <Icon className="size-6" strokeWidth={2.25} />
+              <Icon className={isCircle ? "size-5" : "size-6"} strokeWidth={2.25} />
             </div>
           </foreignObject>
 
-          <text
-            x="58"
-            y="27"
-            fontSize="9"
-            fontWeight="700"
-            letterSpacing="0.08em"
-            fill={style.text}
-            opacity="0.75"
-          >
-            {rarityLabel.toUpperCase()}
-          </text>
-          <text x="58" y="46" fontSize="14" fontWeight="800" fill={style.text}>
-            {shortTitle}
-          </text>
+          {!isCircle && (
+            <>
+              <text
+                x="58"
+                y="27"
+                fontSize="9"
+                fontWeight="700"
+                letterSpacing="0.08em"
+                fill={style.text}
+                opacity="0.75"
+              >
+                {rarityLabel.toUpperCase()}
+              </text>
+              <text x="58" y="46" fontSize="14" fontWeight="800" fill={style.text}>
+                {shortTitle}
+              </text>
+            </>
+          )}
 
           {/* Holographic foil — rotating tinted panels blended over the badge,
-              clipped to its rounded shape. Purely decorative, aria-hidden. */}
+              clipped to its shape. Purely decorative, aria-hidden. */}
           <g aria-hidden style={{ mixBlendMode: "overlay" }} mask={`url(#${maskId})`}>
             {sheenHues.map((hue, i) => (
               <g
@@ -415,7 +452,7 @@ export function HoloAchievementBadge({
                 }}
               >
                 <polygon
-                  points="0,0 260,64 260,0 0,64"
+                  points={polygonPoints}
                   fill={hue}
                   filter={`url(#${blurId})`}
                   opacity="0.5"

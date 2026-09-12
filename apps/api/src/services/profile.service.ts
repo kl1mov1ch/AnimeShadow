@@ -9,6 +9,7 @@ import type {
   Rank,
   UpdateProfileInput,
 } from "@animeshadow/shared";
+import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors.js";
 import { isProfane } from "../lib/profanity.js";
 import type { AchievementService } from "./achievement.service.js";
@@ -58,12 +59,14 @@ export class ProfileService {
   }
 
   async update(userId: string, input: UpdateProfileInput): Promise<MyProfile> {
-    if (input.showcaseAchievementId !== undefined && input.showcaseAchievementId !== null) {
+    if (input.showcaseAchievementIds !== undefined) {
+      if (input.showcaseAchievementIds.length > MAX_SHOWCASE_ACHIEVEMENTS) {
+        throw new BadRequestError(`Можно закрепить не больше ${MAX_SHOWCASE_ACHIEVEMENTS} ачивок.`);
+      }
       const earned = await this.achievements.list(userId);
-      const ok = earned.some(
-        (a) => a.id === input.showcaseAchievementId && a.earned,
-      );
-      if (!ok) throw new BadRequestError("Эта ачивка вам недоступна.");
+      const earnedIds = new Set(earned.filter((a) => a.earned).map((a) => a.id));
+      const allOwned = input.showcaseAchievementIds.every((id) => earnedIds.has(id));
+      if (!allOwned) throw new BadRequestError("Эта ачивка вам недоступна.");
     }
 
     if (input.titlePrefix !== undefined || input.titleIcon !== undefined) {
@@ -87,8 +90,8 @@ export class ProfileService {
         ...(input.accentColor !== undefined
           ? { accentColor: input.accentColor }
           : {}),
-        ...(input.showcaseAchievementId !== undefined
-          ? { showcaseAchievementId: input.showcaseAchievementId }
+        ...(input.showcaseAchievementIds !== undefined
+          ? { showcaseAchievementIds: input.showcaseAchievementIds }
           : {}),
         ...(input.titlePrefix !== undefined ? { titlePrefix: input.titlePrefix } : {}),
         ...(input.titleIcon !== undefined ? { titleIcon: input.titleIcon } : {}),
@@ -222,11 +225,12 @@ export class ProfileService {
       memberSince: user.createdAt.toISOString(),
       stats,
       achievements,
-      showcaseAchievementId: achievements.some(
-        (a) => a.id === user.showcaseAchievementId && a.earned,
-      )
-        ? user.showcaseAchievementId
-        : null,
+      // Re-checked against currently-earned achievements on every read, not
+      // just at save time — an achievement removed/renamed server-side can't
+      // leave a stale pin on display. Order (first = leftmost) is preserved.
+      showcaseAchievementIds: user.showcaseAchievementIds.filter((id) =>
+        achievements.some((a) => a.id === id && a.earned),
+      ),
       // PRO-only — re-checked on every read, not just at save time, so a
       // lapsed subscription can't leave a stale title on display.
       titlePrefix: user.proSince != null ? user.titlePrefix : null,
