@@ -398,6 +398,55 @@
   }
 }
 
+/* Rail page-jump transition: the whole visible strip fades/slides out one
+   way, the target page's scroll position is swapped in while invisible, then
+   it slides back in from the other side. One element, transform + opacity
+   only — compositor-cheap regardless of how many cards are inside it. */
+@keyframes rail-page-out-up {
+  to {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+}
+@keyframes rail-page-out-down {
+  to {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+@keyframes rail-page-in-up {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+@keyframes rail-page-in-down {
+  from {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+}
+.rail-page-out-up {
+  animation: rail-page-out-up 200ms ease-in forwards;
+}
+.rail-page-out-down {
+  animation: rail-page-out-down 200ms ease-in forwards;
+}
+.rail-page-in-up {
+  animation: rail-page-in-up 220ms ease-out forwards;
+}
+.rail-page-in-down {
+  animation: rail-page-in-down 220ms ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail-page-out-up,
+  .rail-page-out-down,
+  .rail-page-in-up,
+  .rail-page-in-down {
+    animation: none !important;
+  }
+}
+
 /* Cinematic slow pan on the hero still — replaces the trailer iframe (YouTube's
    bot-check was breaking the slider). Desktop + motion-ok only. */
 @media (prefers-reduced-motion: no-preference) {
