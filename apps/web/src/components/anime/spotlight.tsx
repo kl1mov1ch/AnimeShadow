@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { ScoreBadge } from "@/components/anime/score-badge";
+import { TrailerButton } from "@/components/anime/trailer-button";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,8 +67,6 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
   return (
     <section
       className="relative overflow-hidden rounded-2xl border border-border/60 bg-card"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
       onTouchStart={(e) => (touchX.current = e.touches[0]?.clientX ?? null)}
       onTouchEnd={(e) => {
         const start = touchX.current;
@@ -78,7 +77,10 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         touchX.current = null;
       }}
     >
-      <div className="relative min-h-[58vh] w-full sm:min-h-[70vh] lg:min-h-[78vh]">
+      {/* A fixed height (not min-height) — otherwise a longer title/synopsis
+          on one slide grows the box and the whole page jumps as slides
+          rotate. Title/synopsis are clamped below so they never overflow it. */}
+      <div className="relative h-[58vh] w-full sm:h-[70vh] lg:h-[78vh]">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {heroImg ? (
             <>
@@ -191,7 +193,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
       </div>
 
       <h1
-        className="reveal font-display text-[1.7rem] leading-[1.1] [overflow-wrap:anywhere] sm:text-4xl lg:text-5xl"
+        className="reveal line-clamp-2 font-display text-[1.7rem] leading-[1.1] [overflow-wrap:anywhere] sm:text-4xl lg:text-5xl"
         style={step(1)}
       >
         {title}
@@ -234,6 +236,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
             {t("discover.viewDetails")}
           </Link>
         </Button>
+        <TrailerButton url={anime.trailerEmbedUrl} title={title} />
         <LibraryControls animeId={anime.id} title={title} />
       </div>
     </div>
@@ -269,5 +272,5 @@ export function Spotlight({ anime }: { anime: AnimeDetail }) {
 }
 
 export function SpotlightSkeleton() {
-  return <Skeleton className="min-h-[58vh] w-full rounded-2xl sm:min-h-[70vh] lg:min-h-[78vh]" />;
+  return <Skeleton className="h-[58vh] w-full rounded-2xl sm:h-[70vh] lg:h-[78vh]" />;
 }

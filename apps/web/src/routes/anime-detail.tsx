@@ -167,7 +167,7 @@ function AnimeDetailView({ param }: { param: string }) {
           )}
         </div>
 
-        <ShareButtons path={animeUrl(data)} title={title} />
+        <ShareButtons path={animeUrl(data)} />
 
         {data.genresDetailed.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">

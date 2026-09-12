@@ -241,11 +241,16 @@ function Player({
     [data.sources, selectedId],
   );
 
+  const { status } = useAuth();
+  const authed = status === "authenticated";
+
   // The embed is a third-party iframe (Kodik/Alloha) with its own internal
   // episode navigation we can't read — so unlike video position, "which
   // episode" is something the viewer tells us, seeded from wherever they
-  // last left off.
-  const { data: progress } = useAnimeProgress(animeId);
+  // last left off. Only signed-in viewers get anywhere with this (nothing
+  // persists for an anonymous visit), so the control itself only shows for
+  // them — no point offering a stepper that quietly does nothing.
+  const { data: progress } = useAnimeProgress(animeId, authed);
   const [episode, setEpisode] = useState(1);
   const resumeAppliedRef = useRef(false);
   useEffect(() => {
@@ -311,32 +316,36 @@ function Player({
 
   return (
     <div className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]">
-      {/* Which episode — the embed can't tell us, so the viewer does. */}
-      <div className="flex items-center justify-center gap-3">
-        <button
-          type="button"
-          onClick={() => goToEpisode(episode - 1, false)}
-          disabled={episode <= 1}
-          aria-label={t("watch.prevEpisode")}
-          className="rounded-full border border-border/60 p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-        >
-          <ChevronLeftIcon className="size-4" />
-        </button>
-        <span className="min-w-0 truncate text-sm font-medium tabular-nums">
-          {episodesTotal
-            ? t("watch.episodeOf", { episode, total: episodesTotal })
-            : t("watch.episodeBare", { episode })}
-        </span>
-        <button
-          type="button"
-          onClick={() => goToEpisode(episode + 1, true)}
-          disabled={episodesTotal != null && episode >= episodesTotal}
-          aria-label={t("watch.nextEpisode")}
-          className="rounded-full border border-border/60 p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-        >
-          <ChevronRightIcon className="size-4" />
-        </button>
-      </div>
+      {/* Which episode — the embed can't tell us, so the viewer does. Only
+          shown signed-in: for an anonymous visit nothing here is saved, so a
+          control that quietly does nothing would just be confusing. */}
+      {authed && (
+        <div className="flex items-center justify-center gap-1 self-center rounded-full border border-border/60 bg-card/60 p-1">
+          <button
+            type="button"
+            onClick={() => goToEpisode(episode - 1, false)}
+            disabled={episode <= 1}
+            aria-label={t("watch.prevEpisode")}
+            className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          >
+            <ChevronLeftIcon className="size-4" />
+          </button>
+          <span className="min-w-0 truncate px-1.5 text-sm font-medium tabular-nums">
+            {episodesTotal
+              ? t("watch.episodeOf", { episode, total: episodesTotal })
+              : t("watch.episodeBare", { episode })}
+          </span>
+          <button
+            type="button"
+            onClick={() => goToEpisode(episode + 1, true)}
+            disabled={episodesTotal != null && episode >= episodesTotal}
+            aria-label={t("watch.nextEpisode")}
+            className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          >
+            <ChevronRightIcon className="size-4" />
+          </button>
+        </div>
+      )}
 
       {/* Current pick — one line, not a wall of options. */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
