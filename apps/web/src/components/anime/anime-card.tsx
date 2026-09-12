@@ -3,8 +3,14 @@ import { ClockIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { ScoreBadge } from "@/components/anime/score-badge";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
@@ -34,6 +40,7 @@ function useReleaseCountdown(airedFrom: string | null): string | null {
 export function AnimeCard({ anime, priority = false, className }: AnimeCardProps) {
   const t = useT();
   const labels = useLabels();
+  const canHover = useMediaQuery("(hover: hover)");
   const title = labels.title(anime);
   const when = labels.seasonYearLabel(anime);
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
@@ -48,7 +55,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const [adultConfirmed] = useAdultConfirmed();
   const blurPoster = isAdult && !adultConfirmed;
 
-  return (
+  const card = (
     <Link
       to={animeHref(anime)}
       className={cn("group flex flex-col gap-2 outline-none", className)}
@@ -123,6 +130,57 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         )}
       </div>
     </Link>
+  );
+
+  // Touch devices have no hover to preview on — skip the extra portal/DOM
+  // entirely there rather than shipping a feature that can never trigger.
+  if (!canHover) return card;
+
+  return (
+    <HoverCard openDelay={350} closeDelay={100}>
+      <HoverCardTrigger asChild>{card}</HoverCardTrigger>
+      <HoverCardContent side="top" sideOffset={10} className="w-80">
+        <AnimeCardPreview anime={anime} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+/**
+ * The extra detail a hover reveals — everything the compact card had no room
+ * for (full genre list, synopsis) plus what's already visible, restated
+ * larger. No new visual language: same badge, same type scale, just more of
+ * it, so the preview reads as "the same card, unfolded" rather than a
+ * different surface.
+ */
+function AnimeCardPreview({ anime }: { anime: AnimeSummary }) {
+  const labels = useLabels();
+  const title = labels.title(anime);
+  const when = labels.seasonYearLabel(anime);
+  const episodes = labels.episodeLabel(anime.episodes, anime.type);
+  const metaLine = [labels.typeLabel(anime.type), episodes, when]
+    .filter(Boolean)
+    .join(" · ");
+  const genreLine = anime.genres.slice(0, 5).map(labels.genreLabel).join(", ");
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="line-clamp-2 font-display text-sm leading-snug text-foreground">
+          {title}
+        </h4>
+        {anime.score != null && (
+          <ScoreBadge score={anime.score} className="shrink-0" />
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{metaLine}</p>
+      {genreLine && <p className="text-xs text-muted-foreground/80">{genreLine}</p>}
+      {anime.synopsis && (
+        <p className="line-clamp-4 text-xs leading-relaxed text-foreground/80">
+          {anime.synopsis}
+        </p>
+      )}
+    </div>
   );
 }
 
