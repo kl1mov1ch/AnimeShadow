@@ -1,6 +1,6 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
-import { ChevronLeftIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeftIcon, ChevronRightIcon, InfoIcon, Loader2Icon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -221,8 +221,10 @@ function Countdown({ target }: { target: Date }) {
 
 /* ---------- player ---------- */
 
-/** If the embed hasn't reported `load` by now, assume it's not coming up. */
-const STALL_MS = 9_000;
+/** If neither racer has reported `load` by now, assume this batch is dead. */
+const STALL_MS = 6_000;
+/** Later batches get less patience — we're already in "keep hunting" mode. */
+const STALL_MS_RETRY = 4_000;
 const HOLD_REPEAT_DELAY_MS = 380;
 const HOLD_REPEAT_INTERVAL_MS = 90;
 
@@ -379,6 +381,9 @@ function EpisodeStepper({
   );
 }
 
+/** How many candidate embeds load in parallel before one is shown. */
+const RACE_SIZE = 2;
+
 function Player({
   data,
   title,
@@ -395,26 +400,27 @@ function Player({
   onEpisodeChange: (episode: number) => void;
 }) {
   const t = useT();
-  // Sources arrive ranked best-first (verified-reachable ones lead).
-  const [selectedId, setSelectedId] = useState(data.sources[0]?.id ?? "");
+  // Sources arrive ranked best-first (verified-reachable ones lead). Rather
+  // than load one and wait to find out it's dead, load the top few at once,
+  // invisibly, and show whichever answers first — the viewer never watches
+  // a stall timer count down on a source that was going to fail anyway.
+  const [racePool, setRacePool] = useState<string[]>(() =>
+    data.sources.slice(0, RACE_SIZE).map((s) => s.id),
+  );
+  const [winnerId, setWinnerId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [stalled, setStalled] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  // Mirrors `loaded` for the stall timer's closure below — plain state would
-  // be stale by the time the timeout fires (it captures the value from when
-  // the effect ran, not the current one), which was the actual bug: a
-  // perfectly fine, already-loaded embed still got force-switched every
-  // STALL_MS because the check for "did it load?" was missing entirely.
-  const loadedRef = useRef(false);
-  // Every source this session has already stalled on — so a dead top pick
-  // doesn't leave the user staring at it for minutes: we cycle through the
-  // rest automatically and only ask them to pick once nothing loads.
+  // Every source this session has already raced and lost — so a handful of
+  // dead mirrors don't leave the user staring at a spinner for minutes: we
+  // keep pulling in fresh batches automatically and only ask them to pick
+  // once nothing is left to try.
   const [triedIds, setTriedIds] = useState<string[]>([]);
 
-  const current = useMemo(
-    () => data.sources.find((s) => s.id === selectedId) ?? data.sources[0],
-    [data.sources, selectedId],
-  );
+  const winner = data.sources.find((s) => s.id === winnerId) ?? null;
+  // Shown in the info row even before a winner exists, so it isn't blank
+  // while racing — almost always the eventual winner anyway, since it's
+  // ranked first for a reason.
+  const displaySource =
+    winner ?? data.sources.find((s) => s.id === racePool[0]) ?? data.sources[0];
 
   const { status } = useAuth();
   const authed = status === "authenticated";
@@ -446,34 +452,47 @@ function Player({
   useWatchSession({ animeId, episode, active: true });
   const update = useUpdateProgress(animeId);
 
-  // Reset the stall watch whenever we switch embeds.
+  // Stall watch for the current race batch — cleared the instant any of them
+  // loads. If the whole batch times out, retire it and pull the next one; a
+  // shorter fuse each round, since by then we're already in "keep hunting"
+  // mode and every extra second is one the first attempt already spent.
   useEffect(() => {
-    loadedRef.current = false;
-    setLoaded(false);
-    setStalled(false);
+    if (winnerId != null || racePool.length === 0) return;
+    const timeout = triedIds.length === 0 ? STALL_MS : STALL_MS_RETRY;
     const timer = setTimeout(() => {
-      if (loadedRef.current) return; // it loaded fine — nothing to do
-      setStalled(true);
       setTriedIds((tried) => {
-        const nextTried = current ? [...tried, current.id] : tried;
-        const next = data.sources.find((s) => !nextTried.includes(s.id));
-        if (next) setSelectedId(next.id);
+        const nextTried = [...tried, ...racePool];
+        const remaining = data.sources.filter((s) => !nextTried.includes(s.id));
+        setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
         return nextTried;
       });
-    }, STALL_MS);
+    }, timeout);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.embedUrl]);
+  }, [racePool, winnerId]);
 
-  if (!current) return null;
+  if (!displaySource) return null;
 
-  const alternatives = data.sources.filter((s) => s.id !== current.id);
-  const exhausted = data.sources.every((s) => triedIds.includes(s.id));
-  const pickerOpen = showAll || (stalled && !loaded);
+  const alternatives = data.sources.filter((s) => s.id !== displaySource.id);
+  const searching = winnerId == null && racePool.length > 0;
+  const exhausted = winnerId == null && racePool.length === 0;
+  const pickerOpen = showAll || exhausted;
 
   const pick = (id: string) => {
-    setSelectedId(id);
+    setWinnerId(null);
+    setRacePool([id]);
     setShowAll(false);
+  };
+
+  const handleLoad = (id: string) => {
+    setWinnerId((current) => {
+      if (current != null) return current;
+      // Keep the winner's own iframe mounted (same DOM node, same key) —
+      // dropping every other racer immediately, but never remounting the
+      // one that just finished loading.
+      setRacePool([id]);
+      return id;
+    });
   };
 
   const goToEpisode = (next: number, markCurrentDone: boolean) => {
@@ -505,9 +524,15 @@ function Player({
             onRetreatClick={() => goToEpisode(episode - 1, false)}
           />
         )}
-        <span className="min-w-0 truncate font-medium">{current.title}</span>
-        <SourceKindBadge source={current} />
-        <StabilityMark stable={current.stable} />
+        <span className="min-w-0 truncate font-medium">{displaySource.title}</span>
+        <SourceKindBadge source={displaySource} />
+        <StabilityMark stable={displaySource.stable} />
+        {searching && (
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2Icon className="size-3 animate-spin" />
+            {t("watch.findingSource")}
+          </span>
+        )}
         {alternatives.length > 0 && (
           <button
             type="button"
@@ -519,14 +544,9 @@ function Player({
         )}
       </div>
 
-      {/* Only nudge the user once the current embed actually stalls — while
-          alternatives remain we're already auto-switching, so say that
-          instead of asking them to do it manually. */}
-      {stalled && !loaded && alternatives.length > 0 && (
+      {exhausted && (
         <Alert>
-          <AlertDescription>
-            {exhausted ? t("watch.allFailedHint") : t("watch.stalledHint")}
-          </AlertDescription>
+          <AlertDescription>{t("watch.allFailedHint")}</AlertDescription>
         </Alert>
       )}
 
@@ -537,10 +557,10 @@ function Player({
               key={source.id}
               type="button"
               onClick={() => pick(source.id)}
-              aria-current={source.id === current.id}
+              aria-current={source.id === displaySource.id}
               className={cn(
                 "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
-                source.id === current.id
+                source.id === displaySource.id
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
               )}
@@ -554,19 +574,38 @@ function Player({
         </div>
       )}
 
-      <div className="aspect-video overflow-hidden rounded-xl border bg-black">
-        <iframe
-          key={current.embedUrl}
-          src={current.embedUrl}
-          title={`${title} — ${current.title}`}
-          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-          referrerPolicy="no-referrer"
-          onLoad={() => {
-            loadedRef.current = true;
-            setLoaded(true);
-          }}
-          className="size-full"
-        />
+      <div className="relative aspect-video overflow-hidden rounded-xl border bg-black">
+        {racePool.map((id) => {
+          const source = data.sources.find((s) => s.id === id);
+          if (!source) return null;
+          const isWinner = id === winnerId;
+          return (
+            <iframe
+              key={source.embedUrl}
+              src={source.embedUrl}
+              title={`${title} — ${source.title}`}
+              // Autoplay permission only ever goes to the confirmed winner —
+              // a racer that's still invisible has no business making sound
+              // even if its own page tries to.
+              allow={
+                isWinner
+                  ? "autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  : "encrypted-media; picture-in-picture"
+              }
+              referrerPolicy="no-referrer"
+              onLoad={() => handleLoad(id)}
+              className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
+              tabIndex={isWinner ? undefined : -1}
+              aria-hidden={isWinner ? undefined : true}
+            />
+          );
+        })}
+        {searching && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
+            <Loader2Icon className="size-6 animate-spin text-primary" />
+            <p className="text-xs">{t("watch.findingSource")}</p>
+          </div>
+        )}
       </div>
     </div>
   );

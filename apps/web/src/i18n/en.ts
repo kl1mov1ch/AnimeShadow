@@ -179,7 +179,7 @@ export const en = {
     voiceover: "Audio / subtitles",
     switchPlayer: "Switch player ({count})",
     notWorking: "Player not working",
-    stalledHint: "This source is taking too long — switching to another one…",
+    findingSource: "Finding a working source…",
     allFailedHint: "None of the sources responded. Try picking one manually below.",
     stable: "stable",
     unstable: "unstable",
