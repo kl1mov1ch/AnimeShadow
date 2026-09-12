@@ -26,9 +26,10 @@ function prefersReducedMotion() {
 }
 
 /**
- * Rotating, near-fullscreen hero. Each slide is a still frame from the show
- * (screenshot; blurred poster as a fallback) with a slow cinematic pan — no
- * embedded video, so there's nothing for YouTube's bot-check to break.
+ * Rotating, near-fullscreen hero. Each slide prefers the title's own official
+ * wide key-visual banner (AniList), falling back to a show screenshot and
+ * then a blurred poster — with a slow cinematic pan. No embedded video, so
+ * there's nothing for YouTube's bot-check to break.
  */
 export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
   const slides = items.slice(0, 6);
@@ -58,7 +59,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
 
   if (count === 0) return null;
   const anime = slides[index]!;
-  const shot = anime.screenshots[0];
+  const shot = anime.bannerImage ?? anime.screenshots[0];
   const heroImg = shot
     ? imageSrc(shot)
     : imageSrc(anime.imageLargeUrl ?? anime.imageUrl);

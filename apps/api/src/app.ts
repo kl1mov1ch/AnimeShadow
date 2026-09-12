@@ -17,6 +17,7 @@ import { animeRoutes } from "./routes/anime.js";
 import { authRoutes } from "./routes/auth.js";
 import { commentRoutes } from "./routes/comments.js";
 import { discoverRoutes } from "./routes/discover.js";
+import { funRoutes } from "./routes/fun.js";
 import { genreRoutes } from "./routes/genres.js";
 import { healthRoutes } from "./routes/health.js";
 import { imageRoutes } from "./routes/image.js";
@@ -165,6 +166,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(commentRoutes);
       await api.register(profileRoutes);
       await api.register(recommendationRoutes);
+      await api.register(funRoutes);
     },
     { prefix: "/api" },
   );

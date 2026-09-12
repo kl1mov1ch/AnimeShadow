@@ -61,6 +61,8 @@ export const animeDetailSchema = animeSummarySchema.extend({
   demographics: z.array(z.string()),
   /** Landscape frames from the show — used as hero / ambient backdrops. */
   screenshots: z.array(z.string()).default([]),
+  /** Wide official key-visual banner (AniList) — the spotlight's preferred backdrop. */
+  bannerImage: z.string().nullable().default(null),
   /** True when `synopsis` is in the requested locale. */
   translated: z.boolean().default(false),
 });

@@ -151,6 +151,26 @@ export function useCharacterDetail(id: number | null) {
   });
 }
 
+/**
+ * A purely decorative reaction gif (nekos.best, proxied) for spots with no
+ * real anime/character to show. Cached per category for the session — no
+ * need to reroll on every re-render, just when a genuinely different empty
+ * state appears.
+ */
+export function useReactionGif(category: string, enabled = true) {
+  return useQuery({
+    queryKey: ["reaction-gif", category],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ url: string; category: string }>("/fun/reaction", {
+        signal,
+        query: { category },
+      }),
+    staleTime: Infinity,
+    retry: 1,
+  });
+}
+
 export function useRecommendations(id: number, enabled = true) {
   return useQuery({
     queryKey: queryKeys.recommendations(id),

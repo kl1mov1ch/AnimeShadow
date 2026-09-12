@@ -232,6 +232,7 @@ model Anime {
   background      String?
   imageUrl        String?
   imageLargeUrl   String?
+  bannerImage     String? // wide key-visual banner (AniList) — spotlight backdrop only
   screenshots     String[]
   type            AnimeType      @default(UNKNOWN)
   airing          AnimeAiring    @default(UNKNOWN)

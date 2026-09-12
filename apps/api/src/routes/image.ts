@@ -15,7 +15,17 @@ const ALLOWED_HOSTS = [
   "avatars.mds.yandex.net",
   "kinopoiskapiunofficial.tech",
   "cdn.myanimelist.net",
+  "nekos.best",
 ];
+
+// nekos.best's Cloudflare rules block generic/default library user-agents
+// outright and require "APP_NAME (CONTACT_INFO)" — everything else here is
+// fine with a plain identifying string.
+function userAgentFor(hostname: string): string {
+  return hostname === "nekos.best" || hostname.endsWith(".nekos.best")
+    ? "AnimeShadow (https://fiat-legacy.xyz)"
+    : "AnimeShadow/1.0 (image proxy)";
+}
 
 export const imageRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/img", async (request, reply) => {
@@ -47,7 +57,7 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       upstream = await fetch(target, {
         redirect: "follow",
-        headers: { "user-agent": "AnimeShadow/1.0 (image proxy)" },
+        headers: { "user-agent": userAgentFor(target.hostname) },
         signal: AbortSignal.timeout(10_000),
       });
     } catch {

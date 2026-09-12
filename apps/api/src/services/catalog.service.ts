@@ -213,31 +213,64 @@ export class CatalogService {
       .slice(0, 6)
       .map((s) => s.anime);
 
+    // Fetch each finalist's real key-visual banner (cached in the DB after
+    // the first lookup — see resolveSpotlightBanner) before rotating order.
+    const withBanners = await Promise.all(
+      scored.map((anime) => this.resolveSpotlightBanner(anime)),
+    );
+
     // Rotate the *order* of today's top picks so the carousel doesn't always
     // open on the same title — the ranking above already chose who qualifies.
-    return seededShuffle(scored, `spotlight:${todayKey()}`);
+    return seededShuffle(withBanners, `spotlight:${todayKey()}`);
   }
 
+  /**
+   * A wide banner is fetched once per title and cached on the row — most
+   * calls here are a no-op DB-hit-free return. Only the handful of titles
+   * that actually make the spotlight shortlist ever pay the AniList lookup.
+   */
+  private async resolveSpotlightBanner(anime: AnimeDetail): Promise<AnimeDetail> {
+    if (anime.bannerImage) return anime;
+    try {
+      const banner = await anilistBanner(anime.id, anime.title);
+      if (!banner) return anime;
+      await this.prisma.anime
+        .update({ where: { id: anime.id }, data: { bannerImage: banner } })
+        .catch(() => undefined);
+      return { ...anime, bannerImage: banner };
+    } catch (error) {
+      this.logger.warn({ error, id: anime.id }, "spotlight banner heal failed");
+      return anime;
+    }
+  }
+
+  /**
+   * Weighted mostly toward what our own visitors are actually watching this
+   * week — a static top-score title with no recent activity should not beat
+   * a title people are currently binging, or the carousel never changes.
+   * Score/popularity still matter (they gate quality and break ties when
+   * everything's fresh, e.g. a brand-new dev DB with no watch history yet).
+   */
   private trendingScore(anime: AnimeDetail, engagement: number): number {
     const scoreNorm = (anime.score ?? 6) / 10;
     const popularityNorm = Math.log10((anime.members ?? 0) + 1) / 6;
     const engagementNorm = Math.log10(engagement + 1) / 3;
-    const trailerBonus = anime.trailerEmbedUrl ? 0.1 : 0;
-    const screenshotBonus = anime.screenshots.length > 0 ? 0.08 : 0;
-    const airingBonus = anime.airing === "AIRING" ? 0.15 : 0;
+    const trailerBonus = anime.trailerEmbedUrl ? 0.08 : 0;
+    const screenshotBonus = anime.screenshots.length > 0 || anime.bannerImage ? 0.05 : 0;
+    const airingBonus = anime.airing === "AIRING" ? 0.1 : 0;
     return (
-      scoreNorm * 0.4 +
-      popularityNorm * 0.2 +
-      engagementNorm * 0.25 +
+      scoreNorm * 0.2 +
+      popularityNorm * 0.12 +
+      engagementNorm * 0.5 +
       trailerBonus +
       screenshotBonus +
       airingBonus
     );
   }
 
-  /** How much our own visitors have engaged with each title in the last 2 weeks. */
+  /** How much our own visitors have actually watched/tracked each title this week. */
   private async engagementScores(animeIds: number[]): Promise<Map<number, number>> {
-    const since = new Date(Date.now() - 14 * 86_400_000);
+    const since = new Date(Date.now() - 7 * 86_400_000);
     const [sessions, entries, comments] = await Promise.all([
       this.prisma.watchSession.groupBy({
         by: ["animeId"],
@@ -891,6 +924,52 @@ async function anilistPoster(
   if (title && title.trim().length >= 2) {
     return ask(
       "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){coverImage{extraLarge large}}}",
+      { search: title.trim() },
+    );
+  }
+  return null;
+}
+
+/**
+ * The wide official key-visual banner from AniList — by MAL id first, then by
+ * title. Distinct from `coverImage` (the tall poster): this is what AniList
+ * shows atop a title's own page, framed for a landscape hero, not Shikimori's
+ * incidental first-episode screenshot. Returns null on any failure or when
+ * the title has no banner uploaded (not every anime does).
+ */
+async function anilistBanner(
+  malId: number,
+  title?: string,
+): Promise<string | null> {
+  const ask = async (
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<string | null> => {
+    try {
+      const res = await fetch(ANILIST_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        data?: { Media?: { bannerImage?: string | null } };
+      };
+      return json.data?.Media?.bannerImage ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const byId = await ask(
+    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){bannerImage}}",
+    { idMal: malId },
+  );
+  if (byId) return byId;
+  if (title && title.trim().length >= 2) {
+    return ask(
+      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){bannerImage}}",
       { search: title.trim() },
     );
   }

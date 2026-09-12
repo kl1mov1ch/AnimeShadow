@@ -10,9 +10,13 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useT } from "@/i18n";
+import { imageSrc } from "@/lib/format";
+import { useReactionGif } from "@/lib/query";
 
 interface EmptyStateProps {
   icon?: ReactNode;
+  /** "default" for a custom-sized media (e.g. a reaction gif) instead of a boxed icon. */
+  mediaVariant?: "icon" | "default";
   title: string;
   description?: string;
   action?: ReactNode;
@@ -20,6 +24,7 @@ interface EmptyStateProps {
 
 export function EmptyState({
   icon = <FrownIcon />,
+  mediaVariant = "icon",
   title,
   description,
   action,
@@ -27,7 +32,7 @@ export function EmptyState({
   return (
     <Empty className="border">
       <EmptyHeader>
-        <EmptyMedia variant="icon">{icon}</EmptyMedia>
+        <EmptyMedia variant={mediaVariant}>{icon}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>
@@ -36,11 +41,46 @@ export function EmptyState({
   );
 }
 
+/**
+ * A tiny, purely decorative reaction gif — no specific anime/character is
+ * being represented here (nekos.best has no way to look those up), it's just
+ * a bit of life on a page that otherwise has nothing to show. Falls back to
+ * the plain icon silently if the fetch fails or hasn't resolved yet.
+ */
+function ReactionMedia({
+  category,
+  fallback,
+}: {
+  category: string;
+  fallback: ReactNode;
+}) {
+  const { data } = useReactionGif(category);
+  if (!data?.url) return <>{fallback}</>;
+  return (
+    <img
+      src={imageSrc(data.url)}
+      alt=""
+      loading="lazy"
+      className="size-20 rounded-xl object-cover sm:size-24"
+    />
+  );
+}
+
 export function NoResultsState({ query }: { query?: string }) {
   const t = useT();
   return (
     <EmptyState
-      icon={<SearchXIcon />}
+      icon={
+        <ReactionMedia
+          category="shrug"
+          fallback={
+            <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
+              <SearchXIcon className="size-6" />
+            </div>
+          }
+        />
+      }
+      mediaVariant="default"
       title={t("browse.noResultsTitle")}
       description={
         query

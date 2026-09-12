@@ -20,11 +20,12 @@ export function animeHref(anime: { id: number; slug: string }): string {
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PROXY_HOSTS =
-  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net)$/i;
+  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best)$/i;
 
 /**
- * Shikimori and Kinopoisk block hot-linking by Referer, so route those images
- * through the API's `/api/img` proxy. Everything else is returned untouched.
+ * Shikimori, Kinopoisk and nekos.best all block hot-linking (Referer check /
+ * Cloudflare bot rule), so route those images through the API's `/api/img`
+ * proxy. Everything else is returned untouched.
  */
 export function imageSrc(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
