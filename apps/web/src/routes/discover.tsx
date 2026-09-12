@@ -1,12 +1,16 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { AnimeGrid } from "@/components/anime/anime-grid";
 import { AnimeRail } from "@/components/anime/anime-rail";
+import { ProgressEmpty, ProgressRow } from "@/components/anime/progress-row";
 import {
   SpotlightCarousel,
   SpotlightSkeleton,
 } from "@/components/anime/spotlight";
 import { ErrorState } from "@/components/common/states";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
@@ -15,6 +19,7 @@ import {
   useDiscover,
   useGenres,
   useHomeRecommendations,
+  useMyProgress,
 } from "@/lib/query";
 import { useDocumentHead } from "@/lib/seo";
 
@@ -32,6 +37,7 @@ export function Component() {
   const { data: genres } = useGenres();
   const { data: cont } = useContinueWatching(isAuthed);
   const { data: recs, isPending: recsPending } = useHomeRecommendations();
+  const { data: history, isPending: historyPending } = useMyProgress(isAuthed);
 
   if (isError) {
     return (
@@ -47,6 +53,7 @@ export function Component() {
 
   const continueItems = (cont?.items ?? []).map((i) => i.anime);
   const topGenres = (genres ?? []).slice(0, 14);
+  const historyRows = (history ?? []).slice(0, 6);
 
   return (
     <div className="flex flex-col gap-12">
@@ -89,9 +96,44 @@ export function Component() {
         />
       )}
 
+      {/* A poster wall instead of a slider — this is the one rail people tend
+          to actually scan for "what's hot", so letting several rows sit
+          visible at once beats scrolling one at a time. Also breaks up a
+          page that would otherwise be nothing but horizontal carousels. */}
+      {(isPending || (data?.trendingNow?.length ?? 0) > 0) && (
+        <HomeSection
+          title={t("home.trendingNow")}
+          subtitle={t("home.trendingNowSub")}
+          href="/browse?orderBy=popularity"
+        >
+          {isPending ? (
+            <AnimeGridSkeletonRow count={10} />
+          ) : (
+            <AnimeGrid
+              items={(data?.trendingNow ?? []).slice(0, 10)}
+              priorityCount={5}
+            />
+          )}
+        </HomeSection>
+      )}
+
       <AnimeRail
-        title={t("home.popularWeek")}
-        subtitle={t("home.popularWeekSub")}
+        title={t("home.trendingMonth")}
+        subtitle={t("home.trendingMonthSub")}
+        items={data?.trendingMonth ?? []}
+        loading={isPending}
+        href="/browse?orderBy=popularity"
+      />
+      <AnimeRail
+        title={t("home.topRated")}
+        subtitle={t("home.topRatedSub")}
+        items={data?.allTimeTop ?? []}
+        loading={isPending}
+        href="/browse?orderBy=score"
+      />
+      <AnimeRail
+        title={t("home.airingNow")}
+        subtitle={t("home.airingNowSub")}
         items={data?.topAiring ?? []}
         loading={isPending}
         href="/browse?airing=AIRING&orderBy=popularity"
@@ -103,13 +145,26 @@ export function Component() {
         loading={isPending}
         href="/browse?airing=AIRING&orderBy=start_date"
       />
-      <AnimeRail
-        title={t("home.topRated")}
-        subtitle={t("home.topRatedSub")}
-        items={data?.allTimeTop ?? []}
-        loading={isPending}
-        href="/browse?orderBy=score"
-      />
+
+      {/* Stretched palette-tinted rows instead of posters — a "coming soon"
+          ticker reads better as a scannable list than as a carousel. */}
+      {(isPending || (data?.upcoming?.length ?? 0) > 0) && (
+        <HomeSection
+          title={t("home.upcoming")}
+          subtitle={t("home.upcomingSub")}
+          href="/browse?airing=UPCOMING"
+        >
+          {isPending ? (
+            <AnimeGridSkeletonRow count={4} view="list" />
+          ) : (
+            <AnimeGrid
+              items={(data?.upcoming ?? []).slice(0, 6)}
+              view="list"
+            />
+          )}
+        </HomeSection>
+      )}
+
       <AnimeRail
         title={t("home.recommended")}
         subtitle={
@@ -125,6 +180,95 @@ export function Component() {
         loading={recsPending && !recs}
         href="/browse?orderBy=popularity"
       />
+
+      {/* Watch history closes the page — a vertical list, deliberately not
+          another rail, so the homepage doesn't end the way it started. */}
+      {isAuthed && (
+        <HomeSection
+          title={t("home.watchHistory")}
+          subtitle={t("home.watchHistorySub")}
+          href="/profile?tab=progress"
+        >
+          {historyPending ? (
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 3 }, (_, i) => (
+                <Skeleton key={i} className="h-32 rounded-xl" />
+              ))}
+            </div>
+          ) : historyRows.length === 0 ? (
+            <ProgressEmpty />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {historyRows.map((row) => (
+                <ProgressRow key={row.animeId} row={row} />
+              ))}
+            </div>
+          )}
+        </HomeSection>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Same header treatment as `AnimeRail` (title, subtitle, "browse" link) but
+ * without the scroll-nudge arrows — for sections that aren't a horizontal
+ * track (a grid, a vertical list).
+ */
+function HomeSection({
+  title,
+  subtitle,
+  href,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  href?: string;
+  children: ReactNode;
+}) {
+  const t = useT();
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="font-display text-lg tracking-tight sm:text-xl">{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+        {href && (
+          <Button asChild variant="ghost" size="sm" className="shrink-0 text-muted-foreground">
+            <Link to={href}>{t("common.browseCatalogue")}</Link>
+          </Button>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function AnimeGridSkeletonRow({
+  count,
+  view = "grid",
+}: {
+  count: number;
+  view?: "grid" | "list";
+}) {
+  if (view === "list") {
+    return (
+      <div className="flex flex-col gap-2.5" aria-hidden>
+        {Array.from({ length: count }, (_, i) => (
+          <Skeleton key={i} className="h-32 rounded-xl sm:h-36" />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div
+      className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+      aria-hidden
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <Skeleton key={i} className="aspect-[2/3] rounded-xl" />
+      ))}
     </div>
   );
 }

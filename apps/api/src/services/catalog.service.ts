@@ -126,11 +126,25 @@ export class CatalogService {
     return this.discoverCache.wrap(`discover:${lang}`, async () => {
       await this.ensureSeeded();
 
-      const [topAiring, allTimeTop, mostPopular] = await Promise.all([
+      const [
+        topAiring,
+        allTimeTop,
+        mostPopular,
+        trendingNow,
+        trendingMonth,
+        upcoming,
+      ] = await Promise.all([
         this.queryCache({ airing: "AIRING", score: { not: null } }, "score", 20),
         this.queryCache({ score: { not: null } }, "score", 20),
         // Low ids ≈ long-established classics — a distinct rail from "top rated".
         this.queryCacheAsc({}, "id", 20),
+        this.mostWatchedRecently(2, 20),
+        this.mostWatchedRecently(30, 20),
+        this.queryCacheAsc(
+          { airing: "UPCOMING", airedFrom: { gte: new Date() } },
+          "airedFrom",
+          20,
+        ),
       ]);
 
       let thisSeason = await this.queryCache(
@@ -167,8 +181,51 @@ export class CatalogService {
       );
       const spotlight = spotlights[0] ?? null;
 
-      return { spotlight, spotlights, topAiring, thisSeason, allTimeTop, mostPopular };
+      return {
+        spotlight,
+        spotlights,
+        topAiring,
+        thisSeason,
+        allTimeTop,
+        mostPopular,
+        trendingNow,
+        trendingMonth,
+        upcoming,
+      };
     });
+  }
+
+  /**
+   * A genuine "what's being watched" ranking — our own visitors' WatchSession
+   * starts within the window, grouped and counted. No upstream API can give
+   * us this; it's the one home-page signal that's entirely our own data.
+   */
+  private async mostWatchedRecently(
+    days: number,
+    limit: number,
+  ): Promise<AnimeSummary[]> {
+    const since = new Date(Date.now() - days * 86_400_000);
+    const grouped = await this.prisma.watchSession.groupBy({
+      by: ["animeId"],
+      where: { startedAt: { gte: since } },
+      _count: { _all: true },
+      orderBy: { _count: { animeId: "desc" } },
+      take: limit,
+    });
+    const ids = grouped.map((g) => g.animeId);
+    if (ids.length === 0) return [];
+
+    const rows = await this.prisma.anime.findMany({
+      where: { id: { in: ids } },
+      include: ANIME_WITH_GENRES_INCLUDE,
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const items = ids
+      .map((id) => byId.get(id))
+      .filter((r): r is (typeof rows)[number] => r != null)
+      .map(toSummaryDto);
+    this.scheduleHealMissingDetail(items);
+    return items;
   }
 
   /**
@@ -232,7 +289,9 @@ export class CatalogService {
   private async resolveSpotlightBanner(anime: AnimeDetail): Promise<AnimeDetail> {
     if (anime.bannerImage) return anime;
     try {
-      const banner = await anilistBanner(anime.id, anime.title);
+      const banner =
+        (await anilistBanner(anime.id, anime.title)) ??
+        (await kitsuBanner(anime.title));
       if (!banner) return anime;
       await this.prisma.anime
         .update({ where: { id: anime.id }, data: { bannerImage: banner } })
@@ -994,6 +1053,34 @@ async function kitsuPoster(title?: string): Promise<string | null> {
     };
     const p = json.data?.[0]?.attributes?.posterImage;
     return p?.original ?? p?.large ?? p?.medium ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A wide banner from Kitsu (`coverImage`, up to 3360×800) by title text
+ * search — a real second source for spotlight backdrops, distinct from the
+ * tall `posterImage` used for poster healing. Null on failure or when the
+ * title has no cover uploaded.
+ */
+async function kitsuBanner(title?: string): Promise<string | null> {
+  if (!title || title.trim().length < 2) return null;
+  try {
+    const url = new URL("https://kitsu.io/api/edge/anime");
+    url.searchParams.set("filter[text]", title.trim());
+    url.searchParams.set("page[limit]", "1");
+    url.searchParams.set("fields[anime]", "coverImage");
+    const res = await fetch(url, {
+      headers: { accept: "application/vnd.api+json" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      data?: Array<{ attributes?: { coverImage?: Record<string, string> } }>;
+    };
+    const c = json.data?.[0]?.attributes?.coverImage;
+    return c?.large ?? c?.original ?? c?.small ?? null;
   } catch {
     return null;
   }

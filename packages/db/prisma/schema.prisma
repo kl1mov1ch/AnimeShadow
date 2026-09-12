@@ -116,6 +116,10 @@ model WatchSession {
   createdAt DateTime  @default(now())
 
   @@index([userId, startedAt])
+  // Backs the homepage's "trending now / this month" rails — a
+  // groupBy(animeId) filtered to a recent window over the whole table, with
+  // no animeId filter to narrow it first, so the range needs its own index.
+  @@index([startedAt])
 }
 
 /// An earned achievement. The catalogue itself is code-defined

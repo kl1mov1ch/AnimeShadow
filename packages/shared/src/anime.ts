@@ -149,5 +149,11 @@ export const discoverResponseSchema = z.object({
   thisSeason: z.array(animeSummarySchema),
   allTimeTop: z.array(animeSummarySchema),
   mostPopular: z.array(animeSummarySchema),
+  /** Real watch-activity ranking — our own visitors, last ~2 days. */
+  trendingNow: z.array(animeSummarySchema).default([]),
+  /** Same signal, wider ~30-day window — sustained rather than momentary. */
+  trendingMonth: z.array(animeSummarySchema).default([]),
+  /** Announced/not-yet-aired titles, soonest first. */
+  upcoming: z.array(animeSummarySchema).default([]),
 });
 export type DiscoverResponse = z.infer<typeof discoverResponseSchema>;
