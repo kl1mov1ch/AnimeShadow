@@ -19,9 +19,18 @@ interface WatchSectionProps {
   anime: Pick<AnimeDetail, "id" | "airing" | "airedFrom" | "episodes">;
   title: string;
   active: boolean;
+  /** Which episode is loaded — lifted up so a separate Episodes section can jump the player. */
+  episode: number;
+  onEpisodeChange: (episode: number) => void;
 }
 
-export function WatchSection({ anime, title, active }: WatchSectionProps) {
+export function WatchSection({
+  anime,
+  title,
+  active,
+  episode,
+  onEpisodeChange,
+}: WatchSectionProps) {
   const t = useT();
   const releaseDate = anime.airedFrom ? new Date(anime.airedFrom) : null;
   const notYetOut =
@@ -50,6 +59,8 @@ export function WatchSection({ anime, title, active }: WatchSectionProps) {
         title={title}
         animeId={anime.id}
         episodesTotal={anime.episodes}
+        episode={episode}
+        onEpisodeChange={onEpisodeChange}
       />
     );
   }
@@ -373,11 +384,15 @@ function Player({
   title,
   animeId,
   episodesTotal,
+  episode,
+  onEpisodeChange,
 }: {
   data: WatchResponse;
   title: string;
   animeId: number;
   episodesTotal: number | null;
+  episode: number;
+  onEpisodeChange: (episode: number) => void;
 }) {
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead).
@@ -411,14 +426,14 @@ function Player({
   // persists for an anonymous visit), so the control itself only shows for
   // them — no point offering a stepper that quietly does nothing.
   const { data: progress } = useAnimeProgress(animeId, authed);
-  const [episode, setEpisode] = useState(1);
   const resumeAppliedRef = useRef(false);
   useEffect(() => {
     if (resumeAppliedRef.current) return;
     if (progress?.resumeEpisode != null) {
-      setEpisode(progress.resumeEpisode);
+      onEpisodeChange(progress.resumeEpisode);
       resumeAppliedRef.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress]);
 
   const episodeRecord = progress?.episodes.find((e) => e.episode === episode);
@@ -471,7 +486,7 @@ function Player({
         completed: true,
       });
     }
-    setEpisode(next);
+    onEpisodeChange(next);
   };
 
   return (
@@ -485,7 +500,7 @@ function Player({
           <EpisodeStepper
             episode={episode}
             episodesTotal={episodesTotal}
-            onSeek={(next) => setEpisode(next)}
+            onSeek={onEpisodeChange}
             onAdvanceClick={() => goToEpisode(episode + 1, true)}
             onRetreatClick={() => goToEpisode(episode - 1, false)}
           />

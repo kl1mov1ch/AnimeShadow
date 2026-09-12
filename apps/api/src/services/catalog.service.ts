@@ -638,6 +638,7 @@ export class CatalogService {
       Date.now() - existing.detailSyncedAt.getTime() < this.ttlMs;
 
     if (existing && isFresh) {
+      this.scheduleHealBanner(existing);
       return this.translation.localizeDetail(toDetailDto(existing), lang);
     }
 
@@ -648,6 +649,7 @@ export class CatalogService {
       if (!row.imageUrl) {
         row = await this.healPoster(row);
       }
+      this.scheduleHealBanner(row);
       return this.translation.localizeDetail(toDetailDto(row), lang);
     } catch (error) {
       if (existing) {
@@ -700,6 +702,33 @@ export class CatalogService {
       this.logger.warn({ error, id: row.id }, "poster heal failed");
       return row;
     }
+  }
+
+  /**
+   * The detail page's own cinematic header wants the same wide banner the
+   * spotlight uses. Fire-and-forget (never blocks a page load on an external
+   * lookup) — the first visit falls back to a screenshot, later visits get
+   * the real banner once this resolves and persists it on the row.
+   */
+  private scheduleHealBanner(row: {
+    id: number;
+    bannerImage: string | null;
+    title: string;
+  }): void {
+    if (row.bannerImage) return;
+    void (async () => {
+      try {
+        const banner =
+          (await anilistBanner(row.id, row.title)) ?? (await kitsuBanner(row.title));
+        if (!banner) return;
+        await this.prisma.anime.update({
+          where: { id: row.id },
+          data: { bannerImage: banner },
+        });
+      } catch (error) {
+        this.logger.warn({ error, id: row.id }, "detail banner heal failed");
+      }
+    })();
   }
 
   /**

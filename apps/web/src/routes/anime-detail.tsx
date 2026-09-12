@@ -1,6 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -17,13 +18,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButtons } from "@/components/seo/share-buttons";
+import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useAnime, useCharacters, useSimilarAnime } from "@/lib/query";
+import { useAnime, useAnimeProgress, useCharacters, useSimilarAnime } from "@/lib/query";
 import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
-import { paletteFromSeed, useImagePalette } from "@/hooks/use-image-palette";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -105,7 +106,9 @@ function AnimeDetailView({ param }: { param: string }) {
   }
 
   const title = labels.title(data);
-  const backdrop = imageSrc(data.imageLargeUrl ?? data.imageUrl);
+  const banner = imageSrc(
+    data.bannerImage ?? data.screenshots[0] ?? data.imageLargeUrl ?? data.imageUrl,
+  );
   const poster = imageSrc(data.imageLargeUrl ?? data.imageUrl);
   const secondaryTitle =
     data.titleJapanese && data.titleJapanese !== title ? data.titleJapanese : null;
@@ -118,34 +121,34 @@ function AnimeDetailView({ param }: { param: string }) {
       .join(", "),
   });
 
-  return (
-    <article className="relative flex flex-col gap-6">
-      <AmbientBackdrop src={backdrop} genres={data.genres} seed={data.id} />
+  // Lifted here (not inside WatchSection) so the Episodes section below the
+  // player can jump it to any episode without threading a ref through.
+  const [episode, setEpisode] = useState(1);
 
-      {/* Banner — sits directly on the ambient wash, no frame */}
+  return (
+    <article className="flex flex-col gap-6">
+      <CinematicHeader src={banner} title={title} seed={data.id} />
+
       <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span className="text-primary">{labels.airingLabel(data.airing)}</span>
-          <Dot />
-          <span>{labels.typeLabel(data.type)}</span>
-          {labels.seasonYearLabel(data) && (
-            <>
-              <Dot />
-              <span>{labels.seasonYearLabel(data)}</span>
-            </>
-          )}
-          {data.rating && (
-            <>
-              <Dot />
-              <span>{data.rating}</span>
-            </>
-          )}
-          {data.rank != null && data.rank > 0 && (
-            <>
-              <Dot />
-              <span className="tabular-nums">{t("detail.ranked", { rank: data.rank })}</span>
-            </>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="text-primary">{labels.airingLabel(data.airing)}</span>
+            <Dot />
+            <span>{labels.typeLabel(data.type)}</span>
+            {labels.seasonYearLabel(data) && (
+              <>
+                <Dot />
+                <span>{labels.seasonYearLabel(data)}</span>
+              </>
+            )}
+            {data.rating && (
+              <>
+                <Dot />
+                <span>{data.rating}</span>
+              </>
+            )}
+          </div>
+          <ShareButtons path={animeUrl(data)} />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -155,17 +158,20 @@ function AnimeDetailView({ param }: { param: string }) {
           )}
         </div>
 
+        {/* Rating — exactly that, nothing else: score, vote count, rank. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
           <ScoreBadge score={data.score} size="md" />
           {data.scoredBy != null && (
             <span>{t("common.ratings", { count: labels.compact(data.scoredBy) })}</span>
+          )}
+          {data.rank != null && data.rank > 0 && (
+            <span className="tabular-nums">{t("detail.ranked", { rank: data.rank })}</span>
           )}
           {data.translated && (
             <Badge variant="outline" className="text-[11px]">
               {t("detail.machineTranslated")}
             </Badge>
           )}
-          <ShareButtons path={animeUrl(data)} />
         </div>
 
         {data.genresDetailed.length > 0 && (
@@ -193,21 +199,27 @@ function AnimeDetailView({ param }: { param: string }) {
             </div>
             <LibraryControls animeId={data.id} title={title} />
             <TrailerButton url={data.trailerEmbedUrl} title={title} />
-            <StatsList anime={data} />
           </aside>
 
           <div className="flex min-w-0 flex-col divide-y divide-border/60">
             <Block title={t("detail.sections.watch")}>
-              <WatchSection anime={data} title={title} active />
+              <WatchSection
+                anime={data}
+                title={title}
+                active
+                episode={episode}
+                onEpisodeChange={setEpisode}
+              />
             </Block>
 
-            {(data.synopsis || data.background) && (
-              <Block title={t("detail.overview")}>
-                <SynopsisBody synopsis={data.synopsis} background={data.background} />
-              </Block>
-            )}
+            <EpisodesSection
+              animeId={data.id}
+              episodesTotal={data.episodes}
+              currentEpisode={episode}
+              onSelect={setEpisode}
+            />
 
-            <AboutBlock anime={data} oneLiner={oneLiner} />
+            <OverviewBlock anime={data} oneLiner={oneLiner} />
 
             <CharactersBlock animeId={data.id} />
 
@@ -230,79 +242,35 @@ function AnimeDetailView({ param }: { param: string }) {
 /* ---------------- pieces ---------------- */
 
 /**
- * Maps a title's genres onto one of a few ambient "moods", which CSS turns into
- * a different backdrop character per anime — tighter and faster for action,
- * soft and slow for romance, and so on. Purely cosmetic; falls back to calm.
+ * A bounded banner strip, not a page-wide effect — the title's own key
+ * visual (or its best available stand-in), full width, fading into the
+ * page background at the bottom. Replaces the old full-page drifting-orb
+ * ambient wash: one deliberate image instead of a layered glow effect.
  */
-function ambientMood(genres: string[]): string {
-  const joined = genres.join(" ").toLowerCase();
-  if (/ужас|триллер|психолог|horror|thriller|psycholog|seinen|детектив/.test(joined))
-    return "dark";
-  if (/экшен|сражения|боевы|сёнен|спорт|action|shounen|sports|martial/.test(joined))
-    return "action";
-  if (/романтика|повседнев|сёдзё|romance|slice|shoujo|музыка|music/.test(joined))
-    return "romance";
-  if (/фэнтези|магия|приключения|изекай|fantasy|magic|adventure|isekai|mytholog/.test(joined))
-    return "fantasy";
-  if (/фантастика|меха|космос|sci-?fi|mecha|space|киберпанк|cyber/.test(joined))
-    return "tech";
-  return "calm";
-}
-
-function AmbientBackdrop({
+function CinematicHeader({
   src,
-  genres,
+  title,
   seed,
 }: {
   src: string | undefined;
-  genres: string[];
+  title: string;
   seed: number;
 }) {
-  const palette = useImagePalette(src);
-  const mood = ambientMood(genres);
-  // No artwork at all — never leave the page flat; use a seeded stand-in
-  // wash instead (same treatment PosterFallback gives the poster box).
-  const fallback = src ? null : paletteFromSeed(String(seed));
-  const effective = palette ?? fallback;
-  const tintVars = effective
-    ? ({ "--ambient-rgb": effective.rgb } as CSSProperties)
-    : undefined;
   return (
-    <>
-      <div className="ambient-backdrop" aria-hidden>
-        {src ? (
-          <div
-            className="ambient-backdrop__layer"
-            style={{ "--ambient-image": `url("${src}")` } as CSSProperties}
-          />
-        ) : (
-          <div className="ambient-backdrop__layer ambient-backdrop__layer--fallback" style={tintVars} />
-        )}
-      </div>
-      {effective && (
-        <>
-          <div className="ambient-tint" style={tintVars} data-mood={mood} aria-hidden />
-          <span
-            className="ambient-orb ambient-orb--a"
-            style={tintVars}
-            data-mood={mood}
-            aria-hidden
-          />
-          <span
-            className="ambient-orb ambient-orb--b"
-            style={tintVars}
-            data-mood={mood}
-            aria-hidden
-          />
-          <span
-            className="ambient-orb ambient-orb--c"
-            style={tintVars}
-            data-mood={mood}
-            aria-hidden
-          />
-        </>
+    <div className="relative h-[220px] w-full overflow-hidden rounded-2xl border border-border/60 sm:h-[300px] lg:h-[360px]">
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          aria-hidden
+          fetchPriority="high"
+          className="hero-pan absolute inset-0 size-full object-cover"
+        />
+      ) : (
+        <PosterFallback title={title} seed={seed} />
       )}
-    </>
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+    </div>
   );
 }
 
@@ -392,9 +360,52 @@ function SynopsisBody({
   );
 }
 
-function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string }) {
+/**
+ * One "Overview" section instead of three separate blocks (synopsis / themes
+ * / a tall facts sidebar) — the synopsis leads, thematic tags and the fact
+ * strip follow underneath at a lower visual weight, so the section reads as
+ * one coherent "everything about the show" surface rather than a stack of
+ * competing boxes.
+ */
+function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string }) {
   const t = useT();
   const labels = useLabels();
+  const hasSynopsis = Boolean(anime.synopsis || anime.background);
+  const hasThemes = anime.themes.length > 0 || anime.demographics.length > 0;
+
+  const facts = (
+    [
+      [t("detail.facts.format"), labels.typeLabel(anime.type)],
+      [t("detail.facts.status"), labels.airingLabel(anime.airing)],
+      [t("detail.facts.episodes"), anime.episodes ? String(anime.episodes) : null],
+      [t("detail.facts.aired"), labels.formatDate(anime.airedFrom)],
+      [t("detail.facts.ended"), labels.formatDate(anime.airedTo)],
+      [t("detail.facts.season"), labels.seasonYearLabel(anime)],
+      [t("detail.facts.duration"), anime.duration],
+      [t("detail.facts.rating"), anime.rating],
+      [
+        t("detail.facts.studios"),
+        anime.studios.length > 0 ? (
+          <span className="flex flex-wrap justify-end gap-x-2">
+            {anime.studios.map((s) => (
+              <Link
+                key={s}
+                to={`/browse?q=${encodeURIComponent(s)}`}
+                className="hover:text-primary"
+              >
+                {s}
+              </Link>
+            ))}
+          </span>
+        ) : null,
+      ],
+      [t("detail.facts.members"), labels.plain(anime.members)],
+      [t("detail.facts.favorites"), anime.favorites ? "★" : null],
+    ] as Array<[string, React.ReactNode]>
+  ).filter(([, value]) => value && value !== "—");
+
+  if (!hasSynopsis && !hasThemes && facts.length === 0) return null;
+
   const chips = (items: string[]) =>
     items.map((v) => (
       <Badge key={v} variant="outline" className="font-normal">
@@ -402,77 +413,155 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
       </Badge>
     ));
 
-  if (anime.themes.length === 0 && anime.demographics.length === 0) return null;
-
   return (
-    <section className="flex flex-col gap-3 p-5">
+    <section className="flex flex-col gap-4 p-5">
       <h2 className="font-display text-lg tracking-tight sm:text-xl">
-        {t("detail.about")}
+        {t("detail.overview")}
       </h2>
-      <p className="text-sm text-muted-foreground">{oneLiner}</p>
-      {anime.themes.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground/70">
-            {t("detail.themes")}
-          </span>
-          <div className="flex flex-wrap gap-1.5">{chips(anime.themes)}</div>
+
+      {hasSynopsis ? (
+        <SynopsisBody synopsis={anime.synopsis} background={anime.background} />
+      ) : (
+        <p className="text-sm text-muted-foreground">{oneLiner}</p>
+      )}
+
+      {hasThemes && (
+        <div className="flex flex-col gap-2.5">
+          {anime.themes.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground/70">
+                {t("detail.themes")}
+              </span>
+              <div className="flex flex-wrap gap-1.5">{chips(anime.themes)}</div>
+            </div>
+          )}
+          {anime.demographics.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground/70">
+                {t("detail.audience")}
+              </span>
+              <div className="flex flex-wrap gap-1.5">{chips(anime.demographics)}</div>
+            </div>
+          )}
         </div>
       )}
-      {anime.demographics.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground/70">
-            {t("detail.audience")}
-          </span>
-          <div className="flex flex-wrap gap-1.5">{chips(anime.demographics)}</div>
-        </div>
+
+      {facts.length > 0 && (
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 border-t border-border/60 pt-3 text-sm sm:grid-cols-2">
+          {facts.map(([label, value]) => (
+            <div key={label} className="flex items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="min-w-0 truncate text-right font-medium">{value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
     </section>
   );
 }
 
-function StatsList({ anime }: { anime: AnimeDetail }) {
+const EPISODES_PER_PAGE = 50;
+
+/**
+ * A jump-to-any-episode grid, separate from the player's own compact
+ * stepper — this is for scanning watch history at a glance (which episodes
+ * are done) and jumping further than one step at a time. Windowed at 50 per
+ * page so a 1000+ episode long-runner doesn't turn into an unusable wall of
+ * buttons. Signed-in only: nothing persists per-episode otherwise, so there'd
+ * be no watched state to show.
+ */
+function EpisodesSection({
+  animeId,
+  episodesTotal,
+  currentEpisode,
+  onSelect,
+}: {
+  animeId: number;
+  episodesTotal: number | null;
+  currentEpisode: number;
+  onSelect: (episode: number) => void;
+}) {
   const t = useT();
-  const labels = useLabels();
-  const rows: Array<[string, React.ReactNode]> = [
-    [t("detail.facts.format"), labels.typeLabel(anime.type)],
-    [t("detail.facts.status"), labels.airingLabel(anime.airing)],
-    [t("detail.facts.episodes"), anime.episodes ? String(anime.episodes) : null],
-    [t("detail.facts.aired"), labels.formatDate(anime.airedFrom)],
-    [t("detail.facts.ended"), labels.formatDate(anime.airedTo)],
-    [t("detail.facts.season"), labels.seasonYearLabel(anime)],
-    [t("detail.facts.duration"), anime.duration],
-    [t("detail.facts.rating"), anime.rating],
-    [
-      t("detail.facts.studios"),
-      anime.studios.length > 0 ? (
-        <span className="flex flex-wrap justify-end gap-x-2">
-          {anime.studios.map((s) => (
-            <Link
-              key={s}
-              to={`/browse?q=${encodeURIComponent(s)}`}
-              className="hover:text-primary"
-            >
-              {s}
-            </Link>
-          ))}
-        </span>
-      ) : null,
-    ],
-    [t("detail.facts.members"), labels.plain(anime.members)],
-    [t("detail.facts.favorites"), anime.favorites ? "★" : null],
-  ];
+  const { status } = useAuth();
+  const authed = status === "authenticated";
+  const { data: progress } = useAnimeProgress(animeId, authed);
+  const [page, setPage] = useState(() => Math.floor((currentEpisode - 1) / EPISODES_PER_PAGE));
+
+  useEffect(() => {
+    setPage(Math.floor((currentEpisode - 1) / EPISODES_PER_PAGE));
+  }, [currentEpisode]);
+
+  if (!authed) return null;
+
+  const completed = new Set(
+    (progress?.episodes ?? []).filter((e) => e.completed).map((e) => e.episode),
+  );
+  const knownMax = Math.max(currentEpisode, ...(progress?.episodes.map((e) => e.episode) ?? [0]));
+  const total = episodesTotal ?? knownMax + 4;
+  if (total <= 1) return null;
+
+  const totalPages = Math.ceil(total / EPISODES_PER_PAGE);
+  const start = page * EPISODES_PER_PAGE + 1;
+  const end = Math.min(total, start + EPISODES_PER_PAGE - 1);
+  const episodes = Array.from({ length: end - start + 1 }, (_, i) => start + i);
 
   return (
-    <dl className="flex flex-col divide-y divide-border/50 text-sm">
-      {rows
-        .filter(([, value]) => value && value !== "—")
-        .map(([label, value]) => (
-          <div key={label} className="flex items-start justify-between gap-4 py-2">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right font-medium">{value}</dd>
+    <section className="flex flex-col gap-3 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg tracking-tight sm:text-xl">
+          {t("detail.sections.episodes")}
+        </h2>
+        {totalPages > 1 && (
+          <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+            <button
+              type="button"
+              disabled={page === 0}
+              aria-label={t("common.previous")}
+              onClick={() => setPage((p) => p - 1)}
+              className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ChevronLeftIcon className="size-3.5" />
+            </button>
+            <span className="tabular-nums">
+              {start}–{end}
+            </span>
+            <button
+              type="button"
+              disabled={page === totalPages - 1}
+              aria-label={t("common.next")}
+              onClick={() => setPage((p) => p + 1)}
+              className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ChevronRightIcon className="size-3.5" />
+            </button>
           </div>
-        ))}
-    </dl>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {episodes.map((ep) => {
+          const done = completed.has(ep);
+          const active = ep === currentEpisode;
+          return (
+            <button
+              key={ep}
+              type="button"
+              onClick={() => onSelect(ep)}
+              aria-current={active}
+              className={cn(
+                "flex size-9 items-center justify-center rounded-md border text-xs font-medium tabular-nums transition-colors",
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : done
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground",
+              )}
+            >
+              {ep}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -611,6 +700,7 @@ function AdultContentGate({
 function DetailSkeleton() {
   return (
     <div className="flex flex-col gap-6">
+      <Skeleton className="h-[220px] w-full rounded-2xl sm:h-[300px] lg:h-[360px]" />
       <div className="flex flex-col gap-3">
         <Skeleton className="h-3 w-48" />
         <Skeleton className="h-9 w-2/3" />
@@ -621,7 +711,6 @@ function DetailSkeleton() {
           <div className="flex flex-col gap-4 p-5">
             <Skeleton className="mx-auto aspect-[2/3] w-40 rounded-xl lg:mx-0 lg:w-full" />
             <Skeleton className="h-10 w-full rounded-lg" />
-            <Skeleton className="h-48 w-full rounded-xl" />
           </div>
           <div className="flex flex-col gap-6 p-5">
             <Skeleton className="h-72 w-full rounded-xl" />
