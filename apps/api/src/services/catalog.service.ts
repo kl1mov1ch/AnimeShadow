@@ -322,7 +322,7 @@ export class CatalogService {
       const items = query.hasPlayer
         ? enriched.filter((s) => s.hasPlayer === true)
         : enriched;
-      this.scheduleHealMissingPosters(items);
+      this.scheduleHealMissingDetail(items);
       const hasNextPage = list.length === query.perPage;
 
       // A rolling "one page ahead" guess made the pager claim the catalogue
@@ -391,7 +391,7 @@ export class CatalogService {
       const items = query.hasPlayer
         ? enriched.filter((s) => s.hasPlayer === true)
         : enriched;
-      this.scheduleHealMissingPosters(items);
+      this.scheduleHealMissingDetail(items);
 
       return {
         items,
@@ -519,17 +519,37 @@ export class CatalogService {
 
   /**
    * Any listing (browse/search/discover/recommendations) can surface a row
-   * with no poster yet. Rather than block that response on a cross-provider
-   * search, heal it in the background — the DB gets fixed for next time, and
-   * a still-open request for the same id is skipped instead of duplicated.
+   * that was only ever seeded from Shikimori's list/search shape — no
+   * poster, and (the shape carries no synopsis at all) no description
+   * either. Rather than block that response on fixing it, heal it in the
+   * background — the DB gets fixed for next time, and a still-open request
+   * for the same id is skipped instead of duplicated.
+   *
+   * A missing synopsis needs a full detail fetch (only Shikimori's full
+   * resource has one — no image aggregator substitutes for it), which also
+   * picks up genres/rating/scoredBy/trailer and heals the poster along the
+   * way. A missing poster with a synopsis already present just needs the
+   * cheaper cross-provider image cascade.
    */
-  private scheduleHealMissingPosters(
-    items: ReadonlyArray<{ id: number; imageUrl: string | null; title?: string }>,
+  private scheduleHealMissingDetail(
+    items: ReadonlyArray<{
+      id: number;
+      imageUrl: string | null;
+      synopsis?: string | null;
+      title?: string;
+    }>,
   ): void {
     for (const item of items) {
-      if (item.imageUrl || this.healingIds.has(item.id)) continue;
+      if (this.healingIds.has(item.id)) continue;
+      const missingSynopsis = !item.synopsis;
+      const missingImage = !item.imageUrl;
+      if (!missingImage && !missingSynopsis) continue;
+
       this.healingIds.add(item.id);
-      void this.healPoster(item).finally(() => this.healingIds.delete(item.id));
+      const job = missingSynopsis
+        ? this.getAnimeById(item.id, DEFAULT_LOCALE)
+        : this.healPoster(item);
+      void job.catch(() => undefined).finally(() => this.healingIds.delete(item.id));
     }
   }
 
@@ -725,7 +745,7 @@ export class CatalogService {
   ): Paginated<AnimeSummary> {
     const skip = (query.page - 1) * query.perPage;
     const items = rows.map(toSummaryDto);
-    this.scheduleHealMissingPosters(items);
+    this.scheduleHealMissingDetail(items);
     return {
       items,
       meta: {
@@ -749,7 +769,7 @@ export class CatalogService {
       include: ANIME_WITH_GENRES_INCLUDE,
     });
     const items = rows.map(toSummaryDto);
-    this.scheduleHealMissingPosters(items);
+    this.scheduleHealMissingDetail(items);
     return items;
   }
 
@@ -765,7 +785,7 @@ export class CatalogService {
       include: ANIME_WITH_GENRES_INCLUDE,
     });
     const items = rows.map(toSummaryDto);
-    this.scheduleHealMissingPosters(items);
+    this.scheduleHealMissingDetail(items);
     return items;
   }
 

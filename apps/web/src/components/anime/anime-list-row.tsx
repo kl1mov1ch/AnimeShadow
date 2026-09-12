@@ -118,7 +118,7 @@ export function AnimeListRow({
             <p className="text-xs text-muted-foreground/70">{genreLine}</p>
           )}
           {anime.synopsis && (
-            <p className="line-clamp-2 text-xs text-foreground/70 sm:line-clamp-3">
+            <p className="line-clamp-1 text-xs text-foreground/70 sm:line-clamp-2">
               {anime.synopsis}
             </p>
           )}
