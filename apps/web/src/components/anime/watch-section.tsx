@@ -3,6 +3,15 @@ import { ChevronLeftIcon, ChevronRightIcon, Loader2Icon, Maximize2Icon } from "l
 import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -479,7 +488,10 @@ function Player({
   const alternatives = data.sources.filter((s) => s.id !== displaySource.id);
   const searching = winnerId == null && racePool.length > 0;
   const exhausted = winnerId == null && racePool.length === 0;
-  const pickerOpen = showAll || exhausted;
+  // Auto-retry is the offered fix when everything's failed — the raw list is
+  // now an opt-in "pick manually" escape hatch (via the existing "not
+  // working" toggle), not something dumped on the viewer automatically.
+  const pickerOpen = showAll;
 
   const pick = (id: string) => {
     setWinnerId(null);
@@ -499,19 +511,42 @@ function Player({
   };
 
   // A stuck third-party embed gives us no signal to detect automatically —
-  // no access to its internal player state. What we *can* do is nudge the
-  // viewer toward the fix after a source has had a fair amount of time to
-  // misbehave: try another one from the list. Resets whenever the winner
+  // no access to its internal player state. What we *can* do is offer the
+  // fix after a source has had a fair amount of time to misbehave, and make
+  // taking it a single click rather than a raw list of source names the
+  // viewer has to make sense of themselves. Resets whenever the winner
   // itself changes (a fresh pick deserves a fresh chance before nagging).
   const [showStuckHint, setShowStuckHint] = useState(false);
   useEffect(() => {
-    if (winnerId == null) {
+    if (winnerId == null || alternatives.length === 0) {
       setShowStuckHint(false);
       return;
     }
     const timer = setTimeout(() => setShowStuckHint(true), 45_000);
     return () => clearTimeout(timer);
-  }, [winnerId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winnerId, data.sources.length]);
+
+  /** Retries from the very top, as if the page had just been opened. */
+  const retryAll = () => {
+    setTriedIds([]);
+    setWinnerId(null);
+    setRacePool(data.sources.slice(0, RACE_SIZE).map((s) => s.id));
+  };
+
+  /** One click, no source names to make sense of — moves straight to the next best untried pick. */
+  const switchNow = () => {
+    setShowStuckHint(false);
+    const exclude = new Set(winnerId ? [...triedIds, winnerId] : triedIds);
+    const remaining = data.sources.filter((s) => !exclude.has(s.id));
+    if (remaining.length === 0) {
+      retryAll();
+      return;
+    }
+    setTriedIds((tried) => (winnerId ? [...tried, winnerId] : tried));
+    setWinnerId(null);
+    setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
+  };
 
   const winnerFrameRef = useRef<HTMLIFrameElement | null>(null);
   const enterFullscreen = () => {
@@ -577,26 +612,33 @@ function Player({
         )}
       </div>
 
+      {/* Nothing worked automatically — offer the fix as one button, not a
+          list of source names the viewer has to interpret themselves. The
+          manual list is still there (via "not working" above) for the rare
+          case even this doesn't help. */}
       {exhausted && (
-        <Alert>
-          <AlertDescription>{t("watch.allFailedHint")}</AlertDescription>
-        </Alert>
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-border/60 bg-card/40 p-4 text-center">
+          <p className="text-sm text-muted-foreground">{t("watch.allFailedHint")}</p>
+          <Button size="sm" onClick={retryAll}>
+            {t("watch.retry")}
+          </Button>
+        </div>
       )}
 
-      {showStuckHint && !exhausted && alternatives.length > 0 && (
-        <Alert>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>{t("watch.stuckHint")}</span>
-            <button
-              type="button"
-              onClick={() => setShowStuckHint(false)}
-              className="shrink-0 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-            >
-              {t("common.cancel")}
-            </button>
-          </AlertDescription>
-        </Alert>
-      )}
+      <Dialog open={showStuckHint} onOpenChange={setShowStuckHint}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("watch.stuckModalTitle")}</DialogTitle>
+            <DialogDescription>{t("watch.stuckModalBody")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStuckHint(false)}>
+              {t("watch.stuckModalDismiss")}
+            </Button>
+            <Button onClick={switchNow}>{t("watch.stuckModalSwitch")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {pickerOpen && alternatives.length > 0 && (
         <div className="flex flex-col gap-1 rounded-lg border border-border/60 bg-card/40 p-1.5">
