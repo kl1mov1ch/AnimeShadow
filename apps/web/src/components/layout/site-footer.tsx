@@ -26,9 +26,13 @@ export function SiteFooter() {
         className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
       />
 
-      <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1.4fr]">
+      {/* Two columns from the smallest phone up — Nav and Project are each
+          short enough to sit side by side instead of stacking into one long
+          column; only Brand and Legal (a real paragraph) get the full row.
+          Desktop switches to its own explicit four-column layout. */}
+      <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-x-6 gap-y-9 px-4 py-12 lg:grid-cols-[1.6fr_1fr_1fr_1.4fr] lg:gap-x-10">
         {/* Brand */}
-        <div className="flex flex-col gap-4">
+        <div className="col-span-2 flex flex-col gap-4 lg:col-span-1">
           <Link to="/" className="flex items-center gap-2 font-display text-lg">
             <span aria-hidden className="text-2xl text-primary">
               影
@@ -72,8 +76,9 @@ export function SiteFooter() {
           <FooterLink to="/support">{t("footer.pro")}</FooterLink>
         </FooterColumn>
 
-        {/* Legal */}
-        <div className="flex flex-col gap-3">
+        {/* Legal — a real paragraph, always reads better at full width than
+            squeezed into half a phone screen. */}
+        <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
             {t("footer.legal")}
           </h3>

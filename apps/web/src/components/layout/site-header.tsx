@@ -3,11 +3,13 @@ import {
   CompassIcon,
   LanguagesIcon,
   LayoutGridIcon,
+  LogInIcon,
   LogOutIcon,
   MenuIcon,
   MoonStarIcon,
   ShuffleIcon,
   SunIcon,
+  UserPlusIcon,
   WandSparklesIcon,
 } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -244,10 +246,16 @@ function MobileMenu({
         {!authed && (
           <div className="flex gap-2">
             <Button asChild variant="outline" className="flex-1" onClick={onNavigate}>
-              <Link to="/login">{t("common.signIn")}</Link>
+              <Link to="/login">
+                <LogInIcon />
+                {t("common.signIn")}
+              </Link>
             </Button>
             <Button asChild className="flex-1" onClick={onNavigate}>
-              <Link to="/register">{t("common.createAccount")}</Link>
+              <Link to="/register">
+                <UserPlusIcon />
+                {t("common.createAccount")}
+              </Link>
             </Button>
           </div>
         )}
@@ -323,33 +331,20 @@ function MobileMenu({
   );
 }
 
+/** One button, like MobileTheme below — with exactly two locales, a row of
+ * two pills for "pick one of these" was really just a toggle in disguise. */
 function MobileLanguage() {
   const { locale, setLocale, t } = useI18n();
+  const other: Locale = LOCALES.find((code) => code !== locale) ?? LOCALES[0]!;
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg px-3 py-2">
-      <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <LanguagesIcon className="size-3.5" />
-        {t("locale.label")}
-      </span>
-      <div className="flex gap-1.5">
-        {LOCALES.map((code: Locale) => (
-          <button
-            key={code}
-            type="button"
-            onClick={() => setLocale(code)}
-            aria-pressed={code === locale}
-            className={cn(
-              "rounded-md border px-2.5 py-1 text-xs transition-colors",
-              code === locale
-                ? "border-primary/50 bg-primary/15 text-primary"
-                : "border-border/60 text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {LOCALE_LABELS[code]}
-          </button>
-        ))}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={() => setLocale(other)}
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+    >
+      <LanguagesIcon className="size-4" />
+      {t("locale.switchTo", { language: LOCALE_LABELS[other] })}
+    </button>
   );
 }
 

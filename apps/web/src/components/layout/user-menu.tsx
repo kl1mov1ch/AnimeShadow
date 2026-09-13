@@ -1,10 +1,12 @@
 import {
   LibraryIcon,
+  LogInIcon,
   LogOutIcon,
   SettingsIcon,
   SparklesIcon,
   TrophyIcon,
   UserIcon,
+  UserPlusIcon,
   WandSparklesIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -19,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
@@ -47,13 +50,29 @@ export function UserMenu() {
 
   if (!authed || !user) {
     return (
-      <div className="flex items-center gap-1">
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/login">{t("common.signIn")}</Link>
-        </Button>
-        <Button asChild size="sm" className="hidden sm:inline-flex">
-          <Link to="/register">{t("common.createAccount")}</Link>
-        </Button>
+      <div className="flex items-center gap-1.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/login">
+                <LogInIcon />
+                {t("common.signIn")}
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("common.signIn")}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild size="sm" className="hidden sm:inline-flex">
+              <Link to="/register">
+                <UserPlusIcon />
+                {t("common.createAccount")}
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("common.createAccount")}</TooltipContent>
+        </Tooltip>
       </div>
     );
   }
