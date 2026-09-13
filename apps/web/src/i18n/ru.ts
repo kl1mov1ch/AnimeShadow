@@ -319,6 +319,7 @@ export const ru: Dict = {
     haveAccount: "Уже есть аккаунт?",
     genericError: "Что-то пошло не так. Попробуйте ещё раз.",
     orDivider: "или",
+    telegramCta: "Войти через Telegram",
     couldntContinue: "Не удалось продолжить",
     showPassword: "Показать пароль",
     hidePassword: "Скрыть пароль",

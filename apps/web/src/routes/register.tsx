@@ -14,7 +14,7 @@ import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
-import { isTelegramWidgetSupported, type TelegramAuthData } from "@/lib/telegram-auth";
+import { isTelegramLoginSupported, type TelegramAuthData } from "@/lib/telegram-auth";
 
 type FieldName = "displayName" | "email" | "password";
 type Errors = Partial<Record<FieldName | "form", string>>;
@@ -142,7 +142,7 @@ export function Component() {
         <SubmitButton pending={pending}>{t("auth.registerCta")}</SubmitButton>
       </form>
 
-      {isTelegramWidgetSupported() && (
+      {isTelegramLoginSupported() && (
         <>
           <AuthDivider label={t("auth.orDivider")} />
           <TelegramLoginButton onAuth={onTelegramAuth} />

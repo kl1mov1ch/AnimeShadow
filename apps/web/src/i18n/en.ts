@@ -318,6 +318,7 @@ export const en = {
     haveAccount: "Already have an account?",
     genericError: "Something went wrong. Try again.",
     orDivider: "or",
+    telegramCta: "Sign in with Telegram",
     couldntContinue: "Couldn't continue",
     showPassword: "Show password",
     hidePassword: "Hide password",
