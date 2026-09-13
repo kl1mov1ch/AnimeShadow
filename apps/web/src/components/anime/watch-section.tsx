@@ -1,5 +1,12 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
-import { ChevronLeftIcon, ChevronRightIcon, Loader2Icon, Maximize2Icon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  Loader2Icon,
+  Maximize2Icon,
+  RefreshCwIcon,
+  ShuffleIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -341,7 +348,7 @@ function EpisodeStepper({
         {...prevHold}
         disabled={episode <= 1}
         aria-label={t("watch.prevEpisode")}
-        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-6"
+        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-6"
       >
         <ChevronLeftIcon className="size-4 sm:size-3.5" />
       </button>
@@ -357,7 +364,7 @@ function EpisodeStepper({
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
-        className="w-7 shrink-0 bg-transparent text-center text-sm font-medium tabular-nums outline-none sm:w-6"
+        className="w-7 shrink-0 rounded-md bg-primary/10 text-center text-sm font-semibold tabular-nums text-primary outline-none sm:w-6"
       />
       {episodesTotal != null && (
         <span className="shrink-0 text-xs text-muted-foreground">/ {episodesTotal}</span>
@@ -368,7 +375,7 @@ function EpisodeStepper({
         {...nextHold}
         disabled={episodesTotal != null && episode >= episodesTotal}
         aria-label={t("watch.nextEpisode")}
-        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-6"
+        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-6"
       >
         <ChevronRightIcon className="size-4 sm:size-3.5" />
       </button>
@@ -674,8 +681,10 @@ function Player({
       {/* Current pick, one line — the episode control lives right in it
           (only for signed-in viewers: nothing persists otherwise, so a
           control that quietly does nothing would just be confusing)
-          instead of floating on its own row above the player. */}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+          instead of floating on its own row above the player. One card
+          instead of bare text/buttons on the page background, so the whole
+          row reads as a single control bar. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm">
         {authed && (
           <EpisodeStepper
             episode={episode}
@@ -698,7 +707,12 @@ function Player({
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="ml-auto shrink-0 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground sm:px-2 sm:py-1"
+            className={cn(
+              "ml-auto shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
+              showAll
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary",
+            )}
           >
             {showAll ? t("common.cancel") : t("watch.notWorking")}
           </button>
@@ -710,9 +724,10 @@ function Player({
           manual list is still there (via "not working" above) for the rare
           case even this doesn't help. */}
       {exhausted && (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-border/60 bg-card/40 p-4 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-card/40 p-4 text-center">
           <p className="text-sm text-muted-foreground">{t("watch.allFailedHint")}</p>
           <Button size="sm" onClick={retryAll}>
+            <RefreshCwIcon />
             {t("watch.retry")}
           </Button>
         </div>
@@ -728,13 +743,16 @@ function Player({
             <Button variant="outline" onClick={() => setShowStuckHint(false)}>
               {t("watch.stuckModalDismiss")}
             </Button>
-            <Button onClick={switchNow}>{t("watch.stuckModalSwitch")}</Button>
+            <Button onClick={switchNow}>
+              <ShuffleIcon />
+              {t("watch.stuckModalSwitch")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {pickerOpen && alternatives.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-lg border border-border/60 bg-card/40 p-1.5">
+        <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card/40 p-1.5">
           {data.sources.map((source) => (
             <button
               key={source.id}
@@ -742,12 +760,19 @@ function Player({
               onClick={() => pick(source.id)}
               aria-current={source.id === displaySource.id}
               className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
                 source.id === displaySource.id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                  ? "bg-primary/10 font-medium text-primary"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
               )}
             >
+              <span
+                aria-hidden
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  source.id === displaySource.id ? "bg-primary" : "bg-border",
+                )}
+              />
               <span className="min-w-0 flex-1 truncate">
                 {sourceLabel(source, t)}
               </span>
@@ -820,7 +845,7 @@ function Player({
             type="button"
             onClick={enterFullscreen}
             aria-label={t("watch.fullscreen")}
-            className="absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-background/80 text-foreground shadow-md backdrop-blur transition-colors hover:bg-background sm:hidden"
+            className="absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-background/80 text-foreground shadow-md backdrop-blur transition-colors hover:bg-background hover:text-primary sm:hidden"
           >
             <Maximize2Icon className="size-4" />
           </button>
