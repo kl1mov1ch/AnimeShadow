@@ -10,7 +10,12 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldSeparator,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -79,7 +84,7 @@ export function BrowseFilters({
   const minScore = params.minScore ?? 0;
 
   return (
-    <FieldGroup className="gap-3.5">
+    <FieldGroup className="gap-4">
       <Field>
         <FieldLabel htmlFor="browse-search" className="text-xs">
           {t("browse.search")}
@@ -90,102 +95,109 @@ export function BrowseFilters({
           onChange={(event) => setTerm(event.target.value)}
           placeholder={t("browse.searchPlaceholder")}
           type="search"
-          className="h-9"
+          className="h-10"
         />
       </Field>
 
-      <div className="grid grid-cols-2 gap-2.5">
-        <Field>
-          <FieldLabel htmlFor="browse-sort" className="text-xs">
-            {t("browse.sortBy")}
-          </FieldLabel>
-          <Select
-            value={params.orderBy ?? "popularity"}
-            onValueChange={(value) => onChange({ orderBy: value })}
-          >
-            <SelectTrigger id="browse-sort" className="h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_VALUES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`sort.${value}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+      <FieldSeparator />
 
-        <Field>
-          <FieldLabel htmlFor="browse-format" className="text-xs">
-            {t("browse.format")}
-          </FieldLabel>
-          <Select
-            value={params.type ?? ANY}
-            onValueChange={(value) => onChange({ type: value === ANY ? null : value })}
-          >
-            <SelectTrigger id="browse-format" className="h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>{t("browse.anyFormat")}</SelectItem>
-              {TYPE_VALUES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {labels.typeLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2.5">
-        <Field>
-          <FieldLabel htmlFor="browse-status" className="text-xs">
-            {t("browse.status")}
-          </FieldLabel>
-          <Select
-            value={params.airing ?? ANY}
-            onValueChange={(value) => onChange({ airing: value === ANY ? null : value })}
-          >
-            <SelectTrigger id="browse-status" className="h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>{t("browse.anyStatus")}</SelectItem>
-              {AIRING_VALUES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {labels.airingLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor="browse-year" className="text-xs">
-            {t("browse.year")}
-          </FieldLabel>
-          <Input
-            id="browse-year"
-            type="number"
-            inputMode="numeric"
-            min={1917}
-            max={new Date().getFullYear() + 2}
-            value={params.year ?? ""}
-            onChange={(event) => onChange({ year: event.target.value || null })}
-            placeholder={t("browse.anyYear")}
-            className="h-9"
-          />
-        </Field>
-      </div>
+      {/* One column, full width — a 2-up grid inside a ~260-320px sidebar
+          left each select too narrow for its own text, truncating options
+          like "По популярности" into "По популя…". Full width is the fix
+          that actually holds regardless of how long a locale's labels get. */}
+      <Field>
+        <FieldLabel htmlFor="browse-sort" className="text-xs">
+          {t("browse.sortBy")}
+        </FieldLabel>
+        <Select
+          value={params.orderBy ?? "popularity"}
+          onValueChange={(value) => onChange({ orderBy: value })}
+        >
+          <SelectTrigger id="browse-sort" className="h-10 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_VALUES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`sort.${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
 
       <Field>
-        <FieldLabel className="text-xs">
-          {minScore > 0
-            ? t("browse.minScoreValue", { value: minScore })
-            : t("browse.minScore")}
+        <FieldLabel htmlFor="browse-format" className="text-xs">
+          {t("browse.format")}
         </FieldLabel>
+        <Select
+          value={params.type ?? ANY}
+          onValueChange={(value) => onChange({ type: value === ANY ? null : value })}
+        >
+          <SelectTrigger id="browse-format" className="h-10 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>{t("browse.anyFormat")}</SelectItem>
+            {TYPE_VALUES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {labels.typeLabel(value)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="browse-status" className="text-xs">
+          {t("browse.status")}
+        </FieldLabel>
+        <Select
+          value={params.airing ?? ANY}
+          onValueChange={(value) => onChange({ airing: value === ANY ? null : value })}
+        >
+          <SelectTrigger id="browse-status" className="h-10 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>{t("browse.anyStatus")}</SelectItem>
+            {AIRING_VALUES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {labels.airingLabel(value)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="browse-year" className="text-xs">
+          {t("browse.year")}
+        </FieldLabel>
+        <Input
+          id="browse-year"
+          type="number"
+          inputMode="numeric"
+          min={1917}
+          max={new Date().getFullYear() + 2}
+          value={params.year ?? ""}
+          onChange={(event) => onChange({ year: event.target.value || null })}
+          placeholder={t("browse.anyYear")}
+          className="h-10"
+        />
+      </Field>
+
+      <FieldSeparator />
+
+      <Field>
+        <div className="flex items-baseline justify-between gap-2">
+          <FieldLabel className="text-xs">{t("browse.minScore")}</FieldLabel>
+          {minScore > 0 && (
+            <span className="text-xs font-medium tabular-nums text-primary">
+              {t("browse.minScoreValue", { value: minScore })}
+            </span>
+          )}
+        </div>
         <Slider
           value={[minScore]}
           min={0}
@@ -195,7 +207,12 @@ export function BrowseFilters({
             onChange({ minScore: value && value > 0 ? String(value) : null })
           }
           aria-label={t("browse.minScore")}
+          className="mt-1"
         />
+        <div className="flex justify-between text-[11px] text-muted-foreground/70">
+          <span>{t("browse.anyScore")}</span>
+          <span>9+</span>
+        </div>
       </Field>
 
       <Field>
@@ -204,7 +221,7 @@ export function BrowseFilters({
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              className="h-9 justify-between font-normal"
+              className="h-10 w-full justify-between font-normal"
             >
               {selectedGenres.size > 0
                 ? t("browse.genresSelected", { count: selectedGenres.size })
@@ -212,7 +229,7 @@ export function BrowseFilters({
               <ChevronsUpDownIcon className="text-muted-foreground" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[240px] p-0" align="start">
+          <PopoverContent className="w-[--radix-popover-trigger-width] min-w-64 p-0" align="start">
             <Command>
               <CommandInput placeholder={t("browse.genres")} />
               <CommandList>
@@ -238,6 +255,8 @@ export function BrowseFilters({
           </PopoverContent>
         </Popover>
       </Field>
+
+      <FieldSeparator />
 
       <Field orientation="horizontal" className="justify-between">
         <FieldLabel htmlFor="browse-has-player" className="text-xs font-normal">

@@ -1,7 +1,8 @@
-import type { AnimeSummary, SmartSearchResponse } from "@animeshadow/shared";
+import type { AnimeSummary, Genre, SmartSearchResponse } from "@animeshadow/shared";
 import { LayoutGridIcon, ListIcon, Loader2Icon, SlidersHorizontalIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
 import {
   BrowseFilters,
   type FilterPatch,
@@ -115,7 +116,7 @@ export function Component() {
                 {t("browse.filters")}
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[20rem] overflow-y-auto">
+            <SheetContent side="right" className="w-[22rem] overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>{t("browse.filters")}</SheetTitle>
                 <SheetDescription>{t("browse.filtersHint")}</SheetDescription>
@@ -126,8 +127,10 @@ export function Component() {
         }
       />
 
+      <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />
+
       <div className="flex gap-8">
-        <aside className="hidden w-64 shrink-0 lg:block">
+        <aside className="hidden w-72 shrink-0 lg:block">
           <div className="sticky top-20">{filters}</div>
         </aside>
 
@@ -136,6 +139,7 @@ export function Component() {
             <SearchResults
               query={search}
               params={params}
+              genres={genres}
               view={view}
               onRetry={() => void search.refetch()}
             />
@@ -197,6 +201,7 @@ export function Component() {
 function applyClientFilters(
   items: AnimeSummary[],
   params: BrowseParams,
+  selectedGenreNames: Set<string>,
 ): AnimeSummary[] {
   return items.filter((a) => {
     if (params.type && a.type !== params.type) return false;
@@ -204,6 +209,15 @@ function applyClientFilters(
     if (params.year && a.year !== params.year) return false;
     if (params.minScore && (a.score ?? 0) < params.minScore) return false;
     if (params.hasPlayer && a.hasPlayer !== true) return false;
+    // Smart search has no server-side genre filter of its own — this is the
+    // only place a genre filter can actually apply while a search term is
+    // active, and it was missing entirely (genre picks silently did nothing
+    // whenever combined with a search).
+    if (
+      selectedGenreNames.size > 0 &&
+      !a.genres.some((name) => selectedGenreNames.has(name))
+    )
+      return false;
     return true;
   });
 }
@@ -211,11 +225,13 @@ function applyClientFilters(
 function SearchResults({
   query,
   params,
+  genres,
   view,
   onRetry,
 }: {
   query: ReturnType<typeof useSmartSearch>;
   params: BrowseParams;
+  genres: Genre[];
   view: AnimeViewMode;
   onRetry: () => void;
 }) {
@@ -225,8 +241,14 @@ function SearchResults({
   if (isError) return <ErrorState onRetry={onRetry} />;
   if (isPending || !data) return <AnimeGridSkeleton count={12} view={view} />;
 
+  const selectedGenreNames = new Set(
+    genres.filter((g) => params.genres?.includes(g.id)).map((g) => g.name),
+  );
   const groups = data.groups
-    .map((g) => ({ ...g, items: applyClientFilters(g.items, params) }))
+    .map((g) => ({
+      ...g,
+      items: applyClientFilters(g.items, params, selectedGenreNames),
+    }))
     .filter((g) => g.items.length > 0);
 
   if (groups.length === 0) return <NoResultsState query={params.q} />;
