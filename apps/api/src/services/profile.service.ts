@@ -10,6 +10,7 @@ import type {
   UpdateProfileInput,
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
+import { computeIsAdult } from "../lib/content-guard.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors.js";
 import { isProfane } from "../lib/profanity.js";
 import type { AchievementService } from "./achievement.service.js";
@@ -59,7 +60,13 @@ export class ProfileService {
       user.theme === "light" || user.theme === "dark" || user.theme === "system"
         ? user.theme
         : null;
-    return { ...base, email: user.email, theme };
+    return {
+      ...base,
+      email: user.email,
+      theme,
+      birthDate: user.birthDate ? user.birthDate.toISOString().slice(0, 10) : null,
+      isAdult: computeIsAdult(user.birthDate),
+    };
   }
 
   async update(userId: string, input: UpdateProfileInput): Promise<MyProfile> {
@@ -86,6 +93,26 @@ export class ProfileService {
       }
     }
 
+    let birthDate: Date | undefined;
+    if (input.birthDate !== undefined) {
+      const existing = await this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { birthDate: true },
+      });
+      // Set once — a self-reported date is only meaningful as a one-time
+      // confirmation, not a dial a lapsed adult could flip back and forth.
+      if (existing.birthDate != null) {
+        throw new BadRequestError("Дата рождения уже подтверждена.");
+      }
+      const parsed = new Date(`${input.birthDate}T00:00:00.000Z`);
+      const now = Date.now();
+      const minDate = new Date(now - 120 * 365.25 * 86_400_000);
+      if (Number.isNaN(parsed.getTime()) || parsed.getTime() > now || parsed < minDate) {
+        throw new BadRequestError("Некорректная дата рождения.");
+      }
+      birthDate = parsed;
+    }
+
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -100,6 +127,7 @@ export class ProfileService {
           : {}),
         ...(input.titlePrefix !== undefined ? { titlePrefix: input.titlePrefix } : {}),
         ...(input.titleIcon !== undefined ? { titleIcon: input.titleIcon } : {}),
+        ...(birthDate !== undefined ? { birthDate } : {}),
       },
     });
     return this.getMine(userId);

@@ -830,6 +830,8 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
               </SelectContent>
             </Select>
           </SettingsSection>
+
+          <AgeVerificationSection profile={profile} update={update} />
         </div>
       </div>
 
@@ -859,6 +861,75 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         </SettingsSection>
       </div>
     </div>
+  );
+}
+
+/**
+ * A one-time birth date confirmation — the only thing that unlocks R+-rated
+ * titles anywhere on the site. Hentai stays excluded no matter what's set
+ * here; there is no version of this control that shows it. Locked once
+ * saved (mirrors the username field above) — it's meant to be a real fact
+ * about the account, not a toggle.
+ */
+function AgeVerificationSection({
+  profile,
+  update,
+}: {
+  profile: MyProfile;
+  update: ReturnType<typeof useUpdateProfile>;
+}) {
+  const t = useT();
+  const [birthDate, setBirthDate] = useState(profile.birthDate ?? "");
+  const locked = Boolean(profile.birthDate);
+  const maxDate = new Date().toISOString().slice(0, 10);
+
+  return (
+    <SettingsSection
+      title={t("profile.settings.age.title")}
+      description={t("profile.settings.age.hint")}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          value={birthDate}
+          max={maxDate}
+          disabled={locked}
+          onChange={(e) => setBirthDate(e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        />
+        {locked ? (
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-emerald-500/15 px-2.5 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <CheckIcon className="size-3.5" />
+            {profile.isAdult
+              ? t("profile.settings.age.verifiedAdult")
+              : t("profile.settings.age.verifiedMinor")}
+          </span>
+        ) : (
+          <Button
+            size="sm"
+            className="shrink-0"
+            disabled={update.isPending || !birthDate}
+            onClick={() =>
+              update.mutate(
+                { birthDate },
+                {
+                  onSuccess: () => toast.success(t("profile.settings.age.saved")),
+                  onError: (e) =>
+                    toast.error(
+                      e instanceof Error ? e.message : t("errors.genericTitle"),
+                    ),
+                },
+              )
+            }
+          >
+            {t("profile.settings.save")}
+          </Button>
+        )}
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+        {t("profile.settings.age.neverHentai")}
+      </p>
+    </SettingsSection>
   );
 }
 

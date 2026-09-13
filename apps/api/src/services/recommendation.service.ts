@@ -5,6 +5,7 @@ import {
 } from "@animeshadow/db";
 import type { RecommendationResponse } from "@animeshadow/shared";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
+import { withContentGuard } from "../lib/content-guard.js";
 
 export interface RecommendationServiceDeps {
   prisma: PrismaClient;
@@ -87,6 +88,7 @@ export class RecommendationService {
   async homeRail(
     userId: string | null,
     limit = 18,
+    allowAdult = false,
   ): Promise<RecommendationResponse> {
     let genreIds: number[] = [];
     let basis: RecommendationResponse["basis"] = "trending";
@@ -102,10 +104,12 @@ export class RecommendationService {
     }
 
     const pool = await this.prisma.anime.findMany({
-      where:
+      where: withContentGuard(
         genreIds.length > 0
           ? { genres: { some: { genreId: { in: genreIds } } } }
           : { score: { not: null } },
+        allowAdult,
+      ),
       orderBy: { score: { sort: "desc", nulls: "last" } },
       take: 60,
       include: ANIME_WITH_GENRES_INCLUDE,
@@ -122,14 +126,18 @@ export class RecommendationService {
     genreIds: number[],
     userId: string | null,
     limit = 12,
+    allowAdult = false,
   ): Promise<RecommendationResponse> {
     let pool =
       genreIds.length > 0
         ? await this.prisma.anime.findMany({
-            where: {
-              genres: { some: { genreId: { in: genreIds } } },
-              id: { not: animeId },
-            },
+            where: withContentGuard(
+              {
+                genres: { some: { genreId: { in: genreIds } } },
+                id: { not: animeId },
+              },
+              allowAdult,
+            ),
             orderBy: { score: { sort: "desc", nulls: "last" } },
             take: 40,
             include: ANIME_WITH_GENRES_INCLUDE,
@@ -143,7 +151,10 @@ export class RecommendationService {
       const exclude = new Set(pool.map((a) => a.id));
       exclude.add(animeId);
       const pad = await this.prisma.anime.findMany({
-        where: { id: { notIn: [...exclude] }, score: { not: null } },
+        where: withContentGuard(
+          { id: { notIn: [...exclude] }, score: { not: null } },
+          allowAdult,
+        ),
         orderBy: [
           { members: { sort: "desc", nulls: "last" } },
           { score: { sort: "desc", nulls: "last" } },

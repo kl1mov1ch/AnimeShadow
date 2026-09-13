@@ -1,6 +1,7 @@
 import { setGenrePreferencesInputSchema } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { resolveAllowAdult } from "../lib/content-guard.js";
 import { parse } from "../lib/validation.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -32,7 +33,10 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     "/recommendations/home",
     { preHandler: fastify.optionalAuth },
-    async (request) => recommendations.homeRail(request.userId ?? null),
+    async (request) => {
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      return recommendations.homeRail(request.userId ?? null, undefined, allowAdult);
+    },
   );
 
   fastify.get(
@@ -40,9 +44,10 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const { id } = parse(idParams, request.params);
-      const detail = await catalog.getAnimeById(id);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const detail = await catalog.getAnimeById(id, undefined, allowAdult);
       const genreIds = detail.genresDetailed.map((g) => g.id);
-      return recommendations.similarTo(id, genreIds, request.userId ?? null);
+      return recommendations.similarTo(id, genreIds, request.userId ?? null, undefined, allowAdult);
     },
   );
 };

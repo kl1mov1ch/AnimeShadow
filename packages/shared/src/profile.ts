@@ -68,6 +68,12 @@ export const myProfileSchema = publicProfileSchema.extend({
   email: z.string(),
   /** Saved so the choice follows the account across devices, not just this browser. */
   theme: themePreferenceSchema.nullable(),
+  /** Set once (see profile.service.ts) — the only basis for `isAdult`. Never
+   * shown to anyone but the account owner. */
+  birthDate: z.string().nullable(),
+  /** Computed server-side from `birthDate` on every read — unlocks R+-rated
+   * titles. Hentai stays excluded either way. */
+  isAdult: z.boolean(),
 });
 export type MyProfile = z.infer<typeof myProfileSchema>;
 
@@ -89,6 +95,11 @@ export const updateProfileInputSchema = z.object({
     .nullable()
     .optional(),
   titleIcon: titleIconSchema.nullable().optional(),
+  /** YYYY-MM-DD. Accepted once — profile.service.ts rejects a second change. */
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>;
 

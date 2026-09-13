@@ -34,6 +34,10 @@ model User {
   theme         String?
   onlineStatus  String          @default("OFFLINE") // ONLINE | OFFLINE | DND
   proSince      DateTime?
+  /// Self-reported, set once (see profile.service.ts) — the only basis for
+  /// unlocking R+-rated titles. Hentai (Rx) is excluded for everyone,
+  /// verified or not; this never changes that.
+  birthDate     DateTime?
   /// Up to 3 earned achievement ids shown as small circles under the
   /// avatar — order is preserved (first = leftmost). Enforced server-side
   /// in profile.service.ts, not by the DB.

@@ -9,7 +9,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
+import { isAdultRating } from "@/hooks/use-adult-content";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
@@ -52,8 +52,6 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const unreleased = anime.airing === "UPCOMING";
   const countdown = useReleaseCountdown(anime.airedFrom);
   const isAdult = isAdultRating(anime.rating);
-  const [adultConfirmed] = useAdultConfirmed();
-  const blurPoster = isAdult && !adultConfirmed;
 
   const card = (
     <Link
@@ -68,10 +66,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             loading={priority ? "eager" : "lazy"}
             decoding="async"
             fetchPriority={priority ? "high" : "auto"}
-            className={cn(
-              "size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none",
-              blurPoster && "blur-lg scale-110",
-            )}
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
           />
         ) : (
           <PosterFallback title={title} seed={anime.id} />

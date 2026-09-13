@@ -67,6 +67,13 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ hasPlayer: null }),
     });
   }
+  if (params.studio) {
+    chips.push({
+      key: "studio",
+      label: params.studio,
+      onRemove: () => onChange({ studio: null }),
+    });
+  }
   for (const id of params.genres ?? []) {
     const genre = genres.find((g) => g.id === id);
     if (!genre) continue;

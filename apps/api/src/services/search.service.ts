@@ -17,6 +17,7 @@ import type {
 } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
 import { detectMood } from "./mood-keywords.js";
+import { isAdultRating, isHentaiRating } from "../lib/content-guard.js";
 
 interface SearchLogger {
   warn: (obj: unknown, msg?: string) => void;
@@ -38,8 +39,9 @@ interface Candidate {
 const REASON_PRIORITY: Record<SearchReason, number> = {
   title: 0,
   character: 1,
-  mood: 2,
-  synopsis: 3,
+  studio: 2,
+  mood: 3,
+  synopsis: 4,
 };
 
 /**
@@ -63,10 +65,11 @@ export class SearchService {
     lang: Locale,
     limit: number,
     fast = false,
+    allowAdult = false,
   ): Promise<SmartSearchResponse> {
     const query = rawQuery.trim();
-    const key = `${fast ? "f" : "F"}:${lang}:${limit}:${query.toLowerCase()}`;
-    return this.cache.wrap(key, () => this.run(query, lang, limit, fast));
+    const key = `${fast ? "f" : "F"}:${lang}:${limit}:${allowAdult}:${query.toLowerCase()}`;
+    return this.cache.wrap(key, () => this.run(query, lang, limit, fast, allowAdult));
   }
 
   private async run(
@@ -74,15 +77,20 @@ export class SearchService {
     lang: Locale,
     limit: number,
     fast: boolean,
+    allowAdult: boolean,
   ): Promise<SmartSearchResponse> {
+    const allowed = (rating: string | null) =>
+      !isHentaiRating(rating) && (allowAdult || !isAdultRating(rating));
+
     // Instant typeahead: the local index first (sub-50ms), and only wait on one
     // upstream title call — with a hard timeout — when the cache is thin.
     if (fast) {
-      const byTitle = await this.titleFromCache(query);
-      const upstream =
+      const byTitle = (await this.titleFromCache(query)).filter((s) => allowed(s.rating));
+      const upstream = (
         byTitle.length >= 8
           ? []
-          : await withTimeout(this.titleFromShikimori(query), 1400, []);
+          : await withTimeout(this.titleFromShikimori(query), 1400, [])
+      ).filter((s) => allowed(s.rating));
       const byId = new Map<number, Candidate>();
       for (const s of byTitle) {
         byId.set(s.id, { summary: s, reason: "title", label: null, rank: titleRank(s, query) });
@@ -110,11 +118,12 @@ export class SearchService {
 
     const mood = detectMood(query);
 
-    const [byTitle, byTitleUpstream, byCharacter, byMood, bySynopsis] =
+    const [byTitle, byTitleUpstream, byCharacter, byStudio, byMood, bySynopsis] =
       await Promise.all([
         this.titleFromCache(query),
         this.titleFromShikimori(query),
         this.fromCharacters(query),
+        this.fromStudio(query),
         mood.genres.length > 0 ? this.fromMood(mood.genres) : Promise.resolve([]),
         this.fromSynopsis(query, lang),
       ]);
@@ -127,6 +136,7 @@ export class SearchService {
       rank: number,
       label: string | null = null,
     ) => {
+      if (!allowed(summary.rating)) return;
       const existing = byId.get(summary.id);
       if (
         !existing ||
@@ -142,6 +152,9 @@ export class SearchService {
     for (const s of byTitleUpstream) consider(s, "title", titleRank(s, query) - 5);
     for (const { anime, character } of byCharacter) {
       consider(anime, "character", 300 + (anime.members ?? 0) / 1e6, character);
+    }
+    for (const { anime, studio } of byStudio) {
+      consider(anime, "studio", 250 + (anime.members ?? 0) / 1e6, studio);
     }
     for (const s of byMood) consider(s, "mood", 150 + (s.score ?? 0) * 8);
     for (const s of bySynopsis) consider(s, "synopsis", 100 + (s.score ?? 0) * 5);
@@ -220,6 +233,33 @@ export class SearchService {
       this.logger.warn({ error, query }, "shikimori character search failed");
       return [];
     }
+  }
+
+  /**
+   * Studio name search — no per-element case-insensitive match on a Postgres
+   * `String[]` column via Prisma's own filter operators, so this scans the
+   * (bounded, most-popular-first) cached catalogue in JS instead of raw SQL.
+   * Fine at this catalogue's scale; revisit with a dedicated Studio table +
+   * index if it ever needs to search beyond what's locally cached.
+   */
+  private async fromStudio(
+    query: string,
+  ): Promise<Array<{ anime: AnimeSummary; studio: string }>> {
+    if (query.length < 3) return [];
+    const q = query.toLowerCase();
+    const rows = await this.prisma.anime.findMany({
+      where: { studios: { isEmpty: false } },
+      orderBy: { members: { sort: "desc", nulls: "last" } },
+      take: 3000,
+      include: ANIME_WITH_GENRES_INCLUDE,
+    });
+    const out: Array<{ anime: AnimeSummary; studio: string }> = [];
+    for (const row of rows) {
+      const hit = row.studios.find((s) => s.toLowerCase().includes(q));
+      if (hit) out.push({ anime: toSummaryDto(row), studio: hit });
+      if (out.length >= 12) break;
+    }
+    return out;
   }
 
   private async fromMood(genres: string[]): Promise<AnimeSummary[]> {
@@ -306,6 +346,18 @@ function buildGroups(candidates: Candidate[]): SearchGroup[] {
   }
   for (const [label, items] of characterGroups) {
     groups.push({ reason: "character", label, items });
+  }
+
+  // One group per distinct studio label.
+  const studioGroups = new Map<string, AnimeSummary[]>();
+  for (const c of candidates) {
+    if (c.reason !== "studio" || !c.label) continue;
+    const list = studioGroups.get(c.label) ?? [];
+    list.push(c.summary);
+    studioGroups.set(c.label, list);
+  }
+  for (const [label, items] of studioGroups) {
+    groups.push({ reason: "studio", label, items });
   }
 
   const moodItems = candidates

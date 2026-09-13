@@ -25,7 +25,7 @@ const RECENT_KEY = "animeshadow.recent.v1";
 const RECENT_MAX = 6;
 // Total rows across every result group combined, so the panel never needs
 // its own scrollbar — "see all results" is the way to the rest.
-const MAX_DROPDOWN_RESULTS = 8;
+const MAX_DROPDOWN_RESULTS = 6;
 
 const MOOD_CHIPS: Array<{ ru: string; en: string }> = [
   { ru: "грустное", en: "sad" },
@@ -193,7 +193,10 @@ export function SearchBox() {
           // own — a dropdown wider than what it hangs off of read as
           // visually disconnected from the search box.
           <div className="animate-in fade-in-0 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg duration-150">
-            <CommandList className="max-h-[min(70vh,26rem)]">
+            {/* Tall enough that the now-capped result list (6 items) and the
+                idle suggestions never actually need to scroll — the ceiling
+                is a safety net, not the normal path. */}
+            <CommandList className="max-h-[min(80vh,32rem)]">
               {!showResults ? (
                 <IdleState
                   recent={recent}
@@ -491,6 +494,8 @@ function groupHeading(group: SearchGroup, t: ReturnType<typeof useI18n>["t"]): s
       return t("search.groupTitle");
     case "character":
       return t("search.groupCharacter", { name: group.label ?? "" });
+    case "studio":
+      return t("search.groupStudio", { name: group.label ?? "" });
     case "mood":
       return t("search.groupMood");
     case "synopsis":

@@ -26,7 +26,6 @@ import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useAnime, useAnimeProgress, useCharacters, useSimilarAnime } from "@/lib/query";
-import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +46,6 @@ function AnimeDetailView({ param }: { param: string }) {
   const t = useT();
   const labels = useLabels();
   const { data, isPending, isError, error, refetch } = useAnime(param);
-  const [adultConfirmed, confirmAdult] = useAdultConfirmed();
   // Lifted here (not inside WatchSection) so the Episodes section below the
   // player can jump it to any episode without threading a ref through. Must
   // sit above every early return below — hooks can't be conditional.
@@ -104,6 +102,9 @@ function AnimeDetailView({ param }: { param: string }) {
 
   if (isError) {
     const notFound = error instanceof ApiRequestError && error.status === 404;
+    const ageGated =
+      error instanceof ApiRequestError && error.code === "AGE_VERIFICATION_REQUIRED";
+    if (ageGated) return <AdultContentGate />;
     return (
       <ErrorState
         title={notFound ? t("detail.notFound") : t("detail.loadError")}
@@ -111,10 +112,6 @@ function AnimeDetailView({ param }: { param: string }) {
         onRetry={notFound ? undefined : () => void refetch()}
       />
     );
-  }
-
-  if (isAdultRating(data.rating) && !adultConfirmed) {
-    return <AdultContentGate title={data.titleLocalized ?? data.title} onConfirm={confirmAdult} />;
   }
 
   const title = labels.title(data);
@@ -440,16 +437,27 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
       [
         t("detail.facts.studios"),
         anime.studios.length > 0 ? (
-          <span className="flex flex-wrap justify-end gap-x-2">
-            {anime.studios.map((s) => (
-              <Link
-                key={s}
-                to={`/browse?q=${encodeURIComponent(s)}`}
-                className="hover:text-primary"
-              >
-                {s}
-              </Link>
-            ))}
+          <span className="flex flex-wrap justify-end gap-x-3 gap-y-1.5">
+            {anime.studios.map((s) => {
+              const logo = anime.studioLogos?.[s];
+              return (
+                <Link
+                  key={s}
+                  to={`/browse?studio=${encodeURIComponent(s)}`}
+                  className="inline-flex items-center gap-1.5 hover:text-primary"
+                >
+                  {logo && (
+                    <img
+                      src={logo}
+                      alt=""
+                      loading="lazy"
+                      className="h-5 w-5 shrink-0 rounded-sm object-contain"
+                    />
+                  )}
+                  {s}
+                </Link>
+              );
+            })}
           </span>
         ) : null,
       ],
@@ -755,18 +763,13 @@ function RelatedSection({ anime }: { anime: AnimeDetail }) {
 }
 
 /**
- * Interstitial for "Rx"-rated titles — everything about the page (poster,
- * synopsis, player) stays out of the DOM until the viewer confirms, not just
- * visually hidden behind it. Confirmation is remembered site-wide, so this
- * only shows once.
+ * Shown for an R+ title the server refused to send (AGE_VERIFICATION_REQUIRED)
+ * — the API never even includes the real content here, so there's nothing to
+ * reveal client-side; the only way past this is confirming a birth date in
+ * Settings, which is a real one-time account fact, not a one-click popup.
+ * Hentai never reaches this at all — that's a plain 404, handled above.
  */
-function AdultContentGate({
-  title,
-  onConfirm,
-}: {
-  title: string;
-  onConfirm: () => void;
-}) {
+function AdultContentGate() {
   const t = useT();
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
@@ -775,13 +778,15 @@ function AdultContentGate({
       </span>
       <h1 className="font-display text-xl">{t("detail.adultGate.title")}</h1>
       <p className="max-w-sm text-sm text-muted-foreground">
-        {t("detail.adultGate.body", { title })}
+        {t("detail.adultGate.body")}
       </p>
       <div className="mt-2 flex gap-3">
         <Button variant="outline" asChild>
           <Link to="/">{t("detail.adultGate.leave")}</Link>
         </Button>
-        <Button onClick={onConfirm}>{t("detail.adultGate.confirm")}</Button>
+        <Button asChild>
+          <Link to="/profile?tab=settings">{t("detail.adultGate.verify")}</Link>
+        </Button>
       </div>
     </div>
   );

@@ -1,32 +1,11 @@
-import { useCallback, useState } from "react";
-
-const KEY = "animeshadow.adult-confirmed.v1";
-
-/** MAL-style rating meaning genuinely explicit content ("R+" is just mild nudity, not gated). */
+/**
+ * Purely informational now — the server already excludes hentai from every
+ * response, and excludes R+ ("mild nudity") from every LISTING response
+ * unless the viewer has confirmed their age in their profile (see
+ * ProfileService/content-guard.ts on the API side). A card can only ever
+ * carry an R+ rating here because the viewer is already allowed to see it,
+ * so this just decides whether to show the "18+" hint, not whether to.
+ */
 export function isAdultRating(rating: string | null | undefined): boolean {
-  return rating === "Rx";
-}
-
-function readConfirmed(): boolean {
-  try {
-    return localStorage.getItem(KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** One-time 18+ confirmation, remembered across the site (not per-title). */
-export function useAdultConfirmed(): [boolean, () => void] {
-  const [confirmed, setConfirmed] = useState(readConfirmed);
-
-  const confirm = useCallback(() => {
-    try {
-      localStorage.setItem(KEY, "1");
-    } catch {
-      /* private mode — the prompt will just show again next visit */
-    }
-    setConfirmed(true);
-  }, []);
-
-  return [confirmed, confirm];
+  return (rating ?? "").trim().toLowerCase().startsWith("r+");
 }

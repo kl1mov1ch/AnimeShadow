@@ -58,3 +58,12 @@ export class UpstreamUnavailableError extends AppError {
     super(503, "UPSTREAM_UNAVAILABLE", message);
   }
 }
+
+/** A real (non-hentai) 18+ title, requested by a viewer who hasn't confirmed
+ * their age in their profile yet — distinct from NotFoundError so the
+ * frontend can point them at Settings instead of a dead-end 404. */
+export class AgeVerificationRequiredError extends AppError {
+  constructor(message = "Confirm your age in your profile to view this title") {
+    super(403, "AGE_VERIFICATION_REQUIRED", message);
+  }
+}

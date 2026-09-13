@@ -164,8 +164,8 @@ export const en = {
     },
     adultGate: {
       title: "18+ content",
-      body: "\"{title}\" contains adult material. By continuing, you confirm you're 18 or older.",
-      confirm: "I'm 18+, show it",
+      body: "This title is marked as adult content. Confirm your birth date in profile settings to view it — takes a second.",
+      verify: "Confirm my age",
       leave: "Back to home",
     },
     facts: {
@@ -343,6 +343,7 @@ export const en = {
     forYou: "For you",
     groupTitle: "By title",
     groupCharacter: "Character: {name}",
+    groupStudio: "Studio: {name}",
     groupMood: "By vibe",
     groupSynopsis: "Found in the synopsis",
     detectedAs: "Read as: {genres}",
@@ -516,6 +517,14 @@ export const en = {
       titleSaved: "Title saved",
       titleCleared: "Title removed",
       titleClear: "Remove",
+      age: {
+        title: "Age verification",
+        hint: "Unlocks R+-rated content (18+, not hentai). Your birth date can only be set once.",
+        saved: "Birth date saved",
+        verifiedAdult: "Age verified",
+        verifiedMinor: "Date saved",
+        neverHentai: "We never show hentai to anyone, under any setting.",
+      },
     },
   },
   achievements: {

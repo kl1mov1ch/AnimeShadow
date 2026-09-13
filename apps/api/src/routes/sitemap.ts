@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { env } from "../config/env.js";
+import { contentGuardWhere } from "../lib/content-guard.js";
 
 const SITE =
   (env.CORS_ORIGINS[0] ?? "http://localhost:5173").replace(/\/$/, "");
@@ -9,6 +10,9 @@ export const sitemapRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/sitemap.xml", async (request, reply) => {
     const [anime, genres] = await Promise.all([
       fastify.prisma.anime.findMany({
+        // Hentai is never worth indexing, verified viewer or not — R+ stays
+        // in (it's real, just age-gated once you click through).
+        where: contentGuardWhere(true),
         select: { slug: true, updatedAt: true },
         orderBy: { members: "desc" },
         take: 5000,

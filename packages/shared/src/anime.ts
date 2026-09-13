@@ -76,6 +76,14 @@ export const animeDetailSchema = animeSummarySchema.extend({
     .object({ episode: z.number().int(), airingAt: z.string() })
     .nullable()
     .optional(),
+  /**
+   * Studio name → logo URL (MAL/Jikan producer artwork), best-effort. Same
+   * `.optional()` reasoning as `nextEpisode` above — only catalog.service's
+   * live lookup ever sets it; provider mappers never do. Missing entries
+   * (unresolved or no upstream match) are simply absent from the map, not
+   * null, so the UI can treat "not in the map" as "no logo".
+   */
+  studioLogos: z.record(z.string(), z.string()).optional(),
 });
 export type AnimeDetail = z.infer<typeof animeDetailSchema>;
 
@@ -126,6 +134,8 @@ export const animeQuerySchema = z.object({
     .pipe(z.array(z.number().int()))
     .optional(),
   minScore: z.coerce.number().min(0).max(10).optional(),
+  /** Exact studio name — the click-through from an anime's own studio credit. */
+  studio: z.string().trim().min(1).max(120).optional(),
   year: z.coerce.number().int().min(1917).max(2100).optional(),
   season: animeSeasonSchema.optional(),
   orderBy: animeOrderBySchema.default("popularity"),

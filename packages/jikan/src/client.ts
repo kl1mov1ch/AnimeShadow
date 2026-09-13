@@ -4,6 +4,7 @@ import type {
   JikanCharacterSearchEntry,
   JikanGenre,
   JikanList,
+  JikanProducer,
   JikanRecommendationEntry,
   JikanSearchParams,
 } from "./types.js";
@@ -142,6 +143,13 @@ export class JikanClient {
 
   getGenres(): Promise<JikanGenre[]> {
     return this.get<{ data: JikanGenre[] }>("/genres/anime").then((r) => r.data);
+  }
+
+  /** Studio/producer lookup by name — used for its logo art, nothing else. */
+  searchProducers(q: string, limit = 3): Promise<JikanProducer[]> {
+    return this.get<JikanList<JikanProducer>>("/producers", { q, limit }).then(
+      (r) => r.data,
+    );
   }
 
   // -- internals ------------------------------------------------------------

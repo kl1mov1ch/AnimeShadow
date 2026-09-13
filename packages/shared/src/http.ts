@@ -20,6 +20,7 @@ export const API_ERROR_CODES = [
   "VALIDATION",
   "RATE_LIMITED",
   "UPSTREAM_UNAVAILABLE",
+  "AGE_VERIFICATION_REQUIRED",
   "INTERNAL",
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

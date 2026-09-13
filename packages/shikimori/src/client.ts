@@ -184,6 +184,9 @@ function serialiseList(params: ShikiListParams): Record<string, unknown> {
     franchise: params.franchise,
     search: params.search,
     ids: params.ids,
-    censored: params.censored === undefined ? undefined : String(params.censored),
+    // Safe by default: nothing in this app ever wants hentai/uncensored
+    // results, so a caller has to opt out explicitly rather than remembering
+    // to opt in every time a new listing call gets added.
+    censored: String(params.censored ?? true),
   };
 }

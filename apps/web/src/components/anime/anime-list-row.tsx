@@ -11,12 +11,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isAdultRating, useAdultConfirmed } from "@/hooks/use-adult-content";
+import { isAdultRating } from "@/hooks/use-adult-content";
 import { paletteFromSeed, useImagePalette } from "@/hooks/use-image-palette";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { cn } from "@/lib/utils";
 
 /**
  * A stretched-out row for the catalogue's list view — poster on the left,
@@ -40,8 +39,6 @@ export function AnimeListRow({
   // seeded colour instead (same treatment PosterFallback gives the thumbnail).
   const fallbackPalette = src ? null : paletteFromSeed(String(anime.id));
   const isAdult = isAdultRating(anime.rating);
-  const [adultConfirmed] = useAdultConfirmed();
-  const blurPoster = isAdult && !adultConfirmed;
 
   const when = labels.seasonYearLabel(anime);
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
@@ -55,7 +52,7 @@ export function AnimeListRow({
       className="group relative flex gap-3 overflow-hidden rounded-xl border border-border/60 p-2.5 transition-colors hover:border-border sm:gap-4 sm:p-3"
     >
       {/* Vivid blurred echo of the poster, tinted by its own dominant colour. */}
-      {src && !blurPoster && (
+      {src && (
         <div aria-hidden className="absolute inset-0 -z-10">
           <img
             src={src}
@@ -91,10 +88,7 @@ export function AnimeListRow({
               loading={priority ? "eager" : "lazy"}
               decoding="async"
               fetchPriority={priority ? "high" : "auto"}
-              className={cn(
-                "size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]",
-                blurPoster && "blur-lg scale-110",
-              )}
+              className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
             <PosterFallback title={title} seed={anime.id} />

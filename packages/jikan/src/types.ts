@@ -101,6 +101,13 @@ export interface JikanGenre extends JikanNamedResource {
   count?: number;
 }
 
+/** From `/producers?q=` — a studio/producer entry with its MAL logo art. */
+export interface JikanProducer {
+  mal_id: number;
+  titles?: Array<{ type: string; title: string }>;
+  images?: JikanImageSet;
+}
+
 export interface JikanSearchParams {
   q?: string;
   page?: number;

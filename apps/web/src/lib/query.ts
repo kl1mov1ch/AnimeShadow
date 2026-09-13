@@ -62,6 +62,7 @@ export type BrowseParams = {
   orderBy?: string;
   sort?: "asc" | "desc";
   hasPlayer?: boolean;
+  studio?: string;
 };
 
 export function useDiscover() {

@@ -35,7 +35,17 @@ import {
 } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
-import { NotFoundError, UpstreamUnavailableError } from "../lib/errors.js";
+import {
+  AgeVerificationRequiredError,
+  NotFoundError,
+  UpstreamUnavailableError,
+} from "../lib/errors.js";
+import {
+  filterAdultSummaries,
+  isAdultRating,
+  isHentaiRating,
+  withContentGuard,
+} from "../lib/content-guard.js";
 import type { TranslationService } from "./translation.service.js";
 import type { Translator } from "./translator.js";
 
@@ -122,8 +132,11 @@ export class CatalogService {
 
   // -- Discover ---------------------------------------------------------
 
-  async getDiscover(lang: Locale = DEFAULT_LOCALE): Promise<DiscoverResponse> {
-    return this.discoverCache.wrap(`discover:${lang}`, async () => {
+  async getDiscover(
+    lang: Locale = DEFAULT_LOCALE,
+    allowAdult = false,
+  ): Promise<DiscoverResponse> {
+    return this.discoverCache.wrap(`discover:${lang}:${allowAdult}`, async () => {
       await this.ensureSeeded();
 
       const [
@@ -134,16 +147,17 @@ export class CatalogService {
         trendingMonth,
         upcoming,
       ] = await Promise.all([
-        this.queryCache({ airing: "AIRING", score: { not: null } }, "score", 20),
-        this.queryCache({ score: { not: null } }, "score", 20),
+        this.queryCache({ airing: "AIRING", score: { not: null } }, "score", 20, allowAdult),
+        this.queryCache({ score: { not: null } }, "score", 20, allowAdult),
         // Low ids ≈ long-established classics — a distinct rail from "top rated".
-        this.queryCacheAsc({}, "id", 20),
-        this.trendingNowBlended(20),
-        this.mostWatchedRecently(30, 20),
+        this.queryCacheAsc({}, "id", 20, allowAdult),
+        this.trendingNowBlended(20, allowAdult),
+        this.mostWatchedRecently(30, 20, allowAdult),
         this.queryCacheAsc(
           { airing: "UPCOMING", airedFrom: { gte: new Date() } },
           "airedFrom",
           20,
+          allowAdult,
         ),
       ]);
 
@@ -151,6 +165,7 @@ export class CatalogService {
         { year: CURRENT_YEAR, season: CURRENT_SEASON },
         "members",
         20,
+        allowAdult,
       );
       if (thisSeason.length < 6) {
         await this.fillFromShikimori("season", {
@@ -167,6 +182,7 @@ export class CatalogService {
           },
           "members",
           20,
+          allowAdult,
         );
       }
 
@@ -203,6 +219,7 @@ export class CatalogService {
   private async mostWatchedRecently(
     days: number,
     limit: number,
+    allowAdult: boolean,
   ): Promise<AnimeSummary[]> {
     const since = new Date(Date.now() - days * 86_400_000);
     const grouped = await this.prisma.watchSession.groupBy({
@@ -216,7 +233,7 @@ export class CatalogService {
     if (ids.length === 0) return [];
 
     const rows = await this.prisma.anime.findMany({
-      where: { id: { in: ids } },
+      where: withContentGuard({ id: { in: ids } }, allowAdult),
       include: ANIME_WITH_GENRES_INCLUDE,
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -237,8 +254,11 @@ export class CatalogService {
    * title just to fill a slot. Every item is guaranteed a poster before it's
    * returned; nothing reaches the client blank.
    */
-  private async trendingNowBlended(limit: number): Promise<AnimeSummary[]> {
-    const own = await this.mostWatchedRecently(2, limit);
+  private async trendingNowBlended(
+    limit: number,
+    allowAdult: boolean,
+  ): Promise<AnimeSummary[]> {
+    const own = await this.mostWatchedRecently(2, limit, allowAdult);
     if (own.length >= limit) return this.ensureImages(own);
 
     const seen = new Set(own.map((a) => a.id));
@@ -248,7 +268,7 @@ export class CatalogService {
     let pad: AnimeSummary[] = [];
     if (padIds.length > 0) {
       const rows = await this.prisma.anime.findMany({
-        where: { id: { in: padIds } },
+        where: withContentGuard({ id: { in: padIds } }, allowAdult),
         include: ANIME_WITH_GENRES_INCLUDE,
       });
       const byId = new Map(rows.map((r) => [r.id, r]));
@@ -452,8 +472,14 @@ export class CatalogService {
 
   // -- Browse / search ------------------------------------------------
 
-  async browse(query: AnimeQuery): Promise<Paginated<AnimeSummary>> {
-    if (query.q) return this.search(query, query.q);
+  async browse(query: AnimeQuery, allowAdult = false): Promise<Paginated<AnimeSummary>> {
+    if (query.q) return this.search(query, query.q, allowAdult);
+    // Shikimori's list endpoint has no studio param — filtering upstream
+    // would silently ignore it and return the unfiltered catalogue. The
+    // local cache actually respects it, at the cost of only covering titles
+    // already synced (which, for a studio someone just clicked from an
+    // anime page, is usually exactly the titles worth surfacing anyway).
+    if (query.studio) return this.browseFromCache(query, allowAdult);
 
     // Read-through paginated: the whole upstream catalogue is reachable page by
     // page, but each unique (filters + page) costs one upstream call per 10 min.
@@ -468,12 +494,14 @@ export class CatalogService {
       se: query.season ?? null,
       o: query.orderBy ?? null,
       hp: query.hasPlayer ?? null,
+      adult: allowAdult,
     })}`;
-    return this.browseCache.wrap(key, () => this.browseUpstream(query));
+    return this.browseCache.wrap(key, () => this.browseUpstream(query, allowAdult));
   }
 
   private async browseUpstream(
     query: AnimeQuery,
+    allowAdult: boolean,
   ): Promise<Paginated<AnimeSummary>> {
     try {
       const list = await this.shikimori.listAnimes({
@@ -504,9 +532,13 @@ export class CatalogService {
 
       const enriched = await this.enrichFromDb(summaries);
       await this.attachPlayerFlags(enriched);
+      // Shikimori's own censored flag (see the shikimori package) keeps hentai
+      // out at the source; this backstops R+ — a tier that flag doesn't
+      // necessarily cover — using the rating enrichFromDb just filled in.
+      const filtered = filterAdultSummaries(enriched, allowAdult);
       const items = query.hasPlayer
-        ? enriched.filter((s) => s.hasPlayer === true)
-        : enriched;
+        ? filtered.filter((s) => s.hasPlayer === true)
+        : filtered;
       this.scheduleHealMissingDetail(items);
       const hasNextPage = list.length === query.perPage;
 
@@ -514,7 +546,7 @@ export class CatalogService {
       // ended after a couple of pages. The local cache knows how many titles
       // actually match, so use that as the floor for the real total.
       const cachedTotal = await this.prisma.anime
-        .count({ where: this.buildWhere(query) })
+        .count({ where: this.buildWhere(query, allowAdult) })
         .catch(() => 0);
       const seenSoFar =
         (query.page - 1) * query.perPage +
@@ -532,15 +564,16 @@ export class CatalogService {
       };
     } catch (error) {
       this.logger.warn({ error }, "browse upstream failed — serving cache");
-      return this.browseFromCache(query);
+      return this.browseFromCache(query, allowAdult);
     }
   }
 
   private async browseFromCache(
     query: AnimeQuery,
+    allowAdult: boolean,
   ): Promise<Paginated<AnimeSummary>> {
     await this.ensureSeeded();
-    const where = this.buildWhere(query);
+    const where = this.buildWhere(query, allowAdult);
     const skip = (query.page - 1) * query.perPage;
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.anime.findMany({
@@ -558,6 +591,7 @@ export class CatalogService {
   private async search(
     query: AnimeQuery,
     q: string,
+    allowAdult: boolean,
   ): Promise<Paginated<AnimeSummary>> {
     try {
       const list = await this.shikimori.listAnimes({
@@ -573,9 +607,10 @@ export class CatalogService {
       const enriched = await this.enrichFromDb(summaries);
       await this.attachPlayerFlags(enriched);
 
+      const filtered = filterAdultSummaries(enriched, allowAdult);
       const items = query.hasPlayer
-        ? enriched.filter((s) => s.hasPlayer === true)
-        : enriched;
+        ? filtered.filter((s) => s.hasPlayer === true)
+        : filtered;
       this.scheduleHealMissingDetail(items);
 
       return {
@@ -589,16 +624,17 @@ export class CatalogService {
       };
     } catch (error) {
       this.logger.warn({ error, q }, "Shikimori search failed — falling back to cache");
-      return this.searchCacheFallback(query, q);
+      return this.searchCacheFallback(query, q, allowAdult);
     }
   }
 
   private async searchCacheFallback(
     query: AnimeQuery,
     q: string,
+    allowAdult: boolean,
   ): Promise<Paginated<AnimeSummary>> {
     const where: Prisma.AnimeWhereInput = {
-      ...this.buildWhere(query),
+      ...this.buildWhere(query, allowAdult),
       OR: [
         { title: { contains: q, mode: "insensitive" } },
         { titleEnglish: { contains: q, mode: "insensitive" } },
@@ -627,6 +663,7 @@ export class CatalogService {
   async getAnimeById(
     id: number,
     lang: Locale = DEFAULT_LOCALE,
+    allowAdult = false,
   ): Promise<AnimeDetail> {
     const existing = await this.prisma.anime.findUnique({
       where: { id },
@@ -638,15 +675,18 @@ export class CatalogService {
       Date.now() - existing.detailSyncedAt.getTime() < this.ttlMs;
 
     if (existing && isFresh) {
+      this.assertViewable(existing.rating, allowAdult);
       this.scheduleHealBanner(existing);
       const detail = toDetailDto(existing);
       detail.nextEpisode = await this.getNextEpisode(existing.id, existing.title, existing.airing);
+      detail.studioLogos = await this.getStudioLogos(detail.studios);
       return this.translation.localizeDetail(detail, lang);
     }
 
     try {
       const full = await this.shikimori.getAnime(id);
       const detail = shikiToDetail(full);
+      this.assertViewable(detail.rating, allowAdult);
       let row = await persistAnimeDetail(detail);
       if (!row.imageUrl) {
         row = await this.healPoster(row);
@@ -654,17 +694,33 @@ export class CatalogService {
       this.scheduleHealBanner(row);
       const dto = toDetailDto(row);
       dto.nextEpisode = await this.getNextEpisode(row.id, row.title, row.airing);
+      dto.studioLogos = await this.getStudioLogos(dto.studios);
       return this.translation.localizeDetail(dto, lang);
     } catch (error) {
+      // Deliberate content-gate rejections, not an upstream problem — must
+      // never fall through to "serve whatever's cached" below.
+      if (error instanceof AgeVerificationRequiredError || error instanceof NotFoundError) {
+        throw error;
+      }
       if (existing) {
+        this.assertViewable(existing.rating, allowAdult);
         this.logger.warn({ error, id }, "serving stale anime detail");
-        return this.translation.localizeDetail(toDetailDto(existing), lang);
+        const stale = toDetailDto(existing);
+        stale.studioLogos = await this.getStudioLogos(stale.studios);
+        return this.translation.localizeDetail(stale, lang);
       }
       if (error instanceof ShikimoriError && error.status === 404) {
         throw new NotFoundError("Аниме не найдено.");
       }
       throw new UpstreamUnavailableError();
     }
+  }
+
+  /** Hentai is blocked outright (404 — as if the title doesn't exist); real
+   * 18+ content is blocked until the viewer has confirmed their age. */
+  private assertViewable(rating: string | null, allowAdult: boolean): void {
+    if (isHentaiRating(rating)) throw new NotFoundError("Аниме не найдено.");
+    if (!allowAdult && isAdultRating(rating)) throw new AgeVerificationRequiredError();
   }
 
   /**
@@ -723,6 +779,43 @@ export class CatalogService {
     return this.auxCache.wrap(`next-episode:${malId}`, () =>
       anilistNextEpisode(malId, title),
     ) as Promise<{ episode: number; airingAt: string } | null>;
+  }
+
+  /**
+   * Best-effort studio logos (MAL/Jikan producer art) for a bit of visual
+   * variety on the detail page — cached per studio name (an hour at a time,
+   * same as `auxCache`'s other entries) since many titles share a studio.
+   * A studio Jikan doesn't know, or whose top hit doesn't actually match the
+   * name we asked for, is simply left out of the map rather than guessing.
+   */
+  private async getStudioLogos(studios: string[]): Promise<Record<string, string>> {
+    const entries = await Promise.all(
+      studios.map(async (name) => {
+        const logo = (await this.auxCache.wrap(`studio-logo:${name.toLowerCase()}`, () =>
+          this.lookupStudioLogo(name),
+        )) as string | null;
+        return [name, logo] as const;
+      }),
+    );
+    const out: Record<string, string> = {};
+    for (const [name, logo] of entries) {
+      if (logo) out[name] = logo;
+    }
+    return out;
+  }
+
+  private async lookupStudioLogo(name: string): Promise<string | null> {
+    try {
+      const results = await this.jikan.searchProducers(name, 3);
+      const match = results.find((producer) =>
+        (producer.titles ?? []).some((t) => namesMatch(t.title, name)),
+      );
+      const set = match?.images?.jpg ?? match?.images?.webp;
+      return set?.image_url ?? set?.large_image_url ?? null;
+    } catch (error) {
+      this.logger.warn({ error, name }, "studio logo lookup failed");
+      return null;
+    }
   }
 
   /**
@@ -1003,9 +1096,10 @@ export class CatalogService {
     where: Prisma.AnimeWhereInput,
     column: keyof Prisma.AnimeOrderByWithRelationInput,
     take: number,
+    allowAdult: boolean,
   ): Promise<AnimeSummary[]> {
     const rows = await this.prisma.anime.findMany({
-      where,
+      where: withContentGuard(where, allowAdult),
       orderBy: { [column]: { sort: "desc", nulls: "last" } } as Prisma.AnimeOrderByWithRelationInput,
       take,
       include: ANIME_WITH_GENRES_INCLUDE,
@@ -1019,9 +1113,10 @@ export class CatalogService {
     where: Prisma.AnimeWhereInput,
     column: keyof Prisma.AnimeOrderByWithRelationInput,
     take: number,
+    allowAdult: boolean,
   ): Promise<AnimeSummary[]> {
     const rows = await this.prisma.anime.findMany({
-      where,
+      where: withContentGuard(where, allowAdult),
       orderBy: { [column]: "asc" } as Prisma.AnimeOrderByWithRelationInput,
       take,
       include: ANIME_WITH_GENRES_INCLUDE,
@@ -1047,7 +1142,7 @@ export class CatalogService {
     return params;
   }
 
-  private buildWhere(query: AnimeQuery): Prisma.AnimeWhereInput {
+  private buildWhere(query: AnimeQuery, allowAdult: boolean): Prisma.AnimeWhereInput {
     const where: Prisma.AnimeWhereInput = {};
     if (query.type) where.type = query.type;
     if (query.airing) where.airing = query.airing;
@@ -1057,10 +1152,13 @@ export class CatalogService {
     if (query.genres && query.genres.length > 0) {
       where.genres = { some: { genreId: { in: query.genres } } };
     }
+    if (query.studio) {
+      where.studios = { has: query.studio };
+    }
     if (query.hasPlayer) {
       where.watchAvailability = { is: { hasPlayer: true } };
     }
-    return where;
+    return withContentGuard(where, allowAdult);
   }
 
   private buildOrderBy(
@@ -1071,6 +1169,15 @@ export class CatalogService {
       [ORDER_BY_COLUMN[orderBy]]: { sort, nulls: "last" },
     } as Prisma.AnimeOrderByWithRelationInput;
   }
+}
+
+/** Loose match for "is this Jikan producer title actually the studio we asked about" —
+ * punctuation/case-insensitive so "Studio Bind" ≈ "STUDIO BIND", "MAPPA" ≈ "Mappa Co., Ltd.". */
+function namesMatch(a: string, b: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const na = norm(a);
+  const nb = norm(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
 }
 
 function mapOrderToShikimori(orderBy: AnimeOrderBy): string {

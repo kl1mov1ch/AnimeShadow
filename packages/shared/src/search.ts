@@ -5,6 +5,7 @@ import { animeSummarySchema } from "./anime.js";
 export const searchReasonSchema = z.enum([
   "title",
   "character",
+  "studio",
   "mood",
   "synopsis",
 ]);
