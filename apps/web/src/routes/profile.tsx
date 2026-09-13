@@ -14,6 +14,7 @@ import {
   CheckIcon,
   ClockIcon,
   FilmIcon,
+  LinkIcon,
   Loader2Icon,
   PencilIcon,
   PlayCircleIcon,
@@ -673,7 +674,10 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <SettingsLabel>{t("profile.settings.username")}</SettingsLabel>
-              <div className="flex items-center gap-2">
+              {/* flex-wrap so a long "copy link" label never fights the
+                  input for space on a narrow phone — it just drops to its
+                  own line instead of forcing the row wider than the screen. */}
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">@</span>
                 <input
                   value={uname}
@@ -699,7 +703,10 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
                         .catch(() => undefined);
                     }}
                   >
-                    {t("profile.settings.copyProfileLink")}
+                    <LinkIcon />
+                    <span className="hidden sm:inline">
+                      {t("profile.settings.copyProfileLink")}
+                    </span>
                   </Button>
                 ) : (
                   <Button
