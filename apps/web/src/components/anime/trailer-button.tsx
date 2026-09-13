@@ -27,7 +27,7 @@ export function TrailerButton({ url, title }: TrailerButtonProps) {
           {t("trailer.open")}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl overflow-hidden p-0">
+      <DialogContent className="sm:max-w-3xl overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>{t("trailer.title", { title })}</DialogTitle>
         </DialogHeader>

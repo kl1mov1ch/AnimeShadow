@@ -38,7 +38,7 @@ export function CharacterModal({
 
   return (
     <Dialog open={character != null} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-md flex-col gap-0 overflow-y-auto p-0">
+      <DialogContent className="flex max-h-[85vh] sm:max-w-md flex-col gap-0 overflow-y-auto p-0">
         {character && (
           <>
             <DialogHeader className="sr-only">

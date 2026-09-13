@@ -28,7 +28,11 @@ export function AchievementDetailDialog({
 
   return (
     <Dialog open={achievement != null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      {/* sm:max-w-sm, not plain max-w-sm — the base DialogContent's own
+          max-w-[calc(100%-2rem)] is what keeps this from touching the
+          screen edges on a narrow phone; an unprefixed override here would
+          replace it instead of just capping the width on wider screens. */}
+      <DialogContent className="sm:max-w-sm">
         {achievement && (
           <div className="flex flex-col items-center gap-4 pt-2 text-center">
             <DialogHeader className="sr-only">
@@ -46,7 +50,7 @@ export function AchievementDetailDialog({
               earned={achievement.earned}
               earnedAt={achievement.earnedAt}
               progress={achievement.progress}
-              className="w-[240px]"
+              className="w-[200px] sm:w-[240px]"
             />
 
             <p className="text-sm leading-relaxed text-muted-foreground">

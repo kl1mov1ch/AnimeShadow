@@ -161,7 +161,7 @@ function ListRowTrailer({ url, title }: { url: string; title: string }) {
           <span className="hidden sm:inline">{t("trailer.open")}</span>
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl overflow-hidden p-0">
+      <DialogContent className="sm:max-w-3xl overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>{t("trailer.title", { title })}</DialogTitle>
         </DialogHeader>
