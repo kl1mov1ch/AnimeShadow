@@ -1,5 +1,6 @@
 import {
-  adminContentQuerySchema,
+  adminCommentQuerySchema,
+  adminReviewQuerySchema,
   adminUpdateUserInputSchema,
   adminUserQuerySchema,
 } from "@animeshadow/shared";
@@ -29,7 +30,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get("/admin/comments", guard, async (request) => {
-    const query = parse(adminContentQuerySchema, request.query);
+    const query = parse(adminCommentQuerySchema, request.query);
     return admin.listComments(query);
   });
 
@@ -40,7 +41,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get("/admin/reviews", guard, async (request) => {
-    const query = parse(adminContentQuerySchema, request.query);
+    const query = parse(adminReviewQuerySchema, request.query);
     return admin.listReviews(query);
   });
 

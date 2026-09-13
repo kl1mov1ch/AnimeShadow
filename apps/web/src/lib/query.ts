@@ -1,9 +1,11 @@
 import type {
+  AdminCommentQuery,
   AdminCommentSummary,
-  AdminContentQuery,
   AdminOverview,
+  AdminReviewQuery,
   AdminReviewSummary,
   AdminUpdateUserInput,
+  AdminUserQuery,
   AdminUserSummary,
   AnimeDetail,
   AnimeSummary,
@@ -638,15 +640,15 @@ export function useAdminOverview(enabled = true) {
   });
 }
 
-export function useAdminUsers(params: { query?: string; page: number }, enabled = true) {
+/** Every filter optional (the server applies its defaults), page required. */
+type AdminListParams<Q> = Partial<Omit<Q, "page" | "perPage">> & { page: number };
+
+export function useAdminUsers(params: AdminListParams<AdminUserQuery>, enabled = true) {
   return useQuery({
     queryKey: ["admin", "users", params],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<Paginated<AdminUserSummary>>("/admin/users", {
-        signal,
-        query: { query: params.query, page: params.page },
-      }),
+      apiRequest<Paginated<AdminUserSummary>>("/admin/users", { signal, query: params }),
     placeholderData: (prev) => prev,
   });
 }
@@ -666,17 +668,12 @@ export function useAdminSetUser() {
   });
 }
 
-type AdminContentParams = Pick<AdminContentQuery, "query" | "animeId"> & { page: number };
-
-export function useAdminComments(params: AdminContentParams, enabled = true) {
+export function useAdminComments(params: AdminListParams<AdminCommentQuery>, enabled = true) {
   return useQuery({
     queryKey: ["admin", "comments", params],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<Paginated<AdminCommentSummary>>("/admin/comments", {
-        signal,
-        query: { query: params.query, animeId: params.animeId, page: params.page },
-      }),
+      apiRequest<Paginated<AdminCommentSummary>>("/admin/comments", { signal, query: params }),
     placeholderData: (prev) => prev,
   });
 }
@@ -692,15 +689,12 @@ export function useAdminDeleteComment() {
   });
 }
 
-export function useAdminReviews(params: AdminContentParams, enabled = true) {
+export function useAdminReviews(params: AdminListParams<AdminReviewQuery>, enabled = true) {
   return useQuery({
     queryKey: ["admin", "reviews", params],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<Paginated<AdminReviewSummary>>("/admin/reviews", {
-        signal,
-        query: { query: params.query, animeId: params.animeId, page: params.page },
-      }),
+      apiRequest<Paginated<AdminReviewSummary>>("/admin/reviews", { signal, query: params }),
     placeholderData: (prev) => prev,
   });
 }
