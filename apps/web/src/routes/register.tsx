@@ -10,6 +10,7 @@ import {
   SubmitButton,
   TextInput,
 } from "@/components/auth/auth-card";
+import { PasswordStrength } from "@/components/auth/password-strength";
 import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
@@ -26,6 +27,7 @@ export function Component() {
   const navigate = useNavigate();
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
+  const [password, setPassword] = useState("");
 
   const onTelegramAuth = async (data: TelegramAuthData) => {
     setErrors({});
@@ -136,10 +138,15 @@ export function Component() {
               {...p}
               name="password"
               autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
               required
             />
           )}
         </AuthField>
+        <div className="-mt-3">
+          <PasswordStrength password={password} />
+        </div>
 
         <SubmitButton pending={pending}>{t("auth.registerCta")}</SubmitButton>
       </form>
