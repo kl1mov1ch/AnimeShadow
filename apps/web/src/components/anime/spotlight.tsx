@@ -78,64 +78,47 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         touchX.current = null;
       }}
     >
-      {/* A fixed height (not min-height) — otherwise a longer title/synopsis
-          on one slide grows the box and the whole page jumps as slides
-          rotate. Title/synopsis are clamped below so they never overflow it. */}
-      <div className="relative h-[58vh] w-full sm:h-[70vh] lg:h-[78vh]">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* Mobile: image and text are two separate blocks, stacked — the image
+          keeps its own real aspect ratio (object-cover barely has to crop
+          it), text sits below on the card's own background. Desktop: the
+          classic overlay, a fixed-height box with text on top of the photo —
+          that's never had a cropping problem, wide screen matches a wide
+          banner reasonably well. */}
+      <div className="flex flex-col sm:relative sm:block sm:h-[70vh] lg:h-[78vh]">
+        <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto sm:h-full sm:w-full">
           {heroImg ? (
-            <>
-              {/* Atmospheric blurred fill, always on — on mobile it's load-
-                  bearing, not decoration: a wide banner shown `object-contain`
-                  in a narrow phone-width box leaves bars on the sides, and
-                  this is what fills them instead of empty space. */}
-              <img
-                src={heroImg}
-                alt=""
-                aria-hidden
-                className="absolute inset-0 size-full scale-110 object-cover opacity-70 blur-2xl"
-              />
-              {/* Full image, uncropped, on mobile — a wide banner forced to
-                  `object-cover` a narrow tall box was cropping away most of
-                  its width. Desktop's box is wide enough that cover-cropping
-                  a banner reads fine, so it keeps the fuller-bleed look. */}
-              <img
-                key={heroImg}
-                src={heroImg}
-                alt=""
-                fetchPriority="high"
-                className={cn(
-                  "absolute inset-0 size-full object-contain sm:object-cover",
-                  landscape ? "sm:object-center" : "sm:object-[center_22%]",
-                  desktop && "hero-pan",
-                )}
-              />
-            </>
+            <img
+              key={heroImg}
+              src={heroImg}
+              alt=""
+              fetchPriority="high"
+              className={cn(
+                "absolute inset-0 size-full object-cover",
+                !landscape && "object-[center_22%]",
+                desktop && "hero-pan",
+              )}
+            />
           ) : (
             <PosterFallback title={anime.title} seed={anime.id} />
           )}
-        </div>
 
-        {/* --- legibility gradient --- */}
-        {/* Uses the theme's own card colour (light in light mode, dark in
-            dark mode) so the text — which also flips colour with the theme —
-            always has the *correct* contrast direction against it. Kept to a
-            light touch: just enough for the text to not blend into the
-            photo, not a heavy wash over the whole image. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/25 to-transparent sm:bg-gradient-to-r sm:via-card/15 sm:to-transparent" />
+          {/* Legibility gradient — desktop only, where text actually sits on
+              the photo. Uses the theme's own card colour so it always has
+              the right contrast direction against it, in either theme. */}
+          <div className="pointer-events-none absolute inset-0 hidden sm:block sm:bg-gradient-to-r sm:from-card/85 sm:via-card/15 sm:to-transparent" />
+        </div>
 
         {/* --- content --- */}
         <SlideContent key={anime.id} anime={anime} />
 
         {/* --- controls --- */}
-        {/* One dedicated strip at the very bottom, structurally separate from
-            the text column above it (which reserves matching bottom padding).
-            The text can grow as tall as it wants and only ever overflows
-            *upward* (clipped by the section's own overflow-hidden) — it can
-            never reach down into this strip, so the arrows and dots never
-            touch it, at any content length or viewport size. */}
+        {/* Desktop: one dedicated strip pinned to the bottom of the overlay
+            box, structurally separate from the text column above it (which
+            reserves matching bottom padding) so text can grow as tall as it
+            wants and only ever overflows upward. Mobile: a plain row after
+            the text block, not on top of the photo. */}
         {count > 1 && (
-          <div className="absolute inset-x-0 bottom-0 z-20 flex items-center gap-2 p-3 sm:gap-4 sm:p-5">
+          <div className="relative z-20 flex items-center gap-2 p-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:gap-4 sm:p-5">
             <NavButton side="left" onClick={() => go(-1)} />
             <div className="flex flex-1 items-center justify-center gap-2">
               {slides.map((s, i) => {
@@ -186,7 +169,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
   return (
-    <div className="reveal-group relative z-10 flex h-full max-w-2xl flex-col justify-end gap-2.5 p-4 pb-20 sm:gap-4 sm:p-10 sm:pb-20">
+    <div className="reveal-group relative z-10 flex flex-col gap-2.5 p-4 sm:h-full sm:max-w-2xl sm:justify-end sm:gap-4 sm:p-10 sm:pb-20">
       <div
         className="reveal flex items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm"
         style={step(0)}
@@ -284,5 +267,11 @@ export function Spotlight({ anime }: { anime: AnimeDetail }) {
 }
 
 export function SpotlightSkeleton() {
-  return <Skeleton className="h-[58vh] w-full rounded-2xl sm:h-[70vh] lg:h-[78vh]" />;
+  return (
+    <div className="flex flex-col gap-3 sm:block">
+      <Skeleton className="aspect-video w-full rounded-2xl sm:hidden" />
+      <Skeleton className="h-40 w-full rounded-2xl sm:hidden" />
+      <Skeleton className="hidden rounded-2xl sm:block sm:h-[70vh] lg:h-[78vh]" />
+    </div>
+  );
 }
