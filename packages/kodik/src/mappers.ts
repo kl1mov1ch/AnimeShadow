@@ -175,6 +175,7 @@ export function toWatchSources(group: KodikGroup): WatchSource[] {
           : row.translation.type === "subtitles"
             ? "subtitles"
             : "unknown",
+      format: "iframe",
       embedUrl: row.link.startsWith("//") ? `https:${row.link}` : row.link,
       quality: row.quality ?? null,
       episodesCount: row.episodes_count ?? row.last_episode ?? null,

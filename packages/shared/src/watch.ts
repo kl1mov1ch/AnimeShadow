@@ -7,8 +7,19 @@ export const watchSourceSchema = z.object({
   title: z.string(),
   /** "voice" (dub) | "subtitles" | "unknown" */
   kind: z.enum(["voice", "subtitles", "unknown"]),
-  /** Fully-qualified iframe src. */
+  /**
+   * "iframe" (default — Kodik, Alloha, the custom template): `embedUrl` is a
+   * whole-series player the viewer navigates episodes inside of; our own
+   * episode counter is just a self-reported bookmark, since the embed gives
+   * us no way to read or drive its actual episode. "hls": `embedUrl` is
+   * unused and `hlsEpisodes` maps episode number → a direct HLS manifest URL
+   * we actually control — the episode stepper really does switch playback.
+   */
+  format: z.enum(["iframe", "hls"]).default("iframe"),
+  /** Fully-qualified iframe src (format "iframe"). */
   embedUrl: z.string(),
+  /** format "hls" only: episode number (as a string key) → HLS manifest URL. */
+  hlsEpisodes: z.record(z.string(), z.string()).optional(),
   quality: z.string().nullable(),
   episodesCount: z.number().int().nullable(),
   /** Reachability probe: true = verified playable, false = failed, null = not checked yet. */

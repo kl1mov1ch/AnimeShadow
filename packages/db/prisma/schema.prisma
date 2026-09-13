@@ -332,11 +332,15 @@ model WatchAvailability {
 model PlayerSource {
   anime         Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
   animeId       Int
-  provider      String // "kodik" | "alloha"
-  sourceKey     String // translation id (kodik) or "alloha:<id>"
+  provider      String // "kodik" | "alloha" | "anilibria"
+  sourceKey     String // translation id (kodik) or "alloha:<id>"/"anilibria:main"
   title         String
   kind          String // "voice" | "subtitles" | "unknown"
+  /// "iframe" (default) or "hls" — see WatchSource in packages/shared.
+  format        String   @default("iframe")
   embedUrl      String
+  /// format "hls" only: JSON object, episode number string -> HLS manifest URL.
+  hlsEpisodes   Json?
   quality       String?
   episodesCount Int?
   position      Int      @default(0)

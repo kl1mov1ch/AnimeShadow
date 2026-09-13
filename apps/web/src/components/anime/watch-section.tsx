@@ -95,8 +95,13 @@ function usePreconnect(sources: WatchSource[] | undefined): void {
     const origins = new Set<string>();
     for (const source of sources) {
       if (origins.size >= 3) break;
+      const url =
+        source.format === "hls"
+          ? Object.values(source.hlsEpisodes ?? {})[0]
+          : source.embedUrl;
+      if (!url) continue;
       try {
-        origins.add(new URL(source.embedUrl).origin);
+        origins.add(new URL(url).origin);
       } catch {
         /* not an absolute URL — skip */
       }
@@ -376,6 +381,94 @@ function EpisodeStepper({
 /** How many candidate embeds load in parallel before one is shown. */
 const RACE_SIZE = 2;
 
+/** The URL to actually load right now — for an "hls" source this genuinely
+ * depends on which episode is selected (unlike an iframe, which never
+ * changes per episode); falls back to whatever episode it does have if the
+ * exact one is missing rather than showing nothing. */
+function sourceUrlFor(source: WatchSource, episode: number): string | null {
+  if (source.format !== "hls") return source.embedUrl;
+  return (
+    source.hlsEpisodes?.[String(episode)] ??
+    Object.values(source.hlsEpisodes ?? {})[0] ??
+    null
+  );
+}
+
+/**
+ * A direct HLS stream (AniLibria) — Safari plays `.m3u8` natively, everything
+ * else needs hls.js, loaded lazily so the ~50 KB of it never ships to a
+ * visitor whose sources are all plain iframes. Reloads on every `src` change
+ * (an episode switch) without remounting the element, so the same racing/
+ * fullscreen refs stay valid across it.
+ */
+function HlsVideo({
+  src,
+  isWinner,
+  onReady,
+  mediaRef,
+}: {
+  src: string;
+  isWinner: boolean;
+  onReady: () => void;
+  mediaRef: (el: HTMLVideoElement | null) => void;
+}) {
+  const elRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = elRef.current;
+    if (!video) return;
+    let hls: { destroy: () => void } | null = null;
+    let cancelled = false;
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+    } else {
+      void import("hls.js").then(({ default: Hls }) => {
+        if (cancelled) return;
+        if (Hls.isSupported()) {
+          const instance = new Hls({ enableWorker: true });
+          instance.loadSource(src);
+          instance.attachMedia(video);
+          hls = instance;
+        } else {
+          // No native support and hls.js says it can't help either — set it
+          // anyway; a handful of very old browsers still get lucky.
+          video.src = src;
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+    };
+  }, [src]);
+
+  useEffect(() => {
+    const video = elRef.current;
+    if (!video) return;
+    video.muted = !isWinner;
+    if (isWinner) void video.play().catch(() => undefined);
+    else video.pause();
+  }, [isWinner]);
+
+  return (
+    <video
+      ref={(el) => {
+        elRef.current = el;
+        mediaRef(el);
+      }}
+      playsInline
+      muted
+      controls={isWinner}
+      onCanPlay={onReady}
+      className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
+      tabIndex={isWinner ? undefined : -1}
+      aria-hidden={isWinner ? undefined : true}
+    />
+  );
+}
+
 function Player({
   data,
   title,
@@ -548,9 +641,9 @@ function Player({
     setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
   };
 
-  const winnerFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const winnerMediaRef = useRef<HTMLIFrameElement | HTMLVideoElement | null>(null);
   const enterFullscreen = () => {
-    const el = winnerFrameRef.current;
+    const el = winnerMediaRef.current;
     if (!el) return;
     const request =
       el.requestFullscreen?.bind(el) ??
@@ -673,10 +766,33 @@ function Player({
           const source = data.sources.find((s) => s.id === id);
           if (!source) return null;
           const isWinner = id === winnerId;
+
+          if (source.format === "hls") {
+            const url = sourceUrlFor(source, episode);
+            if (!url) return null;
+            return (
+              <HlsVideo
+                key={source.id}
+                src={url}
+                isWinner={isWinner}
+                onReady={() => handleLoad(id)}
+                mediaRef={(el) => {
+                  if (isWinner) winnerMediaRef.current = el;
+                }}
+              />
+            );
+          }
+
           return (
             <iframe
-              key={source.embedUrl}
-              ref={isWinner ? winnerFrameRef : undefined}
+              key={source.id}
+              ref={
+                isWinner
+                  ? (el) => {
+                      winnerMediaRef.current = el;
+                    }
+                  : undefined
+              }
               src={source.embedUrl}
               title={`${title} — ${source.title}`}
               // Autoplay permission only ever goes to the confirmed winner —

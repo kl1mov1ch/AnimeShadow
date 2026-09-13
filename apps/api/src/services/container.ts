@@ -1,4 +1,5 @@
 import { AllohaClient } from "@animeshadow/alloha";
+import { AniLibriaClient } from "@animeshadow/anilibria";
 import type { PrismaClient } from "@animeshadow/db";
 import type { JikanClient } from "@animeshadow/jikan";
 import { KodikClient } from "@animeshadow/kodik";
@@ -67,6 +68,7 @@ export function createServices(deps: ContainerDeps): Services {
     baseUrl: deps.watch.kodikBase,
   });
   const alloha = new AllohaClient({ token: deps.watch.allohaToken });
+  const anilibria = new AniLibriaClient();
 
   const translator = deps.translate.enabled
     ? chainTranslators([
@@ -109,6 +111,7 @@ export function createServices(deps: ContainerDeps): Services {
     prisma: deps.prisma,
     kodik,
     alloha,
+    anilibria,
     embedTemplate: deps.watch.embedTemplate,
     logger: deps.logger,
   });

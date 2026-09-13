@@ -1,11 +1,13 @@
-import type { PrismaClient } from "@animeshadow/db";
+import { Prisma, type PrismaClient } from "@animeshadow/db";
 import {
   type KodikClient,
   toWatchSources as kodikToSources,
 } from "@animeshadow/kodik";
 import type { AllohaClient, AllohaResult } from "@animeshadow/alloha";
+import { type AniLibriaClient, bestEpisodeUrl } from "@animeshadow/anilibria";
 import type { WatchResponse, WatchSource } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
+import { withTimeout } from "../lib/timeout.js";
 
 interface WatchLogger {
   warn: (obj: unknown, msg?: string) => void;
@@ -16,6 +18,7 @@ export interface WatchServiceDeps {
   prisma: PrismaClient;
   kodik: KodikClient;
   alloha: AllohaClient;
+  anilibria: AniLibriaClient;
   embedTemplate?: string | undefined;
   logger: WatchLogger;
 }
@@ -37,8 +40,10 @@ const TRUSTED_STUDIOS =
 
 /**
  * How good a source is as the *default* pick. Verified-reachable beats
- * everything; after that prefer Kodik (best anime coverage), a real dub over
- * subs, fuller episode lists, and studios that tend to stay up.
+ * everything; after that AniLibria leads (a real HLS stream we control —
+ * actual per-episode switching, no third-party UI to get stuck), then Kodik
+ * (best anime coverage), then Alloha; a real dub over subs, fuller episode
+ * lists, and studios that tend to stay up.
  */
 function rankSource(s: WatchSource): number {
   let score = 0;
@@ -46,7 +51,8 @@ function rankSource(s: WatchSource): number {
   else if (s.stable === false) score -= 1000;
 
   const provider = s.id.split(":")[0] ?? "";
-  if (provider === "kodik") score += 100;
+  if (provider === "anilibria") score += 150;
+  else if (provider === "kodik") score += 100;
   else if (provider === "alloha") score += 50;
   else score += 10;
 
@@ -56,6 +62,18 @@ function rankSource(s: WatchSource): number {
   if (TRUSTED_STUDIOS.test(s.title)) score += 25;
   score += Math.min(s.episodesCount ?? 0, 50);
   return score;
+}
+
+/** Where reachability actually needs checking: the iframe itself, or — for
+ * an HLS source, which has no single "the embed" URL — one representative
+ * episode manifest (its first). If that CDN path is up, the rest almost
+ * certainly are too; they're served from the same host per release. */
+function probeUrlOf(s: WatchSource): string | null {
+  if (s.format === "hls") {
+    const first = s.hlsEpisodes ? Object.values(s.hlsEpisodes)[0] : undefined;
+    return first ?? null;
+  }
+  return s.embedUrl;
 }
 
 function sortByStability(sources: WatchSource[]): WatchSource[] {
@@ -96,16 +114,18 @@ async function probeEmbed(url: string): Promise<boolean> {
 }
 
 /**
- * Resolves playable sources for an anime across providers — Kodik first (best
- * anime coverage + RU dubs), then Alloha as a fallback aggregator. The app
- * never hosts video; it embeds the iframe URLs providers return. Results are
- * cached in `PlayerSource` so the detail page renders without a live call, and
- * `WatchAvailability` lets the catalogue badge cards.
+ * Resolves playable sources for an anime across providers — AniLibria first
+ * when it has the title (a direct HLS stream, no third-party iframe UI to
+ * get stuck inside), then Kodik (best anime coverage + RU dubs), then Alloha
+ * as a fallback aggregator. Results are cached in `PlayerSource` so the
+ * detail page renders without a live call, and `WatchAvailability` lets the
+ * catalogue badge cards.
  */
 export class WatchService {
   private readonly prisma: PrismaClient;
   private readonly kodik: KodikClient;
   private readonly alloha: AllohaClient;
+  private readonly anilibria: AniLibriaClient;
   private readonly embedTemplate?: string;
   private readonly logger: WatchLogger;
   private readonly cache = new TtlCache<WatchResponse>(30 * 60_000, 512);
@@ -118,6 +138,7 @@ export class WatchService {
     this.prisma = deps.prisma;
     this.kodik = deps.kodik;
     this.alloha = deps.alloha;
+    this.anilibria = deps.anilibria;
     this.embedTemplate = deps.embedTemplate;
     this.logger = deps.logger;
   }
@@ -192,7 +213,12 @@ export class WatchService {
       id: `${r.provider}:${r.sourceKey}`,
       title: r.title,
       kind: r.kind as WatchSource["kind"],
+      format: (r.format as WatchSource["format"]) ?? "iframe",
       embedUrl: r.embedUrl,
+      hlsEpisodes:
+        r.hlsEpisodes != null
+          ? (r.hlsEpisodes as Record<string, string>)
+          : undefined,
       quality: r.quality,
       episodesCount: r.episodesCount,
       stable: r.stable,
@@ -233,7 +259,8 @@ export class WatchService {
       for (;;) {
         const source = queue.shift();
         if (!source) return;
-        const ok = await probeEmbed(source.embedUrl);
+        const url = probeUrlOf(source);
+        const ok = url != null && (await probeEmbed(url));
         source.stable = ok;
         const { provider, sourceKey } = keyOf(source.id);
         // updateMany: a row may legitimately be gone (re-resolved meanwhile),
@@ -261,6 +288,7 @@ export class WatchService {
           id: "alloha:main",
           title: "Alloha (агрегатор)",
           kind: "unknown",
+          format: "iframe",
           embedUrl: result.iframe,
           quality: result.quality,
           episodesCount: null,
@@ -272,6 +300,7 @@ export class WatchService {
       id: `alloha:${tid}`,
       title: `${result.translations.find((t) => t.id === tid)?.name ?? `Озвучка ${tid}`} · Alloha`,
       kind: "voice" as const,
+      format: "iframe" as const,
       embedUrl: iframe,
       quality: result.quality,
       episodesCount: null,
@@ -292,6 +321,40 @@ export class WatchService {
     }
   }
 
+  /** AniLibria's release, if it has one, turned into a single HLS source. */
+  private async fetchAnilibria(
+    malId: number,
+    titles: string[],
+    quiet: boolean,
+  ): Promise<WatchSource | null> {
+    try {
+      const release = await this.anilibria.findByMalId(titles, malId);
+      if (!release || release.episodes.length === 0) return null;
+
+      const hlsEpisodes: Record<string, string> = {};
+      for (const episode of release.episodes) {
+        const url = bestEpisodeUrl(episode);
+        if (url) hlsEpisodes[String(episode.ordinal)] = url;
+      }
+      if (Object.keys(hlsEpisodes).length === 0) return null;
+
+      return {
+        id: "anilibria:main",
+        title: "AniLibria",
+        kind: "voice",
+        format: "hls",
+        embedUrl: "",
+        hlsEpisodes,
+        quality: "HD",
+        episodesCount: release.episodesTotal,
+        stable: null,
+      };
+    } catch (error) {
+      if (!quiet) this.logger.warn({ error, malId }, "anilibria lookup failed");
+      return null;
+    }
+  }
+
   private async resolveAndPersist(
     malId: number,
     quiet = false,
@@ -302,14 +365,29 @@ export class WatchService {
     // A Kinopoisk id from a previous resolve lets Alloha run *alongside*
     // Kodik instead of waiting on it — on the common re-resolve path (every
     // RECHECK_MS) that halves the worst-case cold latency instead of
-    // stacking both providers' timeouts back to back.
+    // stacking both providers' timeouts back to back. AniLibria has no such
+    // dependency (it matches by name + its own reported MAL id), so it
+    // starts right away too.
     const existing = await this.prisma.anime.findUnique({
       where: { id: malId },
-      select: { kinopoiskId: true },
+      select: { kinopoiskId: true, title: true, titleEnglish: true, titleLocalized: true },
     });
     let kinopoiskId = existing?.kinopoiskId ?? null;
     const eagerAlloha =
       kinopoiskId != null ? this.fetchAlloha(kinopoiskId, malId, quiet) : null;
+    const titles = [existing?.titleLocalized, existing?.title, existing?.titleEnglish].filter(
+      (t): t is string => Boolean(t),
+    );
+    // Hard cap on top of the client's own per-request timeouts: trying up to
+    // three title variants, each with its own search-then-detail round trip,
+    // could otherwise stack into tens of seconds if AniLibria itself is slow
+    // rather than cleanly erroring. A missing bonus source is nothing; a
+    // stuck watch-sources response is exactly the kind of hang this whole
+    // feature was asked not to reintroduce.
+    const eagerAnilibria =
+      titles.length > 0
+        ? withTimeout(this.fetchAnilibria(malId, titles, quiet), 6_000, null)
+        : null;
 
     // 1. Kodik
     try {
@@ -340,12 +418,23 @@ export class WatchService {
       provider = provider ?? "alloha";
     }
 
-    // 3. Custom template fallback
+    // 3. AniLibria — ranks above both when reachable (see rankSource), so
+    // this only actually changes what plays if it turns out stable; the
+    // moment it doesn't (or it never had this title), Kodik/Alloha are
+    // already sitting right there, no extra round-trip needed.
+    const anilibriaSource = eagerAnilibria != null ? await eagerAnilibria : null;
+    if (anilibriaSource) {
+      sources.push(anilibriaSource);
+      provider = provider ?? "anilibria";
+    }
+
+    // 4. Custom template fallback
     if (sources.length === 0 && this.embedTemplate) {
       sources.push({
         id: "custom:0",
         title: "Плеер",
         kind: "unknown",
+        format: "iframe",
         embedUrl: this.embedTemplate.replace(/\{mal_?id\}/gi, String(malId)),
         quality: null,
         episodesCount: null,
@@ -417,7 +506,9 @@ export class WatchService {
             sourceKey,
             title: s.title,
             kind: s.kind,
+            format: s.format,
             embedUrl: s.embedUrl,
+            hlsEpisodes: s.hlsEpisodes ?? Prisma.JsonNull,
             quality: s.quality,
             episodesCount: s.episodesCount,
             position: index,

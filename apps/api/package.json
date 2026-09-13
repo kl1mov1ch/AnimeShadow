@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@animeshadow/alloha": "workspace:*",
+    "@animeshadow/anilibria": "workspace:*",
     "@animeshadow/db": "workspace:*",
     "@animeshadow/jikan": "workspace:*",
     "@animeshadow/kodik": "workspace:*",
