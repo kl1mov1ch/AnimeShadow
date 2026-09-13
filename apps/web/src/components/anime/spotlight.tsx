@@ -85,21 +85,28 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {heroImg ? (
             <>
-              {/* atmospheric blurred fill — desktop only (blur is costly) */}
+              {/* Atmospheric blurred fill, always on — on mobile it's load-
+                  bearing, not decoration: a wide banner shown `object-contain`
+                  in a narrow phone-width box leaves bars on the sides, and
+                  this is what fills them instead of empty space. */}
               <img
                 src={heroImg}
                 alt=""
                 aria-hidden
-                className="absolute inset-0 hidden size-full scale-110 object-cover opacity-60 blur-2xl sm:block"
+                className="absolute inset-0 size-full scale-110 object-cover opacity-70 blur-2xl"
               />
+              {/* Full image, uncropped, on mobile — a wide banner forced to
+                  `object-cover` a narrow tall box was cropping away most of
+                  its width. Desktop's box is wide enough that cover-cropping
+                  a banner reads fine, so it keeps the fuller-bleed look. */}
               <img
                 key={heroImg}
                 src={heroImg}
                 alt=""
                 fetchPriority="high"
                 className={cn(
-                  "absolute inset-0 size-full object-cover",
-                  landscape ? "object-center" : "object-[center_22%]",
+                  "absolute inset-0 size-full object-contain sm:object-cover",
+                  landscape ? "sm:object-center" : "sm:object-[center_22%]",
                   desktop && "hero-pan",
                 )}
               />
@@ -179,9 +186,9 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
   return (
-    <div className="reveal-group relative z-10 flex h-full max-w-2xl flex-col justify-end gap-4 p-6 pb-16 sm:p-10 sm:pb-20">
+    <div className="reveal-group relative z-10 flex h-full max-w-2xl flex-col justify-end gap-2.5 p-4 pb-20 sm:gap-4 sm:p-10 sm:pb-20">
       <div
-        className="reveal flex items-center gap-2 text-sm font-medium text-muted-foreground"
+        className="reveal flex items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm"
         style={step(0)}
       >
         <span className="text-primary">{t("discover.nowScreening")}</span>
@@ -194,14 +201,14 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
       </div>
 
       <h1
-        className="reveal line-clamp-2 font-display text-[1.7rem] leading-[1.1] [overflow-wrap:anywhere] sm:text-4xl lg:text-5xl"
+        className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-4xl sm:leading-[1.1] lg:text-5xl"
         style={step(1)}
       >
         {title}
       </h1>
 
       <div
-        className="reveal flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"
+        className="reveal flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:text-sm"
         style={step(2)}
       >
         <ScoreBadge score={anime.score} size="md" />
@@ -209,9 +216,13 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
         {episodes && <span>{episodes}</span>}
       </div>
 
+      {/* Synopsis and genres are the first things cut on a phone — the
+          title/rating/actions are what someone actually needs to decide
+          "watch this", and cramming everything in is exactly what was
+          making text collide with the button row and the nav dots below. */}
       {anime.synopsis && (
         <p
-          className="reveal line-clamp-3 max-w-xl text-sm leading-relaxed text-foreground/90 sm:text-base"
+          className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/90 sm:line-clamp-3 sm:block"
           style={step(3)}
         >
           {anime.synopsis}
@@ -219,7 +230,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
       )}
 
       {anime.genresDetailed.length > 0 && (
-        <div className="reveal flex flex-wrap gap-1.5" style={step(4)}>
+        <div className="reveal hidden flex-wrap gap-1.5 sm:flex" style={step(4)}>
           {anime.genresDetailed.slice(0, 4).map((g) => (
             <Link key={g.id} to={`/browse?genres=${g.id}`}>
               <Badge variant="outline" className="hover:border-primary/50">
@@ -230,7 +241,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
         </div>
       )}
 
-      <div className="reveal mt-1 flex flex-wrap items-center gap-3" style={step(5)}>
+      <div className="reveal mt-1 flex flex-wrap items-center gap-2 sm:gap-3" style={step(5)}>
         <Button asChild size="lg">
           <Link to={animeHref(anime)}>
             <PlayIcon className="size-4 fill-current" />

@@ -639,7 +639,9 @@ export class CatalogService {
 
     if (existing && isFresh) {
       this.scheduleHealBanner(existing);
-      return this.translation.localizeDetail(toDetailDto(existing), lang);
+      const detail = toDetailDto(existing);
+      detail.nextEpisode = await this.getNextEpisode(existing.id, existing.title, existing.airing);
+      return this.translation.localizeDetail(detail, lang);
     }
 
     try {
@@ -650,7 +652,9 @@ export class CatalogService {
         row = await this.healPoster(row);
       }
       this.scheduleHealBanner(row);
-      return this.translation.localizeDetail(toDetailDto(row), lang);
+      const dto = toDetailDto(row);
+      dto.nextEpisode = await this.getNextEpisode(row.id, row.title, row.airing);
+      return this.translation.localizeDetail(dto, lang);
     } catch (error) {
       if (existing) {
         this.logger.warn({ error, id }, "serving stale anime detail");
@@ -702,6 +706,23 @@ export class CatalogService {
       this.logger.warn({ error, id: row.id }, "poster heal failed");
       return row;
     }
+  }
+
+  /**
+   * Only worth asking for on titles that are actually still airing — cached
+   * an hour at a time (episode air times don't need finer precision than
+   * that, and it keeps a popular airing title from re-querying AniList on
+   * every single page view).
+   */
+  private async getNextEpisode(
+    malId: number,
+    title: string,
+    airing: string,
+  ): Promise<{ episode: number; airingAt: string } | null> {
+    if (airing !== "AIRING") return null;
+    return this.auxCache.wrap(`next-episode:${malId}`, () =>
+      anilistNextEpisode(malId, title),
+    ) as Promise<{ episode: number; airingAt: string } | null>;
   }
 
   /**
@@ -1221,6 +1242,55 @@ async function anilistArtwork(
     if (bySearch) return bySearch;
   }
   return empty;
+}
+
+/**
+ * When the next episode of a still-airing title goes up — a field AniList
+ * has and neither Shikimori nor Jikan expose. `airingAt` is a Unix seconds
+ * timestamp on the wire; converted to ISO here so the frontend never has to
+ * know that detail.
+ */
+async function anilistNextEpisode(
+  malId: number,
+  title?: string,
+): Promise<{ episode: number; airingAt: string } | null> {
+  const ask = async (
+    query: string,
+    variables: Record<string, unknown>,
+  ): Promise<{ episode: number; airingAt: string } | null> => {
+    try {
+      const res = await fetch(ANILIST_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        data?: {
+          Media?: { nextAiringEpisode?: { episode: number; airingAt: number } | null };
+        };
+      };
+      const next = json.data?.Media?.nextAiringEpisode;
+      if (!next) return null;
+      return { episode: next.episode, airingAt: new Date(next.airingAt * 1000).toISOString() };
+    } catch {
+      return null;
+    }
+  };
+
+  const byId = await ask(
+    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){nextAiringEpisode{episode airingAt}}}",
+    { idMal: malId },
+  );
+  if (byId) return byId;
+  if (title && title.trim().length >= 2) {
+    return ask(
+      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){nextAiringEpisode{episode airingAt}}}",
+      { search: title.trim() },
+    );
+  }
+  return null;
 }
 
 interface AnilistTrendingEntry {

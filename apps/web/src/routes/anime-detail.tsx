@@ -1,7 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, InfoIcon, SearchIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -9,6 +9,7 @@ import { CharacterModal } from "@/components/anime/character-modal";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { LibraryControls } from "@/components/anime/library-controls";
+import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 import { ReviewsSection } from "@/components/anime/reviews-section";
 import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
@@ -17,7 +18,7 @@ import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
@@ -179,6 +180,13 @@ function AnimeDetailView({ param }: { param: string }) {
                 <p className="text-sm text-muted-foreground">{secondaryTitle}</p>
               )}
             </div>
+
+            {data.nextEpisode && (
+              <NextEpisodeBadge
+                episode={data.nextEpisode.episode}
+                airingAt={data.nextEpisode.airingAt}
+              />
+            )}
 
             {/* Rating — exactly that, nothing else: score, vote count, rank. */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
@@ -558,20 +566,7 @@ function EpisodesSection({
           <h2 className="font-display text-lg tracking-tight sm:text-xl">
             {t("detail.sections.episodes")}
           </h2>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t("watch.episodeHelp")}
-                className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-foreground"
-              >
-                <InfoIcon className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-56 text-xs leading-relaxed">
-              {t("detail.episodesHelpBody")}
-            </TooltipContent>
-          </Tooltip>
+          <InfoTooltip>{t("detail.episodesHelpBody")}</InfoTooltip>
         </div>
         {totalPages > 1 && (
           <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">

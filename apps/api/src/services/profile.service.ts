@@ -55,7 +55,11 @@ export class ProfileService {
   async getMine(userId: string): Promise<MyProfile> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const base = await this.build(userId);
-    return { ...base, email: user.email };
+    const theme =
+      user.theme === "light" || user.theme === "dark" || user.theme === "system"
+        ? user.theme
+        : null;
+    return { ...base, email: user.email, theme };
   }
 
   async update(userId: string, input: UpdateProfileInput): Promise<MyProfile> {
@@ -90,6 +94,7 @@ export class ProfileService {
         ...(input.accentColor !== undefined
           ? { accentColor: input.accentColor }
           : {}),
+        ...(input.theme !== undefined ? { theme: input.theme } : {}),
         ...(input.showcaseAchievementIds !== undefined
           ? { showcaseAchievementIds: input.showcaseAchievementIds }
           : {}),

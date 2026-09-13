@@ -742,7 +742,15 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
           <SettingsSection title={t("profile.settings.appearance")}>
             <div className="flex flex-col gap-1.5">
               <SettingsLabel>{t("profile.settings.theme")}</SettingsLabel>
-              <Select value={theme ?? "system"} onValueChange={setTheme}>
+              <Select
+                value={theme ?? "system"}
+                onValueChange={(value) => {
+                  setTheme(value);
+                  // Saved to the account, not just this browser — so it
+                  // follows the user to a new device (see ThemeSync).
+                  update.mutate({ theme: value as "light" | "dark" | "system" });
+                }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -1127,7 +1135,7 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
           {t("achievements.noneInFilter")}
         </p>
       ) : (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
           {shown.map((a) => (
             <HoloAchievementBadge
               key={a.id}
@@ -1137,6 +1145,7 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
               earnedAt={a.earnedAt}
               progress={a.progress}
               onClick={() => setOpened(a)}
+              className="w-[calc(50%-0.375rem)] sm:w-[220px]"
             />
           ))}
         </div>

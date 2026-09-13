@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
+import { ThemeSync } from "@/components/theme-sync";
 import { AuthProvider } from "@/hooks/use-auth";
 import { I18nProvider } from "@/i18n";
 import { queryClient } from "@/lib/query";
@@ -23,6 +24,7 @@ createRoot(container).render(
       >
         <I18nProvider>
           <AuthProvider>
+            <ThemeSync />
             <RouterProvider router={router} />
           </AuthProvider>
         </I18nProvider>

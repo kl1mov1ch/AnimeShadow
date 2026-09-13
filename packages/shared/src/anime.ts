@@ -65,6 +65,17 @@ export const animeDetailSchema = animeSummarySchema.extend({
   bannerImage: z.string().nullable().default(null),
   /** True when `synopsis` is in the requested locale. */
   translated: z.boolean().default(false),
+  /**
+   * When and which episode airs next (AniList), for titles still airing.
+   * `.optional()` on purpose — every upstream-source mapper (Shikimori,
+   * Jikan, Kodik) builds an `AnimeDetail` object literal directly, and none
+   * of them know this; only the live AniList lookup in catalog.service.ts
+   * ever sets it, so it must be safe to simply omit.
+   */
+  nextEpisode: z
+    .object({ episode: z.number().int(), airingAt: z.string() })
+    .nullable()
+    .optional(),
 });
 export type AnimeDetail = z.infer<typeof animeDetailSchema>;
 

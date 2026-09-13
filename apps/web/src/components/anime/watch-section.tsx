@@ -1,13 +1,9 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
-import { ChevronLeftIcon, ChevronRightIcon, InfoIcon, Loader2Icon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, Loader2Icon, Maximize2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
@@ -331,9 +327,9 @@ function EpisodeStepper({
         {...prevHold}
         disabled={episode <= 1}
         aria-label={t("watch.prevEpisode")}
-        className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-6"
       >
-        <ChevronLeftIcon className="size-3.5" />
+        <ChevronLeftIcon className="size-4 sm:size-3.5" />
       </button>
 
       <input
@@ -347,7 +343,7 @@ function EpisodeStepper({
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
-        className="w-6 shrink-0 bg-transparent text-center text-sm font-medium tabular-nums outline-none"
+        className="w-7 shrink-0 bg-transparent text-center text-sm font-medium tabular-nums outline-none sm:w-6"
       />
       {episodesTotal != null && (
         <span className="shrink-0 text-xs text-muted-foreground">/ {episodesTotal}</span>
@@ -358,25 +354,12 @@ function EpisodeStepper({
         {...nextHold}
         disabled={episodesTotal != null && episode >= episodesTotal}
         aria-label={t("watch.nextEpisode")}
-        className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-6"
       >
-        <ChevronRightIcon className="size-3.5" />
+        <ChevronRightIcon className="size-4 sm:size-3.5" />
       </button>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={t("watch.episodeHelp")}
-            className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-foreground"
-          >
-            <InfoIcon className="size-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-56 text-xs leading-relaxed">
-          {t("watch.episodeHelpBody")}
-        </TooltipContent>
-      </Tooltip>
+      <InfoTooltip>{t("watch.episodeHelpBody")}</InfoTooltip>
     </div>
   );
 }
@@ -495,6 +478,33 @@ function Player({
     });
   };
 
+  // A stuck third-party embed gives us no signal to detect automatically —
+  // no access to its internal player state. What we *can* do is nudge the
+  // viewer toward the fix after a source has had a fair amount of time to
+  // misbehave: try another one from the list. Resets whenever the winner
+  // itself changes (a fresh pick deserves a fresh chance before nagging).
+  const [showStuckHint, setShowStuckHint] = useState(false);
+  useEffect(() => {
+    if (winnerId == null) {
+      setShowStuckHint(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowStuckHint(true), 45_000);
+    return () => clearTimeout(timer);
+  }, [winnerId]);
+
+  const winnerFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const enterFullscreen = () => {
+    const el = winnerFrameRef.current;
+    if (!el) return;
+    const request =
+      el.requestFullscreen?.bind(el) ??
+      (el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen?.bind(
+        el,
+      );
+    request?.();
+  };
+
   const goToEpisode = (next: number, markCurrentDone: boolean) => {
     if (next < 1) return;
     if (episodesTotal != null && next > episodesTotal) return;
@@ -537,7 +547,7 @@ function Player({
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="ml-auto shrink-0 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+            className="ml-auto shrink-0 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground sm:px-2 sm:py-1"
           >
             {showAll ? t("common.cancel") : t("watch.notWorking")}
           </button>
@@ -547,6 +557,21 @@ function Player({
       {exhausted && (
         <Alert>
           <AlertDescription>{t("watch.allFailedHint")}</AlertDescription>
+        </Alert>
+      )}
+
+      {showStuckHint && !exhausted && alternatives.length > 0 && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>{t("watch.stuckHint")}</span>
+            <button
+              type="button"
+              onClick={() => setShowStuckHint(false)}
+              className="shrink-0 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+            >
+              {t("common.cancel")}
+            </button>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -582,6 +607,7 @@ function Player({
           return (
             <iframe
               key={source.embedUrl}
+              ref={isWinner ? winnerFrameRef : undefined}
               src={source.embedUrl}
               title={`${title} — ${source.title}`}
               // Autoplay permission only ever goes to the confirmed winner —
@@ -600,6 +626,20 @@ function Player({
             />
           );
         })}
+        {/* The embed's own controls are cramped on a narrow phone screen —
+            a dedicated fullscreen button is easier to hit than hunting for
+            the tiny one inside the third-party player's own UI. Desktop's
+            box is already large enough that this isn't needed there. */}
+        {winnerId != null && (
+          <button
+            type="button"
+            onClick={enterFullscreen}
+            aria-label={t("watch.fullscreen")}
+            className="absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-background/80 text-foreground shadow-md backdrop-blur transition-colors hover:bg-background sm:hidden"
+          >
+            <Maximize2Icon className="size-4" />
+          </button>
+        )}
         {searching && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
             <Loader2Icon className="size-6 animate-spin text-primary" />

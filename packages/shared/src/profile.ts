@@ -60,8 +60,14 @@ export const publicProfileSchema = z.object({
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 
+/** "light" | "dark" | "system" — mirrors next-themes' own values. */
+export const themePreferenceSchema = z.enum(["light", "dark", "system"]);
+export type ThemePreference = z.infer<typeof themePreferenceSchema>;
+
 export const myProfileSchema = publicProfileSchema.extend({
   email: z.string(),
+  /** Saved so the choice follows the account across devices, not just this browser. */
+  theme: themePreferenceSchema.nullable(),
 });
 export type MyProfile = z.infer<typeof myProfileSchema>;
 
@@ -73,6 +79,7 @@ export const updateProfileInputSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/)
     .nullable()
     .optional(),
+  theme: themePreferenceSchema.nullable().optional(),
   showcaseAchievementIds: z.array(z.string()).max(MAX_SHOWCASE_ACHIEVEMENTS).optional(),
   titlePrefix: z
     .string()

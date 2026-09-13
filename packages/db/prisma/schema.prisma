@@ -29,6 +29,9 @@ model User {
   bio           String?
   avatarUrl     String?
   accentColor   String?
+  /// "light" | "dark" | "system" (next-themes) — null means never set, the
+  /// client falls back to its own local preference.
+  theme         String?
   onlineStatus  String          @default("OFFLINE") // ONLINE | OFFLINE | DND
   proSince      DateTime?
   /// Up to 3 earned achievement ids shown as small circles under the
