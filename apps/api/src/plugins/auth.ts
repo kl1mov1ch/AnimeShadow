@@ -2,7 +2,7 @@ import fastifyJwt from "@fastify/jwt";
 import type { preHandlerHookHandler } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "../config/env.js";
-import { UnauthorizedError } from "../lib/errors.js";
+import { ForbiddenError, UnauthorizedError } from "../lib/errors.js";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -17,6 +17,11 @@ declare module "fastify" {
     authenticate: preHandlerHookHandler;
     /** preHandler that attaches the user when a token is present, else continues. */
     optionalAuth: preHandlerHookHandler;
+    /** preHandler for /admin/* — run *after* `authenticate`. Looks the
+     * caller's role up fresh on every request (never trusts a claim baked
+     * into the JWT), so a demoted admin loses access on their very next
+     * request rather than whenever their token happens to expire. */
+    requireAdmin: preHandlerHookHandler;
   }
   interface FastifyRequest {
     /** Set by `authenticate` / `optionalAuth`; the authenticated user id. */
@@ -48,6 +53,17 @@ export default fp(
         request.userId = undefined;
       }
     });
+
+    fastify.decorate("requireAdmin", async (request) => {
+      if (!request.userId) throw new UnauthorizedError();
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: request.userId },
+        select: { role: true },
+      });
+      if (user?.role !== "ADMIN") {
+        throw new ForbiddenError("Admin access required.");
+      }
+    });
   },
-  { name: "auth" },
+  { name: "auth", dependencies: ["prisma"] },
 );

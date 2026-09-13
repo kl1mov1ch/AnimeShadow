@@ -49,6 +49,9 @@ export interface AuthServiceDeps {
   /** Unset = "Sign in with Telegram" is simply refused with a clear error;
    * nothing else about auth depends on it. */
   telegramBotToken?: string | undefined;
+  /** Lowercased emails that get promoted to ADMIN the next time they log in
+   * or load /auth/me — see ensureAdminRole. Empty = no bootstrap admin. */
+  adminEmails?: string[];
 }
 
 export class AuthService {
@@ -56,12 +59,14 @@ export class AuthService {
   private readonly proForAll: boolean;
   private readonly uploadsDir: string;
   private readonly telegramBotToken?: string | undefined;
+  private readonly adminEmails: string[];
 
   constructor(deps: AuthServiceDeps) {
     this.prisma = deps.prisma;
     this.proForAll = deps.proForAll ?? false;
     this.uploadsDir = deps.uploadsDir;
     this.telegramBotToken = deps.telegramBotToken;
+    this.adminEmails = deps.adminEmails ?? [];
   }
 
   async register(input: RegisterInput): Promise<PublicUser> {
@@ -83,7 +88,7 @@ export class AuthService {
           ...(this.proForAll ? { proSince: new Date() } : {}),
         },
       });
-      return toPublicUser(user);
+      return toPublicUser(await this.ensureAdminRole(user));
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -107,7 +112,10 @@ export class AuthService {
     if (!user || !ok) {
       throw new UnauthorizedError("Wrong email or password.");
     }
-    return toPublicUser(user);
+    if (user.isBanned) {
+      throw new UnauthorizedError("This account has been suspended.");
+    }
+    return toPublicUser(await this.ensureAdminRole(user));
   }
 
   /**
@@ -127,7 +135,12 @@ export class AuthService {
 
     const telegramId = String(input.id);
     const existing = await this.prisma.user.findUnique({ where: { telegramId } });
-    if (existing) return toPublicUser(existing);
+    if (existing) {
+      if (existing.isBanned) {
+        throw new UnauthorizedError("This account has been suspended.");
+      }
+      return toPublicUser(await this.ensureAdminRole(existing));
+    }
 
     const displayName =
       [input.first_name, input.last_name].filter(Boolean).join(" ").trim() ||
@@ -157,7 +170,7 @@ export class AuthService {
           ...(this.proForAll ? { proSince: new Date() } : {}),
         },
       });
-      return toPublicUser(user);
+      return toPublicUser(await this.ensureAdminRole(user));
     } catch (error) {
       // Someone else's login raced this one to the same telegramId — extremely
       // unlikely (one person, one Telegram account) but cheap to handle right.
@@ -166,7 +179,7 @@ export class AuthService {
         error.code === "P2002"
       ) {
         const raced = await this.prisma.user.findUnique({ where: { telegramId } });
-        if (raced) return toPublicUser(raced);
+        if (raced) return toPublicUser(await this.ensureAdminRole(raced));
       }
       throw error;
     }
@@ -175,7 +188,22 @@ export class AuthService {
   async getById(id: string): Promise<PublicUser> {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new UnauthorizedError("Your session is no longer valid.");
-    return toPublicUser(user);
+    // /auth/me is revalidated on every app load, so this is also where a ban
+    // takes effect for someone who was already logged in — no need to check
+    // it on every single authenticated request just for this.
+    if (user.isBanned) throw new UnauthorizedError("This account has been suspended.");
+    return toPublicUser(await this.ensureAdminRole(user));
+  }
+
+  /**
+   * One-directional: promotes a matching email to ADMIN, but never demotes —
+   * removing an email from ADMIN_EMAILS shouldn't silently undo a promotion
+   * an admin later granted someone else through the admin panel itself.
+   */
+  private async ensureAdminRole(user: User): Promise<User> {
+    if (user.role === "ADMIN") return user;
+    if (!this.adminEmails.includes(user.email.toLowerCase())) return user;
+    return this.prisma.user.update({ where: { id: user.id }, data: { role: "ADMIN" } });
   }
 
   // -- Telegram internals ------------------------------------------------
@@ -237,5 +265,6 @@ function toPublicUser(user: User): PublicUser {
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     createdAt: user.createdAt.toISOString(),
+    role: user.role === "ADMIN" ? "ADMIN" : "USER",
   };
 }

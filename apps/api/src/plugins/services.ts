@@ -32,6 +32,7 @@ export default fp(
         embedTemplate: env.WATCH_EMBED_TEMPLATE,
       },
       telegramBotToken: env.TELEGRAM_BOT_TOKEN,
+      adminEmails: env.ADMIN_EMAILS,
     });
     fastify.decorate("services", services);
   },

@@ -36,12 +36,16 @@ export const telegramAuthInputSchema = z.object({
 });
 export type TelegramAuthInput = z.infer<typeof telegramAuthInputSchema>;
 
+export const roleSchema = z.enum(["USER", "ADMIN"]);
+export type Role = z.infer<typeof roleSchema>;
+
 export const publicUserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   displayName: z.string(),
   avatarUrl: z.string().nullable().default(null),
   createdAt: z.string(),
+  role: roleSchema.default("USER"),
 });
 export type PublicUser = z.infer<typeof publicUserSchema>;
 

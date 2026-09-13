@@ -5,7 +5,7 @@ import type {
   CommentQuery,
   CreateCommentInput,
 } from "@animeshadow/shared";
-import { ForbiddenError, NotFoundError } from "../lib/errors.js";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../lib/errors.js";
 import type { AchievementService } from "./achievement.service.js";
 
 export interface CommentServiceDeps {
@@ -93,6 +93,12 @@ export class CommentService {
   }
 
   async create(userId: string, input: CreateCommentInput): Promise<Comment> {
+    const author = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isBanned: true },
+    });
+    if (author?.isBanned) throw new UnauthorizedError("This account has been suspended.");
+
     let anonSeq: number | null = null;
     if (input.mode === "ANON") {
       const existing = await this.prisma.comment.findFirst({
@@ -141,6 +147,17 @@ export class CommentService {
     const owned = await this.prisma.comment.findUnique({ where: { id } });
     if (!owned) throw new NotFoundError("Комментарий не найден.");
     if (owned.userId !== userId) throw new ForbiddenError();
+    await this.prisma.comment.update({
+      where: { id },
+      data: { deletedAt: new Date(), body: "" },
+    });
+  }
+
+  /** Same soft-delete as `remove()`, but for /admin/comments — moderating
+   * someone else's comment, so it deliberately skips the ownership check. */
+  async adminRemove(id: string): Promise<void> {
+    const owned = await this.prisma.comment.findUnique({ where: { id } });
+    if (!owned) throw new NotFoundError("Комментарий не найден.");
     await this.prisma.comment.update({
       where: { id },
       data: { deletedAt: new Date(), body: "" },

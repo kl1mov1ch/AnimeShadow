@@ -40,6 +40,7 @@ export interface ContainerDeps {
     embedTemplate?: string | undefined;
   };
   telegramBotToken?: string | undefined;
+  adminEmails: string[];
 }
 
 export interface Services {
@@ -104,6 +105,7 @@ export function createServices(deps: ContainerDeps): Services {
     proForAll: deps.proForAll,
     uploadsDir: join(UPLOADS_DIR, "avatars"),
     telegramBotToken: deps.telegramBotToken,
+    adminEmails: deps.adminEmails,
   });
   const library = new LibraryService({ prisma: deps.prisma, catalog });
   const reviews = new ReviewService({ prisma: deps.prisma, catalog, achievements });

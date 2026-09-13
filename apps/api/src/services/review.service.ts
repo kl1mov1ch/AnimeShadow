@@ -1,6 +1,6 @@
 import { type Prisma, type PrismaClient } from "@animeshadow/db";
 import type { Review, ReviewList, UpsertReviewInput } from "@animeshadow/shared";
-import { NotFoundError } from "../lib/errors.js";
+import { NotFoundError, UnauthorizedError } from "../lib/errors.js";
 import type { AchievementService } from "./achievement.service.js";
 import type { CatalogService } from "./catalog.service.js";
 
@@ -70,6 +70,12 @@ export class ReviewService {
     animeId: number,
     input: UpsertReviewInput,
   ): Promise<Review> {
+    const author = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isBanned: true },
+    });
+    if (author?.isBanned) throw new UnauthorizedError("This account has been suspended.");
+
     await this.catalog.getAnimeById(animeId, "en");
 
     const row = await this.prisma.review.upsert({
@@ -86,6 +92,16 @@ export class ReviewService {
     const { count } = await this.prisma.review.deleteMany({
       where: { userId, animeId },
     });
+    if (count === 0) {
+      throw new NotFoundError("Отзыв не найден.");
+    }
+  }
+
+  /** Same hard delete as `remove()`, but for /admin/reviews — moderating
+   * someone else's review, addressed by its own id rather than
+   * (userId, animeId), and without the ownership filter. */
+  async adminRemove(id: string): Promise<void> {
+    const { count } = await this.prisma.review.deleteMany({ where: { id } });
     if (count === 0) {
       throw new NotFoundError("Отзыв не найден.");
     }

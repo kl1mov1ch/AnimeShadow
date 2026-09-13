@@ -56,6 +56,18 @@ model User {
   /// (initial pick + one edit), then locked. Liked titles (UserLikedAnime)
   /// have no such limit; only this explicit genre picker does.
   genrePreferencesSetCount Int @default(0)
+  /// "USER" | "ADMIN" — see AuthService.ensureAdminRole (ADMIN_EMAILS env
+  /// bootstrap) and the requireAdmin preHandler that gates /admin/*.
+  role          String          @default("USER")
+  /// Set by an admin to shut down an abusive account. Checked at login
+  /// (both password and Telegram) and when creating a comment/review —
+  /// not on every authenticated request, so an already-issued token keeps
+  /// working for read-only browsing until it expires.
+  isBanned      Boolean         @default(false)
+  /// Raw `document.referrer` captured client-side at signup (see
+  /// lib/visitor.ts) — feeds the admin "where did users come from" report.
+  /// Null for accounts created before this existed.
+  referrer      String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]
@@ -67,6 +79,7 @@ model User {
   achievements  UserAchievement[]
   genrePrefs    UserGenrePreference[]
   likedAnime    UserLikedAnime[]
+  pageViews     PageView[]
 }
 
 /** Genres a user explicitly picked as favourites — feeds their recommendations. */
@@ -152,6 +165,24 @@ model WatchSession {
   // groupBy(animeId) filtered to a recent window over the whole table, with
   // no animeId filter to narrow it first, so the range needs its own index.
   @@index([startedAt])
+}
+
+/// One SPA route visit, reported by the frontend beacon on every route
+/// change (see usePageviewBeacon). `visitorId` is a random id the browser
+/// keeps in localStorage — never an IP address, so anonymous traffic is
+/// tracked without storing anything personally identifying. Powers the
+/// admin traffic overview (volume over time, top pages, top referrers).
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  visitorId String
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([path, createdAt])
 }
 
 /// An earned achievement. The catalogue itself is code-defined

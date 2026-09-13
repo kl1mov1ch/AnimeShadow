@@ -71,6 +71,19 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().optional(),
   ),
+
+  // Comma-separated emails that get promoted to the "ADMIN" role the next
+  // time they log in / load /auth/me — see AuthService.ensureAdminRole.
+  // No manual SQL needed to bootstrap the first admin account.
+  ADMIN_EMAILS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    ),
 });
 
 const parsed = envSchema.safeParse(process.env);
