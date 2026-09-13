@@ -3,9 +3,10 @@ import {
   type PrismaClient,
   toSummaryDto,
 } from "@animeshadow/db";
-import type { RecommendationResponse } from "@animeshadow/shared";
+import type { AnimeSummary, RecommendationResponse } from "@animeshadow/shared";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
 import { withContentGuard } from "../lib/content-guard.js";
+import { NotFoundError } from "../lib/errors.js";
 
 export interface RecommendationServiceDeps {
   prisma: PrismaClient;
@@ -65,6 +66,62 @@ export class RecommendationService {
     return valid;
   }
 
+  /** Titles explicitly picked as "I like this" on the setup page, newest first. */
+  async getLikedAnime(userId: string): Promise<AnimeSummary[]> {
+    const rows = await this.prisma.userLikedAnime.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: { anime: { include: ANIME_WITH_GENRES_INCLUDE } },
+    });
+    return rows.map((r) => toSummaryDto(r.anime));
+  }
+
+  async likeAnime(userId: string, animeId: number): Promise<void> {
+    const anime = await this.prisma.anime.findUnique({
+      where: { id: animeId },
+      select: { id: true },
+    });
+    if (!anime) throw new NotFoundError("Аниме не найдено.");
+    await this.prisma.userLikedAnime.upsert({
+      where: { userId_animeId: { userId, animeId } },
+      create: { userId, animeId },
+      update: {},
+    });
+  }
+
+  async unlikeAnime(userId: string, animeId: number): Promise<void> {
+    await this.prisma.userLikedAnime.deleteMany({ where: { userId, animeId } });
+  }
+
+  /** Whether the account has configured recommendations at all yet — either
+   * explicit genres or liked titles — drives the header's setup nudge. */
+  async isConfigured(userId: string): Promise<boolean> {
+    const [prefCount, likedCount] = await Promise.all([
+      this.prisma.userGenrePreference.count({ where: { userId } }),
+      this.prisma.userLikedAnime.count({ where: { userId } }),
+    ]);
+    return prefCount > 0 || likedCount > 0;
+  }
+
+  /** Genres implied by titles the user explicitly liked — a more deliberate
+   * signal than inferring from the library, so it outranks both. */
+  private async likedGenreIds(userId: string): Promise<number[]> {
+    const rows = await this.prisma.userLikedAnime.findMany({
+      where: { userId },
+      select: { anime: { select: { genres: { select: { genreId: true } } } } },
+    });
+    const counts = new Map<number, number>();
+    for (const row of rows) {
+      for (const g of row.anime.genres) {
+        counts.set(g.genreId, (counts.get(g.genreId) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([id]) => id);
+  }
+
   /** Genres implied by what the user has actually added to their list. */
   private async implicitGenreIds(userId: string): Promise<number[]> {
     const rows = await this.prisma.libraryEntry.findMany({
@@ -94,12 +151,17 @@ export class RecommendationService {
     let basis: RecommendationResponse["basis"] = "trending";
 
     if (userId) {
-      genreIds = await this.getPreferences(userId);
+      genreIds = await this.likedGenreIds(userId);
       if (genreIds.length > 0) {
-        basis = "preferences";
+        basis = "liked";
       } else {
-        genreIds = await this.implicitGenreIds(userId);
-        if (genreIds.length > 0) basis = "history";
+        genreIds = await this.getPreferences(userId);
+        if (genreIds.length > 0) {
+          basis = "preferences";
+        } else {
+          genreIds = await this.implicitGenreIds(userId);
+          if (genreIds.length > 0) basis = "history";
+        }
       }
     }
 
@@ -166,7 +228,11 @@ export class RecommendationService {
     }
 
     if (userId) {
-      const prefs = new Set(await this.getPreferences(userId));
+      const [explicit, liked] = await Promise.all([
+        this.getPreferences(userId),
+        this.likedGenreIds(userId),
+      ]);
+      const prefs = new Set([...explicit, ...liked]);
       if (prefs.size > 0) {
         const hit = pool.filter((a) => a.genres.some((g) => prefs.has(g.genreId)));
         const rest = pool.filter((a) => !a.genres.some((g) => prefs.has(g.genreId)));

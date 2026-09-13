@@ -50,4 +50,40 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
       return recommendations.similarTo(id, genreIds, request.userId ?? null, undefined, allowAdult);
     },
   );
+
+  fastify.get(
+    "/me/liked-anime",
+    { preHandler: fastify.authenticate },
+    async (request) => ({
+      items: await recommendations.getLikedAnime(request.userId!),
+    }),
+  );
+
+  fastify.put(
+    "/me/liked-anime/:id",
+    { preHandler: fastify.authenticate },
+    async (request) => {
+      const { id } = parse(idParams, request.params);
+      await recommendations.likeAnime(request.userId!, id);
+      return { liked: true };
+    },
+  );
+
+  fastify.delete(
+    "/me/liked-anime/:id",
+    { preHandler: fastify.authenticate },
+    async (request) => {
+      const { id } = parse(idParams, request.params);
+      await recommendations.unlikeAnime(request.userId!, id);
+      return { liked: false };
+    },
+  );
+
+  fastify.get(
+    "/me/recommendations-status",
+    { preHandler: fastify.authenticate },
+    async (request) => ({
+      configured: await recommendations.isConfigured(request.userId!),
+    }),
+  );
 };

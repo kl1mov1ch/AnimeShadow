@@ -8,6 +8,7 @@ import {
   MoonStarIcon,
   ShuffleIcon,
   SunIcon,
+  WandSparklesIcon,
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useState } from "react";
@@ -37,6 +38,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
 import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
+import { useRecommendationsStatus } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 function navClass({ isActive }: { isActive: boolean }): string {
@@ -184,6 +186,8 @@ function MobileMenu({
   const { status, user, logout } = useAuth();
   const navigate = useNavigate();
   const authed = status === "authenticated" && user;
+  const { data: configured } = useRecommendationsStatus(Boolean(authed));
+  const needsSetup = Boolean(authed) && configured === false;
 
   const surprise = async () => {
     try {
@@ -226,7 +230,18 @@ function MobileMenu({
               </span>
             </div>
           </Link>
-        ) : (
+        ) : null}
+        {needsSetup && (
+          <Link
+            to="/recommendations"
+            onClick={onNavigate}
+            className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+          >
+            <WandSparklesIcon className="size-4 shrink-0" />
+            {t("recommendations.menuNudge")}
+          </Link>
+        )}
+        {!authed && (
           <div className="flex gap-2">
             <Button asChild variant="outline" className="flex-1" onClick={onNavigate}>
               <Link to="/login">{t("common.signIn")}</Link>

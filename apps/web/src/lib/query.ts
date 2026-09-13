@@ -513,6 +513,57 @@ export function useSetGenrePreferences() {
   });
 }
 
+export function useLikedAnime(enabled = true) {
+  return useQuery({
+    queryKey: ["me", "liked-anime"],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: AnimeSummary[] }>("/me/liked-anime", { signal }).then(
+        (r) => r.items,
+      ),
+  });
+}
+
+export function useLikeAnime() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (animeId: number) =>
+      apiRequest<{ liked: boolean }>(`/me/liked-anime/${animeId}`, { method: "PUT" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "liked-anime"] });
+      void client.invalidateQueries({ queryKey: ["me", "recommendations-status"] });
+      void client.invalidateQueries({ queryKey: ["recommendations"] });
+    },
+  });
+}
+
+export function useUnlikeAnime() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (animeId: number) =>
+      apiRequest<{ liked: boolean }>(`/me/liked-anime/${animeId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "liked-anime"] });
+      void client.invalidateQueries({ queryKey: ["me", "recommendations-status"] });
+      void client.invalidateQueries({ queryKey: ["recommendations"] });
+    },
+  });
+}
+
+/** Whether the account has configured recommendations yet — drives the
+ * unobtrusive header nudge (see UserMenu). */
+export function useRecommendationsStatus(enabled = true) {
+  return useQuery({
+    queryKey: ["me", "recommendations-status"],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ configured: boolean }>("/me/recommendations-status", { signal }).then(
+        (r) => r.configured,
+      ),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useHomeRecommendations(enabled = true) {
   return useQuery({
     queryKey: ["recommendations", "home"],

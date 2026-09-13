@@ -57,6 +57,7 @@ model User {
   sessions      WatchSession[]
   achievements  UserAchievement[]
   genrePrefs    UserGenrePreference[]
+  likedAnime    UserLikedAnime[]
 }
 
 /** Genres a user explicitly picked as favourites — feeds their recommendations. */
@@ -68,6 +69,21 @@ model UserGenrePreference {
 
   @@id([userId, genreId])
   @@index([genreId])
+}
+
+/// Titles a user explicitly picked as "I like this" on the recommendations
+/// setup page — a stronger, more deliberate taste signal than inferring
+/// genres from their library, used to derive recommendation genres when no
+/// explicit UserGenrePreference exists.
+model UserLikedAnime {
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  anime     Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  animeId   Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, animeId])
+  @@index([animeId])
 }
 
 /// A comment on an anime page. `mode` controls attribution: PUBLIC shows the
@@ -273,6 +289,7 @@ model Anime {
   playerSources     PlayerSource[]
   progress          WatchProgress[]
   comments          Comment[]
+  likedBy           UserLikedAnime[]
 
   // Our own site traffic, not an upstream number — incremented once per real
   // detail-page request (see CatalogService.recordView). Feeds the future

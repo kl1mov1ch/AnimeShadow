@@ -84,7 +84,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
           classic overlay, a fixed-height box with text on top of the photo —
           that's never had a cropping problem, wide screen matches a wide
           banner reasonably well. */}
-      <div className="flex flex-col sm:relative sm:block sm:h-[70vh] lg:h-[78vh]">
+      <div className="flex flex-col sm:relative sm:block sm:h-[56vh] lg:h-[62vh]">
         <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto sm:h-full sm:w-full">
           {heroImg ? (
             <img
@@ -169,7 +169,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
   return (
-    <div className="reveal-group relative z-10 flex flex-col gap-2.5 p-4 sm:h-full sm:max-w-2xl sm:justify-end sm:gap-3 sm:px-10 sm:pt-8 sm:pb-20">
+    <div className="reveal-group relative z-10 flex flex-col gap-2 p-4 sm:h-full sm:max-w-2xl sm:justify-end sm:gap-2 sm:px-8 sm:pt-6 sm:pb-16">
       <div
         className="reveal flex items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm"
         style={step(0)}
@@ -190,7 +190,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
           straight through the title. Smaller text and a shorter synopsis
           clamp free up enough height that it no longer happens. */}
       <h1
-        className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-3xl sm:leading-[1.15] lg:text-4xl"
+        className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-2xl sm:leading-[1.15] lg:text-3xl"
         style={step(1)}
       >
         {title}
@@ -211,7 +211,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
           making text collide with the button row and the nav dots below. */}
       {anime.synopsis && (
         <p
-          className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/90 sm:line-clamp-2 sm:block"
+          className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/90 sm:line-clamp-1 sm:block"
           style={step(3)}
         >
           {anime.synopsis}
@@ -220,7 +220,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
 
       {anime.genresDetailed.length > 0 && (
         <div className="reveal hidden flex-wrap gap-1.5 sm:flex" style={step(4)}>
-          {anime.genresDetailed.slice(0, 4).map((g) => (
+          {anime.genresDetailed.slice(0, 3).map((g) => (
             <Link key={g.id} to={`/browse?genres=${g.id}`}>
               <Badge variant="outline" className="hover:border-primary/50">
                 {labels.genreLabel(g.name)}
@@ -277,7 +277,7 @@ export function SpotlightSkeleton() {
     <div className="flex flex-col gap-3 sm:block">
       <Skeleton className="aspect-video w-full rounded-2xl sm:hidden" />
       <Skeleton className="h-40 w-full rounded-2xl sm:hidden" />
-      <Skeleton className="hidden rounded-2xl sm:block sm:h-[70vh] lg:h-[78vh]" />
+      <Skeleton className="hidden rounded-2xl sm:block sm:h-[56vh] lg:h-[62vh]" />
     </div>
   );
 }

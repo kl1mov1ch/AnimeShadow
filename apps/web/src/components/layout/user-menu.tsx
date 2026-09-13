@@ -5,6 +5,7 @@ import {
   SparklesIcon,
   TrophyIcon,
   UserIcon,
+  WandSparklesIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,6 +22,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
+import { useRecommendationsStatus } from "@/lib/query";
 
 function initials(name: string): string {
   return name
@@ -36,8 +38,14 @@ export function UserMenu() {
   const t = useT();
   const { status, user, logout } = useAuth();
   const navigate = useNavigate();
+  const authed = status === "authenticated" && Boolean(user);
+  // Unobtrusive by design: a small dot on the avatar, and one extra menu
+  // item — never a modal or a toast forced on login. Disappears for good
+  // once genres or liked titles exist (see recommendation.service.ts).
+  const { data: configured } = useRecommendationsStatus(authed);
+  const needsSetup = authed && configured === false;
 
-  if (status !== "authenticated" || !user) {
+  if (!authed || !user) {
     return (
       <div className="flex items-center gap-1">
         <Button asChild variant="ghost" size="sm">
@@ -53,13 +61,24 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={t("common.account")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label={t("common.account")}
+        >
           <Avatar className="size-8">
             {user.avatarUrl && <AvatarImage src={imageSrc(user.avatarUrl)} alt="" />}
             <AvatarFallback className="text-xs font-semibold">
               {initials(user.displayName)}
             </AvatarFallback>
           </Avatar>
+          {needsSetup && (
+            <span
+              aria-hidden
+              className="absolute right-0 top-0 size-2.5 rounded-full bg-primary ring-2 ring-background"
+            />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -69,6 +88,17 @@ export function UserMenu() {
             {user.email}
           </span>
         </DropdownMenuLabel>
+        {needsSetup && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/recommendations" className="text-primary focus:text-primary">
+                <WandSparklesIcon />
+                {t("recommendations.menuNudge")}
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
@@ -83,6 +113,14 @@ export function UserMenu() {
               {t("profile.tabs.achievements")}
             </Link>
           </DropdownMenuItem>
+          {!needsSetup && (
+            <DropdownMenuItem asChild>
+              <Link to="/recommendations">
+                <WandSparklesIcon />
+                {t("recommendations.eyebrow")}
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem asChild>
             <Link to="/profile?tab=settings">
               <SettingsIcon />

@@ -298,11 +298,13 @@ function CinematicHeader({
             alt=""
             aria-hidden
             fetchPriority="high"
+            // Static — no pan/zoom here. The slow-scale animation used on the
+            // homepage spotlight pushes a banner past 100% size, which softens
+            // it noticeably on a wide desktop viewport; a detail page banner
+            // is shown far longer than a rotating slide; it should stay sharp.
             className={cn(
               "absolute inset-0 size-full object-cover",
-              isPortraitFallback
-                ? "scale-110 object-top opacity-50 blur-3xl saturate-50"
-                : "hero-pan",
+              isPortraitFallback && "scale-110 object-top opacity-50 blur-3xl saturate-50",
             )}
           />
         ) : (
@@ -370,7 +372,10 @@ function PosterImage({
   );
 }
 
-const SYNOPSIS_CLAMP_AT = 520;
+// Halved along with the 3-line clamp below — kept in proportion so "show
+// more" still reliably appears whenever the shorter clamp actually truncates
+// something, instead of leaving a cut-off synopsis with no way to expand it.
+const SYNOPSIS_CLAMP_AT = 260;
 
 function SynopsisBody({
   synopsis,
@@ -389,7 +394,7 @@ function SynopsisBody({
         <p
           className={cn(
             "whitespace-pre-line leading-relaxed text-foreground/90",
-            !expanded && "line-clamp-[7]",
+            !expanded && "line-clamp-3",
           )}
         >
           {synopsis}
