@@ -123,13 +123,25 @@ export function Component() {
       <AnimeRail
         title={t("home.recommended")}
         subtitle={
-          !isAuthed
-            ? t("home.recommendedSubAnon")
-            : recs?.basis === "preferences"
-              ? t("home.recommendedSub")
-              : recs?.basis === "history"
-                ? t("home.recommendedSubHistory")
-                : t("home.recommendedSubAnon")
+          !isAuthed ? (
+            t("home.recommendedSubAnon")
+          ) : recs?.basis === "liked" ? (
+            t("home.recommendedSubLiked")
+          ) : recs?.basis === "preferences" ? (
+            t("home.recommendedSub")
+          ) : recs?.basis === "history" ? (
+            t("home.recommendedSubHistory")
+          ) : (
+            // Signed in, but nothing to personalise from yet — this is the
+            // one case that's actually actionable, so it's the one case
+            // that gets a link instead of just describing the situation.
+            <>
+              {t("home.recommendedSubTrending")}{" "}
+              <Link to="/recommendations" className="text-primary hover:underline">
+                {t("recommendations.eyebrow")}
+              </Link>
+            </>
+          )
         }
         items={recs?.items ?? data?.mostPopular ?? []}
         loading={recsPending && !recs}

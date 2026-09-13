@@ -1,5 +1,6 @@
 import type { AnimeSummary } from "@animeshadow/shared";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimeCard, AnimeCardSkeleton } from "@/components/anime/anime-card";
@@ -8,7 +9,7 @@ import { useT } from "@/i18n";
 
 interface AnimeRailProps {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   items: AnimeSummary[];
   href?: string;
   loading?: boolean;
