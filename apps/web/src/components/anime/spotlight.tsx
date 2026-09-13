@@ -1,16 +1,31 @@
 import type { AnimeDetail } from "@animeshadow/shared";
-import type { CSSProperties } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, PlayIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  CalendarDaysIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClapperboardIcon,
+  ClockIcon,
+  PlayIcon,
+  TrophyIcon,
+  TvIcon,
+  UsersIcon,
+} from "lucide-react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
@@ -25,49 +40,62 @@ function prefersReducedMotion() {
   );
 }
 
+/** "PG-13 - Teens 13 or older" / "pg_13" / "r_plus" → "PG-13" / "PG-13" / "R+". */
+function shortRating(rating: string | null): string | null {
+  const head = rating?.split(" - ")[0]?.trim();
+  if (!head) return null;
+  return head.replace(/_plus$/i, "+").replace(/_/g, "-").toUpperCase();
+}
+
 /**
- * Rotating, near-fullscreen hero. Each slide prefers the title's own official
- * wide key-visual banner (AniList), falling back to a show screenshot and
- * then a blurred poster — with a slow cinematic pan. No embedded video, so
- * there's nothing for YouTube's bot-check to break.
+ * Rotating homepage hero. Always rendered as a dark "screening room" card
+ * (the `dark` class re-scopes every theme token inside it), so the text,
+ * buttons and the list select stay legible over the artwork in either site
+ * theme. Title and metadata sit top-left; actions and carousel controls
+ * share one wrapping row at the bottom, so they can never overlap.
  */
 export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
   const slides = items.slice(0, 6);
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const reduced = prefersReducedMotion();
   const desktop = useMediaQuery("(min-width: 640px)");
   const touchX = useRef<number | null>(null);
 
   const count = slides.length;
+  const paused = hidden || hovered;
   const go = useCallback(
     (dir: 1 | -1) => setIndex((i) => (i + dir + count) % count),
     [count],
   );
 
+  // `index` is a dependency on purpose: any manual jump restarts the full
+  // interval, keeping auto-advance in step with the progress bar.
   useEffect(() => {
     if (reduced || paused || count < 2) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % count), ROTATE_MS);
     return () => clearInterval(id);
-  }, [reduced, paused, count]);
+  }, [reduced, paused, count, index]);
 
   useEffect(() => {
-    const onVis = () => setPaused(document.visibilityState === "hidden");
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
+    const onVisibility = () => setHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   if (count === 0) return null;
-  const anime = slides[index]!;
+  const anime = slides[index] ?? slides[0]!;
   const shot = anime.bannerImage ?? anime.screenshots[0];
-  const heroImg = shot
-    ? imageSrc(shot)
-    : imageSrc(anime.imageLargeUrl ?? anime.imageUrl);
+  const heroImg = shot ? imageSrc(shot) : imageSrc(anime.imageLargeUrl ?? anime.imageUrl);
   const landscape = Boolean(shot);
 
   return (
     <section
-      className="relative overflow-hidden rounded-2xl border border-border/60 bg-card"
+      aria-roledescription="carousel"
+      className="dark relative isolate overflow-hidden rounded-3xl border border-border/70 bg-background text-foreground shadow-xl shadow-black/10"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onTouchStart={(e) => (touchX.current = e.touches[0]?.clientX ?? null)}
       onTouchEnd={(e) => {
         const start = touchX.current;
@@ -78,15 +106,10 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         touchX.current = null;
       }}
     >
-      {/* Mobile: image and text are two separate blocks, stacked — the image
-          keeps its own real aspect ratio (object-cover barely has to crop
-          it), text sits below on the card's own background. Desktop: the
-          classic overlay, a fixed-height box with text on top of the photo.
-          No synopsis in this box any more — that's what kept overlapping
-          the title at every clamp length tried — so the remaining content
-          (title, meta, genres, actions) has plenty of headroom here. */}
-      <div className="flex flex-col sm:relative sm:block sm:h-[380px] lg:h-[420px]">
-        <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto sm:h-full sm:w-full">
+      <div className="relative flex flex-col sm:min-h-[430px] lg:min-h-[480px]">
+        {/* Mobile: artwork on top at its natural ratio, content stacked below.
+            Desktop: artwork fills the card behind the content. */}
+        <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto">
           {heroImg ? (
             <img
               key={heroImg}
@@ -103,153 +126,253 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
             <PosterFallback title={anime.title} seed={anime.id} />
           )}
 
-          {/* Legibility gradient — desktop only, where text actually sits on
-              the photo. Uses the theme's own card colour so it always has
-              the right contrast direction against it, in either theme. */}
-          <div className="pointer-events-none absolute inset-0 hidden sm:block sm:bg-gradient-to-r sm:from-card/85 sm:via-card/15 sm:to-transparent" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent sm:hidden"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-background via-background/80 to-background/10 sm:block"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 hidden h-44 bg-gradient-to-b from-background/75 to-transparent sm:block"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-48 bg-gradient-to-t from-background via-background/70 to-transparent sm:block"
+          />
         </div>
 
-        {/* --- content --- */}
-        <SlideContent key={anime.id} anime={anime} />
-
-        {/* --- controls --- */}
-        {/* Desktop: one dedicated strip pinned to the bottom of the overlay
-            box, structurally separate from the text column above it (which
-            reserves matching bottom padding) so text can grow as tall as it
-            wants and only ever overflows upward. Mobile: a plain row after
-            the text block, not on top of the photo. */}
-        {count > 1 && (
-          <div className="relative z-20 flex items-center gap-2 p-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:gap-4 sm:p-5">
-            <NavButton side="left" onClick={() => go(-1)} />
-            <div className="flex flex-1 items-center justify-center gap-2">
-              {slides.map((s, i) => {
-                const active = i === index;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-label={`${i + 1}`}
-                    aria-current={active}
-                    onClick={() => setIndex(i)}
-                    className={cn(
-                      "relative h-2 overflow-hidden rounded-full transition-all duration-500 ease-out",
-                      active
-                        ? "w-8 bg-foreground/25"
-                        : "w-2 bg-foreground/25 hover:bg-foreground/45",
-                    )}
-                  >
-                    {active && !reduced && !paused && (
-                      <span
-                        key={`${anime.id}-progress`}
-                        aria-hidden
-                        className="absolute inset-y-0 left-0 w-full origin-left rounded-full bg-primary"
-                        style={{ animation: `spotlight-progress ${ROTATE_MS}ms linear` }}
-                      />
-                    )}
-                    {active && (reduced || paused) && (
-                      <span aria-hidden className="absolute inset-0 rounded-full bg-primary" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <NavButton side="right" onClick={() => go(1)} />
-          </div>
-        )}
+        <SlideContent
+          key={anime.id}
+          anime={anime}
+          index={index}
+          count={count}
+          controls={
+            count > 1 ? (
+              <SlideControls
+                slides={slides}
+                index={index}
+                running={!reduced && !paused}
+                onSelect={setIndex}
+                onStep={go}
+              />
+            ) : null
+          }
+        />
       </div>
     </section>
   );
 }
 
-function SlideContent({ anime }: { anime: AnimeDetail }) {
+function MetaChip({
+  icon,
+  className,
+  children,
+}: {
+  icon?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-foreground/90 backdrop-blur [&_svg]:size-3.5 [&_svg]:text-foreground/55",
+        className,
+      )}
+    >
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+function SlideContent({
+  anime,
+  index,
+  count,
+  controls,
+}: {
+  anime: AnimeDetail;
+  index: number;
+  count: number;
+  controls: ReactNode;
+}) {
   const t = useT();
   const labels = useLabels();
   const title = labels.title(anime);
+  const altTitle =
+    [anime.titleJapanese, anime.titleEnglish, anime.title].find(
+      (candidate) => candidate?.trim() && candidate !== title,
+    ) ?? null;
   const when = labels.seasonYearLabel(anime);
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
+  const rating = shortRating(anime.rating);
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
+  const pad = (n: number) => String(n).padStart(2, "0");
 
   return (
-    <div className="reveal-group relative z-10 flex flex-col gap-2 p-4 sm:h-full sm:max-w-2xl sm:justify-end sm:gap-2 sm:px-8 sm:pt-6 sm:pb-16">
-      <div
-        className="reveal flex items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm"
-        style={step(0)}
-      >
-        <span className="text-primary">{t("discover.nowScreening")}</span>
-        {when && (
-          <>
-            <span className="size-1 rounded-full bg-muted-foreground/50" />
-            <span>{when}</span>
-          </>
+    <div className="reveal-group relative z-10 flex flex-1 flex-col gap-5 p-4 sm:justify-between sm:gap-8 sm:p-7 lg:p-9">
+      <div className="flex max-w-2xl flex-col gap-3">
+        <div className="reveal flex flex-wrap items-center gap-2.5 text-xs font-medium" style={step(0)}>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-primary ring-1 ring-primary/30">
+            <span aria-hidden className="size-1.5 rounded-full bg-primary" />
+            {t("discover.nowScreening")}
+          </span>
+          {count > 1 && (
+            <span className="font-mono tabular-nums text-foreground/55">
+              {pad(index + 1)} / {pad(count)}
+            </span>
+          )}
+        </div>
+
+        <div className="reveal flex flex-col gap-1" style={step(1)}>
+          <h1 className="line-clamp-2 font-display text-2xl leading-[1.1] text-foreground [overflow-wrap:anywhere] sm:text-3xl lg:text-[2.5rem]">
+            {title}
+          </h1>
+          {altTitle && <p className="line-clamp-1 text-sm text-foreground/55">{altTitle}</p>}
+        </div>
+
+        <div className="reveal flex flex-wrap items-center gap-1.5" style={step(2)}>
+          <ScoreBadge score={anime.score} size="md" className="rounded-full px-2.5" />
+          {anime.airing !== "UNKNOWN" && (
+            <MetaChip>
+              <span
+                aria-hidden
+                className={cn(
+                  "size-1.5 rounded-full",
+                  anime.airing === "AIRING"
+                    ? "bg-emerald-400"
+                    : anime.airing === "UPCOMING"
+                      ? "bg-amber-400"
+                      : "bg-foreground/40",
+                )}
+              />
+              {labels.airingLabel(anime.airing)}
+            </MetaChip>
+          )}
+          <MetaChip icon={<TvIcon />}>{labels.typeLabel(anime.type)}</MetaChip>
+          {episodes && <MetaChip icon={<ClapperboardIcon />}>{episodes}</MetaChip>}
+          {when && <MetaChip icon={<CalendarDaysIcon />}>{when}</MetaChip>}
+          {anime.duration && (
+            <MetaChip icon={<ClockIcon />} className="hidden sm:inline-flex">
+              <span className="max-w-[9rem] truncate">{anime.duration}</span>
+            </MetaChip>
+          )}
+          {rating && <MetaChip className="hidden sm:inline-flex">{rating}</MetaChip>}
+          {anime.rank != null && (
+            <MetaChip icon={<TrophyIcon />} className="hidden md:inline-flex">
+              #{anime.rank}
+            </MetaChip>
+          )}
+          {anime.members != null && anime.members > 0 && (
+            <MetaChip icon={<UsersIcon />} className="hidden md:inline-flex">
+              {labels.compact(anime.members)}
+            </MetaChip>
+          )}
+        </div>
+
+        {(anime.studios.length > 0 || anime.genresDetailed.length > 0) && (
+          <div className="reveal flex flex-wrap items-center gap-x-3 gap-y-2" style={step(3)}>
+            {anime.studios.length > 0 && (
+              <span className="text-xs font-medium text-foreground/60">
+                {anime.studios.slice(0, 2).join(" · ")}
+              </span>
+            )}
+            {anime.genresDetailed.slice(0, 4).map((genre) => (
+              <Link
+                key={genre.id}
+                to={`/browse?genres=${genre.id}`}
+                className="rounded-md border border-white/10 px-2 py-0.5 text-xs text-foreground/75 transition-colors hover:border-primary/50 hover:text-primary"
+              >
+                {labels.genreLabel(genre.name)}
+              </Link>
+            ))}
+          </div>
         )}
       </div>
 
-      <h1
-        className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-2xl sm:leading-[1.15] lg:text-3xl"
-        style={step(1)}
-      >
-        {title}
-      </h1>
-
       <div
-        className="reveal flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:text-sm"
-        style={step(2)}
+        className="reveal flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
+        style={step(4)}
       >
-        <ScoreBadge score={anime.score} size="md" />
-        <span>{labels.typeLabel(anime.type)}</span>
-        {episodes && <span>{episodes}</span>}
-      </div>
-
-      {/* No synopsis here any more — at any clamp it kept fighting the fixed
-          box height for space and winning by pushing into the title above
-          it. The full synopsis is one click away on the title's own page;
-          this slide's job is just to get someone to click. */}
-
-      {anime.genresDetailed.length > 0 && (
-        <div className="reveal hidden flex-wrap gap-1.5 sm:flex" style={step(3)}>
-          {anime.genresDetailed.slice(0, 3).map((g) => (
-            <Link key={g.id} to={`/browse?genres=${g.id}`}>
-              <Badge variant="outline" className="hover:border-primary/50">
-                {labels.genreLabel(g.name)}
-              </Badge>
+        <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/50 [&_[data-slot=select-trigger]]:backdrop-blur [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
+          <Button asChild size="lg" className="px-5">
+            <Link to={animeHref(anime)}>
+              <PlayIcon className="size-4 fill-current" />
+              {t("discover.viewDetails")}
             </Link>
-          ))}
+          </Button>
+          <TrailerButton url={anime.trailerEmbedUrl} title={title} />
+          <LibraryControls animeId={anime.id} title={title} />
         </div>
-      )}
-
-      <div className="reveal mt-1 flex flex-wrap items-center gap-2 sm:gap-3" style={step(4)}>
-        <Button asChild size="lg">
-          <Link to={animeHref(anime)}>
-            <PlayIcon className="size-4 fill-current" />
-            {t("discover.viewDetails")}
-          </Link>
-        </Button>
-        <TrailerButton url={anime.trailerEmbedUrl} title={title} />
-        <LibraryControls animeId={anime.id} title={title} />
+        {controls}
       </div>
     </div>
   );
 }
 
-function NavButton({
-  side,
-  onClick,
+function SlideControls({
+  slides,
+  index,
+  running,
+  onSelect,
+  onStep,
 }: {
-  side: "left" | "right";
-  onClick: () => void;
+  slides: AnimeDetail[];
+  index: number;
+  running: boolean;
+  onSelect: (index: number) => void;
+  onStep: (dir: 1 | -1) => void;
 }) {
+  const labels = useLabels();
+  return (
+    <div className="flex shrink-0 items-center justify-between gap-2 rounded-full border border-white/10 bg-background/60 p-1 backdrop-blur-md sm:justify-start">
+      <NavButton side="left" onClick={() => onStep(-1)} />
+      <div className="flex items-center gap-1.5 px-1">
+        {slides.map((slide, i) => {
+          const active = i === index;
+          return (
+            <button
+              key={slide.id}
+              type="button"
+              aria-label={labels.title(slide)}
+              aria-current={active}
+              onClick={() => onSelect(i)}
+              className={cn(
+                "relative h-1.5 overflow-hidden rounded-full transition-all duration-500 ease-out",
+                active ? "w-10 bg-foreground/20" : "w-1.5 bg-foreground/35 hover:w-3 hover:bg-foreground/70",
+              )}
+            >
+              {active &&
+                (running ? (
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 origin-left rounded-full bg-primary"
+                    style={{ animation: `spotlight-progress ${ROTATE_MS}ms linear` }}
+                  />
+                ) : (
+                  <span aria-hidden className="absolute inset-0 rounded-full bg-primary" />
+                ))}
+            </button>
+          );
+        })}
+      </div>
+      <NavButton side="right" onClick={() => onStep(1)} />
+    </div>
+  );
+}
+
+function NavButton({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={side}
-      className="shrink-0 rounded-full border border-border/60 bg-background/70 p-2 text-foreground/80 shadow-sm backdrop-blur transition-all hover:scale-105 hover:bg-background hover:text-primary sm:p-2.5"
+      className="grid size-9 shrink-0 place-items-center rounded-full text-foreground/80 transition-[background-color,color,transform] hover:bg-foreground/10 hover:text-foreground active:scale-90"
     >
-      {side === "left" ? (
-        <ChevronLeftIcon className="size-4 sm:size-5" />
-      ) : (
-        <ChevronRightIcon className="size-4 sm:size-5" />
-      )}
+      {side === "left" ? <ChevronLeftIcon className="size-5" /> : <ChevronRightIcon className="size-5" />}
     </button>
   );
 }
@@ -262,9 +385,9 @@ export function Spotlight({ anime }: { anime: AnimeDetail }) {
 export function SpotlightSkeleton() {
   return (
     <div className="flex flex-col gap-3 sm:block">
-      <Skeleton className="aspect-video w-full rounded-2xl sm:hidden" />
-      <Skeleton className="h-40 w-full rounded-2xl sm:hidden" />
-      <Skeleton className="hidden rounded-2xl sm:block sm:h-[380px] lg:h-[420px]" />
+      <Skeleton className="aspect-video w-full rounded-3xl sm:hidden" />
+      <Skeleton className="h-56 w-full rounded-3xl sm:hidden" />
+      <Skeleton className="hidden rounded-3xl sm:block sm:h-[430px] lg:h-[480px]" />
     </div>
   );
 }
