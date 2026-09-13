@@ -31,6 +31,7 @@ export default fp(
         allohaToken: env.ALLOHA_TOKEN,
         embedTemplate: env.WATCH_EMBED_TEMPLATE,
       },
+      telegramBotToken: env.TELEGRAM_BOT_TOKEN,
     });
     fastify.decorate("services", services);
   },

@@ -39,6 +39,7 @@ export interface ContainerDeps {
     allohaToken: string;
     embedTemplate?: string | undefined;
   };
+  telegramBotToken?: string | undefined;
 }
 
 export interface Services {
@@ -98,7 +99,12 @@ export function createServices(deps: ContainerDeps): Services {
     proForAll: deps.proForAll,
   });
 
-  const auth = new AuthService(deps.prisma, deps.proForAll);
+  const auth = new AuthService({
+    prisma: deps.prisma,
+    proForAll: deps.proForAll,
+    uploadsDir: join(UPLOADS_DIR, "avatars"),
+    telegramBotToken: deps.telegramBotToken,
+  });
   const library = new LibraryService({ prisma: deps.prisma, catalog });
   const reviews = new ReviewService({ prisma: deps.prisma, catalog, achievements });
   const progress = new ProgressService({ prisma: deps.prisma, catalog, achievements });

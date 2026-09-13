@@ -1,4 +1,8 @@
-import { loginInputSchema, registerInputSchema } from "@animeshadow/shared";
+import {
+  loginInputSchema,
+  registerInputSchema,
+  telegramAuthInputSchema,
+} from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { parse } from "../lib/validation.js";
 
@@ -17,6 +21,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post("/auth/login", async (request) => {
     const input = parse(loginInputSchema, request.body);
     const user = await auth.verifyCredentials(input);
+    return { token: issueToken(user.id), user };
+  });
+
+  fastify.post("/auth/telegram", async (request) => {
+    const input = parse(telegramAuthInputSchema, request.body);
+    const user = await auth.loginWithTelegram(input);
     return { token: issueToken(user.id), user };
   });
 

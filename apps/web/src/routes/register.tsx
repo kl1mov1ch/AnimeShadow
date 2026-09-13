@@ -3,25 +3,40 @@ import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AuthCard,
+  AuthDivider,
   AuthField,
   FormErrorAlert,
   PasswordInput,
   SubmitButton,
   TextInput,
 } from "@/components/auth/auth-card";
+import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
+import type { TelegramAuthData } from "@/lib/telegram-auth";
 
 type FieldName = "displayName" | "email" | "password";
 type Errors = Partial<Record<FieldName | "form", string>>;
 
 export function Component() {
   const t = useT();
-  const { register } = useAuth();
+  const { register, loginWithTelegram } = useAuth();
   const navigate = useNavigate();
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
+
+  const onTelegramAuth = async (data: TelegramAuthData) => {
+    setErrors({});
+    try {
+      await loginWithTelegram(data);
+      navigate("/library", { replace: true });
+    } catch (error) {
+      setErrors({
+        form: error instanceof ApiRequestError ? error.message : t("auth.genericError"),
+      });
+    }
+  };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -126,6 +141,9 @@ export function Component() {
 
         <SubmitButton pending={pending}>{t("auth.registerCta")}</SubmitButton>
       </form>
+
+      <AuthDivider label={t("auth.orDivider")} />
+      <TelegramLoginButton onAuth={onTelegramAuth} />
     </AuthCard>
   );
 }

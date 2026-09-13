@@ -317,6 +317,7 @@ export const en = {
     createOne: "Create an account",
     haveAccount: "Already have an account?",
     genericError: "Something went wrong. Try again.",
+    orDivider: "or",
     couldntContinue: "Couldn't continue",
     showPassword: "Show password",
     hidePassword: "Hide password",

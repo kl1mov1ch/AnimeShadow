@@ -61,6 +61,17 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
   );
 }
 
+/** Separates the email/password form from an alternate sign-in method below it. */
+export function AuthDivider({ label }: { label: string }) {
+  return (
+    <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+      <span className="h-px flex-1 bg-border/60" />
+      {label}
+      <span className="h-px flex-1 bg-border/60" />
+    </div>
+  );
+}
+
 export function FormErrorAlert({ message }: { message?: string }) {
   const t = useT();
   if (!message) return null;

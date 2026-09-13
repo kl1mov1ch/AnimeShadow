@@ -14,6 +14,7 @@ import {
 } from "react";
 import { apiRequest, setAuthToken } from "@/lib/api";
 import { queryClient } from "@/lib/query";
+import type { TelegramAuthData } from "@/lib/telegram-auth";
 
 const STORAGE_KEY = "animeshadow.auth.v1";
 
@@ -30,6 +31,7 @@ interface AuthContextValue {
   user: PublicUser | null;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  loginWithTelegram: (data: TelegramAuthData) => Promise<void>;
   logout: () => void;
   /** Patch the cached user (e.g. after an avatar/name change) without a full re-login. */
   updateUser: (patch: Partial<PublicUser>) => void;
@@ -125,9 +127,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySession],
   );
 
+  const loginWithTelegram = useCallback(
+    async (data: TelegramAuthData) => {
+      const res = await apiRequest<AuthResponse>("/auth/telegram", {
+        method: "POST",
+        body: data,
+      });
+      applySession({ v: 1, token: res.token, user: res.user });
+    },
+    [applySession],
+  );
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, login, register, logout: clearSession, updateUser }),
-    [status, user, login, register, clearSession, updateUser],
+    () => ({
+      status,
+      user,
+      login,
+      register,
+      loginWithTelegram,
+      logout: clearSession,
+      updateUser,
+    }),
+    [status, user, login, register, loginWithTelegram, clearSession, updateUser],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
@@ -138,6 +159,7 @@ const FALLBACK_AUTH: AuthContextValue = {
   user: null,
   login: async () => {},
   register: async () => {},
+  loginWithTelegram: async () => {},
   logout: () => {},
   updateUser: () => {},
 };

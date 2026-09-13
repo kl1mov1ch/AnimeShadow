@@ -64,6 +64,13 @@ const envSchema = z.object({
   WATCH_EMBED_TEMPLATE: z.string().optional(),
   // Warm the watch-availability cache for the N most popular cached titles on boot.
   WATCH_WARM_LIMIT: z.coerce.number().int().nonnegative().default(120),
+
+  // ---- Telegram Login Widget — https://core.telegram.org/widgets/login.
+  // Optional: "Sign in with Telegram" simply doesn't verify without it.
+  TELEGRAM_BOT_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -22,6 +22,20 @@ export const loginInputSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginInputSchema>;
 
+/** The payload the Telegram Login Widget hands back — verified server-side
+ * via `hash` (HMAC-SHA256 of the rest, keyed by the bot token) before it's
+ * trusted for anything. */
+export const telegramAuthInputSchema = z.object({
+  id: z.number().int().positive(),
+  first_name: z.string(),
+  last_name: z.string().optional(),
+  username: z.string().optional(),
+  photo_url: z.string().url().optional(),
+  auth_date: z.number().int().positive(),
+  hash: z.string(),
+});
+export type TelegramAuthInput = z.infer<typeof telegramAuthInputSchema>;
+
 export const publicUserSchema = z.object({
   id: z.string(),
   email: z.string().email(),

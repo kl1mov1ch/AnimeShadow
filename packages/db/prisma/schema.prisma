@@ -25,6 +25,10 @@ model User {
   email         String          @unique
   displayName   String
   passwordHash  String
+  /// Set for accounts created (or ever logged in) via the Telegram Login
+  /// Widget — see AuthService.loginWithTelegram. Null for email/password-only
+  /// accounts.
+  telegramId    String?         @unique
   username      String?         @unique
   bio           String?
   avatarUrl     String?

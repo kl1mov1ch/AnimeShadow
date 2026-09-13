@@ -318,6 +318,7 @@ export const ru: Dict = {
     createOne: "Создать аккаунт",
     haveAccount: "Уже есть аккаунт?",
     genericError: "Что-то пошло не так. Попробуйте ещё раз.",
+    orDivider: "или",
     couldntContinue: "Не удалось продолжить",
     showPassword: "Показать пароль",
     hidePassword: "Скрыть пароль",
