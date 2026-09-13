@@ -44,6 +44,12 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  fastify.post(
+    "/me/avatar/random",
+    { preHandler: fastify.authenticate },
+    async (request) => profile.setRandomAvatar(request.userId!),
+  );
+
   fastify.get(
     "/me/progress",
     { preHandler: fastify.authenticate },

@@ -410,6 +410,19 @@ export function useUploadAvatar() {
   });
 }
 
+/** Swaps to a fresh random reaction gif — the "I'd rather have a gif"
+ * counterpart to uploading a photo. No body: the server just rolls one. */
+export function useSetRandomAvatar() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ avatarUrl: string }>("/me/avatar/random", { method: "POST" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "profile"] });
+    },
+  });
+}
+
 export function useLogSession() {
   return useMutation({
     mutationFn: (input: {

@@ -504,6 +504,8 @@ export const ru: Dict = {
     settings: {
       avatar: "Аватар",
       avatarUpload: "Загрузить (JPG/PNG, до 5 МБ)",
+      avatarRandom: "Случайная гифка вместо фото",
+      avatarRandomDone: "Новый аватар готов",
       fileTooLarge: "Файл больше 5 МБ",
       save: "Сохранить",
       bio: "Описание профиля",

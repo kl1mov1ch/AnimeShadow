@@ -19,6 +19,7 @@ import {
   PencilIcon,
   PlayCircleIcon,
   SettingsIcon,
+  ShuffleIcon,
   SparklesIcon,
   TimerIcon,
   TrophyIcon,
@@ -60,6 +61,7 @@ import {
   useMyProgress,
   usePublicProfile,
   useSetGenrePreferences,
+  useSetRandomAvatar,
   useSetUsername,
   useUpdateProfile,
   useUploadAvatar,
@@ -589,6 +591,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
   const { updateUser } = useAuth();
   const update = useUpdateProfile();
   const uploadAvatar = useUploadAvatar();
+  const randomAvatar = useSetRandomAvatar();
   const setUsername = useSetUsername();
   const { data: achievements } = useAchievements();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -616,6 +619,16 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
     });
   };
 
+  const onRandomAvatar = () => {
+    randomAvatar.mutate(undefined, {
+      onSuccess: (res) => {
+        toast.success(t("profile.settings.avatarRandomDone"));
+        updateUser({ avatarUrl: res.avatarUrl });
+      },
+      onError: () => toast.error(t("errors.genericTitle")),
+    });
+  };
+
   const applyAccent = (hex: string) => {
     setAccent(hex);
     try {
@@ -634,33 +647,54 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {/* identity: avatar + username + bio in one place */}
         <SettingsSection title={t("profile.title")}>
           <div className="flex items-start gap-4">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploadAvatar.isPending}
-              aria-label={t("profile.settings.avatarUpload")}
-              className="group relative size-20 shrink-0 overflow-hidden rounded-full bg-muted disabled:opacity-60"
-            >
-              {profile.avatarUrl ? (
-                <img
-                  src={imageSrc(profile.avatarUrl)}
-                  alt=""
-                  className="size-full object-cover"
-                />
-              ) : (
-                <div className="flex size-full items-center justify-center font-display text-2xl">
-                  {profile.displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              {/* Pencil overlay — always visible on touch, fades in on hover for mouse users. */}
-              <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/60 py-1.5 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                {uploadAvatar.isPending ? (
+            {/* Two ways to have an avatar, not just one: your own photo, or
+                a fresh anime reaction gif on demand (the same pool new
+                accounts get one from automatically) — a shuffle badge next
+                to the upload button instead of only offering the file
+                picker. */}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploadAvatar.isPending || randomAvatar.isPending}
+                aria-label={t("profile.settings.avatarUpload")}
+                className="group relative size-20 overflow-hidden rounded-full bg-muted disabled:opacity-60"
+              >
+                {profile.avatarUrl ? (
+                  <img
+                    src={imageSrc(profile.avatarUrl)}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-full items-center justify-center font-display text-2xl">
+                    {profile.displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {/* Pencil overlay — always visible on touch, fades in on hover for mouse users. */}
+                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/60 py-1.5 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                  {uploadAvatar.isPending ? (
+                    <Loader2Icon className="size-3.5 animate-spin" />
+                  ) : (
+                    <PencilIcon className="size-3.5" />
+                  )}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={onRandomAvatar}
+                disabled={uploadAvatar.isPending || randomAvatar.isPending}
+                aria-label={t("profile.settings.avatarRandom")}
+                title={t("profile.settings.avatarRandom")}
+                className="absolute -right-1 -top-1 flex size-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-transform hover:scale-105 disabled:pointer-events-none disabled:opacity-60"
+              >
+                {randomAvatar.isPending ? (
                   <Loader2Icon className="size-3.5 animate-spin" />
                 ) : (
-                  <PencilIcon className="size-3.5" />
+                  <ShuffleIcon className="size-3.5" />
                 )}
-              </span>
-            </button>
+              </button>
+            </div>
             <input
               ref={fileRef}
               type="file"

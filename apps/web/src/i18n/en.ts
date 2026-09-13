@@ -503,6 +503,8 @@ export const en = {
     settings: {
       avatar: "Avatar",
       avatarUpload: "Upload (JPG/PNG, up to 5 MB)",
+      avatarRandom: "Random gif instead of a photo",
+      avatarRandomDone: "New avatar ready",
       fileTooLarge: "File is larger than 5 MB",
       save: "Save",
       bio: "Profile bio",

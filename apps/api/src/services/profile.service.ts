@@ -11,8 +11,14 @@ import type {
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import { computeIsAdult } from "../lib/content-guard.js";
-import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors.js";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+  UpstreamUnavailableError,
+} from "../lib/errors.js";
 import { isProfane } from "../lib/profanity.js";
+import { fetchReactionGif, randomReactionCategory } from "../lib/reaction-gif.js";
 import type { AchievementService } from "./achievement.service.js";
 
 export interface ProfileServiceDeps {
@@ -161,6 +167,22 @@ export class ProfileService {
     const avatarUrl = `/uploads/avatars/${file}?v=${Date.now()}`;
     await this.prisma.user.update({ where: { id: userId }, data: { avatarUrl } });
     return { avatarUrl };
+  }
+
+  /**
+   * Swap to a fresh random reaction gif — the same pool a new account's
+   * default avatar comes from, offered here as an explicit "give me a gif
+   * instead" choice rather than only something that happens once at signup.
+   * Nothing is written to disk (unlike an uploaded photo): just the URL
+   * nekos.best already hosts, same as before.
+   */
+  async setRandomAvatar(userId: string): Promise<{ avatarUrl: string }> {
+    const url = await fetchReactionGif(randomReactionCategory());
+    if (!url) {
+      throw new UpstreamUnavailableError("Не получилось получить гифку, попробуйте ещё раз.");
+    }
+    await this.prisma.user.update({ where: { id: userId }, data: { avatarUrl: url } });
+    return { avatarUrl: url };
   }
 
   async progress(userId: string): Promise<ProgressDetail[]> {
