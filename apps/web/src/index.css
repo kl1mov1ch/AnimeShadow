@@ -342,6 +342,15 @@
   }
 }
 
+/* Radix scroll-lock pads <body> by the scrollbar width, but <html> owns the
+   scrollbar here (overflow-x above) — so that padding only shoved the page
+   sideways whenever a select/menu/dialog opened. Unlayered to beat the injected rule. */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
 /* 404 page: the 影 between the two digits drifts gently. */
 @keyframes lost-glyph-float {
   0%, 100% {
