@@ -388,6 +388,33 @@ function EpisodeStepper({
 /** How many candidate embeds load in parallel before one is shown. */
 const RACE_SIZE = 2;
 
+/** Sources the stability probe already confirmed dead. Automatic racing and
+ * retry skip these entirely — there's no point spending a stall timeout
+ * rediscovering what a server-side probe already answered — falling back to
+ * the full list only if literally nothing else is left to try. The manual
+ * "not working" list still shows every source, clearly badged, as an
+ * override the viewer can reach for themselves. */
+function viableSources(sources: WatchSource[]): WatchSource[] {
+  const ok = sources.filter((s) => s.stable !== false);
+  return ok.length > 0 ? ok : sources;
+}
+
+/**
+ * A source already confirmed reachable (`stable === true`) — AniLibria,
+ * almost always, since it's ranked to win that spot whenever it has the
+ * title — is trusted alone instead of raced against a lower-ranked pick.
+ * Racing it anyway was the actual bug: a merely-faster Kodik/Alloha mirror
+ * could "win" over the pick the stability probe had already verified,
+ * purely on timing, so the confirmed-good default rarely got shown. Only a
+ * genuinely uncertain top pick (never probed, or its own last probe failed)
+ * still races two at once as a hedge.
+ */
+function initialRacePool(sources: WatchSource[]): string[] {
+  const viable = viableSources(sources);
+  const poolSize = viable[0]?.stable === true ? 1 : RACE_SIZE;
+  return viable.slice(0, poolSize).map((s) => s.id);
+}
+
 /** The URL to actually load right now — for an "hls" source this genuinely
  * depends on which episode is selected (unlike an iframe, which never
  * changes per episode); falls back to whatever episode it does have if the
@@ -496,9 +523,9 @@ function Player({
   // than load one and wait to find out it's dead, load the top few at once,
   // invisibly, and show whichever answers first — the viewer never watches
   // a stall timer count down on a source that was going to fail anyway.
-  const [racePool, setRacePool] = useState<string[]>(() =>
-    data.sources.slice(0, RACE_SIZE).map((s) => s.id),
-  );
+  // Except when the top pick is already confirmed reachable (see
+  // initialRacePool) — then it's shown alone, trusted outright.
+  const [racePool, setRacePool] = useState<string[]>(() => initialRacePool(data.sources));
   const [winnerId, setWinnerId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   // Every source this session has already raced and lost — so a handful of
@@ -574,7 +601,9 @@ function Player({
     const timer = setTimeout(() => {
       setTriedIds((tried) => {
         const nextTried = [...tried, ...racePool];
-        const remaining = data.sources.filter((s) => !nextTried.includes(s.id));
+        const remaining = viableSources(data.sources).filter(
+          (s) => !nextTried.includes(s.id),
+        );
         setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
         return nextTried;
       });
@@ -631,14 +660,14 @@ function Player({
   const retryAll = () => {
     setTriedIds([]);
     setWinnerId(null);
-    setRacePool(data.sources.slice(0, RACE_SIZE).map((s) => s.id));
+    setRacePool(initialRacePool(data.sources));
   };
 
   /** One click, no source names to make sense of — moves straight to the next best untried pick. */
   const switchNow = () => {
     setShowStuckHint(false);
     const exclude = new Set(winnerId ? [...triedIds, winnerId] : triedIds);
-    const remaining = data.sources.filter((s) => !exclude.has(s.id));
+    const remaining = viableSources(data.sources).filter((s) => !exclude.has(s.id));
     if (remaining.length === 0) {
       retryAll();
       return;
