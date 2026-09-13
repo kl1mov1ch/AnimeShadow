@@ -290,7 +290,12 @@ function CinematicHeader({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-h-[360px] w-full overflow-hidden rounded-2xl border border-border/60 bg-card sm:min-h-[420px]">
+    // No height of its own — the card below drives it (via the in-flow
+    // content wrapper's min-h), so the photo never runs on past where the
+    // actual content ends. That gap was the "empty space" here: a box
+    // forced to a fixed 360/420px tall regardless of how short the info
+    // card actually was.
+    <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
       <div className="pointer-events-none absolute inset-0">
         {src ? (
           <img
@@ -310,16 +315,17 @@ function CinematicHeader({
         ) : (
           <PosterFallback title={title} seed={seed} />
         )}
-        {/* Fades only the lower portion — the top of the image stays clear so
-            there's a genuine "just the picture" band, not text creeping all
-            the way up it. */}
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card via-card/70 to-transparent" />
+        {/* One even fade across the whole photo, not just its bottom two
+            thirds — the old hard-edged patch under the card was what read as
+            "too dark"; a gentler, full-height gradient gives the same text
+            legibility without crushing the rest of the image. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/35 to-card/5" />
       </div>
-      <div className="relative flex min-h-[360px] flex-col justify-end p-4 sm:min-h-[420px] sm:p-6">
+      <div className="relative flex min-h-[260px] flex-col justify-end p-4 sm:min-h-[300px] sm:p-6">
         {/* Everything the viewer needs to read or click sits on its own
-            solid-ish panel — a bright, busy frame from the show can otherwise
-            wash out plain overlaid text and make buttons hard to pick out. */}
-        <div className="flex flex-col gap-3 rounded-xl bg-background/70 p-4 shadow-lg backdrop-blur-md sm:p-5">
+            panel — lighter than before so the photo still reads through it,
+            while staying solid enough to keep text legible over busy art. */}
+        <div className="flex flex-col gap-3 rounded-xl bg-background/55 p-4 shadow-lg backdrop-blur-md sm:p-5">
           {children}
         </div>
       </div>
@@ -800,7 +806,7 @@ function AdultContentGate() {
 function DetailSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <Skeleton className="h-[320px] w-full rounded-2xl sm:h-[380px]" />
+      <Skeleton className="h-[260px] w-full rounded-2xl sm:h-[300px]" />
       <div className="flex flex-col gap-6 rounded-2xl border border-border/60 p-5">
         <Skeleton className="h-72 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
