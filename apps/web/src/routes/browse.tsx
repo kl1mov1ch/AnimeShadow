@@ -66,7 +66,7 @@ export function Component() {
 
   const { data: genres = [] } = useGenres();
   const browse = useBrowse(params, !isSearch);
-  const search = useSmartSearch(params.q ?? "", isSearch);
+  const search = useSmartSearch(params.q ?? "", isSearch, false);
 
   const patch = useCallback(
     (changes: FilterPatch, opts: { resetPage?: boolean } = {}) => {

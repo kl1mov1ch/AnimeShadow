@@ -16,6 +16,7 @@ import type {
   SmartSearchResponse,
 } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
+import { withTimeout } from "../lib/timeout.js";
 import { detectMood } from "./mood-keywords.js";
 import { isAdultRating, isHentaiRating } from "../lib/content-guard.js";
 
@@ -375,12 +376,4 @@ function buildGroups(candidates: Candidate[]): SearchGroup[] {
   }
 
   return groups;
-}
-
-/** Resolve `p`, or `fallback` if it takes longer than `ms`. */
-function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return Promise.race([
-    p.catch(() => fallback),
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ]);
 }

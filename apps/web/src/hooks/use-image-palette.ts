@@ -86,7 +86,14 @@ export function useImagePalette(url: string | undefined): Palette | null {
 
   useEffect(() => {
     setPalette(null);
-    if (!url) return;
+    // Canvas sampling needs the image served with permissive CORS headers,
+    // which only our own /api/img proxy guarantees (see imageSrc() in
+    // lib/format.ts) — a poster left unproxied (AniList covers/banners,
+    // fetched directly since they don't hotlink-block) would otherwise fail
+    // this crossOrigin fetch every time, as a real network error, not just
+    // a silent canvas taint. Skip the attempt entirely rather than let the
+    // browser log it.
+    if (!url || !url.includes("/api/img")) return;
 
     let cancelled = false;
     const img = new Image();

@@ -84,16 +84,22 @@ export function useGenres() {
   });
 }
 
-export function useSmartSearch(q: string, enabled = true) {
+/**
+ * `fast` (default true) is the header/typeahead mode: title-only, capped
+ * latency. Full search-result pages (browse.tsx) want `fast: false` — the
+ * richer character/studio/mood/synopsis lenses cost more but the visitor
+ * is already committed to a results page, not typing into a dropdown.
+ */
+export function useSmartSearch(q: string, enabled = true, fast = true) {
   const { locale } = useLocale();
   const term = q.trim();
   return useQuery({
-    queryKey: ["search", locale, term],
+    queryKey: ["search", locale, term, fast],
     enabled: enabled && term.length >= 2,
     queryFn: ({ signal }) =>
       apiRequest<SmartSearchResponse>("/search", {
         signal,
-        query: { q: term, lang: locale, fast: true },
+        query: { q: term, lang: locale, fast },
       }),
     placeholderData: (previous) => previous,
     staleTime: 60_000,

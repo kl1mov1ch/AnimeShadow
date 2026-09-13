@@ -35,6 +35,7 @@ import {
 } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
+import { withTimeout } from "../lib/timeout.js";
 import {
   AgeVerificationRequiredError,
   NotFoundError,
@@ -789,13 +790,23 @@ export class CatalogService {
    * name we asked for, is simply left out of the map rather than guessing.
    */
   private async getStudioLogos(studios: string[]): Promise<Record<string, string>> {
-    const entries = await Promise.all(
-      studios.map(async (name) => {
-        const logo = (await this.auxCache.wrap(`studio-logo:${name.toLowerCase()}`, () =>
-          this.lookupStudioLogo(name),
-        )) as string | null;
-        return [name, logo] as const;
-      }),
+    // Hard cap on the whole lookup, not just each Jikan call — JikanClient
+    // serialises every request through one rate-limited queue, so when Jikan
+    // itself is slow/erroring, several studios' worth of retries queue up
+    // one after another and can add tens of seconds. That must never block
+    // the detail page; a missing logo is cosmetic, a stuck page isn't. The
+    // slow lookup keeps running and still populates the cache for next time.
+    const entries = await withTimeout(
+      Promise.all(
+        studios.map(async (name) => {
+          const logo = (await this.auxCache.wrap(`studio-logo:${name.toLowerCase()}`, () =>
+            this.lookupStudioLogo(name),
+          )) as string | null;
+          return [name, logo] as const;
+        }),
+      ),
+      2500,
+      studios.map((name) => [name, null] as const),
     );
     const out: Record<string, string> = {};
     for (const [name, logo] of entries) {
