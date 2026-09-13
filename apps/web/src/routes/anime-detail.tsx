@@ -162,8 +162,11 @@ function AnimeDetailView({ param }: { param: string }) {
 
         {/* Poster alongside everything else, not stacked in a separate
             sidebar below — the header is the one place all of a title's
-            identity (art, name, rating, genres, actions) lives together. */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            identity (art, name, rating, genres, actions) lives together.
+            Top-aligned (not bottom-) so the title sits right under the meta
+            line above it instead of trailing down to the poster's bottom
+            edge, leaving a gap between the two. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="mx-auto w-28 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted shadow-lg sm:mx-0 sm:w-36 lg:w-40">
             <PosterImage src={poster} title={title} seed={data.id} />
           </div>
@@ -318,14 +321,18 @@ function CinematicHeader({
         {/* One even fade across the whole photo, not just its bottom two
             thirds — the old hard-edged patch under the card was what read as
             "too dark"; a gentler, full-height gradient gives the same text
-            legibility without crushing the rest of the image. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/35 to-card/5" />
+            legibility without crushing the rest of the image. Ends in a
+            plain transparent, never a tinted stop — `via-card` on a light
+            theme is a near-white colour, so anything but fully transparent
+            up top reads as a washed-out glare across the image instead of a
+            fade. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/30 to-transparent" />
       </div>
       <div className="relative flex min-h-[260px] flex-col justify-end p-4 sm:min-h-[300px] sm:p-6">
         {/* Everything the viewer needs to read or click sits on its own
             panel — lighter than before so the photo still reads through it,
             while staying solid enough to keep text legible over busy art. */}
-        <div className="flex flex-col gap-3 rounded-xl bg-background/55 p-4 shadow-lg backdrop-blur-md sm:p-5">
+        <div className="flex flex-col gap-3 rounded-xl bg-background/45 p-4 shadow-lg backdrop-blur-md sm:p-5">
           {children}
         </div>
       </div>
