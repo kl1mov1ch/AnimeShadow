@@ -7,6 +7,7 @@ import {
   LogOutIcon,
   MenuIcon,
   MoonStarIcon,
+  ShieldIcon,
   ShuffleIcon,
   SunIcon,
   UserPlusIcon,
@@ -68,7 +69,7 @@ function Wordmark() {
 
 export function SiteHeader() {
   const { t } = useI18n();
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -86,6 +87,9 @@ export function SiteHeader() {
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
     ...(status === "authenticated"
       ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
+      : []),
+    ...(status === "authenticated" && user?.role === "ADMIN"
+      ? [{ to: "/admin", label: t("nav.admin"), end: false, Icon: ShieldIcon }]
       : []),
   ];
 

@@ -1,4 +1,10 @@
 import type {
+  AdminCommentSummary,
+  AdminContentQuery,
+  AdminOverview,
+  AdminReviewSummary,
+  AdminUpdateUserInput,
+  AdminUserSummary,
   AnimeDetail,
   AnimeSummary,
   Character,
@@ -614,5 +620,98 @@ export function useSimilarAnime(animeId: number, enabled = true) {
     queryFn: ({ signal }) =>
       apiRequest<RecommendationResponse>(`/anime/${animeId}/similar`, { signal }),
     staleTime: 5 * 60_000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Admin — all of these hit /admin/*, which the server rejects with 403 for
+// anyone whose role isn't ADMIN (see requireAdmin), so `enabled` is left to
+// the caller to gate on the viewer's own role.
+// ---------------------------------------------------------------------------
+
+export function useAdminOverview(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "overview"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminOverview>("/admin/overview", { signal }),
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminUsers(params: { query?: string; page: number }, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "users", params],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<Paginated<AdminUserSummary>>("/admin/users", {
+        signal,
+        query: { query: params.query, page: params.page },
+      }),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminSetUser() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AdminUpdateUserInput }) =>
+      apiRequest<AdminUserSummary>(`/admin/users/${id}`, {
+        method: "PATCH",
+        body: input,
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "users"] });
+      void client.invalidateQueries({ queryKey: ["admin", "overview"] });
+    },
+  });
+}
+
+type AdminContentParams = Pick<AdminContentQuery, "query" | "animeId"> & { page: number };
+
+export function useAdminComments(params: AdminContentParams, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "comments", params],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<Paginated<AdminCommentSummary>>("/admin/comments", {
+        signal,
+        query: { query: params.query, animeId: params.animeId, page: params.page },
+      }),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminDeleteComment() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<void>(`/admin/comments/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "comments"] });
+    },
+  });
+}
+
+export function useAdminReviews(params: AdminContentParams, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "reviews", params],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<Paginated<AdminReviewSummary>>("/admin/reviews", {
+        signal,
+        query: { query: params.query, animeId: params.animeId, page: params.page },
+      }),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminDeleteReview() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<void>(`/admin/reviews/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "reviews"] });
+    },
   });
 }
