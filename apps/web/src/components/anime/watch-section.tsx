@@ -426,13 +426,33 @@ function Player({
   }, [progress]);
 
   const episodeRecord = progress?.episodes.find((e) => e.episode === episode);
+  // Recording "watched" needs real evidence, not just "this page was open":
+  // a source has to have actually loaded (not still racing/searching), *and*
+  // the player has to be scrolled into view — reading the synopsis or
+  // scrolling through characters with the embed sitting off-screen shouldn't
+  // silently log a session. Toggling `watching` re-triggers each hook's own
+  // flush-and-restart, the same way a tab-hide already does.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry?.isIntersecting ?? false),
+      { threshold: 0.4 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const watching = winnerId != null && inView;
+
   useEpisodeTracking({
     animeId,
     episode,
     seedPosition: episodeRecord?.positionSeconds ?? 0,
-    active: true,
+    active: watching,
   });
-  useWatchSession({ animeId, episode, active: true });
+  useWatchSession({ animeId, episode, active: watching });
   const update = useUpdateProgress(animeId);
 
   // Stall watch for the current race batch — cleared the instant any of them
@@ -519,7 +539,10 @@ function Player({
   };
 
   return (
-    <div className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]">
+    <div
+      ref={containerRef}
+      className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]"
+    >
       {/* Current pick, one line — the episode control lives right in it
           (only for signed-in viewers: nothing persists otherwise, so a
           control that quietly does nothing would just be confusing)
