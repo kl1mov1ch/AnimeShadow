@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
-import { TELEGRAM_BOT_USERNAME, type TelegramAuthData } from "@/lib/telegram-auth";
+import {
+  isTelegramWidgetSupported,
+  TELEGRAM_BOT_USERNAME,
+  type TelegramAuthData,
+} from "@/lib/telegram-auth";
 
 /**
  * Telegram's own widget script replaces this container's contents with a
@@ -7,6 +11,10 @@ import { TELEGRAM_BOT_USERNAME, type TelegramAuthData } from "@/lib/telegram-aut
  * other way, so the script tag itself (with the right data-* attributes) has
  * to be injected directly. `onAuth` is bridged through a global function
  * because that's the only thing `data-onauth="..."` can call.
+ *
+ * Renders nothing at all when `isTelegramWidgetSupported()` says this host
+ * can't work — callers should check the same function before deciding
+ * whether to show a divider/heading around this at all (see login.tsx).
  */
 export function TelegramLoginButton({
   onAuth,
@@ -18,6 +26,7 @@ export function TelegramLoginButton({
   onAuthRef.current = onAuth;
 
   useEffect(() => {
+    if (!isTelegramWidgetSupported()) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -39,5 +48,6 @@ export function TelegramLoginButton({
     };
   }, []);
 
+  if (!isTelegramWidgetSupported()) return null;
   return <div ref={containerRef} className="flex justify-center" />;
 }
