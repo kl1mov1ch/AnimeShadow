@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
 import { RootError } from "@/routes/root-error";
+import { RouteError } from "@/routes/route-error";
 
 function RouteFallback() {
   return (
@@ -16,22 +17,34 @@ function RouteFallback() {
 export const router = createBrowserRouter([
   {
     element: <AppShell />,
+    // Only reached if AppShell itself throws (header/nav/footer included) —
+    // an actual last resort, not the everyday error path below.
     errorElement: <RootError />,
     HydrateFallback: RouteFallback,
     children: [
-      { index: true, lazy: () => import("@/routes/discover") },
-      { path: "browse", lazy: () => import("@/routes/browse") },
-      { path: "genre/:name", lazy: () => import("@/routes/genre-redirect") },
-      { path: "anime/:id", lazy: () => import("@/routes/anime-detail") },
-      { path: "anime/:id/:slug", lazy: () => import("@/routes/anime-detail") },
-      { path: "library", lazy: () => import("@/routes/library") },
-      { path: "profile", lazy: () => import("@/routes/profile") },
-      { path: "profile/:username", lazy: () => import("@/routes/profile") },
-      { path: "about", lazy: () => import("@/routes/about") },
-      { path: "support", lazy: () => import("@/routes/support") },
-      { path: "login", lazy: () => import("@/routes/login") },
-      { path: "register", lazy: () => import("@/routes/register") },
-      { path: "*", lazy: () => import("@/routes/not-found") },
+      {
+        // A pathless boundary: a crash in any one page is caught here and
+        // rendered into AppShell's own <Outlet/>, so the header, nav and
+        // footer stay put and the visitor can still get anywhere else on
+        // the site — the old setup let a single broken page take down the
+        // whole shell along with it.
+        errorElement: <RouteError />,
+        children: [
+          { index: true, lazy: () => import("@/routes/discover") },
+          { path: "browse", lazy: () => import("@/routes/browse") },
+          { path: "genre/:name", lazy: () => import("@/routes/genre-redirect") },
+          { path: "anime/:id", lazy: () => import("@/routes/anime-detail") },
+          { path: "anime/:id/:slug", lazy: () => import("@/routes/anime-detail") },
+          { path: "library", lazy: () => import("@/routes/library") },
+          { path: "profile", lazy: () => import("@/routes/profile") },
+          { path: "profile/:username", lazy: () => import("@/routes/profile") },
+          { path: "about", lazy: () => import("@/routes/about") },
+          { path: "support", lazy: () => import("@/routes/support") },
+          { path: "login", lazy: () => import("@/routes/login") },
+          { path: "register", lazy: () => import("@/routes/register") },
+          { path: "*", lazy: () => import("@/routes/not-found") },
+        ],
+      },
     ],
   },
 ]);
