@@ -3,10 +3,14 @@ import {
   type PrismaClient,
   toSummaryDto,
 } from "@animeshadow/db";
-import type { AnimeSummary, RecommendationResponse } from "@animeshadow/shared";
+import {
+  GENRE_PREFERENCES_MAX_SETS,
+  type AnimeSummary,
+  type RecommendationResponse,
+} from "@animeshadow/shared";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
 import { withContentGuard } from "../lib/content-guard.js";
-import { NotFoundError } from "../lib/errors.js";
+import { BadRequestError, NotFoundError } from "../lib/errors.js";
 
 export interface RecommendationServiceDeps {
   prisma: PrismaClient;
@@ -38,7 +42,42 @@ export class RecommendationService {
     return rows.map((r) => r.genreId);
   }
 
-  async setPreferences(userId: string, genreIds: number[]): Promise<number[]> {
+  /** Genre ids plus how many `setPreferences` calls the account has left —
+   * what the Settings picker actually needs to render itself correctly. */
+  async getPreferencesStatus(
+    userId: string,
+  ): Promise<{ genreIds: number[]; remainingEdits: number }> {
+    const [genreIds, user] = await Promise.all([
+      this.getPreferences(userId),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { genrePreferencesSetCount: true },
+      }),
+    ]);
+    const used = user?.genrePreferencesSetCount ?? 0;
+    return { genreIds, remainingEdits: Math.max(0, GENRE_PREFERENCES_MAX_SETS - used) };
+  }
+
+  /**
+   * Deliberately set-once-plus-one-edit: the initial pick and a single
+   * change of mind, then locked — unlike liked titles (no limit at all),
+   * this is meant to be a settled preference, not something re-rolled every
+   * visit. `getPreferencesStatus` tells the client when it's about to run out.
+   */
+  async setPreferences(
+    userId: string,
+    genreIds: number[],
+  ): Promise<{ genreIds: number[]; remainingEdits: number }> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { genrePreferencesSetCount: true },
+    });
+    if (user.genrePreferencesSetCount >= GENRE_PREFERENCES_MAX_SETS) {
+      throw new BadRequestError(
+        "Любимые жанры уже настроены — доступных изменений больше нет.",
+      );
+    }
+
     const requested = [...new Set(genreIds)];
     // Silently drop anything that isn't a genre we actually know about, rather
     // than 500ing on a foreign-key violation — the picker only ever offers
@@ -62,8 +101,15 @@ export class RecommendationService {
             }),
           ]
         : []),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { genrePreferencesSetCount: { increment: 1 } },
+      }),
     ]);
-    return valid;
+    return {
+      genreIds: valid,
+      remainingEdits: GENRE_PREFERENCES_MAX_SETS - (user.genrePreferencesSetCount + 1),
+    };
   }
 
   /** Titles explicitly picked as "I like this" on the setup page, newest first. */

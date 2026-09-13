@@ -491,16 +491,30 @@ export function useContinueWatching(enabled = true) {
   });
 }
 
-import type { RecommendationResponse } from "@animeshadow/shared";
+import type { GenrePreferences, RecommendationResponse } from "@animeshadow/shared";
 
 export function useGenrePreferences(enabled = true) {
   return useQuery({
     queryKey: ["me", "genre-preferences"],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ genreIds: number[] }>("/me/genre-preferences", { signal }).then(
+      apiRequest<GenrePreferences>("/me/genre-preferences", { signal }).then(
         (r) => r.genreIds,
       ),
+  });
+}
+
+/** Same endpoint as `useGenrePreferences`, unwrapped differently — the
+ * Settings picker needs `remainingEdits` too, to know when to lock itself.
+ * A distinct query key from `useGenrePreferences` on purpose: same URL, but
+ * each hook's queryFn resolves to a different shape, and query keys are
+ * meant to be one shape per key. */
+export function useGenrePreferencesStatus(enabled = true) {
+  return useQuery({
+    queryKey: ["me", "genre-preferences", "status"],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<GenrePreferences>("/me/genre-preferences", { signal }),
   });
 }
 
@@ -508,10 +522,10 @@ export function useSetGenrePreferences() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (genreIds: number[]) =>
-      apiRequest<{ genreIds: number[] }>("/me/genre-preferences", {
+      apiRequest<GenrePreferences>("/me/genre-preferences", {
         method: "PUT",
         body: { genreIds },
-      }).then((r) => r.genreIds),
+      }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["me", "genre-preferences"] });
       void client.invalidateQueries({ queryKey: ["recommendations"] });

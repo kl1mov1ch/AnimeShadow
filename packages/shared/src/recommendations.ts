@@ -1,9 +1,15 @@
 import { z } from "zod";
 import { animeSummarySchema } from "./anime.js";
 
+/** Set-once-plus-one-edit, then locked — see RecommendationService.setPreferences. */
+export const GENRE_PREFERENCES_MAX_SETS = 2;
+
 /** The genres a user has explicitly picked as favourites. */
 export const genrePreferencesSchema = z.object({
   genreIds: z.array(z.number().int()),
+  /** How many more times `PUT /me/genre-preferences` will succeed — 0 means
+   * the picker is locked (the initial pick and its one edit are both used). */
+  remainingEdits: z.number().int().nonnegative(),
 });
 export type GenrePreferences = z.infer<typeof genrePreferencesSchema>;
 

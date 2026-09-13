@@ -12,9 +12,7 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     "/me/genre-preferences",
     { preHandler: fastify.authenticate },
-    async (request) => ({
-      genreIds: await recommendations.getPreferences(request.userId!),
-    }),
+    async (request) => recommendations.getPreferencesStatus(request.userId!),
   );
 
   fastify.put(
@@ -22,11 +20,7 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.authenticate },
     async (request) => {
       const input = parse(setGenrePreferencesInputSchema, request.body);
-      const genreIds = await recommendations.setPreferences(
-        request.userId!,
-        input.genreIds,
-      );
-      return { genreIds };
+      return recommendations.setPreferences(request.userId!, input.genreIds);
     },
   );
 

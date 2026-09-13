@@ -54,7 +54,7 @@ import { useLabels } from "@/lib/labels";
 import {
   useAchievements,
   useDeleteProgress,
-  useGenrePreferences,
+  useGenrePreferencesStatus,
   useGenres,
   useMyProfile,
   useMyProgress,
@@ -1068,49 +1068,93 @@ function TitleEditor({
   );
 }
 
-/** Favourite-genre picker — feeds the home rail and every title's "similar to". */
+/**
+ * Favourite-genre picker — feeds the home rail and every title's "similar
+ * to". Deliberately set-once-plus-one-edit (see RecommendationService):
+ * clicking a chip only ever changes a local draft, never saves by itself —
+ * one "save" click commits the whole draft as a single edit, so picking
+ * five genres costs one edit, not five. Liked titles on /recommendations
+ * have no such limit; only this explicit genre list does.
+ */
 function GenrePreferencesSection() {
+  const t = useT();
   const labels = useLabels();
   const { data: allGenres } = useGenres();
-  const { data: selected } = useGenrePreferences();
+  const { data: status } = useGenrePreferencesStatus();
   const setPrefs = useSetGenrePreferences();
-  const [pending, setPending] = useState<number[] | null>(null);
+  const [draft, setDraft] = useState<number[] | null>(null);
 
-  const active = pending ?? selected ?? [];
+  const saved = status?.genreIds ?? [];
+  const active = draft ?? saved;
+  const remainingEdits = status?.remainingEdits ?? 1; // optimistic default pre-load
+  const locked = remainingEdits <= 0;
+  const dirty = draft != null && !arraysMatchAsSets(draft, saved);
 
   const toggle = (id: number) => {
-    const next = active.includes(id)
-      ? active.filter((g) => g !== id)
-      : [...active, id];
-    setPending(next);
-    setPrefs.mutate(next, {
-      onSettled: () => setPending(null),
-    });
+    if (locked) return;
+    const base = draft ?? saved;
+    setDraft(
+      base.includes(id) ? base.filter((g) => g !== id) : [...base, id],
+    );
+  };
+
+  const save = () => {
+    if (!draft) return;
+    setPrefs.mutate(draft, { onSuccess: () => setDraft(null) });
   };
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {(allGenres ?? []).map((g) => {
-        const on = active.includes(g.id);
-        return (
-          <button
-            key={g.id}
-            type="button"
-            aria-pressed={on}
-            onClick={() => toggle(g.id)}
-            className={cn(
-              "rounded-full border px-2.5 py-1 text-xs transition-colors",
-              on
-                ? "border-primary/50 bg-primary/15 text-primary"
-                : "border-border/60 text-muted-foreground hover:text-foreground",
-            )}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-1.5">
+        {(allGenres ?? []).map((g) => {
+          const on = active.includes(g.id);
+          return (
+            <button
+              key={g.id}
+              type="button"
+              aria-pressed={on}
+              disabled={locked}
+              onClick={() => toggle(g.id)}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                locked && "cursor-not-allowed opacity-50",
+                on
+                  ? "border-primary/50 bg-primary/15 text-primary"
+                  : "border-border/60 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {labels.genreLabel(g.name)}
+            </button>
+          );
+        })}
+      </div>
+
+      {locked ? (
+        <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+          {t("profile.settings.genresLocked")}
+        </p>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            disabled={!dirty || setPrefs.isPending}
+            onClick={save}
           >
-            {labels.genreLabel(g.name)}
-          </button>
-        );
-      })}
+            {t("profile.settings.save")}
+          </Button>
+          <span className="text-[11px] text-muted-foreground/80">
+            {t("profile.settings.genresRemaining", { count: remainingEdits })}
+          </span>
+        </div>
+      )}
     </div>
   );
+}
+
+function arraysMatchAsSets(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every((v) => set.has(v));
 }
 
 /** Center-crop a picked image to a 512px square PNG data URL — no crop lib. */

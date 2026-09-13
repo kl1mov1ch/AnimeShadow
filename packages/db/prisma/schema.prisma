@@ -47,6 +47,11 @@ model User {
   titlePrefix           String?
   /// Icon key for the title above — one of a fixed curated set, not a URL.
   titleIcon             String?
+  /// How many times UserGenrePreference has been written via
+  /// RecommendationService.setPreferences — capped at GENRE_PREFERENCE_MAX_SETS
+  /// (initial pick + one edit), then locked. Liked titles (UserLikedAnime)
+  /// have no such limit; only this explicit genre picker does.
+  genrePreferencesSetCount Int @default(0)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]
