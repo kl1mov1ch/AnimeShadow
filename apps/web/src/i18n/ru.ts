@@ -338,6 +338,7 @@ export const ru: Dict = {
     searching: "Ищем",
     noMatches: "По запросу ничего не нашлось.",
     seeAll: "Показать все результаты по «{query}»",
+    seeMore: "Показать ещё по «{query}»",
     recent: "Недавнее",
     tryMood: "Попробуйте настроение",
     forYou: "Для вас",

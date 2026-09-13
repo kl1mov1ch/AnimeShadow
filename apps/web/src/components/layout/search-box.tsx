@@ -23,6 +23,9 @@ type MatchMap = Map<number, ReadonlyArray<readonly [number, number]>>;
 
 const RECENT_KEY = "animeshadow.recent.v1";
 const RECENT_MAX = 6;
+// Total rows across every result group combined, so the panel never needs
+// its own scrollbar — "see all results" is the way to the rest.
+const MAX_DROPDOWN_RESULTS = 8;
 
 const MOOD_CHIPS: Array<{ ru: string; en: string }> = [
   { ru: "грустное", en: "sad" },
@@ -186,8 +189,11 @@ export function SearchBox() {
         </div>
 
         {open && (
-          <div className="animate-in fade-in-0 zoom-in-95 absolute left-0 right-auto top-full z-50 mt-1.5 w-[min(30rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg duration-150">
-            <CommandList className="max-h-[min(70vh,28rem)]">
+          // Same width as the input right above it, not a fixed size of its
+          // own — a dropdown wider than what it hangs off of read as
+          // visually disconnected from the search box.
+          <div className="animate-in fade-in-0 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg duration-150">
+            <CommandList className="max-h-[min(70vh,26rem)]">
               {!showResults ? (
                 <IdleState
                   recent={recent}
@@ -210,25 +216,42 @@ export function SearchBox() {
                       })}
                     </p>
                   )}
-                  <CommandGroup>
-                    <CommandItem
-                      value="see-all"
-                      onSelect={() => submit(term)}
-                      className="text-primary"
-                    >
-                      <SearchIcon />
-                      {t("search.seeAll", { query: term.trim() })}
-                    </CommandItem>
-                  </CommandGroup>
-                  {data.groups.map((group, index) => (
-                    <ResultGroup
-                      key={`${group.reason}-${index}`}
-                      group={group}
-                      heading={groupHeading(group, t)}
-                      matches={matches}
-                      onSelect={goToAnime}
-                    />
-                  ))}
+                  {/* Capped across every group combined, not 6 per group —
+                      a title match plus a character match plus a mood match
+                      could otherwise add up to more rows than fit without
+                      scrolling. The "see all" action below the list is the
+                      way to the rest, on /browse. */}
+                  {(() => {
+                    const budgeted = budgetGroups(data.groups, MAX_DROPDOWN_RESULTS);
+                    const shown = budgeted.reduce((n, g) => n + g.items.length, 0);
+                    const hasMore = shown < data.flat.length;
+                    return (
+                      <>
+                        {budgeted.map(({ group, items }, index) => (
+                          <ResultGroup
+                            key={`${group.reason}-${index}`}
+                            group={group}
+                            items={items}
+                            heading={groupHeading(group, t)}
+                            matches={matches}
+                            onSelect={goToAnime}
+                          />
+                        ))}
+                        <CommandGroup>
+                          <CommandItem
+                            value="see-all"
+                            onSelect={() => submit(term)}
+                            className="justify-center text-center font-medium text-primary"
+                          >
+                            <SearchIcon />
+                            {hasMore
+                              ? t("search.seeMore", { query: term.trim() })
+                              : t("search.seeAll", { query: term.trim() })}
+                          </CommandItem>
+                        </CommandGroup>
+                      </>
+                    );
+                  })()}
                 </>
               ) : (
                 <CommandEmpty>
@@ -249,8 +272,8 @@ function LoadingRows() {
   return (
     <div className="flex flex-col gap-2 p-3">
       {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="flex gap-3">
-          <Skeleton className="h-16 w-11 rounded-md" />
+        <div key={i} className="flex gap-2.5">
+          <Skeleton className="h-12 w-[34px] rounded-md" />
           <div className="flex flex-1 flex-col gap-1.5 pt-1">
             <Skeleton className="h-3.5 w-2/3" />
             <Skeleton className="h-3 w-1/3" />
@@ -341,27 +364,30 @@ function Chip({
 
 function ResultGroup({
   group,
+  items,
   heading,
   matches,
   onSelect,
 }: {
   group: SearchGroup;
+  items: AnimeSummary[];
   heading: string;
   matches: MatchMap;
   onSelect: (anime: AnimeSummary) => void;
 }) {
   const labels = useLabels();
+  if (items.length === 0) return null;
   return (
     <CommandGroup heading={heading}>
-      {group.items.slice(0, 6).map((anime, i) => (
+      {items.map((anime, i) => (
         <CommandItem
           key={anime.id}
           value={`${group.reason}-${anime.id}`}
           onSelect={() => onSelect(anime)}
-          className="animate-in fade-in slide-in-from-top-1 gap-3 py-2 duration-200"
+          className="animate-in fade-in slide-in-from-top-1 gap-2.5 py-1.5 duration-200"
           style={{ animationDelay: `${i * 22}ms` }}
         >
-          <span className="h-16 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
+          <span className="h-12 w-[34px] shrink-0 overflow-hidden rounded-md bg-muted">
             {anime.imageUrl && (
               <img
                 src={imageSrc(anime.imageUrl)}
@@ -387,6 +413,24 @@ function ResultGroup({
       ))}
     </CommandGroup>
   );
+}
+
+/** Caps the TOTAL item count across every group combined (title, character,
+ * mood, synopsis reasons can each contribute a group) so the dropdown always
+ * shows a fixed, no-scroll handful — the rest lives behind "see all results". */
+function budgetGroups(
+  groups: SearchGroup[],
+  max: number,
+): Array<{ group: SearchGroup; items: AnimeSummary[] }> {
+  let remaining = max;
+  const out: Array<{ group: SearchGroup; items: AnimeSummary[] }> = [];
+  for (const group of groups) {
+    if (remaining <= 0) break;
+    const items = group.items.slice(0, remaining);
+    remaining -= items.length;
+    out.push({ group, items });
+  }
+  return out;
 }
 
 function Highlighted({

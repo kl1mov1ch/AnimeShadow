@@ -337,6 +337,7 @@ export const en = {
     searching: "Searching",
     noMatches: "Nothing found for that.",
     seeAll: "See all results for “{query}”",
+    seeMore: "See more for “{query}”",
     recent: "Recent",
     tryMood: "Try a vibe",
     forYou: "For you",
