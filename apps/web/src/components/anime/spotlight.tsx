@@ -169,7 +169,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
   return (
-    <div className="reveal-group relative z-10 flex flex-col gap-2.5 p-4 sm:h-full sm:max-w-2xl sm:justify-end sm:gap-4 sm:p-10 sm:pb-20">
+    <div className="reveal-group relative z-10 flex flex-col gap-2.5 p-4 sm:h-full sm:max-w-2xl sm:justify-end sm:gap-3 sm:px-10 sm:pt-8 sm:pb-20">
       <div
         className="reveal flex items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm"
         style={step(0)}
@@ -183,8 +183,14 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
         )}
       </div>
 
+      {/* Sized (and clamped below) so the whole column reliably fits the
+          box's height on any real viewport — this was the actual cause of
+          text looking "cut off": the content was taller than the box, and
+          growing from a bottom anchor means the overflow clips upward,
+          straight through the title. Smaller text and a shorter synopsis
+          clamp free up enough height that it no longer happens. */}
       <h1
-        className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-4xl sm:leading-[1.1] lg:text-5xl"
+        className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-3xl sm:leading-[1.15] lg:text-4xl"
         style={step(1)}
       >
         {title}
@@ -205,7 +211,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
           making text collide with the button row and the nav dots below. */}
       {anime.synopsis && (
         <p
-          className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/90 sm:line-clamp-3 sm:block"
+          className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/90 sm:line-clamp-2 sm:block"
           style={step(3)}
         >
           {anime.synopsis}
