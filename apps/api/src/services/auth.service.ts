@@ -83,6 +83,7 @@ export class AuthService {
           displayName: input.displayName,
           passwordHash,
           avatarUrl,
+          referrer: input.referrer || null,
           // Open-testing mode: new accounts get PRO on by default, but they
           // can switch it off in Settings to see the free experience.
           ...(this.proForAll ? { proSince: new Date() } : {}),

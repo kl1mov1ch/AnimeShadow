@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { isTelegramLoginSupported, type TelegramAuthData } from "@/lib/telegram-auth";
+import { getFirstTouchReferrer } from "@/lib/visitor";
 
 type FieldName = "displayName" | "email" | "password";
 type Errors = Partial<Record<FieldName | "form", string>>;
@@ -45,6 +46,7 @@ export function Component() {
       displayName: String(form.get("displayName") ?? ""),
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
+      referrer: getFirstTouchReferrer() || undefined,
     };
 
     const parsed = registerInputSchema.safeParse(input);

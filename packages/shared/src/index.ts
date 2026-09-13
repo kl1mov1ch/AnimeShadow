@@ -13,6 +13,8 @@ export * from "./achievements.js";
 export * from "./comments.js";
 export * from "./profile.js";
 export * from "./recommendations.js";
+export * from "./analytics.js";
+export * from "./admin.js";
 
 const DIACRITICS = /[̀-ͯ]/g;
 const NON_SLUG = /[^a-z0-9]+/g;

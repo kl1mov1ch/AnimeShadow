@@ -13,6 +13,9 @@ export const registerInputSchema = z.object({
     .trim()
     .min(2, "Pick a name with at least 2 characters")
     .max(40, "Keep your name under 40 characters"),
+  /// First-touch `document.referrer`, captured client-side (lib/visitor.ts)
+  /// — feeds the admin "where users came from" report. Never required.
+  referrer: z.string().trim().max(500).optional(),
 });
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 

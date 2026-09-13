@@ -5,11 +5,13 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { usePageviewBeacon } from "@/hooks/use-pageview-beacon";
 
 export function AppShell() {
   // Re-key the outlet per top-level path so the .route-fade animation replays.
   const { pathname } = useLocation();
   const routeKey = pathname.split("/").slice(0, 3).join("/");
+  usePageviewBeacon();
 
   return (
     <TooltipProvider delayDuration={200}>
