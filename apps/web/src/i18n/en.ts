@@ -490,6 +490,10 @@ export const en = {
       stoppedAt: "Stopped at {time} of episode {ep}",
       untilEnd: "To end of episode: {time}",
       markWatched: "Mark episode as watched",
+      delete: "Remove from history",
+      deleteTitle: "Remove from watch history?",
+      deleteBody: "\"{title}\" will disappear from your progress and history. You can always get it back by just watching it again.",
+      deleted: "Removed from watch history",
     },
     summary: {
       totalEpisodes: "Total episodes",

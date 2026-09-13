@@ -27,6 +27,16 @@ export const progressRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  fastify.delete(
+    "/anime/:id/progress",
+    { preHandler: fastify.authenticate },
+    async (request, reply) => {
+      const { id } = parse(idParams, request.params);
+      await progress.remove(request.userId!, id);
+      reply.code(204);
+    },
+  );
+
   fastify.get(
     "/me/continue",
     { preHandler: fastify.authenticate },

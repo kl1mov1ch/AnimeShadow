@@ -599,7 +599,11 @@ function Player({
         </div>
       )}
 
-      <div className="relative aspect-video overflow-hidden rounded-xl border bg-black">
+      {/* Bleeds past the page's own side padding on mobile — the actual
+          video is what benefits from real size on a small screen; the
+          controls above/below it stay comfortably padded. Desktop keeps its
+          rounded corners since there's no width to gain there anyway. */}
+      <div className="relative -mx-5 aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl">
         {racePool.map((id) => {
           const source = data.sources.find((s) => s.id === id);
           if (!source) return null;

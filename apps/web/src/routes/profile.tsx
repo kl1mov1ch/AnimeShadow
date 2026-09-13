@@ -52,6 +52,7 @@ import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
   useAchievements,
+  useDeleteProgress,
   useGenrePreferences,
   useGenres,
   useMyProfile,
@@ -447,6 +448,7 @@ function SectionHeading({ title, hint }: { title: string; hint?: string }) {
 function ProgressTab({ stats }: { stats: ProfileStats }) {
   const t = useT();
   const { data, isPending } = useMyProgress();
+  const deleteProgress = useDeleteProgress();
   const rows = data ?? [];
 
   return (
@@ -467,7 +469,19 @@ function ProgressTab({ stats }: { stats: ProfileStats }) {
         ) : (
           <div className="flex flex-col gap-3">
             {rows.map((row) => (
-              <ProgressRow key={row.animeId} row={row} />
+              <ProgressRow
+                key={row.animeId}
+                row={row}
+                deleting={
+                  deleteProgress.isPending && deleteProgress.variables === row.animeId
+                }
+                onDelete={() =>
+                  deleteProgress.mutate(row.animeId, {
+                    onSuccess: () => toast.success(t("profile.progressCard.deleted")),
+                    onError: () => toast.error(t("errors.genericTitle")),
+                  })
+                }
+              />
             ))}
           </div>
         )}

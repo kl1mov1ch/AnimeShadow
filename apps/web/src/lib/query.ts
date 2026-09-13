@@ -346,6 +346,20 @@ export function useUpdateProgress(animeId: number) {
   });
 }
 
+/** Forgets a title entirely — every episode's progress and watch session for it. */
+export function useDeleteProgress() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (animeId: number) =>
+      apiRequest<void>(`/anime/${animeId}/progress`, { method: "DELETE" }),
+    onSuccess: (_data, animeId) => {
+      client.removeQueries({ queryKey: ["anime", animeId, "progress"] });
+      void client.invalidateQueries({ queryKey: ["me", "progress"] });
+      void client.invalidateQueries({ queryKey: ["me", "continue"] });
+    },
+  });
+}
+
 export function useAchievements(enabled = true) {
   return useQuery({
     queryKey: ["me", "achievements"],

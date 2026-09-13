@@ -100,6 +100,20 @@ export class ProgressService {
     };
   }
 
+  /**
+   * Removes a title from watch history entirely — every per-episode progress
+   * row and every raw watch-session event for it, not just the summary row
+   * the profile shows. Leaving the sessions behind would let the title creep
+   * back into "continue watching" or trending-engagement scoring even after
+   * the user explicitly asked to forget it.
+   */
+  async remove(userId: string, animeId: number): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.watchProgress.deleteMany({ where: { userId, animeId } }),
+      this.prisma.watchSession.deleteMany({ where: { userId, animeId } }),
+    ]);
+  }
+
   async continueWatching(userId: string, limit = 20): Promise<ContinueWatchingItem[]> {
     const rows = await this.prisma.watchProgress.findMany({
       where: { userId },

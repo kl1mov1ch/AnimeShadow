@@ -1,7 +1,9 @@
 import type { ProgressDetail } from "@animeshadow/shared";
-import { PlayCircleIcon } from "lucide-react";
+import { PlayCircleIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
@@ -23,9 +25,23 @@ export function mmss(seconds: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** One line of real watch progress — poster, title, progress bar, resume point. */
-export function ProgressRow({ row }: { row: ProgressDetail }) {
+/**
+ * One line of real watch progress — poster, title, progress bar, resume
+ * point. `onDelete`, when given, adds a trash button that forgets the title
+ * entirely (its own confirm dialog — the caller just gets a callback once
+ * the user actually confirms).
+ */
+export function ProgressRow({
+  row,
+  onDelete,
+  deleting,
+}: {
+  row: ProgressDetail;
+  onDelete?: () => void;
+  deleting?: boolean;
+}) {
   const t = useT();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const total = row.episodesTotal ?? 0;
   const percent = total > 0 ? Math.round((row.episode / total) * 100) : 0;
   const remaining =
@@ -60,11 +76,24 @@ export function ProgressRow({ row }: { row: ProgressDetail }) {
           >
             {row.title}
           </Link>
-          {row.status && (
-            <span className="shrink-0 rounded-md border border-border/60 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-              {t(`status.${row.status}`)}
-            </span>
-          )}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {row.status && (
+              <span className="rounded-md border border-border/60 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {t(`status.${row.status}`)}
+              </span>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                aria-label={t("profile.progressCard.delete")}
+                disabled={deleting}
+                onClick={() => setConfirmDelete(true)}
+                className="flex size-6 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Trash2Icon className="size-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -106,6 +135,17 @@ export function ProgressRow({ row }: { row: ProgressDetail }) {
           )}
         </div>
       </div>
+
+      {onDelete && (
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={t("profile.progressCard.deleteTitle")}
+          description={t("profile.progressCard.deleteBody", { title: row.title })}
+          pending={deleting}
+          onConfirm={onDelete}
+        />
+      )}
     </article>
   );
 }
