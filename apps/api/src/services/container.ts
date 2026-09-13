@@ -7,6 +7,7 @@ import { ShikimoriClient } from "@animeshadow/shikimori";
 import { join } from "node:path";
 import type { FastifyBaseLogger } from "fastify";
 import { AchievementService } from "./achievement.service.js";
+import { AdminService } from "./admin.service.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
@@ -57,6 +58,7 @@ export interface Services {
   achievements: AchievementService;
   recommendations: RecommendationService;
   analytics: AnalyticsService;
+  admin: AdminService;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -140,6 +142,7 @@ export function createServices(deps: ContainerDeps): Services {
 
   const recommendations = new RecommendationService({ prisma: deps.prisma });
   const analytics = new AnalyticsService({ prisma: deps.prisma });
+  const admin = new AdminService({ prisma: deps.prisma });
 
   return {
     catalog,
@@ -154,5 +157,6 @@ export function createServices(deps: ContainerDeps): Services {
     achievements,
     recommendations,
     analytics,
+    admin,
   };
 }

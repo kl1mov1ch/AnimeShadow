@@ -13,6 +13,7 @@ import { AppError } from "./lib/errors.js";
 import authPlugin from "./plugins/auth.js";
 import prismaPlugin from "./plugins/prisma.js";
 import servicesPlugin from "./plugins/services.js";
+import { adminRoutes } from "./routes/admin.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { animeRoutes } from "./routes/anime.js";
 import { authRoutes } from "./routes/auth.js";
@@ -169,6 +170,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(recommendationRoutes);
       await api.register(funRoutes);
       await api.register(analyticsRoutes);
+      await api.register(adminRoutes);
     },
     { prefix: "/api" },
   );
