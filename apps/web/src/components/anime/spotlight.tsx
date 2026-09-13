@@ -81,10 +81,11 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
       {/* Mobile: image and text are two separate blocks, stacked — the image
           keeps its own real aspect ratio (object-cover barely has to crop
           it), text sits below on the card's own background. Desktop: the
-          classic overlay, a fixed-height box with text on top of the photo —
-          that's never had a cropping problem, wide screen matches a wide
-          banner reasonably well. */}
-      <div className="flex flex-col sm:relative sm:block sm:h-[56vh] lg:h-[62vh]">
+          classic overlay, a fixed-height box with text on top of the photo.
+          No synopsis in this box any more — that's what kept overlapping
+          the title at every clamp length tried — so the remaining content
+          (title, meta, genres, actions) has plenty of headroom here. */}
+      <div className="flex flex-col sm:relative sm:block sm:h-[380px] lg:h-[420px]">
         <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto sm:h-full sm:w-full">
           {heroImg ? (
             <img
@@ -183,12 +184,6 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
         )}
       </div>
 
-      {/* Sized (and clamped below) so the whole column reliably fits the
-          box's height on any real viewport — this was the actual cause of
-          text looking "cut off": the content was taller than the box, and
-          growing from a bottom anchor means the overflow clips upward,
-          straight through the title. Smaller text and a shorter synopsis
-          clamp free up enough height that it no longer happens. */}
       <h1
         className="reveal line-clamp-2 font-display text-xl leading-[1.15] [overflow-wrap:anywhere] sm:text-2xl sm:leading-[1.15] lg:text-3xl"
         style={step(1)}
@@ -205,21 +200,13 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
         {episodes && <span>{episodes}</span>}
       </div>
 
-      {/* Synopsis and genres are the first things cut on a phone — the
-          title/rating/actions are what someone actually needs to decide
-          "watch this", and cramming everything in is exactly what was
-          making text collide with the button row and the nav dots below. */}
-      {anime.synopsis && (
-        <p
-          className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/90 sm:line-clamp-1 sm:block"
-          style={step(3)}
-        >
-          {anime.synopsis}
-        </p>
-      )}
+      {/* No synopsis here any more — at any clamp it kept fighting the fixed
+          box height for space and winning by pushing into the title above
+          it. The full synopsis is one click away on the title's own page;
+          this slide's job is just to get someone to click. */}
 
       {anime.genresDetailed.length > 0 && (
-        <div className="reveal hidden flex-wrap gap-1.5 sm:flex" style={step(4)}>
+        <div className="reveal hidden flex-wrap gap-1.5 sm:flex" style={step(3)}>
           {anime.genresDetailed.slice(0, 3).map((g) => (
             <Link key={g.id} to={`/browse?genres=${g.id}`}>
               <Badge variant="outline" className="hover:border-primary/50">
@@ -230,7 +217,7 @@ function SlideContent({ anime }: { anime: AnimeDetail }) {
         </div>
       )}
 
-      <div className="reveal mt-1 flex flex-wrap items-center gap-2 sm:gap-3" style={step(5)}>
+      <div className="reveal mt-1 flex flex-wrap items-center gap-2 sm:gap-3" style={step(4)}>
         <Button asChild size="lg">
           <Link to={animeHref(anime)}>
             <PlayIcon className="size-4 fill-current" />
@@ -277,7 +264,7 @@ export function SpotlightSkeleton() {
     <div className="flex flex-col gap-3 sm:block">
       <Skeleton className="aspect-video w-full rounded-2xl sm:hidden" />
       <Skeleton className="h-40 w-full rounded-2xl sm:hidden" />
-      <Skeleton className="hidden rounded-2xl sm:block sm:h-[56vh] lg:h-[62vh]" />
+      <Skeleton className="hidden rounded-2xl sm:block sm:h-[380px] lg:h-[420px]" />
     </div>
   );
 }
