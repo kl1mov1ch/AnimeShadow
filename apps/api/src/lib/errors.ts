@@ -67,3 +67,13 @@ export class AgeVerificationRequiredError extends AppError {
     super(403, "AGE_VERIFICATION_REQUIRED", message);
   }
 }
+
+/** A verification code (email confirm / password reset) that's wrong,
+ * expired, already used, or has been guessed too many times — distinct from
+ * a generic 400 so the frontend can keep the form open with a clear inline
+ * message instead of a dead-end error page. */
+export class InvalidCodeError extends AppError {
+  constructor(message = "That code is wrong or has expired.") {
+    super(400, "INVALID_CODE", message);
+  }
+}

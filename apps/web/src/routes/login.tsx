@@ -123,6 +123,13 @@ export function Component() {
           )}
         </AuthField>
 
+        <Link
+          to="/forgot-password"
+          className="-mt-3 self-end text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-primary"
+        >
+          {t("auth.forgotPassword")}
+        </Link>
+
         <SubmitButton pending={pending}>{t("auth.signInCta")}</SubmitButton>
       </form>
 

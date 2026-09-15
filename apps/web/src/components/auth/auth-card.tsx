@@ -150,7 +150,6 @@ export function PasswordInput(props: ComponentProps<"input">) {
         onClick={() => setShown((s) => !s)}
         aria-label={shown ? t("auth.hidePassword") : t("auth.showPassword")}
         className="absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-        tabIndex={-1}
       >
         {shown ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
       </button>

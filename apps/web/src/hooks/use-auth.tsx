@@ -30,7 +30,12 @@ interface AuthContextValue {
   status: AuthStatus;
   user: PublicUser | null;
   login: (input: LoginInput) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  /** Step 1 of signup — emails a code. No session changes: nobody is
+   * created or signed in until `confirmRegistration` succeeds. */
+  requestRegistration: (input: RegisterInput) => Promise<void>;
+  /** Step 2 — the code was right, the account now actually exists, and this
+   * applies the session exactly like `login` does. */
+  confirmRegistration: (email: string, code: string) => Promise<void>;
   loginWithTelegram: (data: TelegramAuthData) => Promise<void>;
   logout: () => void;
   /** Patch the cached user (e.g. after an avatar/name change) without a full re-login. */
@@ -116,11 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySession],
   );
 
-  const register = useCallback(
-    async (input: RegisterInput) => {
-      const res = await apiRequest<AuthResponse>("/auth/register", {
+  const requestRegistration = useCallback(async (input: RegisterInput) => {
+    // 202, empty body — no session to apply. See AuthService.requestRegistration.
+    await apiRequest<void>("/auth/register", { method: "POST", body: input });
+  }, []);
+
+  const confirmRegistration = useCallback(
+    async (email: string, code: string) => {
+      const res = await apiRequest<AuthResponse>("/auth/register/confirm", {
         method: "POST",
-        body: input,
+        body: { email, code },
       });
       applySession({ v: 1, token: res.token, user: res.user });
     },
@@ -143,12 +153,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       user,
       login,
-      register,
+      requestRegistration,
+      confirmRegistration,
       loginWithTelegram,
       logout: clearSession,
       updateUser,
     }),
-    [status, user, login, register, loginWithTelegram, clearSession, updateUser],
+    [
+      status,
+      user,
+      login,
+      requestRegistration,
+      confirmRegistration,
+      loginWithTelegram,
+      clearSession,
+      updateUser,
+    ],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
@@ -158,7 +178,8 @@ const FALLBACK_AUTH: AuthContextValue = {
   status: "anonymous",
   user: null,
   login: async () => {},
-  register: async () => {},
+  requestRegistration: async () => {},
+  confirmRegistration: async () => {},
   loginWithTelegram: async () => {},
   logout: () => {},
   updateUser: () => {},

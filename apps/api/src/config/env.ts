@@ -72,6 +72,21 @@ const envSchema = z.object({
     z.string().optional(),
   ),
 
+  // ---- Transactional email (Resend: https://resend.com) — signup
+  // verification codes and password reset codes. Optional: with no key set,
+  // codes are logged to the console instead of emailed (see EmailService).
+  RESEND_API_KEY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().optional(),
+  ),
+  EMAIL_FROM: z.string().default("AnimeShadow <onboarding@resend.dev>"),
+  // Public origin of the web app, for the one-click links inside emails.
+  APP_URL: z
+    .string()
+    .url()
+    .default("http://localhost:5173")
+    .transform((value) => value.replace(/\/+$/, "")),
+
   // Comma-separated emails that get promoted to the "ADMIN" role the next
   // time they log in / load /auth/me — see AuthService.ensureAdminRole.
   // No manual SQL needed to bootstrap the first admin account.
@@ -84,6 +99,13 @@ const envSchema = z.object({
         .map((email) => email.trim().toLowerCase())
         .filter(Boolean),
     ),
+
+  // ---- Prometheus /metrics — empty = open (fine for local dev; set this in
+  // production and scrape with a matching Authorization: Bearer header).
+  METRICS_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

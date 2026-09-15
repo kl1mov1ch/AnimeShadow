@@ -33,6 +33,11 @@ export default fp(
       },
       telegramBotToken: env.TELEGRAM_BOT_TOKEN,
       adminEmails: env.ADMIN_EMAILS,
+      email: {
+        apiKey: env.RESEND_API_KEY,
+        from: env.EMAIL_FROM,
+        appUrl: env.APP_URL,
+      },
     });
     fastify.decorate("services", services);
   },

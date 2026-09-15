@@ -49,6 +49,17 @@ export const publicUserSchema = z.object({
   avatarUrl: z.string().nullable().default(null),
   createdAt: z.string(),
   role: roleSchema.default("USER"),
+  /// Every account created through normal signup already confirmed a code
+  /// before it existed at all (see confirmRegistrationInputSchema below), so
+  /// this is `true` from the very first moment it's visible to the client.
+  /// Kept as a field (rather than removed) for accounts created before that
+  /// was true, and for Telegram sign-in, which has no inbox to confirm.
+  emailVerified: z.boolean().default(false),
+  /// True for an account created/linked via "Sign in with Telegram" — it has
+  /// no real password behind it (see AuthService.loginWithTelegram), so the
+  /// frontend skips asking for one anywhere a password would normally be
+  /// required to confirm identity (e.g. deleting the account).
+  isTelegramLinked: z.boolean().default(false),
 });
 export type PublicUser = z.infer<typeof publicUserSchema>;
 
@@ -57,3 +68,55 @@ export const authResponseSchema = z.object({
   user: publicUserSchema,
 });
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Email verification (at signup) and password reset — both a 6-digit code
+// emailed to the account, entered back within a short window.
+// ---------------------------------------------------------------------------
+
+export const verificationCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, "Enter the 6-digit code");
+
+export const verifyEmailInputSchema = z.object({
+  code: verificationCodeSchema,
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailInputSchema>;
+
+export const forgotPasswordInputSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordInputSchema>;
+
+export const resetPasswordInputSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+  code: verificationCodeSchema,
+  password: passwordSchema,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Signup confirmation — the code sent by `registerInputSchema`'s endpoint.
+// No account exists yet at this point (see AuthService.requestRegistration),
+// so these carry the email explicitly rather than relying on a bearer token.
+// ---------------------------------------------------------------------------
+
+export const confirmRegistrationInputSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+  code: verificationCodeSchema,
+});
+export type ConfirmRegistrationInput = z.infer<typeof confirmRegistrationInputSchema>;
+
+export const resendRegistrationInputSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+});
+export type ResendRegistrationInput = z.infer<typeof resendRegistrationInputSchema>;
+
+export const deleteAccountInputSchema = z.object({
+  /// Empty for a Telegram-only account, which has no real password behind
+  /// it (see AuthService.deleteAccount) — the field still has to be present
+  /// in the request shape, just permitted to be blank in that one case.
+  password: z.string(),
+});
+export type DeleteAccountInput = z.infer<typeof deleteAccountInputSchema>;

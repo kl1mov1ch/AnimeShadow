@@ -23,7 +23,7 @@ type Errors = Partial<Record<FieldName | "form", string>>;
 
 export function Component() {
   const t = useT();
-  const { register, loginWithTelegram } = useAuth();
+  const { requestRegistration, loginWithTelegram } = useAuth();
   const navigate = useNavigate();
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
@@ -64,8 +64,10 @@ export function Component() {
     setErrors({});
     setPending(true);
     try {
-      await register(parsed.data);
-      navigate("/library", { replace: true });
+      await requestRegistration(parsed.data);
+      // No account exists yet and nobody's signed in — the code just
+      // emailed is what actually creates it. See AuthService.confirmRegistration.
+      navigate("/verify-email", { state: { email: parsed.data.email }, replace: true });
     } catch (error) {
       if (error instanceof ApiRequestError) {
         setErrors({

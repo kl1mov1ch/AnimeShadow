@@ -68,6 +68,9 @@ model User {
   /// lib/visitor.ts) — feeds the admin "where did users come from" report.
   /// Null for accounts created before this existed.
   referrer      String?
+  /// Set once the signup verification code is confirmed. Purely informational
+  /// today — nothing in the app gates on it — see AuthService.verifyEmail.
+  emailVerifiedAt DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]
@@ -80,6 +83,51 @@ model User {
   genrePrefs    UserGenrePreference[]
   likedAnime    UserLikedAnime[]
   pageViews     PageView[]
+  verificationCodes VerificationCode[]
+}
+
+enum VerificationPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+/// A 6-digit code emailed to a user, for either confirming a new account or
+/// authorising a password reset. Only the salted hash is stored — a DB dump
+/// alone can't be used to complete either flow. `attempts` caps guessing: a
+/// code is dead (must be re-requested) after too many wrong tries, well
+/// before brute-forcing 10^6 combinations becomes remotely feasible.
+model VerificationCode {
+  id         String              @id @default(cuid())
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  purpose    VerificationPurpose
+  codeHash   String
+  attempts   Int                 @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime            @default(now())
+
+  // The active-code lookup for a (user, purpose) pair — issuing a new code
+  // invalidates the rest, so at most one is ever unconsumed at a time.
+  @@index([userId, purpose])
+}
+
+/// A signup that hasn't confirmed its email code yet — no `User` row exists
+/// until it does (see AuthService.confirmRegistration). Holds everything
+/// needed to create the account at that point: the password is hashed
+/// already (never stored plain), so the only thing a DB dump exposes is the
+/// same bcrypt hash a real account would have anyway. One row per email —
+/// resubmitting the signup form just reissues the code onto the same row.
+model PendingRegistration {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String
+  passwordHash String
+  referrer    String?
+  codeHash    String
+  attempts    Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
 }
 
 /** Genres a user explicitly picked as favourites — feeds their recommendations. */

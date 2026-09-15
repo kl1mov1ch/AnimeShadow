@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Prisma, type PrismaClient, type User } from "@animeshadow/db";
 import type {
@@ -9,8 +9,22 @@ import type {
   TelegramAuthInput,
 } from "@animeshadow/shared";
 import bcrypt from "bcryptjs";
-import { BadRequestError, ConflictError, UnauthorizedError } from "../lib/errors.js";
+import {
+  BadRequestError,
+  ConflictError,
+  InvalidCodeError,
+  UnauthorizedError,
+} from "../lib/errors.js";
+import { accountsDeletedTotal, loginsTotal, registrationsTotal } from "../lib/metrics.js";
 import { fetchReactionGif, randomReactionCategory } from "../lib/reaction-gif.js";
+import {
+  generateCode,
+  hashCode,
+  MAX_VERIFICATION_ATTEMPTS,
+  RESEND_COOLDOWN_SECONDS,
+  VERIFICATION_CODE_TTL_MINUTES,
+} from "../lib/verification-code.js";
+import type { EmailService } from "./email.service.js";
 
 /** A generated character-style avatar — the fallback when nekos.best is
  * unreachable at signup, so a slow/down third party can never be the reason
@@ -52,6 +66,7 @@ export interface AuthServiceDeps {
   /** Lowercased emails that get promoted to ADMIN the next time they log in
    * or load /auth/me — see ensureAdminRole. Empty = no bootstrap admin. */
   adminEmails?: string[];
+  email: EmailService;
 }
 
 export class AuthService {
@@ -60,6 +75,7 @@ export class AuthService {
   private readonly uploadsDir: string;
   private readonly telegramBotToken?: string | undefined;
   private readonly adminEmails: string[];
+  private readonly email: EmailService;
 
   constructor(deps: AuthServiceDeps) {
     this.prisma = deps.prisma;
@@ -67,38 +83,146 @@ export class AuthService {
     this.uploadsDir = deps.uploadsDir;
     this.telegramBotToken = deps.telegramBotToken;
     this.adminEmails = deps.adminEmails ?? [];
+    this.email = deps.email;
   }
 
-  async register(input: RegisterInput): Promise<PublicUser> {
-    // Independent of each other — run concurrently so the nekos.best call
-    // doesn't add its own latency on top of the hash.
-    const [passwordHash, avatarUrl] = await Promise.all([
+  /**
+   * Step 1 of signup: no `User` row is created yet. The submitted details
+   * (password already hashed — never held plain, not even in memory longer
+   * than this call needs) are parked in `PendingRegistration` and a code is
+   * emailed; the account itself is only created once that code comes back
+   * (see `confirmRegistration`). This is deliberate: an email address isn't
+   * proven reachable, let alone owned by the person typing it, until they
+   * can produce a code that was sent to it — so nothing should exist, and
+   * nobody should be signed in, before that happens.
+   */
+  async requestRegistration(input: RegisterInput): Promise<void> {
+    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
+    if (existing) {
+      throw new ConflictError("An account with that email already exists.");
+    }
+
+    const pending = await this.prisma.pendingRegistration.findUnique({
+      where: { email: input.email },
+    });
+    if (pending && this.issuedAt(pending).getTime() > Date.now() - RESEND_COOLDOWN_SECONDS * 1000) {
+      return; // a very recent code already went out — absorbed silently
+    }
+
+    const [passwordHash, code] = await Promise.all([
       bcrypt.hash(input.password, BCRYPT_ROUNDS),
-      defaultAvatarUrl(),
+      Promise.resolve(generateCode()),
     ]);
-    try {
-      const user = await this.prisma.user.create({
-        data: {
-          email: input.email,
-          displayName: input.displayName,
-          passwordHash,
-          avatarUrl,
-          referrer: input.referrer || null,
-          // Open-testing mode: new accounts get PRO on by default, but they
-          // can switch it off in Settings to see the free experience.
-          ...(this.proForAll ? { proSince: new Date() } : {}),
-        },
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MINUTES * 60_000);
+
+    await this.prisma.pendingRegistration.upsert({
+      where: { email: input.email },
+      create: {
+        email: input.email,
+        displayName: input.displayName,
+        passwordHash,
+        referrer: input.referrer || null,
+        codeHash: hashCode(code),
+        expiresAt,
+      },
+      update: {
+        displayName: input.displayName,
+        passwordHash,
+        referrer: input.referrer || null,
+        codeHash: hashCode(code),
+        attempts: 0,
+        expiresAt,
+      },
+    });
+
+    await this.email.sendVerificationCode(input.email, input.displayName, code);
+  }
+
+  /**
+   * Step 2: the code is right — *now* the account is actually created, from
+   * exactly what was parked in step 1, and the caller is signed in for the
+   * first time. Wrong/expired/attempts-exhausted all fail identically
+   * (InvalidCodeError), same reasoning as `consumeCode` below.
+   */
+  async confirmRegistration(email: string, code: string): Promise<PublicUser> {
+    const pending = await this.prisma.pendingRegistration.findUnique({ where: { email } });
+    if (!pending || pending.expiresAt < new Date()) throw new InvalidCodeError();
+    if (pending.attempts >= MAX_VERIFICATION_ATTEMPTS) throw new InvalidCodeError();
+
+    if (pending.codeHash !== hashCode(code)) {
+      await this.prisma.pendingRegistration.update({
+        where: { email },
+        data: { attempts: { increment: 1 } },
       });
-      return toPublicUser(await this.ensureAdminRole(user));
+      throw new InvalidCodeError();
+    }
+
+    const avatarUrl = await defaultAvatarUrl();
+    let user: User;
+    try {
+      user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            email: pending.email,
+            displayName: pending.displayName,
+            passwordHash: pending.passwordHash,
+            avatarUrl,
+            referrer: pending.referrer,
+            // They just proved they own the inbox — that's exactly what
+            // "verified" means; nothing left to confirm after this.
+            emailVerifiedAt: new Date(),
+            ...(this.proForAll ? { proSince: new Date() } : {}),
+          },
+        });
+        // Same row this transaction read — a concurrent confirm on the same
+        // email would already have deleted it, and Prisma throws (P2025) on
+        // a delete that matches nothing, which is exactly "someone beat us
+        // to it" and belongs in the outer catch below, not swallowed here.
+        await tx.pendingRegistration.delete({ where: { email } });
+        return created;
+      });
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new ConflictError("An account with that email already exists.");
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2002") {
+          throw new ConflictError("An account with that email already exists.");
+        }
+        if (error.code === "P2025") {
+          throw new InvalidCodeError();
+        }
       }
       throw error;
     }
+
+    registrationsTotal.inc();
+    return toPublicUser(await this.ensureAdminRole(user));
+  }
+
+  /** Re-sends the signup code onto the same pending row — a fresh code,
+   * fresh attempt budget, fresh expiry. Silently a no-op (same observable
+   * 204 either way) if nothing's pending for that email, or if one went out
+   * too recently — no oracle for "is this email mid-signup". */
+  async resendRegistrationCode(email: string): Promise<void> {
+    const pending = await this.prisma.pendingRegistration.findUnique({ where: { email } });
+    if (!pending) return;
+    if (this.issuedAt(pending).getTime() > Date.now() - RESEND_COOLDOWN_SECONDS * 1000) return;
+
+    const code = generateCode();
+    await this.prisma.pendingRegistration.update({
+      where: { email },
+      data: {
+        codeHash: hashCode(code),
+        attempts: 0,
+        expiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MINUTES * 60_000),
+      },
+    });
+    await this.email.sendVerificationCode(pending.email, pending.displayName, code);
+  }
+
+  /** `PendingRegistration` has no dedicated "code issued at" column — it's
+   * derived from `expiresAt`, which every issue/reissue sets to `now + TTL`
+   * together, so the two never drift apart. */
+  private issuedAt(pending: { expiresAt: Date }): Date {
+    return new Date(pending.expiresAt.getTime() - VERIFICATION_CODE_TTL_MINUTES * 60_000);
   }
 
   async verifyCredentials(input: LoginInput): Promise<PublicUser> {
@@ -116,7 +240,128 @@ export class AuthService {
     if (user.isBanned) {
       throw new UnauthorizedError("This account has been suspended.");
     }
+    loginsTotal.inc({ method: "password" });
     return toPublicUser(await this.ensureAdminRole(user));
+  }
+
+  // -- email verification (signup) ---------------------------------------
+
+  /** Confirms the 6-digit code sent at signup. Wrong/expired/already-used
+   * codes and a used-up attempt budget all fail the same way (InvalidCodeError)
+   * — nothing here distinguishes "wrong digit" from "too late" to an
+   * attacker probing the endpoint. */
+  async verifyEmail(userId: string, code: string): Promise<PublicUser> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.emailVerifiedAt) return toPublicUser(user);
+
+    await this.consumeCode(userId, "VERIFY_EMAIL", code);
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: new Date() },
+    });
+    return toPublicUser(updated);
+  }
+
+  /** Re-sends the signup code — invalidates any still-outstanding one first,
+   * so only the newest code a viewer was actually shown ever works. Rate
+   * limited per account (not just per IP) via a floor between issues. */
+  async resendVerificationCode(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.emailVerifiedAt) throw new ConflictError("This email is already verified.");
+    await this.issueCode(user, "VERIFY_EMAIL");
+  }
+
+  // -- password reset ------------------------------------------------------
+
+  /** Always succeeds from the caller's point of view, whether or not the
+   * email belongs to an account — the only way to keep "forgot password"
+   * from doubling as an account-enumeration oracle. */
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.telegramId) {
+      // A Telegram-only account (see loginWithTelegram) has no real inbox
+      // behind its placeholder email and no password screen to reach with
+      // a code anyway — silently a no-op, same observable outcome either way.
+      return;
+    }
+    await this.issueCode(user, "RESET_PASSWORD");
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new InvalidCodeError();
+
+    await this.consumeCode(user.id, "RESET_PASSWORD", code);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  }
+
+  // -- verification code internals -----------------------------------------
+
+  private async issueCode(
+    user: User,
+    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD",
+  ): Promise<void> {
+    const recent = await this.prisma.verificationCode.findFirst({
+      where: { userId: user.id, purpose, consumedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    if (
+      recent &&
+      Date.now() - recent.createdAt.getTime() < RESEND_COOLDOWN_SECONDS * 1000
+    ) {
+      return; // silently absorbed — the viewer already has a very recent code
+    }
+
+    const code = generateCode();
+    await this.prisma.$transaction([
+      // At most one live code per (user, purpose) — a fresh request retires
+      // whatever was issued before it.
+      this.prisma.verificationCode.updateMany({
+        where: { userId: user.id, purpose, consumedAt: null },
+        data: { consumedAt: new Date() },
+      }),
+      this.prisma.verificationCode.create({
+        data: {
+          userId: user.id,
+          purpose,
+          codeHash: hashCode(code),
+          expiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MINUTES * 60_000),
+        },
+      }),
+    ]);
+
+    if (purpose === "VERIFY_EMAIL") {
+      await this.email.sendVerificationCode(user.email, user.displayName, code);
+    } else {
+      await this.email.sendPasswordResetCode(user.email, user.displayName, code);
+    }
+  }
+
+  private async consumeCode(
+    userId: string,
+    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD",
+    code: string,
+  ): Promise<void> {
+    const row = await this.prisma.verificationCode.findFirst({
+      where: { userId, purpose, consumedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!row || row.expiresAt < new Date()) throw new InvalidCodeError();
+    if (row.attempts >= MAX_VERIFICATION_ATTEMPTS) throw new InvalidCodeError();
+
+    if (row.codeHash !== hashCode(code)) {
+      await this.prisma.verificationCode.update({
+        where: { id: row.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new InvalidCodeError();
+    }
+
+    await this.prisma.verificationCode.update({
+      where: { id: row.id },
+      data: { consumedAt: new Date() },
+    });
   }
 
   /**
@@ -140,6 +385,7 @@ export class AuthService {
       if (existing.isBanned) {
         throw new UnauthorizedError("This account has been suspended.");
       }
+      loginsTotal.inc({ method: "telegram" });
       return toPublicUser(await this.ensureAdminRole(existing));
     }
 
@@ -168,9 +414,14 @@ export class AuthService {
           passwordHash,
           avatarUrl,
           telegramId,
+          // There's no inbox to send a code to and nothing to confirm —
+          // "unverified" would just be a permanent, unactionable nag.
+          emailVerifiedAt: new Date(),
           ...(this.proForAll ? { proSince: new Date() } : {}),
         },
       });
+      registrationsTotal.inc();
+      loginsTotal.inc({ method: "telegram" });
       return toPublicUser(await this.ensureAdminRole(user));
     } catch (error) {
       // Someone else's login raced this one to the same telegramId — extremely
@@ -194,6 +445,35 @@ export class AuthService {
     // it on every single authenticated request just for this.
     if (user.isBanned) throw new UnauthorizedError("This account has been suspended.");
     return toPublicUser(await this.ensureAdminRole(user));
+  }
+
+  /**
+   * Permanently deletes the account and everything hung off it — library,
+   * reviews, comments, sessions, achievements — via the same `onDelete:
+   * Cascade` relations Prisma already enforces (see schema.prisma); nothing
+   * here needs to enumerate them by hand. Requires the current password:
+   * the frontend's own "type a phrase to confirm" step guards against a
+   * misclick, but only a correct password proves it's actually the account
+   * owner asking, not just whoever currently holds a valid bearer token.
+   * A Telegram-only account (no real password behind it — see
+   * loginWithTelegram) skips that check; there's no password to prove.
+   */
+  async deleteAccount(userId: string, password: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.telegramId) {
+      const ok = await bcrypt.compare(password, user.passwordHash);
+      if (!ok) throw new UnauthorizedError("Wrong password.");
+    }
+
+    await this.prisma.user.delete({ where: { id: userId } });
+    accountsDeletedTotal.inc();
+
+    // Best-effort — an orphaned avatar file is a disk-space nit, never worth
+    // failing an already-completed deletion over.
+    if (user.avatarUrl?.startsWith("/uploads/avatars/")) {
+      const file = user.avatarUrl.split("?")[0]!.replace("/uploads/avatars/", "");
+      await unlink(join(this.uploadsDir, file)).catch(() => undefined);
+    }
   }
 
   /**
@@ -267,5 +547,7 @@ function toPublicUser(user: User): PublicUser {
     avatarUrl: user.avatarUrl,
     createdAt: user.createdAt.toISOString(),
     role: user.role === "ADMIN" ? "ADMIN" : "USER",
+    emailVerified: user.emailVerifiedAt != null,
+    isTelegramLinked: user.telegramId != null,
   };
 }

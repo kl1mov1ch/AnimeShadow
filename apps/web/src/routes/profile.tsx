@@ -25,7 +25,7 @@ import {
   TrophyIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
@@ -37,7 +37,17 @@ import {
   ProgressRow,
 } from "@/components/anime/progress-row";
 import { TITLE_ICON_COMPONENT, UserTitleBadge } from "@/components/user-title-badge";
+import { PasswordInput, TextInput } from "@/components/auth/auth-card";
+import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -46,25 +56,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { useLocale, useT } from "@/i18n";
+import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
   useAchievements,
+  useDeleteAccount,
   useDeleteProgress,
   useGenrePreferencesStatus,
   useGenres,
   useMyProfile,
   useMyProgress,
   usePublicProfile,
+  useResendVerification,
   useSetGenrePreferences,
   useSetRandomAvatar,
   useSetUsername,
   useUpdateProfile,
   useUploadAvatar,
+  useVerifyEmail,
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
@@ -894,7 +909,258 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
           <GenrePreferencesSection />
         </SettingsSection>
       </div>
+
+      <EmailVerificationSection />
+
+      <DeleteAccountSection profile={profile} />
     </div>
+  );
+}
+
+/**
+ * Only for accounts created before signup itself required a code — every
+ * newer account is verified the moment it exists. Telegram accounts have no
+ * inbox behind them, so they never see this.
+ */
+function EmailVerificationSection() {
+  const t = useT();
+  const { user, updateUser } = useAuth();
+  const resend = useResendVerification();
+  const verify = useVerifyEmail();
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string>();
+
+  if (!user || user.emailVerified || user.isTelegramLinked) return null;
+
+  const sendCode = () => {
+    resend.mutate(undefined, {
+      onSuccess: () => setSent(true),
+      onError: (err) =>
+        toast.error(err instanceof ApiRequestError ? err.message : t("auth.genericError")),
+    });
+  };
+
+  const submit = (value: string) => {
+    setError(undefined);
+    verify.mutate(value, {
+      onSuccess: (res) => {
+        updateUser({ emailVerified: res.user.emailVerified });
+        toast.success(t("auth.verifyEmail.success"));
+      },
+      onError: (err) => {
+        setError(
+          err instanceof ApiRequestError && err.code === "INVALID_CODE"
+            ? t("auth.verifyEmail.invalidCode")
+            : t("auth.genericError"),
+        );
+        setCode("");
+      },
+    });
+  };
+
+  return (
+    <SettingsSection
+      title={t("profile.settings.emailVerification.title")}
+      description={t("profile.settings.emailVerification.hint", { email: user.email })}
+      className="border-primary/40"
+    >
+      {sent ? (
+        <div className="flex flex-col items-start gap-3">
+          <p className="text-xs text-muted-foreground">
+            {t("profile.settings.emailVerification.sent")}
+          </p>
+          <CodeInput
+            value={code}
+            onChange={setCode}
+            onComplete={submit}
+            disabled={verify.isPending}
+            {...(error ? { error } : {})}
+          />
+          <button
+            type="button"
+            onClick={sendCode}
+            disabled={resend.isPending}
+            className="text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-primary disabled:opacity-60"
+          >
+            {t("auth.verifyEmail.resend")}
+          </button>
+        </div>
+      ) : (
+        <Button onClick={sendCode} disabled={resend.isPending} className="self-start">
+          {resend.isPending && <Spinner data-icon="inline-start" />}
+          {t("profile.settings.emailVerification.send")}
+        </Button>
+      )}
+    </SettingsSection>
+  );
+}
+
+/** Words a confirmation phrase is drawn from — proper nouns, not sentences,
+ * so they read the same regardless of site language rather than needing
+ * their own i18n. Regenerated (word + 4 random digits) every time the
+ * dialog opens, so it can't be muscle-memorised across attempts. */
+const CONFIRM_WORDS = [
+  "shadow",
+  "sakura",
+  "katana",
+  "kitsune",
+  "ronin",
+  "yokai",
+  "senpai",
+  "tanuki",
+];
+
+function generateConfirmPhrase(): string {
+  const word = CONFIRM_WORDS[Math.floor(Math.random() * CONFIRM_WORDS.length)];
+  const digits = Math.floor(1000 + Math.random() * 9000);
+  return `${word}-${digits}`;
+}
+
+/**
+ * The very last thing in Settings, deliberately: a destructive action with
+ * two independent guards — a freshly-generated phrase that has to be typed
+ * exactly (so a reflexive double-click can't trigger it) and the actual
+ * account password (so a merely-valid bearer token isn't enough on its
+ * own). A Telegram-only account has no password to ask for — see
+ * `isTelegramLinked` — so that field is skipped for it entirely rather than
+ * shown disabled or asking for something that doesn't exist.
+ */
+function DeleteAccountSection({ profile }: { profile: MyProfile }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const deleteAccount = useDeleteAccount();
+
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [typed, setTyped] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string>();
+
+  const isTelegram = user?.isTelegramLinked ?? false;
+  const phraseOk = typed.length > 0 && typed === phrase;
+  const canSubmit = phraseOk && (isTelegram || password.length > 0);
+
+  const openDialog = () => {
+    setPhrase(generateConfirmPhrase());
+    setTyped("");
+    setPassword("");
+    setError(undefined);
+    setOpen(true);
+  };
+
+  const onConfirm = () => {
+    setError(undefined);
+    deleteAccount.mutate(
+      { password },
+      {
+        onSuccess: () => {
+          toast.success(t("profile.settings.dangerZone.success"));
+          logout();
+          navigate("/", { replace: true });
+        },
+        onError: (err) => {
+          setError(
+            err instanceof ApiRequestError && err.status === 401
+              ? t("profile.settings.dangerZone.wrongPassword")
+              : t("errors.genericTitle"),
+          );
+        },
+      },
+    );
+  };
+
+  return (
+    <SettingsSection
+      title={t("profile.settings.dangerZone.title")}
+      description={t("profile.settings.dangerZone.hint")}
+      className="border-destructive/40"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-md text-xs text-muted-foreground">
+          {t("profile.settings.dangerZone.deleteAccountHint")}
+        </p>
+        <Button variant="destructive" onClick={openDialog} className="shrink-0">
+          {t("profile.settings.dangerZone.deleteAccount")}
+        </Button>
+      </div>
+
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!deleteAccount.isPending) setOpen(next);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("profile.settings.dangerZone.dialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("profile.settings.dangerZone.dialogBody", { name: profile.displayName })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4">
+            {error && <p className="text-xs text-destructive">{error}</p>}
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="delete-account-phrase" className="text-xs font-medium text-muted-foreground">
+                {t("profile.settings.dangerZone.typePhrase")}
+              </label>
+              <code className="select-all rounded-md border border-border/60 bg-secondary/40 px-3 py-2 text-center font-mono text-sm tracking-wide">
+                {phrase}
+              </code>
+              <TextInput
+                id="delete-account-phrase"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-invalid={typed.length > 0 && !phraseOk ? true : undefined}
+              />
+              {typed.length > 0 && !phraseOk && (
+                <p className="text-xs text-destructive">
+                  {t("profile.settings.dangerZone.phraseMismatch")}
+                </p>
+              )}
+            </div>
+
+            {isTelegram ? (
+              <p className="text-xs text-muted-foreground">
+                {t("profile.settings.dangerZone.passwordHintTelegram")}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="delete-account-password" className="text-xs font-medium text-muted-foreground">
+                  {t("profile.settings.dangerZone.password")}
+                </label>
+                <PasswordInput
+                  id="delete-account-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {t("profile.settings.dangerZone.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!canSubmit || deleteAccount.isPending}
+              onClick={onConfirm}
+            >
+              {deleteAccount.isPending && <Spinner data-icon="inline-start" />}
+              {t("profile.settings.dangerZone.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </SettingsSection>
   );
 }
 
