@@ -87,6 +87,23 @@ export interface ShikiMangaShort {
   released_on: string | null;
 }
 
+/** `/api/animes/:id/franchise` node — every title sharing this one's continuity. */
+export interface ShikiFranchiseNode {
+  id: number;
+  name: string;
+  image_url: string | null;
+  url: string;
+  year: number | null;
+  kind: string | null; // "tv" | "movie" | "ova" | "ona" | "special" | ...
+  weight: number;
+}
+
+export interface ShikiFranchise {
+  current_id: number;
+  nodes: ShikiFranchiseNode[];
+  links: Array<{ source_id: number; target_id: number; weight: number }>;
+}
+
 export interface ShikiRole {
   roles: string[]; // ["Main"], ["Supporting"], ...
   roles_russian: string[];

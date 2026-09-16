@@ -296,6 +296,18 @@
     height: 6px;
   }
 
+  /* A narrower version of the site-wide scrollbar for dense lists inside
+     modals/panels, where the default 10px thumb reads heavy against a
+     384px-wide sheet. */
+  .thin-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  @supports (-moz-appearance: none) {
+    .thin-scroll {
+      scrollbar-width: thin;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

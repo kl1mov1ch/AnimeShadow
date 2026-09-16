@@ -16,6 +16,7 @@ import {
   toAnimeSummary as shikiToSummary,
   toCharacters as shikiToCharacters,
   toCharacterDetail as shikiToCharacterDetail,
+  toFranchiseEntries,
   toGenreList as shikiToGenres,
 } from "@animeshadow/shikimori";
 import {
@@ -27,6 +28,7 @@ import {
   type CharacterDetail,
   DEFAULT_LOCALE,
   type DiscoverResponse,
+  type FranchiseEntry,
   type Genre,
   type Locale,
   type Paginated,
@@ -966,6 +968,23 @@ export class CatalogService {
         translated: bioOk,
       };
     }) as Promise<CharacterDetail>;
+  }
+
+  /**
+   * Every season/movie/spin-off sharing this title's continuity, release
+   * order. Standalone titles (no franchise graph, or Shikimori 404s) just
+   * get an empty list — the section on the page hides itself in that case.
+   */
+  async getFranchise(id: number): Promise<FranchiseEntry[]> {
+    return this.auxCache.wrap(`franchise:v1:${id}`, async () => {
+      try {
+        const raw = await this.shikimori.getFranchise(id);
+        return toFranchiseEntries(raw, id);
+      } catch (error) {
+        this.logger.warn({ error, id }, "franchise fetch failed");
+        return [];
+      }
+    }) as Promise<FranchiseEntry[]>;
   }
 
   async getRecommendations(id: number): Promise<RecommendationItem[]> {

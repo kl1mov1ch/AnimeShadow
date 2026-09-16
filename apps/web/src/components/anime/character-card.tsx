@@ -1,4 +1,5 @@
 import type { Character } from "@animeshadow/shared";
+import { StarIcon } from "lucide-react";
 import { useState } from "react";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import {
@@ -72,41 +73,45 @@ export function CharacterCard({
         <button
           type="button"
           onClick={() => onSelect?.(character)}
-          className="group relative block w-full overflow-hidden rounded-xl border border-border/60 bg-muted text-left outline-none transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0"
+          title={roleLabel}
+          className="group flex w-full flex-col items-center gap-1.5 rounded-xl p-1 text-center outline-none transition-colors hover:bg-primary/[0.06] focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <div className="aspect-[3/4] w-full">
-            {character.imageUrl ? (
-              <img
-                src={imageSrc(character.imageUrl)}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                className="size-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
-              />
-            ) : (
-              <PosterFallback title={character.name} seed={character.id} variant="avatar" />
+          {/* A round avatar that fills its grid cell (w-full + aspect-square,
+              not a fixed pixel size) — so it's exactly the grid's own column
+              math (6 per row on phone, more and bigger as the viewport
+              grows) that decides how big it renders, with no breakpoint
+              juggling here. The main-character mark is a small corner star
+              instead of a text pill, so it stays out of the way of the name
+              below at any size. */}
+          <div className="relative w-full">
+            <div
+              className={cn(
+                "aspect-square w-full overflow-hidden rounded-full border-2 bg-muted transition-[transform,border-color] duration-300 group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0",
+                isMain ? "border-primary" : "border-border/60 group-hover:border-primary/40",
+              )}
+            >
+              {character.imageUrl ? (
+                <img
+                  src={imageSrc(character.imageUrl)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="size-full object-cover object-top"
+                />
+              ) : (
+                <PosterFallback title={character.name} seed={character.id} variant="avatar" />
+              )}
+            </div>
+            {isMain && (
+              <span className="absolute -bottom-0.5 -right-0.5 grid size-3.5 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground sm:size-4">
+                <StarIcon className="size-[7px] fill-current sm:size-2" />
+              </span>
             )}
           </div>
 
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/40 to-transparent"
-          />
-
-          {isMain && (
-            <span className="absolute left-1.5 top-1.5 max-w-[calc(100%-0.75rem)] truncate rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground shadow sm:left-2 sm:top-2 sm:max-w-[calc(100%-1rem)] sm:px-2 sm:text-[10px]">
-              {roleLabel}
-            </span>
-          )}
-
-          <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-2.5">
-            <p className="line-clamp-2 text-sm font-semibold leading-tight text-white">
-              {character.name}
-            </p>
-            <p className="truncate text-[11px] text-white/70">
-              {character.voiceActor?.name ?? roleLabel}
-            </p>
-          </div>
+          <p className="line-clamp-2 w-full text-[11px] font-medium leading-tight sm:text-xs">
+            {character.name}
+          </p>
         </button>
       </HoverPreview>
     );

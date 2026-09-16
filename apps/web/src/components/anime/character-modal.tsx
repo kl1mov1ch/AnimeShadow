@@ -61,7 +61,7 @@ export function CharacterModal({
 
             <CharacterGallery key={character.id} character={character} data={data} />
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="thin-scroll min-h-0 flex-1 overflow-y-auto">
               <CharacterInfo
                 key={character.id}
                 character={character}
@@ -229,11 +229,16 @@ function AppearancesModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-md">
+      {/* w-[calc(100%-2rem)] rather than the base component's implicit
+          full-width-until-sm: without an explicit min-w-0 down through every
+          row, a long unbroken title could force the dialog wider than the
+          viewport instead of just wrapping — overflow-hidden is the backstop,
+          min-w-0 + break-words on the text itself is the actual fix. */}
+      <DialogContent className="flex w-[calc(100%-2rem)] max-h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm">
         <DialogHeader className="border-b border-border/60 px-5 py-4">
-          <DialogTitle className="text-base">{title}</DialogTitle>
+          <DialogTitle className="truncate text-base">{title}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-2">
           {items.map((item) => {
             const inner = (
               <>
@@ -250,14 +255,17 @@ function AppearancesModal({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-sm font-medium leading-snug">{item.title}</p>
+                  <p className="line-clamp-2 break-words text-sm font-medium leading-snug">
+                    {item.title}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {[item.kind, item.year].filter(Boolean).join(" · ")}
                   </p>
                 </div>
               </>
             );
-            const rowClass = "flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-primary/[0.06]";
+            const rowClass =
+              "flex min-w-0 items-center gap-3 rounded-lg p-2 transition-colors hover:bg-primary/[0.06]";
             return kind === "anime" ? (
               <Link key={item.id} to={`/anime/${item.id}`} className={rowClass}>
                 {inner}
@@ -289,13 +297,13 @@ function VoiceActorsModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-md">
+      <DialogContent className="flex w-[calc(100%-2rem)] max-h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm">
         <DialogHeader className="border-b border-border/60 px-5 py-4">
-          <DialogTitle className="text-base">{title}</DialogTitle>
+          <DialogTitle className="truncate text-base">{title}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-2">
           {actors.map((actor, i) => (
-            <div key={`${actor.name}-${i}`} className="flex items-center gap-3 rounded-lg p-2">
+            <div key={`${actor.name}-${i}`} className="flex min-w-0 items-center gap-3 rounded-lg p-2">
               <div className="size-14 shrink-0 overflow-hidden rounded-full bg-muted">
                 {actor.imageUrl ? (
                   <img
@@ -308,7 +316,9 @@ function VoiceActorsModal({
                   <PosterFallback title={actor.name} seed={i} variant="avatar" />
                 )}
               </div>
-              <p className="min-w-0 flex-1 text-sm font-medium leading-snug">{actor.name}</p>
+              <p className="min-w-0 flex-1 break-words text-sm font-medium leading-snug">
+                {actor.name}
+              </p>
             </div>
           ))}
         </div>
@@ -472,16 +482,24 @@ function CharacterInfo({
                   ))}
                 </ol>
                 {!revealed && (
-                  <button
-                    type="button"
-                    onClick={() => setRevealed(true)}
-                    className="absolute inset-0 grid place-items-center"
-                  >
-                    <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/90 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur transition-colors hover:border-primary/50 hover:text-primary">
+                  // Sticky, not just centered in the (possibly very tall)
+                  // blurred list: with more than a couple of facts, a plain
+                  // "centered in the block" button ends up parked well below
+                  // the fold, so scrolling through the modal never actually
+                  // shows it. Sticky-to-the-viewport-midpoint keeps it in
+                  // view the moment this section scrolls into range. The
+                  // wrapper is zero-height so it doesn't add scroll space of
+                  // its own; the translate centers the button on that point.
+                  <div className="pointer-events-none sticky top-1/2 z-10 flex h-0 justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setRevealed(true)}
+                      className="pointer-events-auto inline-flex -translate-y-1/2 items-center gap-2 rounded-full border border-border/60 bg-background/90 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur transition-colors hover:border-primary/50 hover:text-primary"
+                    >
                       <EyeIcon className="size-4" />
                       {t("detail.characterModal.spoilers")} · {t("detail.characterModal.revealSpoilers")}
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 )}
               </div>
             </section>

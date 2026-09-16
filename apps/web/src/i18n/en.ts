@@ -136,6 +136,10 @@ export const en = {
       recommendations: "More like this",
       mainCharacters: "Main characters",
       details: "Details",
+      seasons: "Seasons & related titles",
+    },
+    seasons: {
+      current: "You're here",
     },
     machineTranslated: "Auto-translated",
     ranked: "Ranked #{rank}",

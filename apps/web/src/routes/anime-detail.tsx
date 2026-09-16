@@ -6,6 +6,7 @@ import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
 import { CharacterModal } from "@/components/anime/character-modal";
+import { FranchiseSection } from "@/components/anime/franchise-section";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { LibraryControls } from "@/components/anime/library-controls";
@@ -254,6 +255,8 @@ function AnimeDetailView({ param }: { param: string }) {
         />
 
         <OverviewBlock anime={data} oneLiner={oneLiner} />
+
+        <FranchiseSection animeId={data.id} />
 
         <CharactersBlock animeId={data.id} />
 
@@ -712,16 +715,23 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       </div>
 
       {isPending ? (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
+        <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]">
+          {Array.from({ length: 12 }, (_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <Skeleton className="aspect-square w-full rounded-full" />
+              <Skeleton className="h-2.5 w-10 rounded-full" />
+            </div>
           ))}
         </div>
       ) : visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("detail.noCharactersMatch")}</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+          {/* Round avatars that stretch to fill the row rather than a fixed
+              poster-sized tile — a cast can run into the dozens. Exactly 6
+              per row on a phone (just smaller circles); from sm up, auto-fill
+              packs as many ~88px-or-wider columns as the viewport allows. */}
+          <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]">
             {visible.map((c) => (
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}

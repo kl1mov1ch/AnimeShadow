@@ -6,6 +6,7 @@ import {
   type AnimeType,
   type Character,
   type CharacterDetail,
+  type FranchiseEntry,
   type Genre,
   slugify,
 } from "@animeshadow/shared";
@@ -13,6 +14,7 @@ import { parseCharacterDescription, stripShikimoriMarkup } from "./markup.js";
 import type {
   ShikiAnimeFull,
   ShikiAnimeShort,
+  ShikiFranchise,
   ShikiGenre,
   ShikiMangaShort,
   ShikiRole,
@@ -241,7 +243,7 @@ export function toCharacters(roles: ShikiRole[]): Character[] {
       };
     })
     .sort((a, b) => rolePriority(a.role) - rolePriority(b.role))
-    .slice(0, 24);
+    .slice(0, 30);
 }
 
 export function toCharacterDetail(raw: {
@@ -304,6 +306,27 @@ export function toCharacterDetail(raw: {
     })),
     translated: true, // Shikimori descriptions are already Russian
   };
+}
+
+/**
+ * The franchise graph's `nodes` list, in release order — every season, movie,
+ * spin-off and OVA sharing this title's continuity, including the title
+ * itself (flagged `current`). Music videos/PVs occasionally show up as
+ * "music"-kind nodes; those are just noise for a "seasons" list, so they're
+ * dropped.
+ */
+export function toFranchiseEntries(raw: ShikiFranchise, currentId: number): FranchiseEntry[] {
+  return raw.nodes
+    .map((node): FranchiseEntry => ({
+      id: node.id,
+      title: node.name,
+      imageUrl: imageUrl(node.image_url),
+      kind: mapKind(node.kind),
+      year: node.year,
+      current: node.id === currentId,
+    }))
+    .filter((entry) => entry.kind !== "MUSIC")
+    .sort((a, b) => (a.year ?? 0) - (b.year ?? 0) || a.id - b.id);
 }
 
 function rolePriority(role: string): number {

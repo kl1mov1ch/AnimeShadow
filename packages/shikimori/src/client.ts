@@ -2,6 +2,7 @@ import type {
   ShikiAnimeFull,
   ShikiAnimeShort,
   ShikiCharacterSearch,
+  ShikiFranchise,
   ShikiGenre,
   ShikiListParams,
   ShikiMangaShort,
@@ -77,6 +78,11 @@ export class ShikimoriClient {
 
   getScreenshots(id: number): Promise<Array<{ original: string; preview: string }>> {
     return this.get(`/api/animes/${id}/screenshots`);
+  }
+
+  /** Every title (seasons, movies, spin-offs, OVAs) sharing this one's continuity. */
+  getFranchise(id: number): Promise<ShikiFranchise> {
+    return this.get(`/api/animes/${id}/franchise`);
   }
 
   getGenres(): Promise<ShikiGenre[]> {

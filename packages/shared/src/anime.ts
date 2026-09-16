@@ -146,6 +146,18 @@ export const characterDetailSchema = z.object({
 });
 export type CharacterDetail = z.infer<typeof characterDetailSchema>;
 
+/** One entry in a title's franchise — a season, movie, spin-off or OVA sharing its continuity. */
+export const franchiseEntrySchema = z.object({
+  id: z.number().int(),
+  title: z.string(),
+  imageUrl: z.string().nullable(),
+  kind: animeTypeSchema,
+  year: z.number().int().nullable(),
+  /** True for the title the viewer is already looking at — shown, not linked. */
+  current: z.boolean(),
+});
+export type FranchiseEntry = z.infer<typeof franchiseEntrySchema>;
+
 /**
  * Browse / search query. Everything is optional; the API applies defaults.
  * `coerce` lets it parse straight from URL query strings.

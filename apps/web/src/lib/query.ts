@@ -12,6 +12,7 @@ import type {
   DeleteAccountInput,
   DiscoverResponse,
   ForgotPasswordInput,
+  FranchiseEntry,
   Genre,
   LibraryEntry,
   LibraryStatus,
@@ -50,6 +51,7 @@ export const queryKeys = {
   anime: (id: number, lang: string) => ["anime", id, lang] as const,
   characters: (id: number) => ["anime", id, "characters"] as const,
   recommendations: (id: number) => ["anime", id, "recommendations"] as const,
+  franchise: (id: number) => ["anime", id, "franchise"] as const,
   watch: (id: number) => ["anime", id, "watch"] as const,
   library: (status?: LibraryStatus) => ["library", status ?? "all"] as const,
   librarySummary: ["library", "summary"] as const,
@@ -194,6 +196,18 @@ export function useRecommendations(id: number, enabled = true) {
         { signal },
       ).then((r) => r.items),
     staleTime: 30 * 60_000,
+  });
+}
+
+export function useFranchise(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.franchise(id),
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: FranchiseEntry[] }>(`/anime/${id}/franchise`, { signal }).then(
+        (r) => r.items,
+      ),
+    staleTime: 60 * 60_000,
   });
 }
 

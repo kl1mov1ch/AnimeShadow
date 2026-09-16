@@ -138,6 +138,10 @@ export const ru: Dict = {
       recommendations: "Похожее",
       mainCharacters: "Главные герои",
       details: "Детали",
+      seasons: "Сезоны и связанные тайтлы",
+    },
+    seasons: {
+      current: "Вы сейчас здесь",
     },
     machineTranslated: "Автоперевод",
     ranked: "В рейтинге #{rank}",

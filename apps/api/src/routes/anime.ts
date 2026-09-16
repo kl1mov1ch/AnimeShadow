@@ -88,6 +88,11 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     return { items: await catalog.getRecommendations(id) };
   });
 
+  fastify.get("/anime/:id/franchise", async (request) => {
+    const { id } = parse(idParams, request.params);
+    return { items: await catalog.getFranchise(id) };
+  });
+
   fastify.get("/anime/:id/watch", async (request) => {
     const { id } = parse(idParams, request.params);
     return watch.getSources(id);
