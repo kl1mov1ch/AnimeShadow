@@ -142,6 +142,7 @@ export const ru: Dict = {
     },
     seasons: {
       current: "Вы сейчас здесь",
+      openHint: "Нажмите, чтобы открыть",
     },
     machineTranslated: "Автоперевод",
     ranked: "В рейтинге #{rank}",
@@ -204,7 +205,7 @@ export const ru: Dict = {
   watch: {
     voiceover: "Озвучка / субтитры",
     switchPlayer: "Сменить плеер ({count})",
-    notWorking: "Плеер не работает",
+    notWorking: "Не грузится?",
     findingSource: "Подбираем рабочий источник…",
     allFailedHint: "Ни один источник не откликнулся сам.",
     retry: "Попробовать снова",

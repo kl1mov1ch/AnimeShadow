@@ -11,15 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
@@ -443,11 +436,14 @@ function HlsVideo({
   src,
   isWinner,
   onReady,
+  onPlayingChange,
   mediaRef,
 }: {
   src: string;
   isWinner: boolean;
   onReady: () => void;
+  /** Only ever fires for the winner — a deliberate pause shouldn't count as "stuck". */
+  onPlayingChange: (playing: boolean) => void;
   mediaRef: (el: HTMLVideoElement | null) => void;
 }) {
   const elRef = useRef<HTMLVideoElement | null>(null);
@@ -500,6 +496,8 @@ function HlsVideo({
       muted
       controls={isWinner}
       onCanPlay={onReady}
+      onPlay={() => isWinner && onPlayingChange(true)}
+      onPause={() => isWinner && onPlayingChange(false)}
       className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
       tabIndex={isWinner ? undefined : -1}
       aria-hidden={isWinner ? undefined : true}
@@ -537,6 +535,13 @@ function Player({
   // keep pulling in fresh batches automatically and only ask them to pick
   // once nothing is left to try.
   const [triedIds, setTriedIds] = useState<string[]>([]);
+  // Real signal for the HLS player only — a cross-origin iframe embed gives
+  // us no way to tell "paused" from "stuck", so this just stays false (never
+  // suppresses the hint) for those, same as before. Reset on every new
+  // winner so a pause on a since-abandoned source can't linger and suppress
+  // the hint for a completely different (and possibly genuinely stuck) one.
+  const [isPaused, setIsPaused] = useState(false);
+  useEffect(() => setIsPaused(false), [winnerId]);
 
   const winner = data.sources.find((s) => s.id === winnerId) ?? null;
   // Shown in the info row even before a winner exists, so it isn't blank
@@ -648,17 +653,20 @@ function Player({
   // fix after a source has had a fair amount of time to misbehave, and make
   // taking it a single click rather than a raw list of source names the
   // viewer has to make sense of themselves. Resets whenever the winner
-  // itself changes (a fresh pick deserves a fresh chance before nagging).
+  // itself changes (a fresh pick deserves a fresh chance before nagging) —
+  // and, for the HLS player, whenever it's genuinely paused: someone who hit
+  // pause to read the synopsis isn't "stuck", so the hint has no business
+  // interrupting them.
   const [showStuckHint, setShowStuckHint] = useState(false);
   useEffect(() => {
-    if (winnerId == null || alternatives.length === 0) {
+    if (winnerId == null || alternatives.length === 0 || isPaused) {
       setShowStuckHint(false);
       return;
     }
     const timer = setTimeout(() => setShowStuckHint(true), 45_000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [winnerId, data.sources.length]);
+  }, [winnerId, data.sources.length, isPaused]);
 
   /** Retries from the very top, as if the page had just been opened. */
   const retryAll = () => {
@@ -761,19 +769,59 @@ function Player({
             {t("watch.findingSource")}
           </span>
         )}
+        {/* Not colored up front — a quiet, inviting chip rather than a
+            statement of fact, so it reads as "click me if this is stuck"
+            rather than an error the viewer has no use for. When the stuck
+            hint actually has something to say, the icon picks up a gentle
+            pulse — the one moment it's fair to draw the eye — and its own
+            popover opens right here instead of a screen-center dialog. */}
         {alternatives.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowAll((v) => !v)}
-            className={cn(
-              "ml-auto shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
-              showAll
-                ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary",
-            )}
-          >
-            {showAll ? t("common.cancel") : t("watch.notWorking")}
-          </button>
+          <Popover open={showStuckHint} onOpenChange={setShowStuckHint}>
+            <PopoverAnchor asChild>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAll((v) => !v);
+                  setShowStuckHint(false);
+                }}
+                className={cn(
+                  "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
+                  showAll
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border/60 bg-secondary/40 text-foreground/80 hover:border-primary/40 hover:bg-secondary/70 hover:text-primary",
+                )}
+              >
+                <ShuffleIcon
+                  className={cn(
+                    "size-3.5",
+                    showStuckHint && !showAll && "animate-pulse text-primary",
+                  )}
+                />
+                {showAll ? t("common.cancel") : t("watch.notWorking")}
+              </button>
+            </PopoverAnchor>
+            <PopoverContent
+              side="bottom"
+              align="end"
+              sideOffset={8}
+              className="w-64 p-3.5 text-sm"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <p className="font-medium">{t("watch.stuckModalTitle")}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("watch.stuckModalBody")}
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setShowStuckHint(false)}>
+                  {t("watch.stuckModalDismiss")}
+                </Button>
+                <Button size="sm" onClick={switchNow}>
+                  <ShuffleIcon />
+                  {t("watch.stuckModalSwitch")}
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
 
@@ -790,24 +838,6 @@ function Player({
           </Button>
         </div>
       )}
-
-      <Dialog open={showStuckHint} onOpenChange={setShowStuckHint}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("watch.stuckModalTitle")}</DialogTitle>
-            <DialogDescription>{t("watch.stuckModalBody")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowStuckHint(false)}>
-              {t("watch.stuckModalDismiss")}
-            </Button>
-            <Button onClick={switchNow}>
-              <ShuffleIcon />
-              {t("watch.stuckModalSwitch")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {pickerOpen && alternatives.length > 0 && (
         <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card/40 p-1.5">
@@ -859,6 +889,7 @@ function Player({
                 src={url}
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
+                onPlayingChange={(playing) => setIsPaused(!playing)}
                 mediaRef={(el) => {
                   if (isWinner) winnerMediaRef.current = el;
                 }}

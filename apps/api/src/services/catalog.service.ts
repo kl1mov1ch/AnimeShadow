@@ -971,15 +971,31 @@ export class CatalogService {
   }
 
   /**
-   * Every season/movie/spin-off sharing this title's continuity, release
-   * order. Standalone titles (no franchise graph, or Shikimori 404s) just
-   * get an empty list — the section on the page hides itself in that case.
+   * Every season/movie/spin-off sharing this title's continuity that's
+   * actually worth linking to — Shikimori's graph includes plenty of titles
+   * we have no player for (or no artwork), and a dead link is worse than no
+   * link. Filtered down to what `WatchAvailability` already confirmed has a
+   * working player, plus a poster; the title being viewed is always kept
+   * regardless (it's not a "link" for the viewer, just a marker of where
+   * they are). Standalone titles (no franchise graph, or Shikimori 404s)
+   * just get an empty list — the section hides itself in that case.
    */
   async getFranchise(id: number): Promise<FranchiseEntry[]> {
-    return this.auxCache.wrap(`franchise:v1:${id}`, async () => {
+    return this.auxCache.wrap(`franchise:v2:${id}`, async () => {
       try {
         const raw = await this.shikimori.getFranchise(id);
-        return toFranchiseEntries(raw, id);
+        const entries = toFranchiseEntries(raw, id);
+        if (entries.length === 0) return entries;
+
+        const availability = await this.prisma.watchAvailability.findMany({
+          where: { animeId: { in: entries.map((e) => e.id) }, hasPlayer: true },
+          select: { animeId: true },
+        });
+        const playable = new Set(availability.map((a) => a.animeId));
+
+        return entries.filter(
+          (e) => e.current || (playable.has(e.id) && e.imageUrl != null),
+        );
       } catch (error) {
         this.logger.warn({ error, id }, "franchise fetch failed");
         return [];

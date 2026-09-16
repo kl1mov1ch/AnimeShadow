@@ -140,6 +140,7 @@ export const en = {
     },
     seasons: {
       current: "You're here",
+      openHint: "Click to open",
     },
     machineTranslated: "Auto-translated",
     ranked: "Ranked #{rank}",
@@ -202,7 +203,7 @@ export const en = {
   watch: {
     voiceover: "Audio / subtitles",
     switchPlayer: "Switch player ({count})",
-    notWorking: "Player not working",
+    notWorking: "Not loading?",
     findingSource: "Finding a working source…",
     allFailedHint: "None of the sources answered on their own.",
     retry: "Try again",

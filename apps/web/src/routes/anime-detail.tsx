@@ -6,7 +6,7 @@ import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
 import { CharacterModal } from "@/components/anime/character-modal";
-import { FranchiseSection } from "@/components/anime/franchise-section";
+import { FranchiseRail } from "@/components/anime/franchise-section";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { LibraryControls } from "@/components/anime/library-controls";
@@ -255,8 +255,6 @@ function AnimeDetailView({ param }: { param: string }) {
         />
 
         <OverviewBlock anime={data} oneLiner={oneLiner} />
-
-        <FranchiseSection animeId={data.id} />
 
         <CharactersBlock animeId={data.id} />
 
@@ -541,6 +539,8 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
           ))}
         </dl>
       )}
+
+      <FranchiseRail animeId={anime.id} />
     </section>
   );
 }
