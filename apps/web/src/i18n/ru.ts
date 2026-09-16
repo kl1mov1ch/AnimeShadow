@@ -681,6 +681,7 @@ export const ru: Dict = {
       hoursShort: "{hours} ч. в сумме",
       minutesShort: "{minutes} мин",
       topGenres: "Топ жанров",
+      topRated: "Топ по вашей оценке",
       inProgress: "Смотрю сейчас",
       completedTitles: "Тайтлов просмотрено",
       meanScore: "Средняя оценка",
@@ -761,6 +762,7 @@ export const ru: Dict = {
   },
   achievements: {
     heading: "Достижения",
+    viewAll: "Все достижения",
     earnedOfTotal: "Получено {earned}/{total}",
     locked: "Ещё не открыто",
     unavailable: "Пока недоступно",

@@ -362,7 +362,7 @@ export class ProfileService {
   }
 
   private async computeStats(userId: string): Promise<ProfileStats> {
-    const [completed, sessionAgg, sessions, scored, completedLib] =
+    const [completed, sessionAgg, sessions, scored, completedLib, topRatedRows] =
       await Promise.all([
         this.prisma.watchProgress.findMany({
           where: { userId, completed: true },
@@ -384,7 +384,25 @@ export class ProfileService {
         this.prisma.libraryEntry.count({
           where: { userId, status: "COMPLETED" },
         }),
+        // Real personal ratings only — never a title just sitting on the
+        // list unscored, however long it's been there.
+        this.prisma.libraryEntry.findMany({
+          where: { userId, score: { not: null } },
+          orderBy: [{ score: "desc" }, { updatedAt: "desc" }],
+          take: 3,
+          include: {
+            anime: { select: { slug: true, title: true, titleLocalized: true, imageUrl: true } },
+          },
+        }),
       ]);
+
+    const topRated: ProfileStats["topRated"] = topRatedRows.map((r) => ({
+      animeId: r.animeId,
+      slug: r.anime.slug,
+      title: r.anime.titleLocalized ?? r.anime.title,
+      imageUrl: r.anime.imageUrl,
+      score: r.score!,
+    }));
 
     const episodesWatched = completed.length;
     const sessionSeconds = sessionAgg._sum.seconds ?? 0;
@@ -466,6 +484,7 @@ export class ProfileService {
       topGenres,
       mostProductiveDay,
       avgSessionMinutes,
+      topRated,
     };
   }
 }

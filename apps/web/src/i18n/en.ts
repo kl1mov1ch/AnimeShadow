@@ -680,6 +680,7 @@ export const en = {
       hoursShort: "{hours}h watched",
       minutesShort: "{minutes} min",
       topGenres: "Top genres",
+      topRated: "Top rated by you",
       inProgress: "In progress",
       completedTitles: "Titles completed",
       meanScore: "Mean score",
@@ -760,6 +761,7 @@ export const en = {
   },
   achievements: {
     heading: "Achievements",
+    viewAll: "All achievements",
     earnedOfTotal: "Earned {earned}/{total}",
     locked: "Not unlocked yet",
     unavailable: "Not available yet",

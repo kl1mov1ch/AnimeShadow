@@ -37,6 +37,17 @@ export const profileStatsSchema = z.object({
   topGenres: z.array(z.object({ name: z.string(), count: z.number().int() })),
   mostProductiveDay: z.string().nullable(),
   avgSessionMinutes: z.number().nullable(),
+  /** Up to 3 titles from the list, highest personal score first — real
+   * ratings only, never a title that hasn't actually been scored. */
+  topRated: z.array(
+    z.object({
+      animeId: z.number().int(),
+      slug: z.string(),
+      title: z.string(),
+      imageUrl: z.string().nullable(),
+      score: z.number().int(),
+    }),
+  ),
 });
 export type ProfileStats = z.infer<typeof profileStatsSchema>;
 

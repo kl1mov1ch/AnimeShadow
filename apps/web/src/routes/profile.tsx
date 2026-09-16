@@ -21,6 +21,7 @@ import {
   type LucideIcon,
   MailIcon,
   MoonStarIcon,
+  StarIcon,
   PaletteIcon,
   PencilIcon,
   PlayCircleIcon,
@@ -143,6 +144,7 @@ function PublicView({ username }: { username: string }) {
   return (
     <ProfileShell>
       <ProfileHero profile={data} stats={data.stats} />
+      <TopRatedTitles titles={data.stats.topRated} />
       <AchievementsGrid achievements={data.achievements} />
     </ProfileShell>
   );
@@ -164,7 +166,8 @@ function OwnView() {
 
   return (
     <ProfileShell>
-      <ProfileHero profile={profile} stats={profile.stats} />
+      <ProfileHero profile={profile} stats={profile.stats} editable />
+      <TopRatedTitles titles={profile.stats.topRated} />
 
       <Tabs
         value={tab}
@@ -291,7 +294,17 @@ const RANK_CHIP: Record<Rank, string> = {
  * the row so it reads as one finished card instead of a tall square next
  * to a short one with empty space trailing it.
  */
-function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: ProfileStats }) {
+function ProfileHero({
+  profile,
+  stats,
+  editable = false,
+}: {
+  profile: PublicProfile;
+  stats: ProfileStats;
+  /** Only the account's own page gets the hover-to-edit affordance — a
+   * visitor on someone else's profile has nothing to edit here. */
+  editable?: boolean;
+}) {
   const t = useT();
   const labels = useLabels();
   const { locale } = useLocale();
@@ -307,6 +320,21 @@ function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: Profil
     .filter((a): a is EarnedAchievement => a != null);
   const [opened, setOpened] = useState<EarnedAchievement | null>(null);
 
+  const avatar = (
+    <div
+      className={cn(
+        "flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background",
+        RANK_RING[profile.rank],
+      )}
+    >
+      {profile.avatarUrl ? (
+        <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
+      ) : (
+        initial
+      )}
+    </div>
+  );
+
   return (
     <>
     <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:p-6 lg:flex-row lg:items-stretch">
@@ -314,18 +342,20 @@ function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: Profil
         className="reveal flex shrink-0 flex-col items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4 text-center lg:w-60"
         style={{ "--i": 0 } as CSSProperties}
       >
-        <div
-          className={cn(
-            "flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background",
-            RANK_RING[profile.rank],
-          )}
-        >
-          {profile.avatarUrl ? (
-            <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
-          ) : (
-            initial
-          )}
-        </div>
+        {editable ? (
+          <Link
+            to="/profile?tab=settings"
+            className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={t("profile.settings.avatarUpload")}
+          >
+            {avatar}
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-all group-hover:bg-black/45 group-hover:opacity-100">
+              <PencilIcon className="size-5 text-white" />
+            </span>
+          </Link>
+        ) : (
+          avatar
+        )}
 
         <div className="flex min-w-0 flex-col items-center gap-1">
           <div className="flex flex-wrap items-center justify-center gap-1.5">
@@ -374,6 +404,16 @@ function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: Profil
           </div>
         )}
 
+        {profile.achievements.some((a) => a.earned) && (
+          <Link
+            to="/profile?tab=achievements"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary/80 transition-colors hover:text-primary"
+          >
+            <TrophyIcon className="size-3" />
+            {t("achievements.viewAll")}
+          </Link>
+        )}
+
         <div className="mt-auto flex flex-wrap items-center justify-center gap-1.5 pt-1">
           <div
             className={cn(
@@ -404,27 +444,11 @@ function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: Profil
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <StatsGrid stats={stats} />
         {/* Fills the rest of the column instead of leaving it empty next to
-            the taller identity square — the same genre counts that used to
-            be their own section lower on the page, just folded in here as
-            something worth knowing about the person, not a separate stop. */}
+            the taller identity square. A bar per genre (share of watched
+            episodes, not a bare count) reads at a glance; the old plain
+            tag list needed you to compare numbers yourself. */}
         {stats.topGenres.length > 0 && (
-          <div className="reveal flex flex-1 flex-col gap-2 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.05] to-transparent p-4">
-            <span className="flex items-center gap-1.5 text-xs text-primary/90">
-              <SparklesIcon className="size-3.5 shrink-0" />
-              {t("profile.summary.topGenres")}
-            </span>
-            <div className="flex flex-wrap content-start gap-1.5">
-              {stats.topGenres.map((g) => (
-                <Link
-                  key={g.name}
-                  to={`/browse?q=${encodeURIComponent(g.name)}`}
-                  className="rounded-md border border-primary/15 bg-primary/[0.06] px-2 py-1 text-xs text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary"
-                >
-                  {labels.genreLabel(g.name)} · {g.count}
-                </Link>
-              ))}
-            </div>
-          </div>
+          <GenreBars genres={stats.topGenres} />
         )}
       </div>
     </header>
@@ -433,6 +457,95 @@ function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: Profil
       onOpenChange={(open) => !open && setOpened(null)}
     />
     </>
+  );
+}
+
+/** Top 3 titles by the viewer's own score — the one section a profile was
+ * genuinely missing: not a stat, an actual answer to "what do they like".
+ * Real ratings only, never a placeholder card for a title that just
+ * happens to sit on the list unscored. */
+function TopRatedTitles({ titles }: { titles: ProfileStats["topRated"] }) {
+  const t = useT();
+  if (titles.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeading title={t("profile.summary.topRated")} />
+      <div className="grid grid-cols-3 gap-3">
+        {titles.map((title) => (
+          <Link
+            key={title.animeId}
+            to={`/anime/${title.slug}`}
+            className="group flex flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-2 transition-colors hover:border-primary/40"
+          >
+            <div className="aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
+              {title.imageUrl ? (
+                <img
+                  src={imageSrc(title.imageUrl)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <PosterFallback title={title.title} seed={title.animeId} />
+              )}
+            </div>
+            <div className="flex flex-col gap-0.5 px-0.5">
+              <p className="line-clamp-2 text-xs font-medium leading-snug transition-colors group-hover:text-primary">
+                {title.title}
+              </p>
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-500">
+                <StarIcon className="size-3 fill-current" />
+                {title.score}/10
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GenreBars({ genres }: { genres: ProfileStats["topGenres"] }) {
+  const t = useT();
+  const labels = useLabels();
+  const total = genres.reduce((n, g) => n + g.count, 0) || 1;
+
+  return (
+    <div className="reveal flex flex-1 flex-col gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.05] to-transparent p-4">
+      <span className="flex items-center gap-1.5 text-xs text-primary/90">
+        <SparklesIcon className="size-3.5 shrink-0" />
+        {t("profile.summary.topGenres")}
+      </span>
+      <div className="flex flex-col gap-2">
+        {genres.map((g) => {
+          const percent = Math.round((g.count / total) * 100);
+          return (
+            <Link
+              key={g.name}
+              to={`/browse?q=${encodeURIComponent(g.name)}`}
+              className="group flex flex-col gap-1"
+            >
+              <div className="flex items-baseline justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate text-foreground/85 transition-colors group-hover:text-primary">
+                  {labels.genreLabel(g.name)}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {g.count} · {percent}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-fuchsia-500 transition-[width] duration-500"
+                  style={{ width: `${Math.max(4, percent)}%` }}
+                />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
