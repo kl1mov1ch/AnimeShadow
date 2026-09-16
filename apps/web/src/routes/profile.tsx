@@ -154,7 +154,14 @@ function PublicView({ username }: { username: string }) {
   return (
     <ProfileShell>
       <ProfileHero profile={data} stats={data.stats} />
-      <TopRatedTitles titles={data.stats.topRated} />
+      {data.stats.topRated.length > 0 && (
+        <section className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t("profile.summary.topRated")}
+          </span>
+          <TopRatedList titles={data.stats.topRated} className="max-w-xs" />
+        </section>
+      )}
       <AchievementsGrid achievements={data.achievements} />
     </ProfileShell>
   );
@@ -177,7 +184,6 @@ function OwnView() {
   return (
     <ProfileShell>
       <ProfileHero profile={profile} stats={profile.stats} editable />
-      <TopRatedTitles titles={profile.stats.topRated} />
 
       <Tabs
         value={tab}
@@ -348,7 +354,7 @@ function ProfileHero({
     <>
     <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:p-6 lg:flex-row lg:items-stretch">
       <div
-        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4 text-center lg:w-60"
+        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4 text-center lg:w-48"
         style={{ "--i": 0 } as CSSProperties}
       >
         {editable ? (
@@ -385,30 +391,28 @@ function ProfileHero({
         )}
 
         {pinned.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2.5">
+          // One row of bare circles, not a caption grid — the name only
+          // costs a hover now (a tooltip), which is what let the whole
+          // identity column below get narrower.
+          <div className="flex flex-nowrap items-center justify-center gap-2">
             {pinned.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setOpened(a)}
-                className="flex w-16 flex-col items-center gap-1 outline-none"
-              >
-                <HoloAchievementBadge
-                  id={a.id}
-                  rarity={a.rarity}
-                  earned
-                  earnedAt={a.earnedAt}
-                  variant="circle"
-                  className="size-9"
-                />
-                {/* Bare circles told you nothing until you hovered one —
-                    the name is what makes "achievements pinned here" mean
-                    anything at a glance. Two lines, not one truncated
-                    mid-word — most of these titles are two or three words. */}
-                <span className="line-clamp-2 text-[9px] leading-tight text-muted-foreground">
+              <Tooltip key={a.id}>
+                <TooltipTrigger asChild>
+                  <button type="button" onClick={() => setOpened(a)} className="outline-none">
+                    <HoloAchievementBadge
+                      id={a.id}
+                      rarity={a.rarity}
+                      earned
+                      earnedAt={a.earnedAt}
+                      variant="circle"
+                      className="size-8"
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
                   {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
-                </span>
-              </button>
+                </TooltipContent>
+              </Tooltip>
             ))}
           </div>
         )}
@@ -467,30 +471,34 @@ function ProfileHero({
   );
 }
 
-/** Top 3 titles by the viewer's own score — the one section a profile was
- * genuinely missing: not a stat, an actual answer to "what do they like".
- * Real ratings only, never a placeholder card for a title that just
- * happens to sit on the list unscored. */
-function TopRatedTitles({ titles }: { titles: ProfileStats["topRated"] }) {
-  const t = useT();
+/** Top 3 titles by the viewer's own score, as a compact list — a rank
+ * number, a small thumb, the title, the score, nothing else on the row
+ * itself. A tooltip carries the full title and score so the row can stay
+ * this narrow instead of a poster-sized card per title. Real ratings
+ * only, never a placeholder for a title that just happens to sit on the
+ * list unscored. */
+function TopRatedList({
+  titles,
+  className,
+}: {
+  titles: ProfileStats["topRated"];
+  className?: string;
+}) {
   if (titles.length === 0) return null;
 
   return (
-    // A strip, not a grid of full cards — three big posters ate a whole row
-    // for information that fits in a thumbnail plus a hover. The title and
-    // score live in the tooltip; the poster alone is enough to recognise.
-    <section className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="text-xs font-medium text-muted-foreground">
-        {t("profile.summary.topRated")}
-      </span>
-      <div className="flex items-center gap-2">
-        {titles.map((title) => (
-          <Tooltip key={title.animeId}>
-            <TooltipTrigger asChild>
-              <Link
-                to={`/anime/${title.slug}`}
-                className="relative block h-16 w-11 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted outline-none transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring"
-              >
+    <div className={cn("flex flex-col gap-0.5", className)}>
+      {titles.map((title, i) => (
+        <Tooltip key={title.animeId}>
+          <TooltipTrigger asChild>
+            <Link
+              to={`/anime/${title.slug}`}
+              className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 outline-none transition-colors hover:bg-secondary/40 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="w-3 shrink-0 text-center text-[10px] font-semibold text-muted-foreground/60">
+                {i + 1}
+              </span>
+              <span className="relative size-7 shrink-0 overflow-hidden rounded-md bg-muted">
                 {title.imageUrl ? (
                   <img
                     src={imageSrc(title.imageUrl)}
@@ -502,19 +510,20 @@ function TopRatedTitles({ titles }: { titles: ProfileStats["topRated"] }) {
                 ) : (
                   <PosterFallback title={title.title} seed={title.animeId} />
                 )}
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-black/70 py-0.5 text-[9px] font-semibold text-amber-300">
-                  <StarIcon className="size-2 fill-current" />
-                  {title.score}
-                </span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              {title.title} · {title.score}/10
-            </TooltipContent>
-          </Tooltip>
-        ))}
-      </div>
-    </section>
+              </span>
+              <span className="min-w-0 flex-1 truncate text-xs">{title.title}</span>
+              <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-amber-500">
+                <StarIcon className="size-2.5 fill-current" />
+                {title.score}
+              </span>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent>
+            {title.title} · {title.score}/10
+          </TooltipContent>
+        </Tooltip>
+      ))}
+    </div>
   );
 }
 
@@ -661,24 +670,35 @@ function LibraryCharts({ stats }: { stats: ProfileStats }) {
         </ChartContainer>
       </ChartPanel>
 
-      {byStatus.length > 0 && (
+      {(byStatus.length > 0 || stats.topRated.length > 0) && (
         <ChartPanel title={t("profile.summary.libraryChart")} className="flex-1">
-          <ChartContainer config={statusConfig} className="mx-auto aspect-square w-full max-w-[132px]">
-            <PieChart>
-              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="status" />} />
-              <Pie
-                data={byStatus}
-                dataKey="count"
-                nameKey="status"
-                innerRadius="60%"
-                outerRadius="92%"
-                paddingAngle={3}
-                cornerRadius={6}
-                strokeWidth={0}
-                animationDuration={900}
-              />
-            </PieChart>
-          </ChartContainer>
+          {byStatus.length > 0 && (
+            // Smaller than before — the freed height is exactly what the
+            // top-3 list below borrows, so the panel doesn't grow taller
+            // than the activity chart next to it.
+            <ChartContainer config={statusConfig} className="mx-auto aspect-square w-full max-w-[92px]">
+              <PieChart>
+                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="status" />} />
+                <Pie
+                  data={byStatus}
+                  dataKey="count"
+                  nameKey="status"
+                  innerRadius="60%"
+                  outerRadius="92%"
+                  paddingAngle={3}
+                  cornerRadius={6}
+                  strokeWidth={0}
+                  animationDuration={900}
+                />
+              </PieChart>
+            </ChartContainer>
+          )}
+          {stats.topRated.length > 0 && (
+            <TopRatedList
+              titles={stats.topRated}
+              className={byStatus.length > 0 ? "mt-2 border-t border-border/60 pt-2" : undefined}
+            />
+          )}
         </ChartPanel>
       )}
     </div>
