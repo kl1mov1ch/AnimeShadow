@@ -171,57 +171,81 @@ function OwnView() {
         onValueChange={(v) =>
           setSearchParams(v === "progress" ? {} : { tab: v }, { replace: true })
         }
-        className="gap-5"
+        className="gap-5 lg:grid lg:grid-cols-[13rem_1fr] lg:items-start lg:gap-6"
       >
-        {/* The page's primary navigation — it separates the profile overview
-            above from whatever section the user is actually working in. */}
-        <TabsList className="h-auto! w-full justify-start gap-1 overflow-x-auto rounded-xl border border-border/60 bg-card/40 p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* The page's primary navigation — a sidebar from desktop up (the
+            same shape as a Telegram settings screen: one rail, three
+            destinations, always in view instead of scrolled past), a
+            compact pill row on a phone where there's no side to spare. Each
+            tab gets its own colour instead of the one shared shade every
+            active state used to switch to and from — the flat monochrome
+            row was itself part of what read as "grey" and made switching
+            tabs feel like nothing had actually changed. */}
+        <TabsList className="h-auto! w-full flex-row justify-start gap-1 overflow-x-auto rounded-xl border border-border/60 bg-card/40 p-1.5 [scrollbar-width:none] lg:sticky lg:top-20 lg:flex-col lg:items-stretch lg:gap-1.5 lg:overflow-visible lg:p-2 [&::-webkit-scrollbar]:hidden">
           <ProfileTabTrigger
             value="progress"
             icon={PlayCircleIcon}
             label={t("profile.tabs.progress")}
+            hue="sky"
           />
           <ProfileTabTrigger
             value="settings"
             icon={SettingsIcon}
             label={t("profile.tabs.settings")}
+            hue="violet"
           />
           <ProfileTabTrigger
             value="achievements"
             icon={TrophyIcon}
             label={t("profile.tabs.achievements")}
+            hue="amber"
           />
         </TabsList>
 
-        <TabsContent value="progress">
-          <ProgressTab stats={profile.stats} />
-        </TabsContent>
-        <TabsContent value="settings">
-          <SettingsTab profile={profile} />
-        </TabsContent>
-        <TabsContent value="achievements">
-          <AchievementsTab />
-        </TabsContent>
+        <div className="min-w-0">
+          <TabsContent value="progress">
+            <ProgressTab stats={profile.stats} />
+          </TabsContent>
+          <TabsContent value="settings">
+            <SettingsTab profile={profile} />
+          </TabsContent>
+          <TabsContent value="achievements">
+            <AchievementsTab />
+          </TabsContent>
+        </div>
       </Tabs>
     </ProfileShell>
   );
 }
 
+const TAB_HUE: Record<"sky" | "violet" | "amber", string> = {
+  sky: "data-[state=active]:border-sky-500/30 data-[state=active]:bg-sky-500/15 data-[state=active]:text-sky-600 dark:data-[state=active]:text-sky-400",
+  violet:
+    "data-[state=active]:border-violet-500/30 data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-600 dark:data-[state=active]:text-violet-400",
+  amber:
+    "data-[state=active]:border-amber-500/30 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400",
+};
+
 function ProfileTabTrigger({
   value,
   icon: Icon,
   label,
+  hue,
 }: {
   value: ProfileTab;
   icon: typeof PlayCircleIcon;
   label: string;
+  hue: keyof typeof TAB_HUE;
 }) {
   return (
     <TabsTrigger
       value={value}
-      className="h-auto flex-none gap-2 rounded-lg border-transparent px-3.5 py-2 sm:px-4 data-[state=active]:border-primary/30 data-[state=active]:bg-primary/15 data-[state=active]:text-primary dark:data-[state=active]:border-primary/30 dark:data-[state=active]:bg-primary/15 dark:data-[state=active]:text-primary"
+      className={cn(
+        "h-auto flex-none justify-start gap-2 rounded-lg border-transparent px-3.5 py-2 text-foreground/70 transition-colors duration-200 sm:px-4 lg:w-full",
+        TAB_HUE[hue],
+      )}
     >
-      <Icon className="size-4" />
+      <Icon className="size-4 shrink-0" />
       {label}
     </TabsTrigger>
   );
@@ -384,21 +408,29 @@ function StatsGrid({ stats }: { stats: ProfileStats }) {
       })
     : "—";
 
-  const cards: Array<{ icon: typeof ClockIcon; label: string; value: string }> = [
+  const cards: Array<{
+    icon: typeof ClockIcon;
+    label: string;
+    value: string;
+    hue: keyof typeof ROW_HUE;
+  }> = [
     {
       icon: FilmIcon,
       label: t("profile.summary.totalEpisodes"),
       value: String(stats.episodesWatched),
+      hue: "sky",
     },
     {
       icon: ClockIcon,
       label: t("profile.summary.totalTime"),
       value: fmtDuration(t, stats.hoursWatched * 3600),
+      hue: "violet",
     },
     {
       icon: CalendarDaysIcon,
       label: t("profile.summary.mostProductiveDay"),
       value: day,
+      hue: "amber",
     },
     {
       icon: TimerIcon,
@@ -407,19 +439,22 @@ function StatsGrid({ stats }: { stats: ProfileStats }) {
         stats.avgSessionMinutes != null
           ? t("profile.summary.minutesShort", { minutes: stats.avgSessionMinutes })
           : "—",
+      hue: "emerald",
     },
   ];
 
   return (
     <div className="reveal-group grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(({ icon: Icon, label, value }, i) => (
+      {cards.map(({ icon: Icon, label, value, hue }, i) => (
         <div
           key={label}
-          className="reveal flex h-full flex-col justify-between gap-2 rounded-xl border border-border/60 bg-card/40 p-4"
+          className="reveal flex h-full flex-col justify-between gap-2.5 rounded-xl border border-border/60 bg-card/40 p-4"
           style={{ "--i": i } as CSSProperties}
         >
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Icon className="size-3.5 shrink-0 text-muted-foreground/70" />
+          <span
+            className={cn("flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs", ROW_HUE[hue])}
+          >
+            <Icon className="size-3.5 shrink-0" />
             <span className="truncate">{label}</span>
           </span>
           <span className="font-display text-lg leading-tight tabular-nums sm:text-xl">
@@ -600,44 +635,56 @@ function SettingsList({ children }: { children: React.ReactNode }) {
  *   collapsed behind the row and only takes up space once it's opened; the
  *   summary value (if any) is what's visible either way.
  */
+/** Each row gets its own colour chip behind the icon — a whole list of
+ * identical grey icons is itself a big part of what read as flat and grey;
+ * a different, deliberate hue per row (à la Telegram's own settings icons)
+ * makes each one legible as a distinct destination at a glance instead of
+ * a row of interchangeable bullets. */
+const ROW_HUE = {
+  primary: "bg-primary/15 text-primary",
+  violet: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+  sky: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+  amber: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  rose: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+  emerald: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  fuchsia: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400",
+} satisfies Record<string, string>;
+
 function SettingsRow({
   icon: Icon,
+  hue = "primary",
   label,
   value,
   info,
   control,
   expanded,
   onToggle,
-  tone,
   children,
 }: {
   icon: LucideIcon;
+  hue?: keyof typeof ROW_HUE;
   label: string;
   value?: React.ReactNode;
   info?: React.ReactNode;
   control?: React.ReactNode;
   expanded?: boolean;
   onToggle?: () => void;
-  tone?: "default" | "primary";
   children?: React.ReactNode;
 }) {
   const header = (
     <div
       className={cn(
-        "flex min-h-12 items-center gap-3 px-4 py-2.5",
-        onToggle && "cursor-pointer transition-colors hover:bg-secondary/40",
+        "flex min-h-14 items-center gap-3 px-4 py-2.5",
+        onToggle && "cursor-pointer transition-colors hover:bg-secondary/40 active:bg-secondary/60",
       )}
       onClick={onToggle}
       role={onToggle ? "button" : undefined}
       tabIndex={onToggle ? 0 : undefined}
       onKeyDown={onToggle ? (e) => e.key === "Enter" && onToggle() : undefined}
     >
-      <Icon
-        className={cn(
-          "size-4 shrink-0",
-          tone === "primary" ? "text-primary" : "text-muted-foreground",
-        )}
-      />
+      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", ROW_HUE[hue])}>
+        <Icon className="size-4" />
+      </span>
       <span className="flex min-w-0 flex-1 items-center gap-1 text-sm font-medium">
         {label}
         {info}
@@ -749,6 +796,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
       <SettingsList>
         <SettingsRow
           icon={UserIcon}
+          hue="primary"
           label={t("profile.title")}
           value={profile.username ? t("profile.handle", { username: profile.username }) : bio || undefined}
           expanded={openRow === "identity"}
@@ -891,6 +939,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
             picker sits right in the row instead of behind a tap. */}
         <SettingsRow
           icon={PaletteIcon}
+          hue="violet"
           label={t("profile.settings.theme")}
           control={
             <Select
@@ -916,6 +965,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
         <SettingsRow
           icon={MoonStarIcon}
+          hue="sky"
           label={t("profile.settings.status")}
           info={<InfoTooltip>{t("profile.settings.statusHint")}</InfoTooltip>}
           control={
@@ -940,6 +990,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
         <SettingsRow
           icon={ShieldCheckIcon}
+          hue="amber"
           label={t("profile.settings.age.title")}
           value={
             profile.birthDate
@@ -956,6 +1007,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {earned.length > 0 && (
           <SettingsRow
             icon={TrophyIcon}
+            hue="fuchsia"
             label={t("profile.settings.showcase")}
             value={t("profile.settings.showcaseCount", {
               count: profile.showcaseAchievementIds.length,
@@ -974,6 +1026,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {profile.isPro && (
           <SettingsRow
             icon={CrownIcon}
+            hue="amber"
             label={t("profile.settings.titlePro")}
             value={profile.titlePrefix ?? undefined}
             expanded={openRow === "title"}
@@ -985,6 +1038,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
         <SettingsRow
           icon={SparklesIcon}
+          hue="rose"
           label={t("profile.settings.genres")}
           value={
             genreStatus?.genreIds.length
@@ -1062,9 +1116,9 @@ function EmailVerificationRow({
   return (
     <SettingsRow
       icon={MailIcon}
+      hue="primary"
       label={t("profile.settings.emailVerification.title")}
       value={t("profile.settings.emailVerification.unverified")}
-      tone="primary"
       expanded={expanded}
       onToggle={onToggle}
     >
