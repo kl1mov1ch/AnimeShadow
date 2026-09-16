@@ -442,6 +442,32 @@ export class ProfileService {
       }
     }
 
+    // Two weeks of real watch history, one row per day including the empty
+    // ones — a chart with gaps punched out of it reads as "no data here",
+    // which is exactly wrong for "you didn't watch anything that day".
+    const ACTIVITY_DAYS = 14;
+    const minutesByDay = new Map<string, number>();
+    for (const s of sessions) {
+      const key = s.startedAt.toISOString().slice(0, 10);
+      minutesByDay.set(key, (minutesByDay.get(key) ?? 0) + s.seconds / 60);
+    }
+    const episodesByDay = new Map<string, number>();
+    for (const c of completed) {
+      const key = c.updatedAt.toISOString().slice(0, 10);
+      episodesByDay.set(key, (episodesByDay.get(key) ?? 0) + 1);
+    }
+    const startOfToday = Date.now();
+    const dailyActivity = Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
+      const day = new Date(startOfToday - (ACTIVITY_DAYS - 1 - i) * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      return {
+        day,
+        minutes: Math.round(minutesByDay.get(day) ?? 0),
+        episodes: episodesByDay.get(day) ?? 0,
+      };
+    });
+
     const endedSessions = sessions.filter((s) => s.seconds > 0);
     const avgSessionMinutes = endedSessions.length
       ? Math.round(
@@ -484,6 +510,7 @@ export class ProfileService {
       topGenres,
       mostProductiveDay,
       avgSessionMinutes,
+      dailyActivity,
       topRated,
     };
   }

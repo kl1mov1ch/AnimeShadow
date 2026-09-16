@@ -61,7 +61,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Bar, BarChart, Pie, PieChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Pie, PieChart, XAxis, YAxis } from "recharts";
 import {
   Dialog,
   DialogContent,
@@ -456,7 +456,7 @@ function ProfileHero({
             the numbers above say "how much", these say "of what". Only on
             your own profile: the library endpoint is /library, i.e. yours,
             so there's nothing to plot on someone else's page. */}
-        {editable && <LibraryCharts />}
+        {editable && <LibraryCharts stats={stats} />}
       </div>
     </header>
     <AchievementDetailDialog
@@ -518,16 +518,6 @@ function TopRatedTitles({ titles }: { titles: ProfileStats["topRated"] }) {
   );
 }
 
-/** Same validated series palette the admin charts use, so a chart means the
- * same thing colour-wise wherever it appears on the site. */
-const CHART_PALETTE = [
-  "var(--series-1)",
-  "var(--series-2)",
-  "var(--series-3)",
-  "var(--series-4)",
-  "var(--series-5)",
-] as const;
-
 const LIBRARY_STATUSES: LibraryStatus[] = [
   "WATCHING",
   "COMPLETED",
@@ -536,19 +526,69 @@ const LIBRARY_STATUSES: LibraryStatus[] = [
   "DROPPED",
 ];
 
+/** One hue — the site's own — stepped down in strength per slice, instead
+ * of five unrelated colours. A status ring is one measurement, so it reads
+ * as one colour family; the legend/tooltip is what names the slices. */
+function primaryShade(index: number): string {
+  const strength = Math.max(25, 92 - index * 16);
+  return `color-mix(in oklab, var(--primary) ${strength}%, transparent)`;
+}
+
+/** Card shell for a chart, with the site's own 影 mark watermarked behind
+ * it — the same glyph as the header and the toasts, at a weight that never
+ * competes with the data. */
+function ChartPanel({
+  title,
+  className,
+  children,
+}: {
+  title: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "reveal relative flex flex-col gap-2 overflow-hidden rounded-xl border border-border/60 bg-card/40 p-4",
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-3 -top-4 select-none font-display text-7xl leading-none text-primary/[0.07]"
+      >
+        影
+      </span>
+      <span className="relative text-xs font-medium text-muted-foreground">{title}</span>
+      <div className="relative">{children}</div>
+    </div>
+  );
+}
+
 /**
- * Two real charts off the viewer's own list: how the list splits by status,
- * and how they actually score things. Both read straight off /library, so
- * there's no new endpoint and no number here that isn't the viewer's own.
+ * What the viewer actually did, not just what's on their shelf: minutes
+ * watched per day over the last two weeks, and how the list splits by
+ * status. One hue throughout (the site's own) — these are two views of one
+ * person's watching, not five unrelated series that need telling apart.
  */
-function LibraryCharts() {
+function LibraryCharts({ stats }: { stats: ProfileStats }) {
   const t = useT();
   const labels = useLabels();
+  const { locale } = useLocale();
   const { data: entries = [], isPending } = useLibrary();
 
-  if (isPending) return <Skeleton className="h-48 flex-1 rounded-xl" />;
+  const activity = stats.dailyActivity;
+  const hasActivity = activity.some((d) => d.minutes > 0 || d.episodes > 0);
 
-  if (entries.length === 0) {
+  const dayLabel = (day: string) =>
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(locale, {
+      day: "numeric",
+      month: "short",
+    });
+
+  if (isPending) return <Skeleton className="h-44 flex-1 rounded-xl" />;
+
+  if (entries.length === 0 && !hasActivity) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border/60 bg-card/20 p-4 text-center text-xs text-muted-foreground">
         {t("profile.summary.chartsEmpty")}
@@ -559,70 +599,87 @@ function LibraryCharts() {
   const byStatus = LIBRARY_STATUSES.map((status, i) => ({
     status,
     count: entries.filter((e) => e.status === status).length,
-    fill: CHART_PALETTE[i % CHART_PALETTE.length]!,
+    fill: primaryShade(i),
   })).filter((row) => row.count > 0);
-
-  const scores = Array.from({ length: 10 }, (_, i) => ({
-    score: String(i + 1),
-    count: entries.filter((e) => e.score === i + 1).length,
-  }));
-  const hasScores = scores.some((row) => row.count > 0);
 
   const statusConfig: ChartConfig = Object.fromEntries(
     LIBRARY_STATUSES.map((status, i) => [
       status,
-      { label: labels.statusLabel(status), color: CHART_PALETTE[i % CHART_PALETTE.length]! },
+      { label: labels.statusLabel(status), color: primaryShade(i) },
     ]),
   );
-  const scoreConfig = {
-    count: { label: t("profile.summary.titlesAxis"), color: "var(--series-2)" },
+
+  const activityConfig = {
+    minutes: { label: t("profile.summary.minutesAxis"), color: "var(--primary)" },
+    episodes: { label: t("profile.summary.episodesAxis"), color: "var(--primary)" },
   } satisfies ChartConfig;
 
   return (
     <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-      <div className="reveal flex flex-1 flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-4">
-        <span className="text-xs font-medium text-muted-foreground">
-          {t("profile.summary.libraryChart")}
-        </span>
-        <ChartContainer config={statusConfig} className="mx-auto aspect-square w-full max-w-[150px]">
-          <PieChart>
-            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="status" />} />
-            <Pie
-              data={byStatus}
-              dataKey="count"
-              nameKey="status"
-              innerRadius="58%"
-              outerRadius="92%"
-              paddingAngle={3}
-              cornerRadius={6}
-              strokeWidth={0}
+      <ChartPanel title={t("profile.summary.activityChart")} className="flex-[2]">
+        <ChartContainer config={activityConfig} className="aspect-auto h-[140px] w-full">
+          <AreaChart data={activity} margin={{ top: 4, right: 6, bottom: 0, left: -30 }}>
+            <defs>
+              <linearGradient id="profile-activity-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.45} />
+                <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.03} />
+              </linearGradient>
+            </defs>
+            <XAxis
+              dataKey="day"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={6}
+              minTickGap={22}
+              tick={{ fontSize: 9 }}
+              tickFormatter={dayLabel}
+            />
+            <YAxis hide />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent labelFormatter={(value) => dayLabel(String(value))} />}
+            />
+            <Area
+              dataKey="minutes"
+              type="monotone"
+              stroke="var(--primary)"
+              strokeWidth={2}
+              fill="url(#profile-activity-fill)"
               animationDuration={900}
             />
-          </PieChart>
+            <Area
+              dataKey="episodes"
+              type="monotone"
+              stroke="var(--primary)"
+              strokeOpacity={0.45}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              fill="none"
+              animationDuration={900}
+            />
+          </AreaChart>
         </ChartContainer>
-      </div>
+      </ChartPanel>
 
-      {hasScores && (
-        <div className="reveal flex flex-1 flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-4">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t("profile.summary.scoresChart")}
-          </span>
-          <ChartContainer config={scoreConfig} className="aspect-auto h-[150px] w-full">
-            <BarChart data={scores} margin={{ top: 4, right: 4, bottom: 0, left: -28 }} barCategoryGap={3}>
-              <XAxis dataKey="score" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-              <YAxis hide />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) => `${t("profile.summary.scoresAxis")} ${value}`}
-                  />
-                }
+      {byStatus.length > 0 && (
+        <ChartPanel title={t("profile.summary.libraryChart")} className="flex-1">
+          <ChartContainer config={statusConfig} className="mx-auto aspect-square w-full max-w-[132px]">
+            <PieChart>
+              <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="status" />} />
+              <Pie
+                data={byStatus}
+                dataKey="count"
+                nameKey="status"
+                innerRadius="60%"
+                outerRadius="92%"
+                paddingAngle={3}
+                cornerRadius={6}
+                strokeWidth={0}
+                animationDuration={900}
               />
-              <Bar dataKey="count" fill="var(--color-count)" radius={4} animationDuration={900} />
-            </BarChart>
+            </PieChart>
           </ChartContainer>
-        </div>
+        </ChartPanel>
       )}
     </div>
   );

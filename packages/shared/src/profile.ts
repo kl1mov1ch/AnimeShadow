@@ -37,6 +37,15 @@ export const profileStatsSchema = z.object({
   topGenres: z.array(z.object({ name: z.string(), count: z.number().int() })),
   mostProductiveDay: z.string().nullable(),
   avgSessionMinutes: z.number().nullable(),
+  /** One entry per day for the last two weeks, oldest first — the actual
+   * watch history behind the totals above, so the profile can plot it. */
+  dailyActivity: z.array(
+    z.object({
+      day: z.string(),
+      minutes: z.number().int(),
+      episodes: z.number().int(),
+    }),
+  ),
   /** Up to 3 titles from the list, highest personal score first — real
    * ratings only, never a title that hasn't actually been scored. */
   topRated: z.array(
