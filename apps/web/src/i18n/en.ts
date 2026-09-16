@@ -18,6 +18,7 @@ export const en = {
     menu: "Menu",
     clear: "Clear",
     loading: "Loading",
+    pageOf: "Page {page} of {total}",
     results: "{count} results",
     showMore: "Show more",
     showLess: "Show less",
@@ -683,6 +684,13 @@ export const en = {
       completedTitles: "Titles completed",
       meanScore: "Mean score",
       lastWatched: "Last watched",
+    },
+    progress: {
+      freeLimit: "Without PRO, only your {count} most recent titles are tracked. PRO tracks as many as you like.",
+      searchPlaceholder: "Search by title…",
+      filterAll: "All",
+      filterWatching: "Watching",
+      filterCompleted: "Completed",
     },
     settings: {
       avatar: "Avatar",

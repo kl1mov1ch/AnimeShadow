@@ -269,9 +269,20 @@ export function HoloAchievementBadge({
         tabIndex={onClick ? 0 : undefined}
         onClick={onClick}
         onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
-        className={rootClassName}
+        className={cn(rootClassName, onClick && "group")}
       >
-        <svg viewBox={viewBox} className="h-auto w-full opacity-80">
+        {/* Dozens of these in a grid used to blur into one grey smear — a
+            grayscale filter that lifts on hover/focus (still flat, still
+            unearned, but not indistinguishable from its neighbours the
+            instant you actually look at one) reads as "still locked" while
+            staying scannable. */}
+        <svg
+          viewBox={viewBox}
+          className={cn(
+            "h-auto w-full opacity-80 grayscale transition-[filter] duration-200",
+            onClick && "group-hover:grayscale-0 group-focus-visible:grayscale-0",
+          )}
+        >
           <defs>
             <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={LOCKED_STYLE.from} />

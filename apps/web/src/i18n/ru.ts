@@ -20,6 +20,7 @@ export const ru: Dict = {
     menu: "Меню",
     clear: "Очистить",
     loading: "Загрузка",
+    pageOf: "Стр. {page} из {total}",
     results: "Найдено: {count}",
     showMore: "Показать полностью",
     showLess: "Свернуть",
@@ -684,6 +685,13 @@ export const ru: Dict = {
       completedTitles: "Тайтлов просмотрено",
       meanScore: "Средняя оценка",
       lastWatched: "Последний просмотр",
+    },
+    progress: {
+      freeLimit: "Без PRO отслеживаются только {count} последних тайтлов. С PRO — сколько угодно.",
+      searchPlaceholder: "Поиск по названию…",
+      filterAll: "Все",
+      filterWatching: "Смотрю",
+      filterCompleted: "Завершено",
     },
     settings: {
       avatar: "Аватар",

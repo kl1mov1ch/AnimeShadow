@@ -207,6 +207,18 @@ export class ProfileService {
   }
 
   async progress(userId: string): Promise<ProgressDetail[]> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { proSince: true },
+    });
+    const isPro = this.proForAll || user.proSince != null;
+    // Free accounts track their 10 most recent titles — PRO tracks
+    // everything. `rawTake` is rows (one per touched episode, not per
+    // anime — see the unique constraint on WatchProgress), generous enough
+    // that a PRO account with a long history still gets every title back.
+    const animeLimit = isPro ? Number.POSITIVE_INFINITY : PROGRESS_ANIME_LIMIT;
+    const rawTake = isPro ? 2000 : 200;
+
     const [rows, sessions, library] = await Promise.all([
       this.prisma.watchProgress.findMany({
         where: { userId },
@@ -214,7 +226,7 @@ export class ProfileService {
         include: {
           anime: { select: { slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true } },
         },
-        take: 200,
+        take: rawTake,
       }),
       this.prisma.watchSession.groupBy({
         by: ["animeId"],
@@ -242,7 +254,7 @@ export class ProfileService {
       if (seen.has(r.animeId)) continue;
       seen.add(r.animeId);
       perAnime.push(r);
-      if (perAnime.length >= PROGRESS_ANIME_LIMIT) break;
+      if (perAnime.length >= animeLimit) break;
     }
 
     return perAnime.map((r) => ({

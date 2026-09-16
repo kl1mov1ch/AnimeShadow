@@ -26,6 +26,7 @@ import {
   PlayCircleIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  SearchIcon,
   ShuffleIcon,
   SparklesIcon,
   TimerIcon,
@@ -141,8 +142,7 @@ function PublicView({ username }: { username: string }) {
     return <ErrorState title={t("errors.notFoundTitle")} message={t("errors.notFoundBody")} />;
   return (
     <ProfileShell>
-      <ProfileHero profile={data} />
-      <ProfileOverview stats={data.stats} />
+      <ProfileHero profile={data} stats={data.stats} />
       <AchievementsGrid achievements={data.achievements} />
     </ProfileShell>
   );
@@ -164,8 +164,7 @@ function OwnView() {
 
   return (
     <ProfileShell>
-      <ProfileHero profile={profile} />
-      <ProfileOverview stats={profile.stats} />
+      <ProfileHero profile={profile} stats={profile.stats} />
 
       <Tabs
         value={tab}
@@ -205,7 +204,7 @@ function OwnView() {
 
         <div className="min-w-0">
           <TabsContent value="progress">
-            <ProgressTab stats={profile.stats} />
+            <ProgressTab profile={profile} />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsTab profile={profile} />
@@ -283,8 +282,18 @@ const RANK_CHIP: Record<Rank, string> = {
  * rank/PRO live in their own labelled rail on the right instead of trailing
  * the name as a row of look-alike badges.
  */
-function ProfileHero({ profile }: { profile: PublicProfile }) {
+/**
+ * Identity and stats used to be two separate blocks (a hero card, then a
+ * stat-cards row below it) — one surface now: a small square of "who this
+ * is" on the left (avatar, name, pinned achievements with their actual
+ * names underneath instead of bare unlabelled circles), the numbers and
+ * top genres that used to sit in their own sections filling the rest of
+ * the row so it reads as one finished card instead of a tall square next
+ * to a short one with empty space trailing it.
+ */
+function ProfileHero({ profile, stats }: { profile: PublicProfile; stats: ProfileStats }) {
   const t = useT();
+  const labels = useLabels();
   const { locale } = useLocale();
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
   const memberSince = new Date(profile.memberSince).toLocaleDateString(locale, {
@@ -300,98 +309,122 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
 
   return (
     <>
-    <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
+    <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:p-6 lg:flex-row lg:items-stretch">
       <div
-        className={cn(
-          "reveal flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background sm:size-24 sm:text-3xl",
-          RANK_RING[profile.rank],
-        )}
+        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4 text-center lg:w-60"
         style={{ "--i": 0 } as CSSProperties}
       >
-        {profile.avatarUrl ? (
-          <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
-        ) : (
-          initial
-        )}
-      </div>
-
-      <div
-        className="reveal flex min-w-0 flex-1 flex-col gap-1.5"
-        style={{ "--i": 1 } as CSSProperties}
-      >
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-          <h1 className="font-display text-2xl leading-tight [overflow-wrap:anywhere] sm:text-3xl">
-            {profile.displayName}
-          </h1>
-          <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} />
+        <div
+          className={cn(
+            "flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background",
+            RANK_RING[profile.rank],
+          )}
+        >
+          {profile.avatarUrl ? (
+            <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
+          ) : (
+            initial
+          )}
         </div>
-        {profile.username && (
-          <p className="truncate text-sm text-muted-foreground">
-            {t("profile.handle", { username: profile.username })}
-          </p>
+
+        <div className="flex min-w-0 flex-col items-center gap-1">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <h1 className="font-display text-xl leading-tight [overflow-wrap:anywhere]">
+              {profile.displayName}
+            </h1>
+            <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} />
+          </div>
+          {profile.username && (
+            <p className="truncate text-xs text-muted-foreground">
+              {t("profile.handle", { username: profile.username })}
+            </p>
+          )}
+        </div>
+
+        {profile.bio && (
+          <p className="line-clamp-2 text-xs leading-relaxed text-foreground/85">{profile.bio}</p>
         )}
-        {/* Bio shares its line with the pinned achievements instead of its
-            own row — truncated to one line (it already can't be wider than
-            the name/handle above it, all being siblings in the same column)
-            so a long bio can't push the achievement circles off-screen. */}
-        {(profile.bio || pinned.length > 0) && (
-          <div className="flex items-center gap-2">
-            {profile.bio && (
-              <p className="min-w-0 flex-1 truncate text-sm leading-relaxed text-foreground/90">
-                {profile.bio}
-              </p>
-            )}
-            {pinned.length > 0 && (
-              <div className="flex shrink-0 items-center gap-1.5">
-                {pinned.map((a) => (
-                  <HoloAchievementBadge
-                    key={a.id}
-                    id={a.id}
-                    rarity={a.rarity}
-                    earned
-                    earnedAt={a.earnedAt}
-                    variant="circle"
-                    className="size-8"
-                    onClick={() => setOpened(a)}
-                  />
-                ))}
-              </div>
-            )}
+
+        {pinned.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            {pinned.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setOpened(a)}
+                className="flex w-16 flex-col items-center gap-1 outline-none"
+              >
+                <HoloAchievementBadge
+                  id={a.id}
+                  rarity={a.rarity}
+                  earned
+                  earnedAt={a.earnedAt}
+                  variant="circle"
+                  className="size-9"
+                />
+                {/* Bare circles told you nothing until you hovered one —
+                    the name is what makes "achievements pinned here" mean
+                    anything at a glance. Two lines, not one truncated
+                    mid-word — most of these titles are two or three words. */}
+                <span className="line-clamp-2 text-[9px] leading-tight text-muted-foreground">
+                  {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
+                </span>
+              </button>
+            ))}
           </div>
         )}
-        <p className="text-xs text-muted-foreground/80">
+
+        <div className="mt-auto flex flex-wrap items-center justify-center gap-1.5 pt-1">
+          <div
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2 py-1",
+              RANK_CHIP[profile.rank],
+            )}
+          >
+            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", RANK_DOT[profile.rank])} />
+            <span className="text-[11px] font-medium">
+              {t(`profile.rank.${profile.rank.toLowerCase()}`)}
+            </span>
+            <InfoTooltip side="bottom" className="size-3.5 opacity-70 hover:opacity-100">
+              {t("profile.rank.hint")}
+            </InfoTooltip>
+          </div>
+          {profile.isPro && (
+            <span className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] font-semibold tracking-wide text-primary">
+              <SparklesIcon className="size-3" />
+              PRO
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground/70">
           {t("profile.memberSince", { date: memberSince })}
         </p>
       </div>
 
-      <div
-        className="reveal flex flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2.5 sm:self-stretch sm:border-l sm:border-border/60 sm:pl-6"
-        style={{ "--i": 2 } as CSSProperties}
-      >
-        <div
-          className={cn(
-            "flex items-center gap-2 rounded-lg border px-2.5 py-1.5",
-            RANK_CHIP[profile.rank],
-          )}
-        >
-          <span aria-hidden className={cn("size-2 shrink-0 rounded-full", RANK_DOT[profile.rank])} />
-          <span className="flex flex-1 flex-col leading-tight">
-            <span className="text-[10px] uppercase tracking-wide opacity-70">
-              {t("profile.rank.label")}
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <StatsGrid stats={stats} />
+        {/* Fills the rest of the column instead of leaving it empty next to
+            the taller identity square — the same genre counts that used to
+            be their own section lower on the page, just folded in here as
+            something worth knowing about the person, not a separate stop. */}
+        {stats.topGenres.length > 0 && (
+          <div className="reveal flex flex-1 flex-col gap-2 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.05] to-transparent p-4">
+            <span className="flex items-center gap-1.5 text-xs text-primary/90">
+              <SparklesIcon className="size-3.5 shrink-0" />
+              {t("profile.summary.topGenres")}
             </span>
-            <span className="text-xs font-medium">
-              {t(`profile.rank.${profile.rank.toLowerCase()}`)}
-            </span>
-          </span>
-          <InfoTooltip side="left" className="opacity-70 hover:opacity-100">
-            {t("profile.rank.hint")}
-          </InfoTooltip>
-        </div>
-        {profile.isPro && (
-          <span className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-semibold tracking-wide text-primary">
-            <SparklesIcon className="size-3.5" />
-            PRO
-          </span>
+            <div className="flex flex-wrap content-start gap-1.5">
+              {stats.topGenres.map((g) => (
+                <Link
+                  key={g.name}
+                  to={`/browse?q=${encodeURIComponent(g.name)}`}
+                  className="rounded-md border border-primary/15 bg-primary/[0.06] px-2 py-1 text-xs text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  {labels.genreLabel(g.name)} · {g.count}
+                </Link>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </header>
@@ -400,17 +433,6 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
       onOpenChange={(open) => !open && setOpened(null)}
     />
     </>
-  );
-}
-
-/* ---------------- overview (stats + genres) ---------------- */
-
-function ProfileOverview({ stats }: { stats: ProfileStats }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <StatsGrid stats={stats} />
-      <TopGenres genres={stats.topGenres} />
-    </section>
   );
 }
 
@@ -428,25 +450,21 @@ function StatsGrid({ stats }: { stats: ProfileStats }) {
     icon: typeof ClockIcon;
     label: string;
     value: string;
-    hue: keyof typeof ROW_HUE;
   }> = [
     {
       icon: FilmIcon,
       label: t("profile.summary.totalEpisodes"),
       value: String(stats.episodesWatched),
-      hue: "sky",
     },
     {
       icon: ClockIcon,
       label: t("profile.summary.totalTime"),
       value: fmtDuration(t, stats.hoursWatched * 3600),
-      hue: "violet",
     },
     {
       icon: CalendarDaysIcon,
       label: t("profile.summary.mostProductiveDay"),
       value: day,
-      hue: "amber",
     },
     {
       icon: TimerIcon,
@@ -455,54 +473,29 @@ function StatsGrid({ stats }: { stats: ProfileStats }) {
         stats.avgSessionMinutes != null
           ? t("profile.summary.minutesShort", { minutes: stats.avgSessionMinutes })
           : "—",
-      hue: "emerald",
     },
   ];
 
   return (
+    // One colour family (the site's own primary, just a touch of gradient
+    // between the four cards) instead of a different hue per card — four
+    // unrelated colours in a row read as noisy, not lively.
     <div className="reveal-group grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(({ icon: Icon, label, value, hue }, i) => (
+      {cards.map(({ icon: Icon, label, value }, i) => (
         <div
           key={label}
-          className="reveal flex h-full flex-col justify-between gap-2.5 rounded-xl border border-border/60 bg-card/40 p-4"
+          className="reveal flex h-full flex-col justify-between gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] to-transparent p-4"
           style={{ "--i": i } as CSSProperties}
         >
-          <span
-            className={cn("flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs", ROW_HUE[hue])}
-          >
+          <span className="flex w-fit items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs text-primary/90">
             <Icon className="size-3.5 shrink-0" />
             <span className="truncate">{label}</span>
           </span>
-          <span className="font-display text-lg leading-tight tabular-nums sm:text-xl">
+          <span className="min-w-0 truncate font-display text-lg leading-tight tabular-nums sm:text-xl">
             {value}
           </span>
         </div>
       ))}
-    </div>
-  );
-}
-
-function TopGenres({ genres }: { genres: ProfileStats["topGenres"] }) {
-  const t = useT();
-  const labels = useLabels();
-  if (genres.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="text-xs font-medium text-muted-foreground">
-        {t("profile.summary.topGenres")}
-      </span>
-      <div className="flex flex-wrap gap-1.5">
-        {genres.map((g) => (
-          <Link
-            key={g.name}
-            to={`/browse?q=${encodeURIComponent(g.name)}`}
-            className="rounded-md border border-border/60 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-          >
-            {labels.genreLabel(g.name)} · {g.count}
-          </Link>
-        ))}
-      </div>
     </div>
   );
 }
@@ -520,30 +513,141 @@ function SectionHeading({ title, hint }: { title: string; hint?: string }) {
 
 /* ---------------- progress tab ---------------- */
 
-function ProgressTab({ stats }: { stats: ProfileStats }) {
+const PROGRESS_PAGE_SIZE = 9;
+const FREE_PROGRESS_LIMIT = 10;
+
+/**
+ * The four-line side rail this used to be is now one row across the top —
+ * a running commentary on the list below rather than a box next to it that
+ * repeated numbers already on screen. Search, a status filter and paging
+ * are new: the list itself used to just be every tracked title, in order,
+ * with no way to jump to one by name once there were more than a screenful.
+ */
+function ProgressTab({ profile }: { profile: MyProfile }) {
   const t = useT();
+  const labels = useLabels();
   const { data, isPending } = useMyProgress();
   const deleteProgress = useDeleteProgress();
   const rows = data ?? [];
 
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "watching" | "completed">("all");
+  const [page, setPage] = useState(1);
+
+  const inProgress = rows.filter((r) => !r.completed).length;
+  const lastWatched = rows[0]?.lastWatchedAt ? labels.formatDate(rows[0]!.lastWatchedAt) : null;
+
+  const q = query.trim().toLowerCase();
+  const filtered = rows.filter((r) => {
+    if (q && !r.title.toLowerCase().includes(q)) return false;
+    if (statusFilter === "watching" && r.completed) return false;
+    if (statusFilter === "completed" && !r.completed) return false;
+    return true;
+  });
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PROGRESS_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const visible = filtered.slice(
+    (safePage - 1) * PROGRESS_PAGE_SIZE,
+    safePage * PROGRESS_PAGE_SIZE,
+  );
+
+  const resetPage = () => setPage(1);
+  const atFreeLimit = !profile.isPro && rows.length >= FREE_PROGRESS_LIMIT;
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
-      <div className="flex min-w-0 flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      {/* One line, not a sidebar box — "Прогресс" restated four different
+          ways used to live next to the list in its own card; here it's a
+          running header for the exact same list, no numbers duplicated. */}
+      {!isPending && (
+        <div className="reveal-group flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border/60 bg-card/40 px-4 py-3 text-sm">
+          <ProgressStat label={t("profile.summary.inProgress")} value={String(inProgress)} i={0} />
+          <ProgressStat
+            label={t("profile.summary.completedTitles")}
+            value={String(profile.stats.titlesCompleted)}
+            i={1}
+          />
+          {profile.stats.meanScore != null && (
+            <ProgressStat
+              label={t("profile.summary.meanScore")}
+              value={t("library.scoreValue", { value: profile.stats.meanScore })}
+              i={2}
+            />
+          )}
+          {lastWatched && (
+            <ProgressStat label={t("profile.summary.lastWatched")} value={lastWatched} i={3} />
+          )}
+        </div>
+      )}
+
+      {atFreeLimit && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/[0.06] px-4 py-2.5 text-xs text-foreground/85">
+          <SparklesIcon className="size-3.5 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            {t("profile.progress.freeLimit", { count: FREE_PROGRESS_LIMIT })}
+          </span>
+          <Button asChild size="sm" variant="outline" className="shrink-0">
+            <Link to="/support">{t("footer.pro")}</Link>
+          </Button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
         <SectionHeading
           title={t("home.continueRail")}
-          hint={isPending ? undefined : t("library.countTracked", { count: rows.length })}
+          hint={isPending ? undefined : t("library.countTracked", { count: filtered.length })}
         />
-        {isPending ? (
-          <div className="flex flex-col gap-3">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
-            ))}
+        {rows.length > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  resetPage();
+                }}
+                placeholder={t("profile.progress.searchPlaceholder")}
+                className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-48"
+              />
+            </div>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setStatusFilter(v as typeof statusFilter);
+                resetPage();
+              }}
+            >
+              <SelectTrigger className="h-8 w-36 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("profile.progress.filterAll")}</SelectItem>
+                <SelectItem value="watching">{t("profile.progress.filterWatching")}</SelectItem>
+                <SelectItem value="completed">{t("profile.progress.filterCompleted")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : rows.length === 0 ? (
-          <ProgressEmpty />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {rows.map((row) => (
+        )}
+      </div>
+
+      {isPending ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-40 rounded-xl" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <ProgressEmpty />
+      ) : filtered.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {t("detail.noCharactersMatch")}
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((row) => (
               <ProgressRow
                 key={row.animeId}
                 row={row}
@@ -559,65 +663,44 @@ function ProgressTab({ stats }: { stats: ProfileStats }) {
               />
             ))}
           </div>
-        )}
-      </div>
-
-      {isPending ? (
-        <Skeleton className="h-44 rounded-xl" />
-      ) : (
-        <ProgressSummary rows={rows} stats={stats} />
+          {pageCount > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                {t("common.previous")}
+              </Button>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {t("common.pageOf", { page: safePage, total: pageCount })}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={safePage >= pageCount}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {t("common.next")}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-/**
- * Side rail for the progress tab — deliberately shows only what the four
- * stat cards above *don't* (titles finished, mean score, last session), so
- * the same numbers never appear twice on one screen.
- */
-function ProgressSummary({
-  rows,
-  stats,
-}: {
-  rows: ProgressDetail[];
-  stats: ProfileStats;
-}) {
-  const t = useT();
-  const labels = useLabels();
-  const inProgress = rows.filter((r) => !r.completed).length;
-  const lastWatched = rows[0]?.lastWatchedAt
-    ? labels.formatDate(rows[0]!.lastWatchedAt)
-    : null;
-
-  const items: Array<[string, string]> = [
-    [t("profile.summary.inProgress"), String(inProgress)],
-    [t("profile.summary.completedTitles"), String(stats.titlesCompleted)],
-  ];
-  if (stats.meanScore != null) {
-    items.push([
-      t("profile.summary.meanScore"),
-      t("library.scoreValue", { value: stats.meanScore }),
-    ]);
-  }
-  if (lastWatched) {
-    items.push([t("profile.summary.lastWatched"), lastWatched]);
-  }
-
+function ProgressStat({ label, value, i }: { label: string; value: string; i: number }) {
   return (
-    <aside className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-4 lg:sticky lg:top-20">
-      <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {t("profile.tabs.progress")}
-      </h3>
-      <dl className="flex flex-col gap-2.5">
-        {items.map(([label, value]) => (
-          <div key={label} className="flex items-baseline justify-between gap-3 text-sm">
-            <dt className="min-w-0 truncate text-muted-foreground">{label}</dt>
-            <dd className="shrink-0 font-medium tabular-nums">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </aside>
+    <span
+      className="reveal flex items-baseline gap-1.5 text-xs"
+      style={{ "--i": i } as CSSProperties}
+    >
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="font-medium tabular-nums text-foreground">{value}</span>
+    </span>
   );
 }
 

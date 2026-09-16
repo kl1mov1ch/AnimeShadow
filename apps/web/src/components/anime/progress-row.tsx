@@ -53,7 +53,7 @@ export function ProgressRow({
     <article className="group flex gap-3 rounded-xl border border-border/60 bg-card/40 p-3 transition-colors hover:border-border sm:gap-4">
       <Link
         to={`/anime/${row.slug}`}
-        className="h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted sm:h-28 sm:w-20"
+        className="relative h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted sm:h-28 sm:w-20"
       >
         {row.imageUrl ? (
           <img
@@ -66,6 +66,11 @@ export function ProgressRow({
         ) : (
           <PosterFallback title={row.title} seed={row.animeId} />
         )}
+        {/* Straight to the player, not just to the anime page — the whole
+            point of "continue watching" is one tap back into an episode. */}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
+          <PlayCircleIcon className="size-7 text-white drop-shadow" fill="currentColor" fillOpacity={0.25} />
+        </span>
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
