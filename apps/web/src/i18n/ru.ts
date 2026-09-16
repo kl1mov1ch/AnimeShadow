@@ -170,6 +170,10 @@ export const ru: Dict = {
       appearsInManga: "Манга с персонажем",
       spoilers: "Спойлеры",
       revealSpoilers: "показать",
+      animeAppearancesTitle: "Аниме с участием {name}",
+      mangaAppearancesTitle: "Манга с участием {name}",
+      voiceActorsTitle: "Актёры озвучки — {name}",
+      openInNewTab: "Открыть",
     },
     adultGate: {
       title: "Контент 18+",

@@ -118,6 +118,29 @@ export const characterDetailSchema = z.object({
   seiyu: z.array(z.object({ name: z.string(), imageUrl: z.string().nullable() })).default([]),
   animeCount: z.number().int().nullable().default(null),
   mangaCount: z.number().int().nullable().default(null),
+  /** Titles this character appears in — for the "appears in" modal, so it's more than just a count. */
+  animes: z
+    .array(
+      z.object({
+        id: z.number().int(),
+        title: z.string(),
+        imageUrl: z.string().nullable(),
+        kind: z.string().nullable(),
+        year: z.number().int().nullable(),
+      }),
+    )
+    .default([]),
+  mangas: z
+    .array(
+      z.object({
+        id: z.number().int(),
+        title: z.string(),
+        imageUrl: z.string().nullable(),
+        kind: z.string().nullable(),
+        year: z.number().int().nullable(),
+      }),
+    )
+    .default([]),
   /** True when `description` is already in the requested locale. */
   translated: z.boolean().default(false),
 });

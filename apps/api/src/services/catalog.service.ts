@@ -928,7 +928,7 @@ export class CatalogService {
    * Shikimori character ids are MAL ids, so the same id is safe to ask for.
    */
   async getCharacterDetail(id: number, lang: Locale = DEFAULT_LOCALE): Promise<CharacterDetail | null> {
-    const base = await this.auxCache.wrap(`character:v2:${id}`, async () => {
+    const base = await this.auxCache.wrap(`character:v3:${id}`, async () => {
       try {
         const [detail, pictures] = await Promise.all([
           this.shikimori.getCharacter(id).then(shikiToCharacterDetail),
@@ -944,7 +944,7 @@ export class CatalogService {
     if (!base || lang === "ru") return base;
     if (!base.description && base.facts.length === 0 && base.sections.length === 0) return base;
 
-    return this.auxCache.wrap(`character:v2:${id}:en`, async () => {
+    return this.auxCache.wrap(`character:v3:${id}:en`, async () => {
       const tr = (text: string) => this.translator.translate(text, "ru", "en").catch(() => null);
       const [translatedBio, translatedFacts, sections] = await Promise.all([
         base.description ? tr(base.description) : Promise.resolve(null),

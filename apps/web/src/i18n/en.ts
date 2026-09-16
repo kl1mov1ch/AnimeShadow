@@ -168,6 +168,10 @@ export const en = {
       appearsInManga: "Manga appearances",
       spoilers: "Spoilers",
       revealSpoilers: "reveal",
+      animeAppearancesTitle: "Anime featuring {name}",
+      mangaAppearancesTitle: "Manga featuring {name}",
+      voiceActorsTitle: "Voice actors — {name}",
+      openInNewTab: "Open",
     },
     adultGate: {
       title: "18+ content",

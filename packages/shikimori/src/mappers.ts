@@ -14,6 +14,7 @@ import type {
   ShikiAnimeFull,
   ShikiAnimeShort,
   ShikiGenre,
+  ShikiMangaShort,
   ShikiRole,
   ShikiVideo,
 } from "./types.js";
@@ -256,8 +257,8 @@ export function toCharacterDetail(raw: {
     russian?: string | null;
     image?: { original?: string | null; preview?: string | null } | null;
   }>;
-  animes?: unknown[];
-  mangas?: unknown[];
+  animes?: ShikiAnimeShort[];
+  mangas?: ShikiMangaShort[];
 }): CharacterDetail {
   const { intro, sections, facts } = parseCharacterDescription(raw.description);
   const name = raw.russian || raw.name;
@@ -278,12 +279,29 @@ export function toCharacterDetail(raw: {
     description: intro,
     sections,
     facts,
-    seiyu: (raw.seyu ?? []).slice(0, 3).map((person) => ({
+    // The inline "voiced by" tile only ever needs the lead JP seiyu, but the
+    // dedicated modal (opened from that tile) shows the whole cast Shikimori
+    // knows about, so keep a generous slice rather than the old top-3.
+    seiyu: (raw.seyu ?? []).slice(0, 20).map((person) => ({
       name: person.russian || person.name,
       imageUrl: imageUrl(person.image?.preview ?? person.image?.original),
     })),
     animeCount: raw.animes ? raw.animes.length : null,
     mangaCount: raw.mangas ? raw.mangas.length : null,
+    animes: (raw.animes ?? []).map((a) => ({
+      id: a.id,
+      title: a.russian || a.name,
+      imageUrl: imageUrl(a.image?.preview ?? a.image?.original),
+      kind: a.kind,
+      year: yearOf(a.aired_on),
+    })),
+    mangas: (raw.mangas ?? []).map((m) => ({
+      id: m.id,
+      title: m.russian || m.name,
+      imageUrl: imageUrl(m.image?.preview ?? m.image?.original),
+      kind: m.kind,
+      year: yearOf(m.aired_on),
+    })),
     translated: true, // Shikimori descriptions are already Russian
   };
 }

@@ -682,39 +682,33 @@ function Player({
   };
 
   const winnerMediaRef = useRef<HTMLIFrameElement | HTMLVideoElement | null>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
   /**
-   * Phones are where this button matters, and they're also where a single
-   * `requestFullscreen()` isn't enough: iOS Safari doesn't implement it on
-   * arbitrary elements at all — a `<video>` only goes fullscreen through
-   * `webkitEnterFullscreen()`, and an iframe only if its own embedded player
-   * asks. So: try the video's own native path first, then the player shell
-   * (which keeps our controls in frame), then the media element itself.
+   * Our own button only ever targets the real `<video>` element behind an
+   * HLS (AniLibria) source — a same-origin element the Fullscreen API
+   * genuinely works on everywhere, `webkitEnterFullscreen` covering the one
+   * gap (iOS Safari, which has no arbitrary-element fullscreen at all).
+   * A third-party iframe (Kodik/Alloha) is cross-origin: nothing outside it
+   * can put it into fullscreen, so for those the button used to render but
+   * silently do nothing — duplicating the working fullscreen control the
+   * embed's own player already shows (permitted via `allow="fullscreen"`).
+   * Rather than ship a second, broken button next to a working one, it's
+   * simply not rendered for iframe sources — see the `winner?.format`
+   * check below.
    */
   const enterFullscreen = () => {
-    const media = winnerMediaRef.current;
-    const nativeVideo = media as
-      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
-      | null;
-    if (nativeVideo?.webkitEnterFullscreen && !document.fullscreenEnabled) {
+    const video = winnerMediaRef.current;
+    if (!(video instanceof HTMLVideoElement)) return;
+    const nativeVideo = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+    if (nativeVideo.webkitEnterFullscreen && !document.fullscreenEnabled) {
       nativeVideo.webkitEnterFullscreen();
       return;
     }
-
-    for (const el of [shellRef.current, media]) {
-      if (!el) continue;
-      const request =
-        el.requestFullscreen?.bind(el) ??
-        (
-          el as unknown as { webkitRequestFullscreen?: () => void }
-        ).webkitRequestFullscreen?.bind(el);
-      if (request) {
-        void Promise.resolve(request()).catch(() => nativeVideo?.webkitEnterFullscreen?.());
-        return;
-      }
-    }
-
-    nativeVideo?.webkitEnterFullscreen?.();
+    const request =
+      video.requestFullscreen?.bind(video) ??
+      (
+        video as unknown as { webkitRequestFullscreen?: () => void }
+      ).webkitRequestFullscreen?.bind(video);
+    request?.();
   };
 
   const goToEpisode = (next: number, markCurrentDone: boolean) => {
@@ -850,10 +844,7 @@ function Player({
           video is what benefits from real size on a small screen; the
           controls above/below it stay comfortably padded. Desktop keeps its
           rounded corners since there's no width to gain there anyway. */}
-      <div
-        ref={shellRef}
-        className="relative -mx-5 aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl [&:fullscreen]:mx-0 [&:fullscreen]:aspect-auto [&:fullscreen]:size-full [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
-      >
+      <div className="relative -mx-5 aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl">
         {racePool.map((id) => {
           const source = data.sources.find((s) => s.id === id);
           if (!source) return null;
@@ -903,11 +894,11 @@ function Player({
             />
           );
         })}
-        {/* The embed's own controls are cramped on a narrow phone screen —
-            a dedicated fullscreen button is easier to hit than hunting for
-            the tiny one inside the third-party player's own UI. Desktop's
-            box is already large enough that this isn't needed there. */}
-        {winnerId != null && (
+        {/* Only for the HLS player — a real <video> we control directly.
+            Third-party iframe embeds (the common case) already show their
+            own working fullscreen control in their own UI; see the note on
+            enterFullscreen above for why we don't duplicate it here. */}
+        {winnerId != null && winner?.format === "hls" && (
           <button
             type="button"
             onClick={enterFullscreen}

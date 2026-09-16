@@ -94,7 +94,7 @@ export function CharacterCard({
           />
 
           {isMain && (
-            <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow">
+            <span className="absolute left-1.5 top-1.5 max-w-[calc(100%-0.75rem)] truncate rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground shadow sm:left-2 sm:top-2 sm:max-w-[calc(100%-1rem)] sm:px-2 sm:text-[10px]">
               {roleLabel}
             </span>
           )}

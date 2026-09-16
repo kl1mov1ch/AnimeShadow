@@ -15,6 +15,7 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,9 @@ import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useCharacterDetail } from "@/lib/query";
 import { cn } from "@/lib/utils";
+
+type AppearanceItem = CharacterDetail["animes"][number];
+type SeiyuItem = CharacterDetail["seiyu"][number];
 
 /**
  * Full character profile: the photos on the left (a gallery when there's more
@@ -172,17 +176,144 @@ function sectionIcon(title: string): LucideIcon {
   return SECTION_ICONS.find(([pattern]) => pattern.test(title))?.[1] ?? SparklesIcon;
 }
 
-function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+function StatTile({
+  icon,
+  label,
+  value,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  /** Present when there's more detail behind this stat — opens it in its own modal. */
+  onClick?: () => void;
+}) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-border/60 bg-card/60 px-3 py-2.5">
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 items-center gap-2.5 rounded-xl border border-border/60 bg-card/60 px-3 py-2.5 text-left",
+        onClick && "transition-colors hover:border-primary/40 hover:bg-primary/[0.06]",
+      )}
+    >
       <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary [&_svg]:size-4">
         {icon}
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] text-muted-foreground">{label}</div>
         <div className="truncate text-sm font-semibold">{value}</div>
       </div>
-    </div>
+      {onClick && <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />}
+    </Tag>
+  );
+}
+
+/** A scrollable list of anime/manga the character appears in — clicking the
+ * count tile is more useful than a bare number once there's real data
+ * behind it. Anime rows link to the title's own page; manga rows are
+ * informational only, since this site doesn't have manga pages. */
+function AppearancesModal({
+  kind,
+  items,
+  title,
+  open,
+  onOpenChange,
+}: {
+  kind: "anime" | "manga";
+  items: AppearanceItem[];
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-md">
+        <DialogHeader className="border-b border-border/60 px-5 py-4">
+          <DialogTitle className="text-base">{title}</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {items.map((item) => {
+            const inner = (
+              <>
+                <div className="h-14 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+                  {item.imageUrl ? (
+                    <img
+                      src={imageSrc(item.imageUrl)}
+                      alt=""
+                      loading="lazy"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <PosterFallback title={item.title} seed={item.id} variant="avatar" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-2 text-sm font-medium leading-snug">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {[item.kind, item.year].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+              </>
+            );
+            const rowClass = "flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-primary/[0.06]";
+            return kind === "anime" ? (
+              <Link key={item.id} to={`/anime/${item.id}`} className={rowClass}>
+                {inner}
+              </Link>
+            ) : (
+              <div key={item.id} className={rowClass}>
+                {inner}
+              </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Full voice-cast detail — the inline tile only has room for the lead JP
+ * seiyu's name; this shows every credited actor with a real-size photo. */
+function VoiceActorsModal({
+  actors,
+  title,
+  open,
+  onOpenChange,
+}: {
+  actors: SeiyuItem[];
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-md">
+        <DialogHeader className="border-b border-border/60 px-5 py-4">
+          <DialogTitle className="text-base">{title}</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {actors.map((actor, i) => (
+            <div key={`${actor.name}-${i}`} className="flex items-center gap-3 rounded-lg p-2">
+              <div className="size-14 shrink-0 overflow-hidden rounded-full bg-muted">
+                {actor.imageUrl ? (
+                  <img
+                    src={imageSrc(actor.imageUrl)}
+                    alt=""
+                    loading="lazy"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <PosterFallback title={actor.name} seed={i} variant="avatar" />
+                )}
+              </div>
+              <p className="min-w-0 flex-1 text-sm font-medium leading-snug">{actor.name}</p>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -199,11 +330,23 @@ function CharacterInfo({
 }) {
   const t = useT();
   const [revealed, setRevealed] = useState(false);
+  const [appearancesOpen, setAppearancesOpen] = useState<"anime" | "manga" | null>(null);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const isMain = character.role.toLowerCase() === "main";
   const voice = character.voiceActor ?? data?.seiyu[0] ?? null;
+  // The inline tile shows one name; the modal behind it should show every
+  // credited actor Shikimori knows, falling back to the single voiceActor
+  // the character list itself already had if the detail fetch found none.
+  const voiceActors: SeiyuItem[] =
+    data && data.seiyu.length > 0
+      ? data.seiyu
+      : character.voiceActor
+        ? [{ name: character.voiceActor.name, imageUrl: character.voiceActor.imageUrl }]
+        : [];
   const subtitle = [data?.originalName, data?.japaneseName].filter(Boolean).join(" · ");
   const hasText =
     Boolean(data?.description) || (data?.sections.length ?? 0) > 0 || (data?.facts.length ?? 0) > 0;
+  const displayName = data?.name ?? character.name;
 
   return (
     <div className="flex flex-col gap-5 p-5 sm:p-6">
@@ -246,6 +389,7 @@ function CharacterInfo({
               }
               label={t("detail.characterModal.voicedBy")}
               value={voice.name}
+              onClick={voiceActors.length > 0 ? () => setVoiceModalOpen(true) : undefined}
             />
           )}
           {data?.animeCount ? (
@@ -253,6 +397,7 @@ function CharacterInfo({
               icon={<FilmIcon />}
               label={t("detail.characterModal.appearsInAnime")}
               value={data.animeCount}
+              onClick={data.animes.length > 0 ? () => setAppearancesOpen("anime") : undefined}
             />
           ) : null}
           {data?.mangaCount ? (
@@ -260,10 +405,32 @@ function CharacterInfo({
               icon={<BookMarkedIcon />}
               label={t("detail.characterModal.appearsInManga")}
               value={data.mangaCount}
+              onClick={data.mangas.length > 0 ? () => setAppearancesOpen("manga") : undefined}
             />
           ) : null}
         </div>
       )}
+
+      <AppearancesModal
+        kind="anime"
+        items={data?.animes ?? []}
+        title={t("detail.characterModal.animeAppearancesTitle", { name: displayName })}
+        open={appearancesOpen === "anime"}
+        onOpenChange={(open) => setAppearancesOpen(open ? "anime" : null)}
+      />
+      <AppearancesModal
+        kind="manga"
+        items={data?.mangas ?? []}
+        title={t("detail.characterModal.mangaAppearancesTitle", { name: displayName })}
+        open={appearancesOpen === "manga"}
+        onOpenChange={(open) => setAppearancesOpen(open ? "manga" : null)}
+      />
+      <VoiceActorsModal
+        actors={voiceActors}
+        title={t("detail.characterModal.voiceActorsTitle", { name: displayName })}
+        open={voiceModalOpen}
+        onOpenChange={setVoiceModalOpen}
+      />
 
       {isPending ? (
         <div className="flex flex-col gap-2">

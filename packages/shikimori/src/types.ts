@@ -71,6 +71,22 @@ export interface ShikiAnimeFull extends ShikiAnimeShort {
   screenshots: Array<{ original: string; preview: string }>;
 }
 
+/** `/api/mangas` list item (compact) — same shape as an anime short, minus episode fields. */
+export interface ShikiMangaShort {
+  id: number;
+  name: string;
+  russian: string | null;
+  image: ShikiImage;
+  url: string;
+  kind: string | null; // "manga" | "manhwa" | "manhua" | "one_shot" | ...
+  score: string | null;
+  status: string | null;
+  volumes: number;
+  chapters: number;
+  aired_on: string | null;
+  released_on: string | null;
+}
+
 export interface ShikiRole {
   roles: string[]; // ["Main"], ["Supporting"], ...
   roles_russian: string[];

@@ -4,6 +4,7 @@ import type {
   ShikiCharacterSearch,
   ShikiGenre,
   ShikiListParams,
+  ShikiMangaShort,
   ShikiRole,
 } from "./types.js";
 
@@ -105,7 +106,7 @@ export class ShikimoriClient {
       image?: { original?: string | null; preview?: string | null } | null;
     }>;
     animes?: ShikiAnimeShort[];
-    mangas?: unknown[];
+    mangas?: ShikiMangaShort[];
   }> {
     return this.get(`/api/characters/${id}`);
   }
