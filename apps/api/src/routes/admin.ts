@@ -1,6 +1,5 @@
 import {
   adminCommentQuerySchema,
-  adminReviewQuerySchema,
   adminUpdateUserInputSchema,
   adminUserQuerySchema,
 } from "@animeshadow/shared";
@@ -13,7 +12,7 @@ const idParams = z.object({ id: z.string().min(1) });
 /** Every route here requires a fresh, DB-checked ADMIN role — see
  * requireAdmin in plugins/auth.ts. */
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
-  const { admin, comments, reviews } = fastify.services;
+  const { admin, comments } = fastify.services;
   const guard = { preHandler: [fastify.authenticate, fastify.requireAdmin] };
 
   fastify.get("/admin/overview", guard, async () => admin.overview());
@@ -37,17 +36,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete("/admin/comments/:id", guard, async (request, reply) => {
     const { id } = parse(idParams, request.params);
     await comments.adminRemove(id);
-    reply.code(204);
-  });
-
-  fastify.get("/admin/reviews", guard, async (request) => {
-    const query = parse(adminReviewQuerySchema, request.query);
-    return admin.listReviews(query);
-  });
-
-  fastify.delete("/admin/reviews/:id", guard, async (request, reply) => {
-    const { id } = parse(idParams, request.params);
-    await reviews.adminRemove(id);
     reply.code(204);
   });
 };

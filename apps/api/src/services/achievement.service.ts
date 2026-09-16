@@ -155,7 +155,11 @@ export class AchievementService {
         where: { userId },
         _sum: { seconds: true },
       }),
-      this.prisma.review.count({ where: { userId } }),
+      // "first-review" now means a personal score or note in your own list —
+      // public reviews no longer exist.
+      this.prisma.libraryEntry.count({
+        where: { userId, OR: [{ score: { not: null } }, { notes: { not: null } }] },
+      }),
       this.prisma.comment.count({ where: { userId, deletedAt: null } }),
       this.prisma.comment.count({
         where: { userId, deletedAt: null, mode: "ANON" },

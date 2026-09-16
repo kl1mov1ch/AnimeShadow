@@ -1,8 +1,9 @@
 import type { AnimeSummary } from "@animeshadow/shared";
-import { PlayCircleIcon, StarIcon } from "lucide-react";
+import { PlayCircleIcon /* , StarIcon */ } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { ScoreBadge } from "@/components/anime/score-badge";
+// Overall score is hidden for now (not deleted) — uncomment to bring it back.
+// import { ScoreBadge } from "@/components/anime/score-badge";
 import {
   Dialog,
   DialogContent,
@@ -105,7 +106,7 @@ export function AnimeListRow({
             <h3 className="line-clamp-2 font-medium leading-snug text-foreground transition-colors group-hover:text-primary">
               {title}
             </h3>
-            {anime.score != null && <ScoreBadge score={anime.score} className="shrink-0" />}
+            {/* {anime.score != null && <ScoreBadge score={anime.score} className="shrink-0" />} */}
           </div>
           <p className="text-xs text-muted-foreground">{metaLine}</p>
           {genreLine && (
@@ -118,12 +119,12 @@ export function AnimeListRow({
           )}
 
           <div className="mt-auto flex flex-wrap items-center gap-3 pt-1 text-xs tabular-nums text-muted-foreground/70">
-            {anime.scoredBy != null && anime.scoredBy > 0 && (
+            {/* {anime.scoredBy != null && anime.scoredBy > 0 && (
               <span className="inline-flex items-center gap-1">
                 <StarIcon className="size-3" />
                 {t("common.ratings", { count: labels.compact(anime.scoredBy) })}
               </span>
-            )}
+            )} */}
             {anime.members != null && anime.members > 0 && (
               <span>{t("home.views", { views: labels.compact(anime.members) })}</span>
             )}

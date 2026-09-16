@@ -922,11 +922,19 @@ export class CatalogService {
     }) as Promise<Character[]>;
   }
 
-  /** Full bio for the character modal — image + description, translated on request. */
+  /**
+   * Full bio for the character modal — Shikimori's structured description,
+   * plus extra gallery art from Jikan when MAL happens to be reachable.
+   * Shikimori character ids are MAL ids, so the same id is safe to ask for.
+   */
   async getCharacterDetail(id: number, lang: Locale = DEFAULT_LOCALE): Promise<CharacterDetail | null> {
-    const base = await this.auxCache.wrap(`character:${id}`, async () => {
+    const base = await this.auxCache.wrap(`character:v2:${id}`, async () => {
       try {
-        return shikiToCharacterDetail(await this.shikimori.getCharacter(id));
+        const [detail, pictures] = await Promise.all([
+          this.shikimori.getCharacter(id).then(shikiToCharacterDetail),
+          withTimeout(this.jikan.getCharacterPictures(id), 4_000, [] as string[]),
+        ]);
+        return { ...detail, images: [...new Set([...detail.images, ...pictures])].slice(0, 12) };
       } catch (error) {
         this.logger.warn({ error, id }, "character detail fetch failed");
         return null;
@@ -934,17 +942,18 @@ export class CatalogService {
     }) as CharacterDetail | null;
 
     if (!base || lang === "ru") return base;
-    if (!base.description && base.facts.length === 0) return base;
+    if (!base.description && base.facts.length === 0 && base.sections.length === 0) return base;
 
-    return this.auxCache.wrap(`character:${id}:en`, async () => {
-      const [translatedBio, translatedFacts] = await Promise.all([
-        base.description
-          ? this.translator.translate(base.description, "ru", "en").catch(() => null)
-          : Promise.resolve(null),
+    return this.auxCache.wrap(`character:v2:${id}:en`, async () => {
+      const tr = (text: string) => this.translator.translate(text, "ru", "en").catch(() => null);
+      const [translatedBio, translatedFacts, sections] = await Promise.all([
+        base.description ? tr(base.description) : Promise.resolve(null),
+        Promise.all(base.facts.map((fact) => tr(fact))),
         Promise.all(
-          base.facts.map((fact) =>
-            this.translator.translate(fact, "ru", "en").catch(() => null),
-          ),
+          base.sections.map(async (section) => ({
+            title: (await tr(section.title)) ?? section.title,
+            body: (await tr(section.body)) ?? section.body,
+          })),
         ),
       ]);
       const facts = base.facts.map((fact, i) => translatedFacts[i] ?? fact);
@@ -953,6 +962,7 @@ export class CatalogService {
         ...base,
         description: translatedBio ?? base.description,
         facts,
+        sections,
         translated: bioOk,
       };
     }) as Promise<CharacterDetail>;

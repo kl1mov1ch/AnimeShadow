@@ -34,7 +34,6 @@ export const adminOverviewSchema = z.object({
     pageviews: adminKpiSchema,
     watchSeconds: adminKpiSchema,
     comments: adminKpiSchema,
-    reviews: adminKpiSchema,
   }),
   /** One point per UTC day, oldest first, zero-filled — always 30 entries. */
   timeline: z.array(
@@ -108,7 +107,6 @@ export const adminUserSummarySchema = z.object({
   isBanned: z.boolean(),
   hasTelegram: z.boolean(),
   commentCount: count,
-  reviewCount: count,
   libraryCount: count,
   createdAt: z.string(),
 });
@@ -155,32 +153,3 @@ export const adminCommentSummarySchema = z.object({
   createdAt: z.string(),
 });
 export type AdminCommentSummary = z.infer<typeof adminCommentSummarySchema>;
-
-// ---------------------------------------------------------------------------
-// Reviews — /admin/reviews
-// ---------------------------------------------------------------------------
-
-export const adminReviewQuerySchema = z.object({
-  query: z.string().trim().max(200).optional(),
-  animeId: z.coerce.number().int().positive().optional(),
-  rating: z.enum(["all", "positive", "mixed", "negative"]).default("all"),
-  sort: z.enum(["newest", "oldest", "best", "worst"]).default("newest"),
-  page,
-  perPage,
-});
-export type AdminReviewQuery = z.infer<typeof adminReviewQuerySchema>;
-
-export const adminReviewSummarySchema = z.object({
-  id: z.string(),
-  animeId: z.number().int(),
-  animeSlug: z.string(),
-  animeTitle: z.string(),
-  animeImageUrl: z.string().nullable(),
-  authorId: z.string(),
-  authorName: z.string(),
-  authorAvatarUrl: z.string().nullable(),
-  rating: z.number().int(),
-  body: z.string(),
-  createdAt: z.string(),
-});
-export type AdminReviewSummary = z.infer<typeof adminReviewSummarySchema>;

@@ -4,13 +4,11 @@ import {
   type LucideIcon,
   MessageSquareIcon,
   RefreshCwIcon,
-  StarIcon,
   UsersIcon,
 } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { AdminComments } from "@/components/admin/admin-comments";
 import { AdminDashboard } from "@/components/admin/admin-dashboard";
-import { AdminReviews } from "@/components/admin/admin-reviews";
 import { ENTER, LiveDot } from "@/components/admin/admin-ui";
 import { AdminUsers } from "@/components/admin/admin-users";
 import { Button } from "@/components/ui/button";
@@ -21,14 +19,13 @@ import { useLocale, useT } from "@/i18n";
 import { useAdminOverview } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-const TABS = ["dashboard", "users", "comments", "reviews"] as const;
+const TABS = ["dashboard", "users", "comments"] as const;
 type AdminTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   dashboard: LayoutDashboardIcon,
   users: UsersIcon,
   comments: MessageSquareIcon,
-  reviews: StarIcon,
 };
 
 function isAdminTab(value: string | null): value is AdminTab {
@@ -71,7 +68,6 @@ function AdminPanel() {
     ? {
         users: overview.data.kpis.users.total,
         comments: overview.data.kpis.comments.total,
-        reviews: overview.data.kpis.reviews.total,
       }
     : {};
   const updatedAt = overview.dataUpdatedAt
@@ -173,9 +169,6 @@ function AdminPanel() {
         </TabsContent>
         <TabsContent value="comments">
           <AdminComments />
-        </TabsContent>
-        <TabsContent value="reviews">
-          <AdminReviews />
         </TabsContent>
       </Tabs>
     </div>

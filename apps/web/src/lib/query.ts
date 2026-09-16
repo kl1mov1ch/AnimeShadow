@@ -2,8 +2,6 @@ import type {
   AdminCommentQuery,
   AdminCommentSummary,
   AdminOverview,
-  AdminReviewQuery,
-  AdminReviewSummary,
   AdminUpdateUserInput,
   AdminUserQuery,
   AdminUserSummary,
@@ -11,17 +9,18 @@ import type {
   AnimeSummary,
   Character,
   CharacterDetail,
+  DeleteAccountInput,
   DiscoverResponse,
+  ForgotPasswordInput,
   Genre,
   LibraryEntry,
   LibraryStatus,
   LibrarySummary,
   Paginated,
   RecommendationItem,
-  ReviewList,
+  ResetPasswordInput,
   SmartSearchResponse,
   UpsertLibraryInput,
-  UpsertReviewInput,
   WatchResponse,
 } from "@animeshadow/shared";
 import {
@@ -51,7 +50,6 @@ export const queryKeys = {
   anime: (id: number, lang: string) => ["anime", id, lang] as const,
   characters: (id: number) => ["anime", id, "characters"] as const,
   recommendations: (id: number) => ["anime", id, "recommendations"] as const,
-  reviews: (id: number) => ["anime", id, "reviews"] as const,
   watch: (id: number) => ["anime", id, "watch"] as const,
   library: (status?: LibraryStatus) => ["library", status ?? "all"] as const,
   librarySummary: ["library", "summary"] as const,
@@ -206,37 +204,6 @@ export function useWatchSources(id: number, enabled = true) {
     queryFn: ({ signal }) =>
       apiRequest<WatchResponse>(`/anime/${id}/watch`, { signal }),
     staleTime: 15 * 60_000,
-  });
-}
-
-export function useReviews(id: number, enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.reviews(id),
-    enabled,
-    queryFn: ({ signal }) =>
-      apiRequest<ReviewList>(`/anime/${id}/reviews`, { signal }),
-  });
-}
-
-export function useUpsertReview(animeId: number) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: UpsertReviewInput) =>
-      apiRequest(`/anime/${animeId}/reviews`, { method: "PUT", body: input }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: queryKeys.reviews(animeId) });
-    },
-  });
-}
-
-export function useDeleteReview(animeId: number) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: () =>
-      apiRequest<void>(`/anime/${animeId}/reviews`, { method: "DELETE" }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: queryKeys.reviews(animeId) });
-    },
   });
 }
 
@@ -439,6 +406,58 @@ export function useLogSession() {
       seconds: number;
       startedAt: string;
     }) => apiRequest<void>("/me/session", { method: "POST", body: input }),
+  });
+}
+
+// -- signup confirmation + password reset ----------------------------------
+
+/** Resends the signup code — unauthenticated (no account exists yet), so
+ * the pending signup is addressed by email rather than a bearer token. */
+export function useResendRegistration() {
+  return useMutation({
+    mutationFn: (email: string) =>
+      apiRequest<void>("/auth/register/resend", { method: "POST", body: { email } }),
+  });
+}
+
+/** For accounts created before signup required a code — emails a fresh one. */
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: () => apiRequest<void>("/auth/resend-verification", { method: "POST" }),
+  });
+}
+
+export function useVerifyEmail() {
+  return useMutation({
+    mutationFn: (code: string) =>
+      apiRequest<{ user: { emailVerified: boolean } }>("/auth/verify-email", {
+        method: "POST",
+        body: { code },
+      }),
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (input: ForgotPasswordInput) =>
+      apiRequest<void>("/auth/forgot-password", { method: "POST", body: input }),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (input: ResetPasswordInput) =>
+      apiRequest<void>("/auth/reset-password", { method: "POST", body: input }),
+  });
+}
+
+/** Permanently deletes the signed-in account. The frontend's own "type a
+ * phrase" step (see DeleteAccountSection in routes/profile.tsx) is a
+ * misclick guard; this call itself still requires the current password. */
+export function useDeleteAccount() {
+  return useMutation({
+    mutationFn: (input: DeleteAccountInput) =>
+      apiRequest<void>("/auth/me", { method: "DELETE", body: input }),
   });
 }
 
@@ -685,27 +704,6 @@ export function useAdminDeleteComment() {
       apiRequest<void>(`/admin/comments/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["admin", "comments"] });
-    },
-  });
-}
-
-export function useAdminReviews(params: AdminListParams<AdminReviewQuery>, enabled = true) {
-  return useQuery({
-    queryKey: ["admin", "reviews", params],
-    enabled,
-    queryFn: ({ signal }) =>
-      apiRequest<Paginated<AdminReviewSummary>>("/admin/reviews", { signal, query: params }),
-    placeholderData: (prev) => prev,
-  });
-}
-
-export function useAdminDeleteReview() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) =>
-      apiRequest<void>(`/admin/reviews/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["admin", "reviews"] });
     },
   });
 }

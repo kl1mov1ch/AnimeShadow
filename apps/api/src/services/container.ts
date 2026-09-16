@@ -12,11 +12,11 @@ import { AnalyticsService } from "./analytics.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
 import { CommentService } from "./comment.service.js";
+import { EmailService } from "./email.service.js";
 import { LibraryService } from "./library.service.js";
 import { ProfileService } from "./profile.service.js";
 import { ProgressService } from "./progress.service.js";
 import { RecommendationService } from "./recommendation.service.js";
-import { ReviewService } from "./review.service.js";
 import { SearchService } from "./search.service.js";
 import { TranslationService } from "./translation.service.js";
 import {
@@ -43,13 +43,17 @@ export interface ContainerDeps {
   };
   telegramBotToken?: string | undefined;
   adminEmails: string[];
+  email: {
+    apiKey?: string | undefined;
+    from: string;
+    appUrl: string;
+  };
 }
 
 export interface Services {
   catalog: CatalogService;
   auth: AuthService;
   library: LibraryService;
-  reviews: ReviewService;
   watch: WatchService;
   search: SearchService;
   progress: ProgressService;
@@ -104,15 +108,21 @@ export function createServices(deps: ContainerDeps): Services {
     proForAll: deps.proForAll,
   });
 
+  const email = new EmailService({
+    apiKey: deps.email.apiKey,
+    from: deps.email.from,
+    appUrl: deps.email.appUrl,
+    logger: deps.logger,
+  });
   const auth = new AuthService({
     prisma: deps.prisma,
     proForAll: deps.proForAll,
     uploadsDir: join(UPLOADS_DIR, "avatars"),
     telegramBotToken: deps.telegramBotToken,
     adminEmails: deps.adminEmails,
+    email,
   });
   const library = new LibraryService({ prisma: deps.prisma, catalog });
-  const reviews = new ReviewService({ prisma: deps.prisma, catalog, achievements });
   const progress = new ProgressService({ prisma: deps.prisma, catalog, achievements });
   const search = new SearchService({
     prisma: deps.prisma,
@@ -148,7 +158,6 @@ export function createServices(deps: ContainerDeps): Services {
     catalog,
     auth,
     library,
-    reviews,
     watch,
     search,
     progress,

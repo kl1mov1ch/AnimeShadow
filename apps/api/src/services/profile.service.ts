@@ -11,6 +11,7 @@ import type {
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import { computeIsAdult } from "../lib/content-guard.js";
+import { watchSecondsTotal, watchSessionsTotal } from "../lib/metrics.js";
 import {
   BadRequestError,
   ConflictError,
@@ -257,6 +258,11 @@ export class ProfileService {
         endedAt: new Date(),
       },
     });
+    // Same numbers, mirrored into an in-memory counter — Prometheus scrapes
+    // this later at no extra DB cost, so "total minutes watched right now"
+    // is a Grafana panel instead of an aggregate query against Postgres.
+    watchSecondsTotal.inc(input.seconds);
+    watchSessionsTotal.inc();
   }
 
   // ---- internals ----
@@ -295,7 +301,7 @@ export class ProfileService {
   }
 
   private async computeStats(userId: string): Promise<ProfileStats> {
-    const [completed, sessionAgg, sessions, reviews, completedLib] =
+    const [completed, sessionAgg, sessions, scored, completedLib] =
       await Promise.all([
         this.prisma.watchProgress.findMany({
           where: { userId, completed: true },
@@ -309,9 +315,10 @@ export class ProfileService {
           where: { userId, endedAt: { not: null } },
           select: { seconds: true, startedAt: true },
         }),
-        this.prisma.review.findMany({
-          where: { userId },
-          select: { rating: true },
+        // Mean of the viewer's own scores from their list (public reviews are gone).
+        this.prisma.libraryEntry.findMany({
+          where: { userId, score: { not: null } },
+          select: { score: true },
         }),
         this.prisma.libraryEntry.count({
           where: { userId, status: "COMPLETED" },
@@ -329,9 +336,9 @@ export class ProfileService {
           10,
       ) / 10;
 
-    const meanScore = reviews.length
+    const meanScore = scored.length
       ? Math.round(
-          (reviews.reduce((n, r) => n + r.rating, 0) / reviews.length) * 10,
+          (scored.reduce((n, r) => n + (r.score ?? 0), 0) / scored.length) * 10,
         ) / 10
       : null;
 

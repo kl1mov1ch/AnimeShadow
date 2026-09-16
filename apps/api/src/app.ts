@@ -10,6 +10,7 @@ import Fastify, {
 import { env, isProduction } from "./config/env.js";
 import { loggerConfig } from "./lib/logger.js";
 import { AppError } from "./lib/errors.js";
+import { httpRequestDuration, httpRequestsTotal } from "./lib/metrics.js";
 import authPlugin from "./plugins/auth.js";
 import prismaPlugin from "./plugins/prisma.js";
 import servicesPlugin from "./plugins/services.js";
@@ -24,10 +25,10 @@ import { genreRoutes } from "./routes/genres.js";
 import { healthRoutes } from "./routes/health.js";
 import { imageRoutes } from "./routes/image.js";
 import { libraryRoutes } from "./routes/library.js";
+import { metricsRoutes } from "./routes/metrics.js";
 import { profileRoutes } from "./routes/profile.js";
 import { progressRoutes } from "./routes/progress.js";
 import { recommendationRoutes } from "./routes/recommendations.js";
-import { reviewRoutes } from "./routes/reviews.js";
 import { searchRoutes } from "./routes/search.js";
 import { sitemapRoutes } from "./routes/sitemap.js";
 import { uploadsRoutes } from "./routes/uploads.js";
@@ -35,7 +36,9 @@ import { uploadsRoutes } from "./routes/uploads.js";
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: loggerConfig,
-    trustProxy: true,
+    // Only the local reverse proxy (Caddy) may set X-Forwarded-For — trusting
+    // it from anyone let a forged header reset the per-IP rate limit.
+    trustProxy: ["127.0.0.1", "::1"],
   });
 
   await app.register(helmet, {
@@ -105,6 +108,22 @@ export async function buildApp(): Promise<FastifyInstance> {
     return payload;
   });
 
+  // One in-memory bump per response, on the request that was happening
+  // anyway — Prometheus pulls these later (GET /metrics); nothing here ever
+  // touches Postgres. The route *pattern* (`/api/anime/:id`), not the raw
+  // URL, keeps label cardinality bounded no matter how many distinct ids
+  // get hit.
+  app.addHook("onResponse", async (request, reply) => {
+    const route = request.routeOptions?.url ?? "unmatched";
+    const labels = {
+      method: request.method,
+      route,
+      status: String(reply.statusCode),
+    };
+    httpRequestsTotal.inc(labels);
+    httpRequestDuration.observe(labels, reply.elapsedTime / 1000);
+  });
+
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error instanceof AppError) {
       return reply.code(error.statusCode).send({
@@ -159,7 +178,6 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(imageRoutes);
       await api.register(discoverRoutes);
       await api.register(animeRoutes);
-      await api.register(reviewRoutes);
       await api.register(searchRoutes);
       await api.register(genreRoutes);
       await api.register(authRoutes);
@@ -178,6 +196,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Served at the site root (not under /api) for crawlers and <img> tags.
   await app.register(sitemapRoutes);
   await app.register(uploadsRoutes);
+  await app.register(metricsRoutes);
 
   return app;
 }

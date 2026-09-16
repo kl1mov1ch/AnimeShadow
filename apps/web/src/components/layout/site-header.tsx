@@ -106,7 +106,7 @@ export function SiteHeader() {
               variant="ghost"
               size="icon"
               className="-ml-2 shrink-0 md:hidden"
-              aria-label={t("nav.browse")}
+              aria-label={t("common.menu")}
             >
               <MenuIcon />
             </Button>

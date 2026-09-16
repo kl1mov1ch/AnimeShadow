@@ -72,7 +72,7 @@ export function SiteFooter() {
         {/* Project */}
         <FooterColumn title={t("footer.project")}>
           <FooterLink to="/about">{t("footer.about")}</FooterLink>
-          <FooterLink to="/library">{t("footer.profile")}</FooterLink>
+          <FooterLink to="/profile">{t("footer.profile")}</FooterLink>
           <FooterLink to="/support">{t("footer.pro")}</FooterLink>
         </FooterColumn>
 

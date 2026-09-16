@@ -10,8 +10,6 @@ import {
   type AdminCommentSummary,
   type AdminKpi,
   type AdminOverview,
-  type AdminReviewQuery,
-  type AdminReviewSummary,
   type AdminUpdateUserInput,
   type AdminUserQuery,
   type AdminUserSummary,
@@ -51,7 +49,7 @@ const USER_SUMMARY_SELECT = {
   isBanned: true,
   telegramId: true,
   createdAt: true,
-  _count: { select: { comments: true, reviews: true, library: true } },
+  _count: { select: { comments: true, library: true } },
 } satisfies Prisma.UserSelect;
 
 type UserSummaryRow = Prisma.UserGetPayload<{ select: typeof USER_SUMMARY_SELECT }>;
@@ -66,7 +64,6 @@ function toUserSummary(u: UserSummaryRow): AdminUserSummary {
     isBanned: u.isBanned,
     hasTelegram: u.telegramId != null,
     commentCount: u._count.comments,
-    reviewCount: u._count.reviews,
     libraryCount: u._count.library,
     createdAt: u.createdAt.toISOString(),
   };
@@ -174,9 +171,6 @@ export class AdminService {
       commentsTotal,
       commentsCurrent,
       commentsPrevious,
-      reviewsTotal,
-      reviewsCurrent,
-      reviewsPrevious,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { createdAt: current } }),
@@ -205,9 +199,6 @@ export class AdminService {
       this.prisma.comment.count(),
       this.prisma.comment.count({ where: { createdAt: current } }),
       this.prisma.comment.count({ where: { createdAt: previous } }),
-      this.prisma.review.count(),
-      this.prisma.review.count({ where: { createdAt: current } }),
-      this.prisma.review.count({ where: { createdAt: previous } }),
     ]);
 
     const kpi = (total: number, cur: number, prev: number): AdminKpi => ({
@@ -226,7 +217,6 @@ export class AdminService {
         watchPrevious._sum.seconds ?? 0,
       ),
       comments: kpi(commentsTotal, commentsCurrent, commentsPrevious),
-      reviews: kpi(reviewsTotal, reviewsCurrent, reviewsPrevious),
     };
   }
 
@@ -534,63 +524,6 @@ export class AdminService {
       dislikeCount: c.dislikeCount,
       deleted: c.deletedAt != null,
       createdAt: c.createdAt.toISOString(),
-    }));
-
-    return paginated(items, {
-      page: query.page,
-      perPage: query.perPage,
-      total,
-      hasNextPage: skip + rows.length < total,
-    });
-  }
-
-  // -- reviews -------------------------------------------------------------
-
-  async listReviews(query: AdminReviewQuery): Promise<Paginated<AdminReviewSummary>> {
-    const where: Prisma.ReviewWhereInput = {
-      ...(query.animeId ? { animeId: query.animeId } : {}),
-      ...(query.query ? { body: { contains: query.query, mode: "insensitive" } } : {}),
-      ...(query.rating === "positive"
-        ? { rating: { gte: 7 } }
-        : query.rating === "mixed"
-          ? { rating: { gte: 5, lte: 6 } }
-          : query.rating === "negative"
-            ? { rating: { lte: 4 } }
-            : {}),
-    };
-    const orderBy: Prisma.ReviewOrderByWithRelationInput[] =
-      query.sort === "oldest"
-        ? [{ createdAt: "asc" }]
-        : query.sort === "best"
-          ? [{ rating: "desc" }, { createdAt: "desc" }]
-          : query.sort === "worst"
-            ? [{ rating: "asc" }, { createdAt: "desc" }]
-            : [{ createdAt: "desc" }];
-    const skip = (query.page - 1) * query.perPage;
-
-    const [rows, total] = await Promise.all([
-      this.prisma.review.findMany({
-        where,
-        orderBy,
-        skip,
-        take: query.perPage,
-        include: { user: { select: CONTENT_AUTHOR_SELECT }, anime: { select: CONTENT_ANIME_SELECT } },
-      }),
-      this.prisma.review.count({ where }),
-    ]);
-
-    const items: AdminReviewSummary[] = rows.map((r) => ({
-      id: r.id,
-      animeId: r.animeId,
-      animeSlug: r.anime.slug,
-      animeTitle: r.anime.titleLocalized ?? r.anime.title,
-      animeImageUrl: r.anime.imageUrl,
-      authorId: r.user.id,
-      authorName: r.user.displayName,
-      authorAvatarUrl: r.user.avatarUrl,
-      rating: r.rating,
-      body: r.body,
-      createdAt: r.createdAt.toISOString(),
     }));
 
     return paginated(items, {

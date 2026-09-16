@@ -282,7 +282,7 @@ export function KpiCard({
       </div>
 
       <div className="relative flex items-end justify-between gap-2">
-        <span className="truncate font-display text-2xl leading-none tabular-nums">{format(animated)}</span>
+        <span className="truncate text-2xl font-semibold leading-none">{format(animated)}</span>
         <span
           className={cn(
             "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
@@ -342,36 +342,6 @@ export function BarRow({
           style={{ width: `${width}%`, background: color }}
         />
       </div>
-    </div>
-  );
-}
-
-/** A small filled ring — used for review scores. */
-export function ScoreRing({ value, max = 10, size = 40 }: { value: number; max?: number; size?: number }) {
-  const shown = useEnterValue(value);
-  const radius = 15.5;
-  const circumference = 2 * Math.PI * radius;
-  const color = value >= 7 ? "var(--chart-4)" : value >= 5 ? "var(--chart-3)" : "var(--destructive)";
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 36 36" className="size-full -rotate-90">
-        <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="3" className="stroke-muted" />
-        <circle
-          cx="18"
-          cy="18"
-          r={radius}
-          fill="none"
-          strokeWidth="3"
-          strokeLinecap="round"
-          stroke={color}
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - shown / max)}
-          style={{ transition: "stroke-dashoffset 800ms cubic-bezier(.2,.8,.2,1)" }}
-        />
-      </svg>
-      <span className="absolute inset-0 grid place-items-center text-xs font-semibold tabular-nums">
-        {value}
-      </span>
     </div>
   );
 }

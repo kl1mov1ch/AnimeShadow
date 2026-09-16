@@ -348,7 +348,7 @@ function EpisodeStepper({
         {...prevHold}
         disabled={episode <= 1}
         aria-label={t("watch.prevEpisode")}
-        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-6"
+        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-8"
       >
         <ChevronLeftIcon className="size-4 sm:size-3.5" />
       </button>
@@ -364,7 +364,7 @@ function EpisodeStepper({
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
-        className="w-7 shrink-0 rounded-md bg-primary/10 text-center text-sm font-semibold tabular-nums text-primary outline-none sm:w-6"
+        className="w-7 shrink-0 rounded-md bg-primary/10 text-center text-sm font-semibold tabular-nums text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-6"
       />
       {episodesTotal != null && (
         <span className="shrink-0 text-xs text-muted-foreground">/ {episodesTotal}</span>
@@ -375,7 +375,7 @@ function EpisodeStepper({
         {...nextHold}
         disabled={episodesTotal != null && episode >= episodesTotal}
         aria-label={t("watch.nextEpisode")}
-        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-6"
+        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-8"
       >
         <ChevronRightIcon className="size-4 sm:size-3.5" />
       </button>

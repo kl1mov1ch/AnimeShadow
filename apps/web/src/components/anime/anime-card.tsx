@@ -2,7 +2,8 @@ import type { AnimeSummary } from "@animeshadow/shared";
 import { ClockIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { ScoreBadge } from "@/components/anime/score-badge";
+// Overall score is hidden for now (not deleted) — uncomment to bring it back.
+// import { ScoreBadge } from "@/components/anime/score-badge";
 import {
   HoverCard,
   HoverCardContent,
@@ -47,7 +48,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const metaLine = [labels.typeLabel(anime.type), episodes].filter(Boolean).join(" · ");
   const genreLine = anime.genres.slice(0, 2).map(labels.genreLabel).join(", ");
 
-  const hasScore = anime.score != null;
+  // const hasScore = anime.score != null;
   const airing = anime.airing === "AIRING";
   const unreleased = anime.airing === "UPCOMING";
   const countdown = useReleaseCountdown(anime.airedFrom);
@@ -78,10 +79,12 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           </span>
         )}
 
-        {/* One signal, top-left: the score, or a countdown when there's no score yet. */}
+        {/* One signal, top-left: the score, or a countdown when there's no score yet.
+            The score is hidden for now (not deleted) — only the countdown shows:
         {hasScore ? (
           <ScoreBadge score={anime.score} className="absolute left-2 top-2 z-10" />
-        ) : countdown ? (
+        ) : countdown ? ( */}
+        {countdown ? (
           <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/90 backdrop-blur">
             <ClockIcon className="size-3 text-muted-foreground/70" />
             {countdown}
@@ -164,9 +167,9 @@ function AnimeCardPreview({ anime }: { anime: AnimeSummary }) {
         <h4 className="line-clamp-2 font-display text-sm leading-snug text-foreground">
           {title}
         </h4>
-        {anime.score != null && (
+        {/* {anime.score != null && (
           <ScoreBadge score={anime.score} className="shrink-0" />
-        )}
+        )} */}
       </div>
       <p className="text-xs text-muted-foreground">{metaLine}</p>
       {genreLine && <p className="text-xs text-muted-foreground/80">{genreLine}</p>}

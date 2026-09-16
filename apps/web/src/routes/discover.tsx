@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { XIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimeRail } from "@/components/anime/anime-rail";
@@ -187,7 +188,7 @@ function FirstVisitStrip() {
       <button
         type="button"
         aria-label={t("common.close")}
-        className="shrink-0 text-muted-foreground hover:text-foreground"
+        className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={() => {
           setDismissed(true);
           try {
@@ -197,7 +198,7 @@ function FirstVisitStrip() {
           }
         }}
       >
-        ✕
+        <XIcon className="size-4" />
       </button>
     </div>
   );

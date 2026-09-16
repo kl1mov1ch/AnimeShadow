@@ -63,7 +63,7 @@ export function AnimeRail({
         <div className="flex shrink-0 items-center gap-1">
           {href && (
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <Link to={href}>{t("common.browseCatalogue")}</Link>
+              <Link to={href}>{t("common.seeAll")}</Link>
             </Button>
           )}
           {items.length > 3 && (
@@ -102,7 +102,7 @@ export function AnimeRail({
           ? Array.from({ length: SKELETON_COUNT }, (_, i) => (
               <AnimeCardSkeleton
                 key={i}
-                className="w-[calc((100%-4*1rem)/5)] shrink-0 snap-start sm:w-[calc((100%-3*1rem)/4)] lg:w-[calc((100%-5*1rem)/6)]"
+                className="w-[calc((100%-4*1rem)/2.4)] shrink-0 snap-start sm:w-[calc((100%-3*1rem)/4)] lg:w-[calc((100%-5*1rem)/6)]"
               />
             ))
           : items.map((anime, i) => (

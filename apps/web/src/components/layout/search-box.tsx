@@ -180,7 +180,7 @@ export function SearchBox() {
                 setTerm("");
                 inputRef.current?.focus();
               }}
-              aria-label="Clear"
+              aria-label={t("common.clear")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
             >
               <XIcon className="size-3.5" />

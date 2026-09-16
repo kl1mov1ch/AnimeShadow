@@ -5,7 +5,6 @@ export * from "./anime.js";
 export * from "./auth.js";
 export * from "./library.js";
 export * from "./progress.js";
-export * from "./reviews.js";
 export * from "./search.js";
 export * from "./watch.js";
 export * from "./http.js";

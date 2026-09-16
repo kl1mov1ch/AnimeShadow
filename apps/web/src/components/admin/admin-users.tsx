@@ -14,7 +14,6 @@ import {
   SendIcon,
   ShieldCheckIcon,
   ShieldIcon,
-  StarIcon,
   UserIcon,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -237,7 +236,6 @@ export function AdminUsers() {
                           value={row.commentCount}
                           label={t("admin.users.comments")}
                         />
-                        <StatChip icon={<StarIcon />} value={row.reviewCount} label={t("admin.users.reviews")} />
                         <StatChip
                           icon={<BookmarkIcon />}
                           value={row.libraryCount}

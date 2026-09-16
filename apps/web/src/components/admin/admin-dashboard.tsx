@@ -11,7 +11,6 @@ import {
   MousePointerClickIcon,
   PlayCircleIcon,
   SendIcon,
-  StarIcon,
   TagsIcon,
   TrophyIcon,
   UserPlusIcon,
@@ -71,15 +70,15 @@ type TrafficMode = "traffic" | "registrations" | "watch";
 type Range = "7" | "14" | "30";
 
 const PALETTE = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
 ] as const;
 
 function paletteAt(index: number): string {
-  return PALETTE[index % PALETTE.length] ?? "var(--chart-1)";
+  return PALETTE[index % PALETTE.length] ?? "var(--series-1)";
 }
 
 function dayDate(day: string): Date {
@@ -131,18 +130,18 @@ function KpiGrid({ data }: { data: AdminOverview }) {
   const series = (key: TimelineKey) => timeline.map((point) => point[key]);
 
   return (
-    <div className="grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-6">
+    <div className="grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 lg:grid-cols-5">
       <KpiCard
         label={t("admin.kpi.users")}
         icon={<UsersIcon className="size-4" />}
-        color="var(--chart-1)"
+        color="var(--series-1)"
         kpi={kpis.users}
         series={series("registrations")}
       />
       <KpiCard
         label={t("admin.kpi.visitors")}
         icon={<EyeIcon className="size-4" />}
-        color="var(--chart-2)"
+        color="var(--series-2)"
         kpi={kpis.visitors}
         series={series("visitors")}
         delay={50}
@@ -150,7 +149,7 @@ function KpiGrid({ data }: { data: AdminOverview }) {
       <KpiCard
         label={t("admin.kpi.pageviews")}
         icon={<MousePointerClickIcon className="size-4" />}
-        color="var(--chart-3)"
+        color="var(--series-3)"
         kpi={kpis.pageviews}
         series={series("pageviews")}
         delay={100}
@@ -158,7 +157,7 @@ function KpiGrid({ data }: { data: AdminOverview }) {
       <KpiCard
         label={t("admin.kpi.watchTime")}
         icon={<PlayCircleIcon className="size-4" />}
-        color="var(--chart-5)"
+        color="var(--series-5)"
         kpi={kpis.watchSeconds}
         series={series("watchMinutes")}
         format={formatDuration}
@@ -167,16 +166,9 @@ function KpiGrid({ data }: { data: AdminOverview }) {
       <KpiCard
         label={t("admin.kpi.comments")}
         icon={<MessageSquareIcon className="size-4" />}
-        color="var(--chart-4)"
+        color="var(--series-4)"
         kpi={kpis.comments}
         delay={200}
-      />
-      <KpiCard
-        label={t("admin.kpi.reviews")}
-        icon={<StarIcon className="size-4" />}
-        color="var(--chart-1)"
-        kpi={kpis.reviews}
-        delay={250}
       />
     </div>
   );
@@ -206,10 +198,10 @@ function TrafficPanel({
         : ["watchMinutes"];
 
   const config = {
-    pageviews: { label: t("admin.metrics.pageviews"), color: "var(--chart-1)" },
-    visitors: { label: t("admin.metrics.visitors"), color: "var(--chart-2)" },
-    registrations: { label: t("admin.metrics.registrations"), color: "var(--chart-4)" },
-    watchMinutes: { label: t("admin.metrics.watchMinutes"), color: "var(--chart-5)" },
+    pageviews: { label: t("admin.metrics.pageviews"), color: "var(--series-3)" },
+    visitors: { label: t("admin.metrics.visitors"), color: "var(--series-2)" },
+    registrations: { label: t("admin.metrics.registrations"), color: "var(--series-1)" },
+    watchMinutes: { label: t("admin.metrics.watchMinutes"), color: "var(--series-5)" },
   } satisfies ChartConfig;
 
   const shortDay = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" });
@@ -268,11 +260,11 @@ function TrafficPanel({
         <div className="flex gap-5">
           {keys.map((key) => (
             <div key={key} className="flex flex-col items-end">
-              <span className="text-[11px] text-muted-foreground">{config[key].label}</span>
-              <span
-                className="font-display text-xl leading-tight tabular-nums"
-                style={{ color: config[key].color }}
-              >
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span aria-hidden className="size-2 rounded-full" style={{ background: config[key].color }} />
+                {config[key].label}
+              </span>
+              <span className="text-xl font-semibold leading-tight">
                 {points.reduce((sum, point) => sum + point[key], 0).toLocaleString()}
               </span>
             </div>
@@ -290,7 +282,7 @@ function TrafficPanel({
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
+          <CartesianGrid vertical={false} />
           <XAxis
             dataKey="date"
             tickLine={false}
@@ -301,7 +293,7 @@ function TrafficPanel({
           />
           <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={false} />
           <ChartTooltip
-            cursor={{ strokeDasharray: "4 4" }}
+            cursor={{ strokeWidth: 1 }}
             content={
               <ChartTooltipContent
                 indicator="line"
@@ -315,7 +307,7 @@ function TrafficPanel({
               dataKey={key}
               type="monotone"
               stroke={`var(--color-${key})`}
-              strokeWidth={2.5}
+              strokeWidth={2}
               fill={`url(#${id}-${key})`}
               activeDot={{ r: 5, strokeWidth: 2 }}
               animationDuration={900}
@@ -345,10 +337,10 @@ function AudiencePanel({ data }: { data: AdminOverview }) {
   ] as const;
 
   const config = {
-    newUsers: { label: t("admin.audience.newUsers"), color: "var(--chart-1)" },
-    telegram: { label: t("admin.audience.telegram"), color: "var(--chart-2)" },
-    admins: { label: t("admin.audience.admins"), color: "var(--chart-4)" },
-    banned: { label: t("admin.audience.banned"), color: "var(--chart-3)" },
+    newUsers: { label: t("admin.audience.newUsers"), color: "var(--series-1)" },
+    telegram: { label: t("admin.audience.telegram"), color: "var(--series-2)" },
+    admins: { label: t("admin.audience.admins"), color: "var(--series-4)" },
+    banned: { label: t("admin.audience.banned"), color: "var(--series-3)" },
   } satisfies ChartConfig;
 
   // RadialBarChart draws the first row innermost — reversed so "new users" is the outer ring.
@@ -387,7 +379,7 @@ function AudiencePanel({ data }: { data: AdminOverview }) {
         </ChartContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
           <div>
-            <div className="font-display text-3xl leading-none tabular-nums">
+            <div className="text-3xl font-semibold leading-none">
               {animatedTotal.toLocaleString()}
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground">{t("admin.audience.accounts")}</div>
@@ -418,7 +410,7 @@ function AudiencePanel({ data }: { data: AdminOverview }) {
           <LiveDot />
           {t("admin.audience.activeToday")}
         </span>
-        <span className="font-display text-lg tabular-nums">{audience.activeToday.toLocaleString()}</span>
+        <span className="text-lg font-semibold">{audience.activeToday.toLocaleString()}</span>
       </div>
     </Panel>
   );
@@ -436,7 +428,7 @@ function LibraryPanel({ statuses }: { statuses: AdminOverview["libraryStatus"] }
   const config: ChartConfig = Object.fromEntries(
     statuses.map((status, i) => [
       status.status,
-      { label: labels.statusLabel(status.status), color: paletteAt(i + 1) },
+      { label: labels.statusLabel(status.status), color: paletteAt(i) },
     ]),
   );
   const chartData = statuses
@@ -473,7 +465,7 @@ function LibraryPanel({ statuses }: { statuses: AdminOverview["libraryStatus"] }
             </ChartContainer>
             <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
               <div>
-                <div className="font-display text-2xl leading-none tabular-nums">
+                <div className="text-2xl font-semibold leading-none">
                   {animatedTotal.toLocaleString()}
                 </div>
                 <div className="mt-1 text-[11px] text-muted-foreground">{t("admin.library.entries")}</div>
@@ -487,7 +479,7 @@ function LibraryPanel({ statuses }: { statuses: AdminOverview["libraryStatus"] }
                 label={labels.statusLabel(status.status)}
                 value={status.count}
                 max={max}
-                color={config[status.status]?.color ?? "var(--chart-1)"}
+                color={config[status.status]?.color ?? "var(--series-1)"}
               />
             ))}
           </div>
@@ -502,10 +494,10 @@ function LibraryPanel({ statuses }: { statuses: AdminOverview["libraryStatus"] }
 function GenresPanel({ genres }: { genres: AdminOverview["topGenres"] }) {
   const t = useT();
   const labels = useLabels();
-  const id = useSafeId();
   const data = genres.map((genre) => ({ genre: labels.genreLabel(genre.name), count: genre.count }));
+  // One series -> one colour (slot 1) for every bar, not a value ramp.
   const config = {
-    count: { label: t("admin.genres.titles"), color: "var(--chart-5)" },
+    count: { label: t("admin.genres.titles"), color: "var(--series-1)" },
   } satisfies ChartConfig;
 
   return (
@@ -528,12 +520,6 @@ function GenresPanel({ genres }: { genres: AdminOverview["topGenres"] }) {
             margin={{ top: 0, right: 12, bottom: 0, left: 0 }}
             barCategoryGap={6}
           >
-            <defs>
-              <linearGradient id={`${id}-genre`} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="var(--color-count)" stopOpacity={0.5} />
-                <stop offset="100%" stopColor="var(--color-count)" stopOpacity={1} />
-              </linearGradient>
-            </defs>
             <XAxis type="number" hide />
             <YAxis
               type="category"
@@ -546,8 +532,8 @@ function GenresPanel({ genres }: { genres: AdminOverview["topGenres"] }) {
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             <Bar
               dataKey="count"
-              fill={`url(#${id}-genre)`}
-              radius={8}
+              fill="var(--color-count)"
+              radius={4}
               background
               animationDuration={1000}
             />
@@ -572,7 +558,7 @@ function HoursPanel({ hourly, className }: { hourly: AdminOverview["hourly"]; cl
     { hour: 0, pageviews: 0 },
   );
   const config = {
-    pageviews: { label: t("admin.metrics.pageviews"), color: "var(--chart-2)" },
+    pageviews: { label: t("admin.metrics.pageviews"), color: "var(--series-3)" },
   } satisfies ChartConfig;
   const hourLabel = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
@@ -606,7 +592,8 @@ function HoursPanel({ hourly, className }: { hourly: AdminOverview["hourly"]; cl
                 fill="var(--color-pageviews)"
                 fillOpacity={0.3}
                 strokeWidth={2}
-                dot={{ r: 2.5, fillOpacity: 1 }}
+                dot={false}
+                activeDot={{ r: 4 }}
                 animationDuration={1000}
               />
             </RadarChart>
@@ -685,7 +672,6 @@ function TopAnimePanel({ items }: { items: AdminOverview["topAnime"] }) {
 function ReferrersPanel({ referrers }: { referrers: AdminOverview["topReferrers"] }) {
   const t = useT();
   const total = referrers.reduce((sum, referrer) => sum + referrer.count, 0);
-  const max = Math.max(...referrers.map((referrer) => referrer.count), 1);
   const hostLabel = (host: string) =>
     host === "direct"
       ? t("admin.referrers.direct")
@@ -693,12 +679,21 @@ function ReferrersPanel({ referrers }: { referrers: AdminOverview["topReferrers"
         ? t("admin.referrers.unknown")
         : host;
 
-  const rows = referrers.map((referrer, i) => ({
-    key: `ref${i}`,
-    label: hostLabel(referrer.host),
-    count: referrer.count,
-    color: paletteAt(i),
-  }));
+  // Five colour slots and no cycling: past the top four, the tail folds into "Other".
+  const head = referrers.length > PALETTE.length ? referrers.slice(0, PALETTE.length - 1) : referrers;
+  const otherCount = referrers.slice(head.length).reduce((sum, referrer) => sum + referrer.count, 0);
+  const rows = [
+    ...head.map((referrer, i) => ({
+      key: `ref${i}`,
+      label: hostLabel(referrer.host),
+      count: referrer.count,
+      color: paletteAt(i),
+    })),
+    ...(otherCount > 0
+      ? [{ key: "other", label: t("admin.referrers.other"), count: otherCount, color: "var(--muted-foreground)" }]
+      : []),
+  ];
+  const max = Math.max(...rows.map((row) => row.count), 1);
   const config: ChartConfig = Object.fromEntries(
     rows.map((row) => [row.key, { label: row.label, color: row.color }]),
   );
@@ -768,7 +763,7 @@ function PagesPanel({ paths }: { paths: AdminOverview["topPaths"] }) {
         <EmptyBlock>{t("admin.empty")}</EmptyBlock>
       ) : (
         <div className="flex flex-col gap-3">
-          {paths.map((path, i) => (
+          {paths.map((path) => (
             <BarRow
               key={path.path}
               label={
@@ -778,7 +773,7 @@ function PagesPanel({ paths }: { paths: AdminOverview["topPaths"] }) {
               }
               value={path.count}
               max={max}
-              color={paletteAt(i)}
+              color="var(--series-3)"
             />
           ))}
         </div>
@@ -863,8 +858,8 @@ function RecentCommentsPanel({ comments }: { comments: AdminOverview["recentComm
 function DashboardSkeleton() {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
-      <div className="grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-6">
-        {Array.from({ length: 6 }, (_, i) => (
+      <div className="grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 lg:grid-cols-5">
+        {Array.from({ length: 5 }, (_, i) => (
           <Skeleton key={i} className="h-44 rounded-2xl" />
         ))}
       </div>
