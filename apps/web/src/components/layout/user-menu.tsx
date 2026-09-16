@@ -2,9 +2,7 @@ import {
   LibraryIcon,
   LogInIcon,
   LogOutIcon,
-  SettingsIcon,
   SparklesIcon,
-  TrophyIcon,
   UserIcon,
   UserPlusIcon,
   WandSparklesIcon,
@@ -119,6 +117,11 @@ export function UserMenu() {
           </>
         )}
         <DropdownMenuSeparator />
+        {/* Achievements and settings used to each get their own line here —
+            they're both a tab inside the profile page already (one click
+            further, not a separate destination), so pointing the menu at
+            them twice was the actual clutter. Down to three real
+            destinations plus sign out. */}
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link to="/profile">
@@ -127,9 +130,9 @@ export function UserMenu() {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link to="/profile?tab=achievements">
-              <TrophyIcon />
-              {t("profile.tabs.achievements")}
+            <Link to="/library">
+              <LibraryIcon />
+              {t("nav.library")}
             </Link>
           </DropdownMenuItem>
           {!needsSetup && (
@@ -141,25 +144,12 @@ export function UserMenu() {
             </DropdownMenuItem>
           )}
           <DropdownMenuItem asChild>
-            <Link to="/profile?tab=settings">
-              <SettingsIcon />
-              {t("profile.tabs.settings")}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/library">
-              <LibraryIcon />
-              {t("nav.library")}
+            <Link to="/support">
+              <SparklesIcon />
+              {t("footer.pro")}
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link to="/support">
-            <SparklesIcon />
-            {t("footer.pro")}
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

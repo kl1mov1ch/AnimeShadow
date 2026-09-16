@@ -12,18 +12,26 @@ import { type CSSProperties, useRef, useState } from "react";
 import {
   CalendarDaysIcon,
   CheckIcon,
+  ChevronRightIcon,
   ClockIcon,
+  CrownIcon,
   FilmIcon,
   LinkIcon,
   Loader2Icon,
+  type LucideIcon,
+  MailIcon,
+  MoonStarIcon,
+  PaletteIcon,
   PencilIcon,
   PlayCircleIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   ShuffleIcon,
   SparklesIcon,
   TimerIcon,
   Trash2Icon,
   TrophyIcon,
+  UserIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -565,37 +573,103 @@ function ProgressSummary({
 
 /* ---------------- settings tab ---------------- */
 
-function SettingsSection({
-  title,
-  description,
-  children,
-  className,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+/** A small sub-field label, for the rare expanded row with more than one
+ * input inside it (identity's username + bio, the PRO title's icon +
+ * text) — most rows need no label of their own since the row header
+ * already names the setting. */
+function SettingsLabel({ children }: { children: React.ReactNode }) {
+  return <span className="text-xs font-medium text-muted-foreground">{children}</span>;
+}
+
+/** One rounded list, hairline dividers between rows — the Telegram settings-
+ * screen shape: a single continuous surface instead of a stack of separate
+ * bordered cards each with their own heading and padding. */
+function SettingsList({ children }: { children: React.ReactNode }) {
   return (
-    <section
-      className={cn(
-        "flex flex-col gap-4 rounded-xl border border-border/60 bg-card/40 p-4 sm:p-5",
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-base">{title}</h2>
-        {description && (
-          <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
-        )}
-      </div>
+    <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60 bg-card/40">
       {children}
-    </section>
+    </div>
   );
 }
 
-function SettingsLabel({ children }: { children: React.ReactNode }) {
-  return <span className="text-xs font-medium text-muted-foreground">{children}</span>;
+/**
+ * One row. Two shapes, matching how Telegram itself splits its own settings:
+ * - `control` — a value that's already a single-tap picker (a two/three-way
+ *   Select) sits inline as the row's trailing content, no extra tap needed.
+ * - `children` — anything bigger (text fields, a picker grid, a form) stays
+ *   collapsed behind the row and only takes up space once it's opened; the
+ *   summary value (if any) is what's visible either way.
+ */
+function SettingsRow({
+  icon: Icon,
+  label,
+  value,
+  info,
+  control,
+  expanded,
+  onToggle,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value?: React.ReactNode;
+  info?: React.ReactNode;
+  control?: React.ReactNode;
+  expanded?: boolean;
+  onToggle?: () => void;
+  tone?: "default" | "primary";
+  children?: React.ReactNode;
+}) {
+  const header = (
+    <div
+      className={cn(
+        "flex min-h-12 items-center gap-3 px-4 py-2.5",
+        onToggle && "cursor-pointer transition-colors hover:bg-secondary/40",
+      )}
+      onClick={onToggle}
+      role={onToggle ? "button" : undefined}
+      tabIndex={onToggle ? 0 : undefined}
+      onKeyDown={onToggle ? (e) => e.key === "Enter" && onToggle() : undefined}
+    >
+      <Icon
+        className={cn(
+          "size-4 shrink-0",
+          tone === "primary" ? "text-primary" : "text-muted-foreground",
+        )}
+      />
+      <span className="flex min-w-0 flex-1 items-center gap-1 text-sm font-medium">
+        {label}
+        {info}
+      </span>
+      {control ?? (
+        <>
+          {value && (
+            <span className="min-w-0 max-w-[45%] truncate text-xs text-muted-foreground">
+              {value}
+            </span>
+          )}
+          {onToggle && (
+            <ChevronRightIcon
+              className={cn(
+                "size-4 shrink-0 text-muted-foreground/50 transition-transform",
+                expanded && "rotate-90",
+              )}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      {header}
+      {expanded && children && (
+        <div className="flex flex-col gap-3 px-4 pb-4 pt-1">{children}</div>
+      )}
+    </div>
+  );
 }
 
 function SettingsTab({ profile }: { profile: MyProfile }) {
@@ -612,6 +686,12 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
   const [bio, setBio] = useState(profile.bio ?? "");
   const [statusValue, setStatusValue] = useState(profile.onlineStatus);
   const [uname, setUname] = useState(profile.username ?? "");
+  // One row open at a time, accordion-style — the Telegram settings screen
+  // this is modeled on never shows two expanded sub-forms at once either.
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const toggle = (key: string) => setOpenRow((cur) => (cur === key ? null : key));
+
+  const { data: genreStatus } = useGenrePreferencesStatus();
 
   const earned = (achievements ?? []).filter((a) => a.earned);
 
@@ -666,9 +746,14 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        {/* identity: avatar + username + bio in one place */}
-        <SettingsSection title={t("profile.title")}>
+      <SettingsList>
+        <SettingsRow
+          icon={UserIcon}
+          label={t("profile.title")}
+          value={profile.username ? t("profile.handle", { username: profile.username }) : bio || undefined}
+          expanded={openRow === "identity"}
+          onToggle={() => toggle("identity")}
+        >
           <div className="flex items-start gap-4">
             {/* Two ways to have an avatar, not just one: your own photo, or
                 a fresh anime reaction gif on demand (the same pool new
@@ -799,90 +884,127 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
               {t("profile.settings.save")}
             </Button>
           </div>
-        </SettingsSection>
+        </SettingsRow>
 
-        <div className="flex flex-col gap-5">
-          {/* Theme and status both save the instant you pick them — a
-              two-option choice doesn't need a confirmation step, and one
-              less button to hunt for is one less thing to think about. */}
-          <SettingsSection title={t("profile.settings.appearance")}>
-            <div className="flex flex-col gap-1.5">
-              <SettingsLabel>{t("profile.settings.theme")}</SettingsLabel>
-              <Select
-                value={theme ?? "system"}
-                onValueChange={(value) => {
-                  setTheme(value);
-                  // Saved to the account, not just this browser — so it
-                  // follows the user to a new device (see ThemeSync).
-                  update.mutate({ theme: value as "light" | "dark" | "system" });
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">{t("profile.settings.themeLight")}</SelectItem>
-                  <SelectItem value="dark">{t("profile.settings.themeDark")}</SelectItem>
-                  <SelectItem value="system">{t("profile.settings.themeAuto")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Theme and status both save the instant you pick them — a
+            two/three-way choice doesn't need a confirmation step, so the
+            picker sits right in the row instead of behind a tap. */}
+        <SettingsRow
+          icon={PaletteIcon}
+          label={t("profile.settings.theme")}
+          control={
+            <Select
+              value={theme ?? "system"}
+              onValueChange={(value) => {
+                setTheme(value);
+                // Saved to the account, not just this browser — so it
+                // follows the user to a new device (see ThemeSync).
+                update.mutate({ theme: value as "light" | "dark" | "system" });
+              }}
+            >
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">{t("profile.settings.themeLight")}</SelectItem>
+                <SelectItem value="dark">{t("profile.settings.themeDark")}</SelectItem>
+                <SelectItem value="system">{t("profile.settings.themeAuto")}</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
 
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1">
-                <SettingsLabel>{t("profile.settings.status")}</SettingsLabel>
-                <InfoTooltip>{t("profile.settings.statusHint")}</InfoTooltip>
-              </div>
-              <Select
-                value={statusValue}
-                onValueChange={(v) => {
-                  setStatusValue(v as MyProfile["onlineStatus"]);
-                  update.mutate({ onlineStatus: v as MyProfile["onlineStatus"] });
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ONLINE">{t("profile.presence.online")}</SelectItem>
-                  <SelectItem value="OFFLINE">{t("profile.presence.offline")}</SelectItem>
-                  <SelectItem value="DND">{t("profile.presence.dnd")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </SettingsSection>
+        <SettingsRow
+          icon={MoonStarIcon}
+          label={t("profile.settings.status")}
+          info={<InfoTooltip>{t("profile.settings.statusHint")}</InfoTooltip>}
+          control={
+            <Select
+              value={statusValue}
+              onValueChange={(v) => {
+                setStatusValue(v as MyProfile["onlineStatus"]);
+                update.mutate({ onlineStatus: v as MyProfile["onlineStatus"] });
+              }}
+            >
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ONLINE">{t("profile.presence.online")}</SelectItem>
+                <SelectItem value="OFFLINE">{t("profile.presence.offline")}</SelectItem>
+                <SelectItem value="DND">{t("profile.presence.dnd")}</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
 
-          <AgeVerificationSection profile={profile} update={update} />
-        </div>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        {(earned.length > 0 || profile.isPro) && (
-          <SettingsSection
-            title={t("profile.settings.showcase")}
-            description={t("profile.settings.showcaseHint")}
+        <SettingsRow
+          icon={ShieldCheckIcon}
+          label={t("profile.settings.age.title")}
+          value={
+            profile.birthDate
+              ? profile.isAdult
+                ? t("profile.settings.age.verifiedAdult")
+                : t("profile.settings.age.verifiedMinor")
+              : t("profile.settings.age.notSet")
+          }
+          expanded={openRow === "age"}
+          onToggle={profile.birthDate ? undefined : () => toggle("age")}
+        >
+          <AgeVerificationContent profile={profile} update={update} />
+        </SettingsRow>
+        {earned.length > 0 && (
+          <SettingsRow
+            icon={TrophyIcon}
+            label={t("profile.settings.showcase")}
+            value={t("profile.settings.showcaseCount", {
+              count: profile.showcaseAchievementIds.length,
+              max: MAX_SHOWCASE_ACHIEVEMENTS,
+            })}
+            expanded={openRow === "showcase"}
+            onToggle={() => toggle("showcase")}
           >
-            {earned.length > 0 && (
-              <ShowcaseChips profile={profile} update={update} earned={earned} />
-            )}
-            {profile.isPro && (
-              <>
-                {earned.length > 0 && <div className="h-px bg-border/60" />}
-                <TitleEditor profile={profile} update={update} />
-              </>
-            )}
-          </SettingsSection>
+            <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+              {t("profile.settings.showcaseHint")}
+            </p>
+            <ShowcaseChips profile={profile} update={update} earned={earned} />
+          </SettingsRow>
         )}
 
-        <SettingsSection
-          title={t("profile.settings.genres")}
-          description={t("profile.settings.genresHint")}
-        >
-          <GenrePreferencesSection />
-        </SettingsSection>
-      </div>
+        {profile.isPro && (
+          <SettingsRow
+            icon={CrownIcon}
+            label={t("profile.settings.titlePro")}
+            value={profile.titlePrefix ?? undefined}
+            expanded={openRow === "title"}
+            onToggle={() => toggle("title")}
+          >
+            <TitleEditor profile={profile} update={update} />
+          </SettingsRow>
+        )}
 
-      <EmailVerificationSection />
+        <SettingsRow
+          icon={SparklesIcon}
+          label={t("profile.settings.genres")}
+          value={
+            genreStatus?.genreIds.length
+              ? t("profile.settings.genresCount", { count: genreStatus.genreIds.length })
+              : undefined
+          }
+          expanded={openRow === "genres"}
+          onToggle={() => toggle("genres")}
+        >
+          <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+            {t("profile.settings.genresHint")}
+          </p>
+          <GenrePreferencesSection />
+        </SettingsRow>
+
+        <EmailVerificationRow
+          expanded={openRow === "email"}
+          onToggle={() => toggle("email")}
+        />
+      </SettingsList>
 
       <DeleteAccountSection profile={profile} />
     </div>
@@ -894,7 +1016,13 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
  * newer account is verified the moment it exists. Telegram accounts have no
  * inbox behind them, so they never see this.
  */
-function EmailVerificationSection() {
+function EmailVerificationRow({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const t = useT();
   const { user, updateUser } = useAuth();
   const resend = useResendVerification();
@@ -932,11 +1060,17 @@ function EmailVerificationSection() {
   };
 
   return (
-    <SettingsSection
-      title={t("profile.settings.emailVerification.title")}
-      description={t("profile.settings.emailVerification.hint", { email: user.email })}
-      className="border-primary/40"
+    <SettingsRow
+      icon={MailIcon}
+      label={t("profile.settings.emailVerification.title")}
+      value={t("profile.settings.emailVerification.unverified")}
+      tone="primary"
+      expanded={expanded}
+      onToggle={onToggle}
     >
+      <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+        {t("profile.settings.emailVerification.hint", { email: user.email })}
+      </p>
       {sent ? (
         <div className="flex flex-col items-start gap-3">
           <p className="text-xs text-muted-foreground">
@@ -964,7 +1098,7 @@ function EmailVerificationSection() {
           {t("profile.settings.emailVerification.send")}
         </Button>
       )}
-    </SettingsSection>
+    </SettingsRow>
   );
 }
 
@@ -1158,7 +1292,10 @@ function DeleteAccountSection({ profile }: { profile: MyProfile }) {
  * saved (mirrors the username field above) — it's meant to be a real fact
  * about the account, not a toggle.
  */
-function AgeVerificationSection({
+/** Bare content for the age-verification row — only ever shown expanded
+ * while unset (see the row's onToggle above: once verified, there's a
+ * status to show but nothing left to do, so it collapses for good). */
+function AgeVerificationContent({
   profile,
   update,
 }: {
@@ -1167,56 +1304,43 @@ function AgeVerificationSection({
 }) {
   const t = useT();
   const [birthDate, setBirthDate] = useState(profile.birthDate ?? "");
-  const locked = Boolean(profile.birthDate);
   const maxDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <SettingsSection
-      title={t("profile.settings.age.title")}
-      description={t("profile.settings.age.hint")}
-    >
+    <>
+      <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+        {t("profile.settings.age.hint")}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="date"
           value={birthDate}
           max={maxDate}
-          disabled={locked}
           onChange={(e) => setBirthDate(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        {locked ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-emerald-500/15 px-2.5 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <CheckIcon className="size-3.5" />
-            {profile.isAdult
-              ? t("profile.settings.age.verifiedAdult")
-              : t("profile.settings.age.verifiedMinor")}
-          </span>
-        ) : (
-          <Button
-            size="sm"
-            className="shrink-0"
-            disabled={update.isPending || !birthDate}
-            onClick={() =>
-              update.mutate(
-                { birthDate },
-                {
-                  onSuccess: () => toast.success(t("profile.settings.age.saved")),
-                  onError: (e) =>
-                    toast.error(
-                      e instanceof Error ? e.message : t("errors.genericTitle"),
-                    ),
-                },
-              )
-            }
-          >
-            {t("profile.settings.save")}
-          </Button>
-        )}
+        <Button
+          size="sm"
+          className="shrink-0"
+          disabled={update.isPending || !birthDate}
+          onClick={() =>
+            update.mutate(
+              { birthDate },
+              {
+                onSuccess: () => toast.success(t("profile.settings.age.saved")),
+                onError: (e) =>
+                  toast.error(e instanceof Error ? e.message : t("errors.genericTitle")),
+              },
+            )
+          }
+        >
+          {t("profile.settings.save")}
+        </Button>
       </div>
       <p className="text-[11px] leading-relaxed text-muted-foreground/80">
         {t("profile.settings.age.neverHentai")}
       </p>
-    </SettingsSection>
+    </>
   );
 }
 
