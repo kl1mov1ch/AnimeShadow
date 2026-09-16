@@ -79,7 +79,6 @@ export const en = {
     topAiring: "Airing now, top rated",
     mostPopular: "Most popular",
     allTimeTop: "Highest rated of all time",
-    nowScreening: "Now screening",
     viewDetails: "View details",
   },
   browse: {

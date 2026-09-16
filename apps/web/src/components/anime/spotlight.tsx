@@ -4,11 +4,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClapperboardIcon,
-  ClockIcon,
   PlayIcon,
-  TrophyIcon,
   TvIcon,
-  UsersIcon,
 } from "lucide-react";
 import {
   type CSSProperties,
@@ -222,7 +219,15 @@ function SpotlightVideo({ animeId }: { animeId: number }) {
       if (native && video.duration > 400) video.currentTime = CLIP_START_SECONDS;
       void video.play().catch(() => undefined);
     };
+    // Native `loop` just restarts at 0 — right back into the OP/credits this
+    // clip specifically skipped past. Looping by hand instead means every
+    // replay lands on the same in-scene moment, not the show's title card.
+    const onEnded = () => {
+      video.currentTime = CLIP_START_SECONDS;
+      void video.play().catch(() => undefined);
+    };
     video.addEventListener("loadedmetadata", onMetadata);
+    video.addEventListener("ended", onEnded);
 
     if (native) {
       video.src = src;
@@ -243,6 +248,7 @@ function SpotlightVideo({ animeId }: { animeId: number }) {
     return () => {
       cancelled = true;
       video.removeEventListener("loadedmetadata", onMetadata);
+      video.removeEventListener("ended", onEnded);
       hls?.destroy();
       video.removeAttribute("src");
       video.load();
@@ -297,24 +303,20 @@ function SlideContent({
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
   return (
-    <div className="reveal-group relative z-10 flex flex-1 flex-col gap-5 p-4 sm:justify-between sm:gap-8 sm:p-7 lg:p-9">
+    <div className="reveal-group relative z-10 flex flex-1 flex-col gap-4 p-4 sm:justify-between sm:gap-7 sm:p-7 lg:p-9">
       <div className="flex max-w-2xl flex-col gap-3">
-        <div className="reveal flex flex-wrap items-center gap-2.5 text-xs font-medium" style={step(0)}>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-primary ring-1 ring-primary/30">
-            <span aria-hidden className="size-1.5 rounded-full bg-primary" />
-            {t("discover.nowScreening")}
-          </span>
-        </div>
-
-        <div className="reveal flex flex-col gap-1" style={step(1)}>
+        <div className="reveal flex flex-col gap-1" style={step(0)}>
           <h1 className="line-clamp-2 font-display text-2xl leading-[1.1] text-foreground [overflow-wrap:anywhere] sm:text-3xl lg:text-[2.5rem]">
             {title}
           </h1>
           {altTitle && <p className="line-clamp-1 text-sm text-foreground/55">{altTitle}</p>}
         </div>
 
-        <div className="reveal flex flex-wrap items-center gap-1.5" style={step(2)}>
-          {/* <ScoreBadge score={anime.score} size="md" className="rounded-full px-2.5" /> */}
+        {/* One line, the essentials only — airing state, format, episode
+            count, year, age rating, and a couple of genres to place it.
+            Runtime, ranking and member counts live on the anime's own page;
+            a hero card is a reason to click through, not a stats sheet. */}
+        <div className="reveal flex flex-wrap items-center gap-1.5" style={step(1)}>
           {anime.airing !== "UNKNOWN" && (
             <MetaChip>
               <span
@@ -334,47 +336,22 @@ function SlideContent({
           <MetaChip icon={<TvIcon />}>{labels.typeLabel(anime.type)}</MetaChip>
           {episodes && <MetaChip icon={<ClapperboardIcon />}>{episodes}</MetaChip>}
           {when && <MetaChip icon={<CalendarDaysIcon />}>{when}</MetaChip>}
-          {anime.duration && (
-            <MetaChip icon={<ClockIcon />} className="hidden sm:inline-flex">
-              <span className="max-w-[9rem] truncate">{anime.duration}</span>
-            </MetaChip>
-          )}
-          {rating && <MetaChip className="hidden sm:inline-flex">{rating}</MetaChip>}
-          {anime.rank != null && (
-            <MetaChip icon={<TrophyIcon />} className="hidden md:inline-flex">
-              #{anime.rank}
-            </MetaChip>
-          )}
-          {anime.members != null && anime.members > 0 && (
-            <MetaChip icon={<UsersIcon />} className="hidden md:inline-flex">
-              {labels.compact(anime.members)}
-            </MetaChip>
-          )}
+          {rating && <MetaChip>{rating}</MetaChip>}
+          {anime.genresDetailed.slice(0, 2).map((genre) => (
+            <Link
+              key={genre.id}
+              to={`/browse?genres=${genre.id}`}
+              className="rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 backdrop-blur transition-colors hover:border-primary/50 hover:text-primary"
+            >
+              {labels.genreLabel(genre.name)}
+            </Link>
+          ))}
         </div>
-
-        {(anime.studios.length > 0 || anime.genresDetailed.length > 0) && (
-          <div className="reveal flex flex-wrap items-center gap-x-3 gap-y-2" style={step(3)}>
-            {anime.studios.length > 0 && (
-              <span className="text-xs font-medium text-foreground/60">
-                {anime.studios.slice(0, 2).join(" · ")}
-              </span>
-            )}
-            {anime.genresDetailed.slice(0, 4).map((genre) => (
-              <Link
-                key={genre.id}
-                to={`/browse?genres=${genre.id}`}
-                className="rounded-md border border-white/10 px-2 py-0.5 text-xs text-foreground/75 transition-colors hover:border-primary/50 hover:text-primary"
-              >
-                {labels.genreLabel(genre.name)}
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
 
       <div
         className="reveal flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
-        style={step(4)}
+        style={step(2)}
       >
         <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/50 [&_[data-slot=select-trigger]]:backdrop-blur [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
           <Button

@@ -81,7 +81,6 @@ export const ru: Dict = {
     topAiring: "Сейчас в эфире — топ по оценке",
     mostPopular: "Самое популярное",
     allTimeTop: "Лучшее за всё время",
-    nowScreening: "Сейчас на экране",
     viewDetails: "Подробнее",
   },
   browse: {
