@@ -4,9 +4,10 @@ import { useT } from "@/i18n";
 
 export function RootError() {
   const t = useT();
-  const error = useRouteError();
-  const message =
-    error instanceof Error ? error.message : t("errors.genericBody");
+  // The raw error (a stack trace, a bare "Cannot read properties of
+  // undefined", …) is for the console/error tracker, never the page — a
+  // visitor gets the same friendly line regardless of what actually broke.
+  useRouteError();
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
@@ -14,7 +15,7 @@ export function RootError() {
         影
       </p>
       <h1 className="font-display text-2xl">{t("errors.pageSnag")}</h1>
-      <p className="text-sm text-muted-foreground">{message}</p>
+      <p className="text-sm text-muted-foreground">{t("errors.genericBody")}</p>
       <Button asChild>
         <Link to="/">{t("errors.backToDiscover")}</Link>
       </Button>

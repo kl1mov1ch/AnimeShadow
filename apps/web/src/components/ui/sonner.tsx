@@ -27,12 +27,21 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         // Sonner's own slide/fade-in is already smooth; this just makes each
         // kind of message readable at a glance instead of every toast
-        // looking identically neutral.
+        // looking identically neutral. Every toast also carries a faint
+        // "影" watermark (the site's own mark, same glyph as the header
+        // logo and the error pages) — `text-foreground` tracks light/dark
+        // automatically, so it's the same subtle presence in either theme,
+        // never competing with the actual message on top of it.
         classNames: {
-          success: "!border-emerald-500/50 !bg-emerald-500/10 [&_svg]:!text-emerald-500",
-          error: "!border-destructive/50 !bg-destructive/10 [&_svg]:!text-destructive",
-          warning: "!border-amber-500/50 !bg-amber-500/10 [&_svg]:!text-amber-500",
-          info: "!border-sky-500/50 !bg-sky-500/10 [&_svg]:!text-sky-500",
+          toast:
+            "relative overflow-hidden border-l-4 after:pointer-events-none after:absolute after:-right-3 after:-bottom-5 after:select-none after:font-display after:text-7xl after:leading-none after:text-foreground/[0.06] after:content-['影']",
+          success:
+            "!border-l-emerald-500 !border-emerald-500/50 !bg-emerald-500/10 [&_svg]:!text-emerald-500",
+          error:
+            "!border-l-destructive !border-destructive/50 !bg-destructive/10 [&_svg]:!text-destructive",
+          warning:
+            "!border-l-amber-500 !border-amber-500/50 !bg-amber-500/10 [&_svg]:!text-amber-500",
+          info: "!border-l-sky-500 !border-sky-500/50 !bg-sky-500/10 [&_svg]:!text-sky-500",
         },
       }}
       style={
