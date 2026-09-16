@@ -1,5 +1,10 @@
 import { ACHIEVEMENTS } from "@animeshadow/shared";
 import { AwardIcon, CrownIcon, MedalIcon, StarIcon } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -21,18 +26,47 @@ const RARITY_CLASS = {
 export function AchievementBadge({
   id,
   className,
+  /** Icon only, no title text — for a dense list of badges (a comment
+   * header) where several of these side by side would otherwise crowd out
+   * the actual message. The title moves into a hover tooltip instead of
+   * disappearing. */
+  compact = false,
 }: {
   id: string | null | undefined;
   className?: string;
+  compact?: boolean;
 }) {
   const t = useT();
   const def = ACHIEVEMENTS.find((a) => a.id === id);
   if (!def) return null;
   const Icon = RARITY_ICON[def.rarity];
+  const title = t(`achievements.items.${def.id}.title` as "achievements.items.critic.title");
+  const rarityLabel = t(`achievements.rarity.${def.rarity}` as "achievements.rarity.common");
+
+  if (compact) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "inline-flex size-4 shrink-0 items-center justify-center rounded-md border",
+              RARITY_CLASS[def.rarity],
+              className,
+            )}
+          >
+            <Icon className="size-2.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {title} · {rarityLabel}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <span
-      title={t(`achievements.items.${def.id}.title` as "achievements.items.critic.title")}
+      title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
         RARITY_CLASS[def.rarity],
@@ -40,7 +74,7 @@ export function AchievementBadge({
       )}
     >
       <Icon className="size-3" />
-      {t(`achievements.items.${def.id}.title` as "achievements.items.critic.title")}
+      {title}
     </span>
   );
 }

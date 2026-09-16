@@ -6,6 +6,7 @@ import {
   ThumbsDownIcon,
   ThumbsUpIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -42,6 +43,57 @@ import {
 import { cn } from "@/lib/utils";
 
 const MODES: CommentMode[] = ["PUBLIC", "ANON", "SUPPORTER"];
+
+/**
+ * A quoted reply is stored as two leading blockquote lines — the quoted
+ * author's name, then their snippet — followed by a blank line and the
+ * actual reply. No schema change needed (comments are still one `body`
+ * string end to end); this is just a convention the composer writes and
+ * the renderer below reads back out, so a stored comment round-trips into
+ * the same Telegram-style "replying to" strip it was composed with.
+ */
+const QUOTE_PATTERN = /^> (.*)\n> ([\s\S]*?)\n\n([\s\S]*)$/;
+
+function parseQuote(body: string): { author: string; snippet: string; text: string } | null {
+  const match = QUOTE_PATTERN.exec(body);
+  if (!match) return null;
+  const [, author, snippet, text] = match;
+  return { author: author!, snippet: snippet!, text: text! };
+}
+
+function buildQuotedBody(author: string, snippet: string, text: string): string {
+  // One line, no embedded newlines — the pattern above depends on the
+  // snippet being exactly one `> `-prefixed line.
+  const flatSnippet = snippet.replace(/\s+/g, " ").trim();
+  return `> ${author}\n> ${flatSnippet}\n\n${text}`;
+}
+
+/** The Telegram-style "replying to" strip — a coloured rail, the quoted
+ * author, and their snippet, sitting above the message it introduces
+ * rather than pasted into it as plain text. */
+function QuotePreview({
+  author,
+  snippet,
+  className,
+}: {
+  author: string;
+  snippet: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-md border-l-2 border-primary/60 bg-primary/[0.06] py-1 pl-2 pr-2.5",
+        className,
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium text-primary">{author}</p>
+        <p className="line-clamp-2 text-xs text-muted-foreground">{snippet}</p>
+      </div>
+    </div>
+  );
+}
 
 export function CommentsSection({ animeId }: { animeId: number }) {
   const t = useT();
@@ -181,20 +233,27 @@ function Composer({
 }: {
   animeId: number;
   parentId?: string;
-  quote?: string;
+  /** Present only for "Quote" (not plain "Reply") — see CommentItem. */
+  quote?: { author: string; snippet: string };
   onDone?: () => void;
 }) {
   const t = useT();
   const create = useCreateComment(animeId);
   const [mode, setMode] = useState<CommentMode>("PUBLIC");
-  const [body, setBody] = useState(quote ? `> ${quote}\n\n` : "");
+  const [body, setBody] = useState("");
+  // A local yes/no, not just "is `quote` still truthy" — the × button lets
+  // the user drop the quote and keep typing a plain reply instead of
+  // closing the whole composer over it.
+  const [quoting, setQuoting] = useState(quote != null);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
     const text = body.trim();
     if (!text) return;
+    const finalBody =
+      quoting && quote ? buildQuotedBody(quote.author, quote.snippet, text) : text;
     create.mutate(
-      { animeId, body: text, mode, parentId: parentId ?? null },
+      { animeId, body: finalBody, mode, parentId: parentId ?? null },
       {
         onSuccess: () => {
           setBody("");
@@ -207,6 +266,19 @@ function Composer({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/40 p-3">
+      {quoting && quote && (
+        <div className="relative">
+          <QuotePreview author={quote.author} snippet={quote.snippet} className="pr-7" />
+          <button
+            type="button"
+            onClick={() => setQuoting(false)}
+            aria-label={t("common.cancel")}
+            className="absolute right-1.5 top-1.5 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+      )}
       <Textarea
         ref={ref}
         value={body}
@@ -262,14 +334,20 @@ function CommentItem({
   const edit = useEditComment(animeId);
   const del = useDeleteComment(animeId);
 
-  const [replying, setReplying] = useState(false);
+  // Two distinct actions, not one: "Reply" opens a plain composer, "Quote"
+  // opens the same composer with the quoted snippet attached — they used to
+  // both funnel into one `replying` flag and one Composer that auto-quoted
+  // regardless of which button was pressed, so "Reply" silently quoted too.
+  const [replyMode, setReplyMode] = useState<"reply" | "quote" | null>(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(comment.body);
+  const quoted = parseQuote(comment.body);
+  const [draft, setDraft] = useState(quoted?.text ?? comment.body);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
+  const displayBody = quoted?.text ?? comment.body;
   // Long walls of text stay clamped so a thread is skimmable.
-  const isLong = comment.body.length > 320 || comment.body.split("\n").length > 5;
+  const isLong = displayBody.length > 320 || displayBody.split("\n").length > 5;
 
   const isMine =
     comment.author.kind === "user" &&
@@ -347,13 +425,15 @@ function CommentItem({
           <UserTitleBadge
             prefix={comment.author.titlePrefix}
             icon={comment.author.titleIcon}
-            className="h-4 px-1 py-0"
+            compact
           />
           {/* Every pinned achievement, not just the first — a viewer who
               pinned three shouldn't have two of them invisible to everyone
-              reading their comments. */}
+              reading their comments. Icon-only: the full title (and the
+              rest of what's pinned) is a hover away, or a click on the
+              avatar/name away in the full profile. */}
           {comment.author.showcaseAchievementIds.map((id) => (
-            <AchievementBadge key={id} id={id} className="h-4 px-1 py-0" />
+            <AchievementBadge key={id} id={id} compact />
           ))}
           <span className="text-muted-foreground">{when}</span>
           {comment.editedAt && (
@@ -372,12 +452,19 @@ function CommentItem({
             <div className="flex gap-2">
               <Button
                 size="sm"
-                onClick={() =>
+                onClick={() => {
+                  const text = draft.trim();
+                  // Editing only ever touches the reply text itself — the
+                  // "replying to" reference above it (if any) survives the
+                  // edit unchanged.
+                  const body = quoted
+                    ? buildQuotedBody(quoted.author, quoted.snippet, text)
+                    : text;
                   edit.mutate(
-                    { id: comment.id, body: draft.trim() },
+                    { id: comment.id, body },
                     { onSuccess: () => setEditing(false) },
-                  )
-                }
+                  );
+                }}
                 disabled={edit.isPending || !draft.trim()}
               >
                 {t("common.save")}
@@ -388,14 +475,15 @@ function CommentItem({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-start gap-0.5">
+          <div className="flex flex-col items-start gap-1">
+            {quoted && <QuotePreview author={quoted.author} snippet={quoted.snippet} />}
             <p
               className={cn(
                 "whitespace-pre-line text-sm text-foreground/90",
                 !expanded && isLong && "line-clamp-4",
               )}
             >
-              {comment.body}
+              {displayBody}
             </p>
             {isLong && (
               <button
@@ -435,7 +523,7 @@ function CommentItem({
           {depth === 0 && (
             <button
               type="button"
-              onClick={() => setReplying((v) => !v)}
+              onClick={() => setReplyMode((m) => (m === "reply" ? null : "reply"))}
               className="inline-flex items-center gap-1 hover:text-foreground"
             >
               <MessageSquareIcon className="size-3.5" /> {t("comments.actions.reply")}
@@ -443,7 +531,7 @@ function CommentItem({
           )}
           <button
             type="button"
-            onClick={() => setReplying(true)}
+            onClick={() => setReplyMode((m) => (m === "quote" ? null : "quote"))}
             className="inline-flex items-center gap-1 hover:text-foreground"
           >
             <QuoteIcon className="size-3.5" /> {t("comments.actions.quote")}
@@ -484,13 +572,17 @@ function CommentItem({
           }
         />
 
-        {replying && (
+        {replyMode && (
           <div className="mt-1">
             <Composer
               animeId={animeId}
               parentId={comment.id}
-              quote={comment.body.length < 240 ? comment.body : undefined}
-              onDone={() => setReplying(false)}
+              quote={
+                replyMode === "quote"
+                  ? { author: comment.author.displayName, snippet: displayBody.slice(0, 200) }
+                  : undefined
+              }
+              onDone={() => setReplyMode(null)}
             />
           </div>
         )}

@@ -22,6 +22,7 @@ import {
   ShuffleIcon,
   SparklesIcon,
   TimerIcon,
+  Trash2Icon,
   TrophyIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -40,6 +41,7 @@ import { TITLE_ICON_COMPONENT, UserTitleBadge } from "@/components/user-title-ba
 import { PasswordInput, TextInput } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +75,7 @@ import {
   useMyProfile,
   useMyProgress,
   usePublicProfile,
+  useReactionGif,
   useResendVerification,
   useSetGenrePreferences,
   useSetRandomAvatar,
@@ -826,7 +829,10 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <SettingsLabel>{t("profile.settings.status")}</SettingsLabel>
+              <div className="flex items-center gap-1">
+                <SettingsLabel>{t("profile.settings.status")}</SettingsLabel>
+                <InfoTooltip>{t("profile.settings.statusHint")}</InfoTooltip>
+              </div>
               <Select
                 value={statusValue}
                 onValueChange={(v) => {
@@ -1037,20 +1043,23 @@ function DeleteAccountSection({ profile }: { profile: MyProfile }) {
     );
   };
 
+  const gif = useReactionGif("cry", open);
+
   return (
-    <SettingsSection
-      title={t("profile.settings.dangerZone.title")}
-      description={t("profile.settings.dangerZone.hint")}
-      className="border-destructive/40"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-md text-xs text-muted-foreground">
-          {t("profile.settings.dangerZone.deleteAccountHint")}
-        </p>
-        <Button variant="destructive" onClick={openDialog} className="shrink-0">
-          {t("profile.settings.dangerZone.deleteAccount")}
-        </Button>
-      </div>
+    <>
+      {/* Deliberately not a card — a boxed "danger zone" with its own
+          heading and border draws the eye exactly as much as every other
+          setting on the page, which is backwards for the one thing here
+          nobody should click by accident. Just a quiet link, easy to find
+          if you're looking for it and easy to scroll past if you're not. */}
+      <button
+        type="button"
+        onClick={openDialog}
+        className="inline-flex items-center gap-1.5 self-start text-xs text-muted-foreground/70 transition-colors hover:text-destructive"
+      >
+        <Trash2Icon className="size-3.5" />
+        {t("profile.settings.dangerZone.deleteAccount")}
+      </button>
 
       <Dialog
         open={open}
@@ -1058,15 +1067,27 @@ function DeleteAccountSection({ profile }: { profile: MyProfile }) {
           if (!deleteAccount.isPending) setOpen(next);
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("profile.settings.dangerZone.dialogTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("profile.settings.dangerZone.dialogBody", { name: profile.displayName })}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="overflow-hidden p-0 sm:max-w-md">
+          {/* The one dialog on the site that's allowed to be a little
+              theatrical — everywhere else, a confirm dialog is neutral by
+              design; here, the whole point is making the visitor pause. */}
+          <div className="relative flex flex-col items-center gap-2 border-b border-border/60 bg-gradient-to-b from-destructive/10 to-transparent px-6 pb-4 pt-6 text-center">
+            <div className="size-28 overflow-hidden rounded-2xl bg-muted">
+              {gif.data?.url && (
+                <img src={gif.data.url} alt="" className="size-full object-cover" />
+              )}
+            </div>
+            <DialogHeader className="items-center gap-1">
+              <DialogTitle className="text-lg">
+                {t("profile.settings.dangerZone.dialogTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                {t("profile.settings.dangerZone.dialogBody", { name: profile.displayName })}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 px-6 pb-6">
             {error && <p className="text-xs text-destructive">{error}</p>}
 
             <div className="flex flex-col gap-1.5">
@@ -1111,7 +1132,7 @@ function DeleteAccountSection({ profile }: { profile: MyProfile }) {
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 pb-6">
             <Button variant="outline" onClick={() => setOpen(false)}>
               {t("profile.settings.dangerZone.cancel")}
             </Button>
@@ -1126,7 +1147,7 @@ function DeleteAccountSection({ profile }: { profile: MyProfile }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SettingsSection>
+    </>
   );
 }
 
