@@ -1,5 +1,6 @@
 import type {
   EarnedAchievement,
+  LibraryStatus,
   MyProfile,
   ProfileStats,
   ProgressDetail,
@@ -54,6 +55,14 @@ import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Bar, BarChart, Pie, PieChart, XAxis, YAxis } from "recharts";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -83,6 +92,7 @@ import {
   useDeleteProgress,
   useGenrePreferencesStatus,
   useGenres,
+  useLibrary,
   useMyProfile,
   useMyProgress,
   usePublicProfile,
@@ -289,10 +299,10 @@ const RANK_CHIP: Record<Rank, string> = {
  * Identity and stats used to be two separate blocks (a hero card, then a
  * stat-cards row below it) — one surface now: a small square of "who this
  * is" on the left (avatar, name, pinned achievements with their actual
- * names underneath instead of bare unlabelled circles), the numbers and
- * top genres that used to sit in their own sections filling the rest of
- * the row so it reads as one finished card instead of a tall square next
- * to a short one with empty space trailing it.
+ * names underneath instead of bare unlabelled circles), and the numbers
+ * plus the list charts filling the rest of the row, so it reads as one
+ * finished card instead of a tall square next to a short one with empty
+ * space trailing it.
  */
 function ProfileHero({
   profile,
@@ -306,7 +316,6 @@ function ProfileHero({
   editable?: boolean;
 }) {
   const t = useT();
-  const labels = useLabels();
   const { locale } = useLocale();
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
   const memberSince = new Date(profile.memberSince).toLocaleDateString(locale, {
@@ -443,13 +452,11 @@ function ProfileHero({
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <StatsGrid stats={stats} />
-        {/* Fills the rest of the column instead of leaving it empty next to
-            the taller identity square. A bar per genre (share of watched
-            episodes, not a bare count) reads at a glance; the old plain
-            tag list needed you to compare numbers yourself. */}
-        {stats.topGenres.length > 0 && (
-          <GenreBars genres={stats.topGenres} />
-        )}
+        {/* Real charts off the viewer's own list, not a genre tag cloud —
+            the numbers above say "how much", these say "of what". Only on
+            your own profile: the library endpoint is /library, i.e. yours,
+            so there's nothing to plot on someone else's page. */}
+        {editable && <LibraryCharts />}
       </div>
     </header>
     <AchievementDetailDialog
@@ -469,82 +476,154 @@ function TopRatedTitles({ titles }: { titles: ProfileStats["topRated"] }) {
   if (titles.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <SectionHeading title={t("profile.summary.topRated")} />
-      <div className="grid grid-cols-3 gap-3">
+    // A strip, not a grid of full cards — three big posters ate a whole row
+    // for information that fits in a thumbnail plus a hover. The title and
+    // score live in the tooltip; the poster alone is enough to recognise.
+    <section className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="text-xs font-medium text-muted-foreground">
+        {t("profile.summary.topRated")}
+      </span>
+      <div className="flex items-center gap-2">
         {titles.map((title) => (
-          <Link
-            key={title.animeId}
-            to={`/anime/${title.slug}`}
-            className="group flex flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-2 transition-colors hover:border-primary/40"
-          >
-            <div className="aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
-              {title.imageUrl ? (
-                <img
-                  src={imageSrc(title.imageUrl)}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <PosterFallback title={title.title} seed={title.animeId} />
-              )}
-            </div>
-            <div className="flex flex-col gap-0.5 px-0.5">
-              <p className="line-clamp-2 text-xs font-medium leading-snug transition-colors group-hover:text-primary">
-                {title.title}
-              </p>
-              <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-500">
-                <StarIcon className="size-3 fill-current" />
-                {title.score}/10
-              </span>
-            </div>
-          </Link>
+          <Tooltip key={title.animeId}>
+            <TooltipTrigger asChild>
+              <Link
+                to={`/anime/${title.slug}`}
+                className="relative block h-16 w-11 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted outline-none transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {title.imageUrl ? (
+                  <img
+                    src={imageSrc(title.imageUrl)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <PosterFallback title={title.title} seed={title.animeId} />
+                )}
+                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-black/70 py-0.5 text-[9px] font-semibold text-amber-300">
+                  <StarIcon className="size-2 fill-current" />
+                  {title.score}
+                </span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              {title.title} · {title.score}/10
+            </TooltipContent>
+          </Tooltip>
         ))}
       </div>
     </section>
   );
 }
 
-function GenreBars({ genres }: { genres: ProfileStats["topGenres"] }) {
+/** Same validated series palette the admin charts use, so a chart means the
+ * same thing colour-wise wherever it appears on the site. */
+const CHART_PALETTE = [
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+] as const;
+
+const LIBRARY_STATUSES: LibraryStatus[] = [
+  "WATCHING",
+  "COMPLETED",
+  "PLANNED",
+  "ON_HOLD",
+  "DROPPED",
+];
+
+/**
+ * Two real charts off the viewer's own list: how the list splits by status,
+ * and how they actually score things. Both read straight off /library, so
+ * there's no new endpoint and no number here that isn't the viewer's own.
+ */
+function LibraryCharts() {
   const t = useT();
   const labels = useLabels();
-  const total = genres.reduce((n, g) => n + g.count, 0) || 1;
+  const { data: entries = [], isPending } = useLibrary();
+
+  if (isPending) return <Skeleton className="h-48 flex-1 rounded-xl" />;
+
+  if (entries.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border/60 bg-card/20 p-4 text-center text-xs text-muted-foreground">
+        {t("profile.summary.chartsEmpty")}
+      </div>
+    );
+  }
+
+  const byStatus = LIBRARY_STATUSES.map((status, i) => ({
+    status,
+    count: entries.filter((e) => e.status === status).length,
+    fill: CHART_PALETTE[i % CHART_PALETTE.length]!,
+  })).filter((row) => row.count > 0);
+
+  const scores = Array.from({ length: 10 }, (_, i) => ({
+    score: String(i + 1),
+    count: entries.filter((e) => e.score === i + 1).length,
+  }));
+  const hasScores = scores.some((row) => row.count > 0);
+
+  const statusConfig: ChartConfig = Object.fromEntries(
+    LIBRARY_STATUSES.map((status, i) => [
+      status,
+      { label: labels.statusLabel(status), color: CHART_PALETTE[i % CHART_PALETTE.length]! },
+    ]),
+  );
+  const scoreConfig = {
+    count: { label: t("profile.summary.titlesAxis"), color: "var(--series-2)" },
+  } satisfies ChartConfig;
 
   return (
-    <div className="reveal flex flex-1 flex-col gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.05] to-transparent p-4">
-      <span className="flex items-center gap-1.5 text-xs text-primary/90">
-        <SparklesIcon className="size-3.5 shrink-0" />
-        {t("profile.summary.topGenres")}
-      </span>
-      <div className="flex flex-col gap-2">
-        {genres.map((g) => {
-          const percent = Math.round((g.count / total) * 100);
-          return (
-            <Link
-              key={g.name}
-              to={`/browse?q=${encodeURIComponent(g.name)}`}
-              className="group flex flex-col gap-1"
-            >
-              <div className="flex items-baseline justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate text-foreground/85 transition-colors group-hover:text-primary">
-                  {labels.genreLabel(g.name)}
-                </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {g.count} · {percent}%
-                </span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary/10">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-fuchsia-500 transition-[width] duration-500"
-                  style={{ width: `${Math.max(4, percent)}%` }}
-                />
-              </div>
-            </Link>
-          );
-        })}
+    <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+      <div className="reveal flex flex-1 flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-4">
+        <span className="text-xs font-medium text-muted-foreground">
+          {t("profile.summary.libraryChart")}
+        </span>
+        <ChartContainer config={statusConfig} className="mx-auto aspect-square w-full max-w-[150px]">
+          <PieChart>
+            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="status" />} />
+            <Pie
+              data={byStatus}
+              dataKey="count"
+              nameKey="status"
+              innerRadius="58%"
+              outerRadius="92%"
+              paddingAngle={3}
+              cornerRadius={6}
+              strokeWidth={0}
+              animationDuration={900}
+            />
+          </PieChart>
+        </ChartContainer>
       </div>
+
+      {hasScores && (
+        <div className="reveal flex flex-1 flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-4">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t("profile.summary.scoresChart")}
+          </span>
+          <ChartContainer config={scoreConfig} className="aspect-auto h-[150px] w-full">
+            <BarChart data={scores} margin={{ top: 4, right: 4, bottom: 0, left: -28 }} barCategoryGap={3}>
+              <XAxis dataKey="score" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
+              <YAxis hide />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(value) => `${t("profile.summary.scoresAxis")} ${value}`}
+                  />
+                }
+              />
+              <Bar dataKey="count" fill="var(--color-count)" radius={4} animationDuration={900} />
+            </BarChart>
+          </ChartContainer>
+        </div>
+      )}
     </div>
   );
 }
