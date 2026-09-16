@@ -452,10 +452,11 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   const hasThemes = anime.themes.length > 0 || anime.demographics.length > 0;
   // Fetched here too (not just inside FranchiseRail) purely to decide the
   // layout — react-query dedupes the identical query, so this costs nothing
-  // extra. Reserving the desktop two-column split for a title with no
-  // franchise data would leave an empty gap where the list should be.
+  // extra. Reserving the desktop two-column split for a title with nothing
+  // else in its franchise (or no *other* title, once the one being viewed
+  // is excluded — see FranchiseRail) would leave an empty gap on the page.
   const { data: franchise } = useFranchise(anime.id);
-  const hasFranchise = (franchise?.length ?? 0) >= 2;
+  const hasFranchise = (franchise ?? []).some((entry) => !entry.current);
 
   const facts = (
     [
@@ -681,7 +682,12 @@ function EpisodesSection({
   );
 }
 
-const CHARACTERS_COLLAPSED = 6;
+// A multiple of both the phone (6) and desktop (12) column counts, so the
+// collapsed view is always whole rows — two tidy rows of 6 up through
+// tablet, one single row of 12 on desktop, never a half-filled row
+// stretched wide by too few items.
+const CHARACTERS_COLLAPSED = 12;
+const CHARACTERS_GRID = "grid grid-cols-6 gap-x-2 gap-y-4 lg:grid-cols-12";
 
 function CharactersBlock({ animeId }: { animeId: number }) {
   const t = useT();
@@ -743,8 +749,8 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       </div>
 
       {isPending ? (
-        <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))]">
-          {Array.from({ length: 12 }, (_, i) => (
+        <div className={CHARACTERS_GRID}>
+          {Array.from({ length: CHARACTERS_COLLAPSED }, (_, i) => (
             <div key={i} className="flex flex-col items-center gap-1.5">
               <Skeleton className="aspect-square w-full rounded-full" />
               <Skeleton className="h-2.5 w-10 rounded-full" />
@@ -756,10 +762,11 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       ) : (
         <>
           {/* Round avatars that stretch to fill the row rather than a fixed
-              poster-sized tile — a cast can run into the dozens. Exactly 6
-              per row on a phone (just smaller circles); from sm up, auto-fill
-              packs as many ~88px-or-wider columns as the viewport allows. */}
-          <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))]">
+              poster-sized tile — a cast can run into the dozens. Fixed
+              column counts (not auto-fit) so a half-full row never gets
+              stretched wide by too few items: 6 per row through tablet, a
+              full 12-wide single row on desktop. */}
+          <div className={CHARACTERS_GRID}>
             {visible.map((c) => (
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}

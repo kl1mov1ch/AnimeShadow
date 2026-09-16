@@ -139,7 +139,6 @@ export const en = {
       seasons: "Seasons",
     },
     seasons: {
-      current: "You're here",
       openHint: "Click to open",
     },
     machineTranslated: "Auto-translated",

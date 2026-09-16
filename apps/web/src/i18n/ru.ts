@@ -141,7 +141,6 @@ export const ru: Dict = {
       seasons: "Сезоны",
     },
     seasons: {
-      current: "Вы сейчас здесь",
       openHint: "Нажмите, чтобы открыть",
     },
     machineTranslated: "Автоперевод",

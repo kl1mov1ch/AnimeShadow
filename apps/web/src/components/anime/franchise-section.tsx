@@ -39,8 +39,12 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
   const { data } = useFranchise(animeId);
+  // The title already open has no business in its own "other seasons" list —
+  // it's not a link anywhere else on the page either, so listing it here too
+  // (even shown-but-inert) just reads as clutter and risks a stray click.
+  const others = (data ?? []).filter((entry) => !entry.current);
 
-  if (!data || data.length < 2) return null;
+  if (others.length === 0) return null;
 
   // Reads both axes and combines them — whichever axis isn't actually
   // scrollable at the current breakpoint sits permanently at its own start
@@ -69,7 +73,7 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
         <span className="text-xs font-medium text-muted-foreground/70">
           {t("detail.sections.seasons")}
         </span>
-        {data.length > 3 && (
+        {others.length > 3 && (
           <div className="flex shrink-0 gap-1">
             {/* Horizontal pager — the rail below lg. */}
             <Button
@@ -120,9 +124,9 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
       <div
         ref={trackRef}
         onScroll={updateEdges}
-        className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:h-72 lg:snap-y lg:flex-col lg:overflow-y-auto"
+        className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:max-h-56 lg:snap-y lg:flex-col lg:overflow-y-auto"
       >
-        {data.map((entry) => (
+        {others.map((entry) => (
           <FranchiseLink key={entry.id} entry={entry} />
         ))}
       </div>
@@ -136,53 +140,37 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
   const canHover = useMediaQuery("(hover: hover)");
   const metaLine = [labels.typeLabel(entry.kind), entry.year].filter(Boolean).join(" · ");
 
-  const row = (
-    <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 p-2 transition-colors group-hover:border-primary/40 group-hover:bg-primary/[0.06]">
-      <div className="h-10 w-7 shrink-0 overflow-hidden rounded-md bg-muted">
-        {entry.imageUrl ? (
-          <img
-            src={imageSrc(entry.imageUrl)}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="size-full object-cover"
-          />
-        ) : (
-          <PosterFallback title={entry.title} seed={entry.id} variant="avatar" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            "truncate text-sm font-medium leading-snug",
-            entry.current ? "text-primary" : "text-foreground",
-          )}
-        >
-          {entry.title}
-        </p>
-        <p className="truncate text-[11px] text-muted-foreground">{metaLine}</p>
-      </div>
-    </div>
-  );
-
   // A slight peek of the next entry on a phone (88% rather than the full
   // width) hints there's more to swipe to; from sm up there's room for a
   // clean three-per-view — and from lg, the list itself has gone vertical
   // (see FranchiseRail), so each row is simply the full width of that
   // narrow column, height replacing width as the thing that varies.
-  const itemClass =
-    "w-[88%] shrink-0 snap-start sm:w-[calc((100%-2*0.625rem)/3)] lg:w-full";
-
-  const card = entry.current ? (
-    <div className={itemClass} title={t("detail.seasons.current")}>
-      {row}
-    </div>
-  ) : (
+  const card = (
     <Link
       to={`/anime/${entry.id}`}
-      className={cn("group rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring", itemClass)}
+      className="group w-[88%] shrink-0 snap-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-[calc((100%-2*0.625rem)/3)] lg:w-full"
     >
-      {row}
+      <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 p-2 transition-colors group-hover:border-primary/40 group-hover:bg-primary/[0.06]">
+        <div className="h-10 w-7 shrink-0 overflow-hidden rounded-md bg-muted">
+          {entry.imageUrl ? (
+            <img
+              src={imageSrc(entry.imageUrl)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="size-full object-cover"
+            />
+          ) : (
+            <PosterFallback title={entry.title} seed={entry.id} variant="avatar" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium leading-snug text-foreground">
+            {entry.title}
+          </p>
+          <p className="truncate text-[11px] text-muted-foreground">{metaLine}</p>
+        </div>
+      </div>
     </Link>
   );
 
@@ -193,9 +181,14 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       <HoverCardTrigger asChild>{card}</HoverCardTrigger>
-      <HoverCardContent side="top" sideOffset={10} className="w-64">
+      {/* Right of the row, not above it — the list itself sits at the left
+          edge of the page on desktop, so there's open space to its right for
+          a bigger card to land in without covering neighboring rows. The
+          title is never clamped here (unlike the row itself): the tooltip
+          is exactly the place with room to show it in full. */}
+      <HoverCardContent side="right" align="start" sideOffset={14} className="w-80">
         <div className="flex gap-3">
-          <div className="h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
+          <div className="h-28 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
             {entry.imageUrl ? (
               <img
                 src={imageSrc(entry.imageUrl)}
@@ -208,17 +201,9 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 font-display text-sm leading-snug">{entry.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{metaLine}</p>
-            {entry.current ? (
-              <p className="mt-1.5 text-xs font-medium text-primary">
-                {t("detail.seasons.current")}
-              </p>
-            ) : (
-              <p className="mt-1.5 text-xs text-muted-foreground/70">
-                {t("detail.seasons.openHint")}
-              </p>
-            )}
+            <p className="font-display text-sm leading-snug text-foreground">{entry.title}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{metaLine}</p>
+            <p className="mt-2 text-xs text-primary">{t("detail.seasons.openHint")}</p>
           </div>
         </div>
       </HoverCardContent>
