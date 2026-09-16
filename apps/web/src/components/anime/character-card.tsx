@@ -16,7 +16,7 @@ interface CharacterCardProps {
   character: Character;
   /** Bigger treatment for a main character (horizontal card). */
   prominent?: boolean;
-  /** Vertical avatar-over-name tile for dense grids. */
+  /** Portrait tile for dense grids. */
   compact?: boolean;
   /** Opens the full-bio modal for this character. */
   onSelect?: (character: Character) => void;
@@ -24,8 +24,7 @@ interface CharacterCardProps {
 
 /**
  * Hover preview: a one-line teaser, fetched only once the user actually
- * hovers. Wraps the whole card as the trigger (not just an overlay behind
- * the name) so hovering the avatar itself shows it too, not only the text.
+ * hovers — the full bio lives in the modal.
  */
 function HoverPreview({
   character,
@@ -41,14 +40,12 @@ function HoverPreview({
   return (
     <Tooltip onOpenChange={setOpen}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="top" className="max-w-56 text-left">
+      <TooltipContent side="top" className="max-w-60 text-left">
         <p className="font-medium">{character.name}</p>
         {isPending ? (
           <Skeleton className="mt-1 h-3 w-32 bg-foreground/20" />
         ) : data?.description ? (
-          <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">
-            {data.description}
-          </p>
+          <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">{data.description}</p>
         ) : (
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t("detail.characterModal.clickForMore")}
@@ -75,36 +72,41 @@ export function CharacterCard({
         <button
           type="button"
           onClick={() => onSelect?.(character)}
-          className="group flex flex-col items-center gap-1.5 text-center"
+          className="group relative block w-full overflow-hidden rounded-xl border border-border/60 bg-muted text-left outline-none transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0"
         >
-          <div className="size-16 overflow-hidden rounded-full border border-border/60 bg-muted transition-transform duration-200 group-hover:-translate-y-0.5 sm:size-20">
+          <div className="aspect-[3/4] w-full">
             {character.imageUrl ? (
               <img
                 src={imageSrc(character.imageUrl)}
                 alt=""
                 loading="lazy"
                 decoding="async"
-                className="size-full object-cover"
+                className="size-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
               />
             ) : (
-              <PosterFallback
-                title={character.name}
-                seed={character.id}
-                variant="avatar"
-              />
+              <PosterFallback title={character.name} seed={character.id} variant="avatar" />
             )}
           </div>
-          <p className="line-clamp-2 text-xs font-medium leading-tight">
-            {character.name}
-          </p>
-          <p
-            className={cn(
-              "text-[11px]",
-              isMain ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            {roleLabel}
-          </p>
+
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/40 to-transparent"
+          />
+
+          {isMain && (
+            <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow">
+              {roleLabel}
+            </span>
+          )}
+
+          <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-2.5">
+            <p className="line-clamp-2 text-sm font-semibold leading-tight text-white">
+              {character.name}
+            </p>
+            <p className="truncate text-[11px] text-white/70">
+              {character.voiceActor?.name ?? roleLabel}
+            </p>
+          </div>
         </button>
       </HoverPreview>
     );
@@ -134,28 +136,14 @@ export function CharacterCard({
             className="size-full object-cover"
           />
         ) : (
-          <PosterFallback
-            title={character.name}
-            seed={character.id}
-            variant="avatar"
-          />
+          <PosterFallback title={character.name} seed={character.id} variant="avatar" />
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <p
-          className={cn(
-            "truncate font-medium",
-            prominent ? "text-base" : "text-sm",
-          )}
-        >
+        <p className={cn("truncate font-medium", prominent ? "text-base" : "text-sm")}>
           {character.name}
         </p>
-        <p
-          className={cn(
-            "text-xs",
-            isMain ? "font-medium text-primary" : "text-muted-foreground",
-          )}
-        >
+        <p className={cn("text-xs", isMain ? "font-medium text-primary" : "text-muted-foreground")}>
           {roleLabel}
         </p>
         {character.voiceActor && (

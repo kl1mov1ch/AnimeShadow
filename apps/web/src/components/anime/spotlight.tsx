@@ -1,4 +1,4 @@
-import type { AnimeDetail } from "@animeshadow/shared";
+import type { AnimeDetail, WatchResponse } from "@animeshadow/shared";
 import {
   CalendarDaysIcon,
   ChevronLeftIcon,
@@ -21,7 +21,8 @@ import {
 import { Link } from "react-router-dom";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { ScoreBadge } from "@/components/anime/score-badge";
+// Overall score is hidden for now (not deleted) — uncomment to bring it back.
+// import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +30,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
+import { useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 const ROTATE_MS = 9_000;
@@ -126,6 +128,8 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
             <PosterFallback title={anime.title} seed={anime.id} />
           )}
 
+          {desktop && !reduced && <SpotlightVideo key={anime.id} animeId={anime.id} />}
+
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent sm:hidden"
@@ -147,8 +151,6 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         <SlideContent
           key={anime.id}
           anime={anime}
-          index={index}
-          count={count}
           controls={
             count > 1 ? (
               <SlideControls
@@ -188,15 +190,98 @@ function MetaChip({
   );
 }
 
+/**
+ * A muted clip of the show itself behind the slide — AniLibria's direct HLS
+ * stream, so no YouTube embed and no bot check. Only when a playable HLS
+ * source exists; it fades in over the still once it's actually playing and
+ * simply never appears otherwise. Armed after a short dwell, so clicking
+ * through slides quickly doesn't fire a stream lookup per slide.
+ */
+function SpotlightVideo({ animeId }: { animeId: number }) {
+  const [armed, setArmed] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const id = setTimeout(() => setArmed(true), 1_200);
+    return () => clearTimeout(id);
+  }, []);
+
+  const { data } = useWatchSources(animeId, armed);
+  const src = pickClip(data);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src) return;
+    let hls: { destroy: () => void } | null = null;
+    let cancelled = false;
+    const native = video.canPlayType("application/vnd.apple.mpegurl") !== "";
+
+    // Past the opening credits, into actual scenes.
+    const onMetadata = () => {
+      if (native && video.duration > 400) video.currentTime = CLIP_START_SECONDS;
+      void video.play().catch(() => undefined);
+    };
+    video.addEventListener("loadedmetadata", onMetadata);
+
+    if (native) {
+      video.src = src;
+    } else {
+      void import("hls.js").then(({ default: Hls }) => {
+        if (cancelled || !Hls.isSupported()) return;
+        const instance = new Hls({
+          startPosition: CLIP_START_SECONDS,
+          capLevelToPlayerSize: true,
+          maxBufferLength: 20,
+        });
+        instance.loadSource(src);
+        instance.attachMedia(video);
+        hls = instance;
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener("loadedmetadata", onMetadata);
+      hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [src]);
+
+  if (!src) return null;
+  return (
+    <video
+      ref={videoRef}
+      muted
+      playsInline
+      aria-hidden
+      tabIndex={-1}
+      onPlaying={() => setPlaying(true)}
+      className={cn(
+        "absolute inset-0 size-full object-cover transition-opacity duration-1000",
+        playing ? "opacity-100" : "opacity-0",
+      )}
+    />
+  );
+}
+
+const CLIP_START_SECONDS = 180;
+
+function pickClip(data: WatchResponse | undefined): string | null {
+  const source = data?.sources.find(
+    (candidate) => candidate.format === "hls" && candidate.stable !== false && candidate.hlsEpisodes,
+  );
+  const episodes = source?.hlsEpisodes;
+  if (!episodes) return null;
+  return episodes["1"] ?? Object.values(episodes)[0] ?? null;
+}
+
 function SlideContent({
   anime,
-  index,
-  count,
   controls,
 }: {
   anime: AnimeDetail;
-  index: number;
-  count: number;
   controls: ReactNode;
 }) {
   const t = useT();
@@ -210,7 +295,6 @@ function SlideContent({
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
   const rating = shortRating(anime.rating);
   const step = (i: number) => ({ "--i": i }) as CSSProperties;
-  const pad = (n: number) => String(n).padStart(2, "0");
 
   return (
     <div className="reveal-group relative z-10 flex flex-1 flex-col gap-5 p-4 sm:justify-between sm:gap-8 sm:p-7 lg:p-9">
@@ -220,11 +304,6 @@ function SlideContent({
             <span aria-hidden className="size-1.5 rounded-full bg-primary" />
             {t("discover.nowScreening")}
           </span>
-          {count > 1 && (
-            <span className="font-mono tabular-nums text-foreground/55">
-              {pad(index + 1)} / {pad(count)}
-            </span>
-          )}
         </div>
 
         <div className="reveal flex flex-col gap-1" style={step(1)}>
@@ -235,7 +314,7 @@ function SlideContent({
         </div>
 
         <div className="reveal flex flex-wrap items-center gap-1.5" style={step(2)}>
-          <ScoreBadge score={anime.score} size="md" className="rounded-full px-2.5" />
+          {/* <ScoreBadge score={anime.score} size="md" className="rounded-full px-2.5" /> */}
           {anime.airing !== "UNKNOWN" && (
             <MetaChip>
               <span
@@ -298,9 +377,13 @@ function SlideContent({
         style={step(4)}
       >
         <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/50 [&_[data-slot=select-trigger]]:backdrop-blur [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
-          <Button asChild size="lg" className="px-5">
+          <Button
+            asChild
+            variant="outline"
+            className="border-white/15 bg-white/10 px-4 text-foreground backdrop-blur hover:bg-white/20"
+          >
             <Link to={animeHref(anime)}>
-              <PlayIcon className="size-4 fill-current" />
+              <PlayIcon className="size-3.5" />
               {t("discover.viewDetails")}
             </Link>
           </Button>
@@ -365,11 +448,12 @@ function SlideControls({
 }
 
 function NavButton({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={side}
+      aria-label={side === "left" ? t("common.previous") : t("common.next")}
       className="grid size-9 shrink-0 place-items-center rounded-full text-foreground/80 transition-[background-color,color,transform] hover:bg-foreground/10 hover:text-foreground active:scale-90"
     >
       {side === "left" ? <ChevronLeftIcon className="size-5" /> : <ChevronRightIcon className="size-5" />}

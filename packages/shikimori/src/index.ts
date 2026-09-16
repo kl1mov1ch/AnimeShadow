@@ -5,4 +5,8 @@ export {
 } from "./client.js";
 export * from "./types.js";
 export * from "./mappers.js";
-export { stripShikimoriMarkup, splitCharacterFacts } from "./markup.js";
+export {
+  parseCharacterDescription,
+  splitCharacterFacts,
+  stripShikimoriMarkup,
+} from "./markup.js";

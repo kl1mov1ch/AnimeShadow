@@ -10,8 +10,8 @@ import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
-import { ReviewsSection } from "@/components/anime/reviews-section";
-import { ScoreBadge } from "@/components/anime/score-badge";
+// Overall score is hidden for now (not deleted) — uncomment to bring it back.
+// import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
 import { ErrorState } from "@/components/common/states";
@@ -83,16 +83,17 @@ function AnimeDetailView({ param }: { param: string }) {
             description: data.synopsis ?? undefined,
             numberOfEpisodes: data.episodes ?? undefined,
             genre: data.genresDetailed.map((g) => g.name),
-            ...(data.score != null && data.scoredBy != null
-              ? {
-                  aggregateRating: {
-                    "@type": "AggregateRating",
-                    ratingValue: data.score,
-                    ratingCount: data.scoredBy,
-                    bestRating: 10,
-                  },
-                }
-              : {}),
+            // Overall score hidden for now:
+            // ...(data.score != null && data.scoredBy != null
+            //   ? {
+            //       aggregateRating: {
+            //         "@type": "AggregateRating",
+            //         ratingValue: data.score,
+            //         ratingCount: data.scoredBy,
+            //         bestRating: 10,
+            //       },
+            //     }
+            //   : {}),
           },
         }
       : { title: "AnimeShadow" },
@@ -120,7 +121,8 @@ function AnimeDetailView({ param }: { param: string }) {
     data.bannerImage ?? data.screenshots[0] ?? data.imageLargeUrl ?? data.imageUrl,
   );
   const poster = imageSrc(data.imageLargeUrl ?? data.imageUrl);
-  const secondaryTitle =
+  const originalTitle = data.title && data.title !== title ? data.title : null;
+  const japaneseTitle =
     data.titleJapanese && data.titleJapanese !== title ? data.titleJapanese : null;
   const oneLiner = t("detail.oneLiner", {
     type: labels.typeLabel(data.type),
@@ -141,7 +143,9 @@ function AnimeDetailView({ param }: { param: string }) {
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span className="text-primary">{labels.airingLabel(data.airing)}</span>
+            <span className={data.airing === "AIRING" ? "text-primary" : undefined}>
+              {labels.airingLabel(data.airing)}
+            </span>
             <Dot />
             <span>{labels.typeLabel(data.type)}</span>
             {labels.seasonYearLabel(data) && (
@@ -176,8 +180,10 @@ function AnimeDetailView({ param }: { param: string }) {
               <h1 className="font-display text-2xl leading-tight text-foreground sm:text-4xl">
                 {title}
               </h1>
-              {secondaryTitle && (
-                <p className="text-sm text-muted-foreground">{secondaryTitle}</p>
+              {(originalTitle || japaneseTitle) && (
+                <p className="text-xs text-muted-foreground">
+                  {[originalTitle, japaneseTitle].filter(Boolean).join(" · ")}
+                </p>
               )}
             </div>
 
@@ -188,15 +194,15 @@ function AnimeDetailView({ param }: { param: string }) {
               />
             )}
 
-            {/* Rating — exactly that, nothing else: score, vote count, rank. */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
-              <ScoreBadge score={data.score} size="md" />
+            {/* Rating — score, vote count, rank. Hidden for now (not deleted). */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground empty:hidden">
+              {/* <ScoreBadge score={data.score} size="md" />
               {data.scoredBy != null && (
                 <span>{t("common.ratings", { count: labels.compact(data.scoredBy) })}</span>
               )}
               {data.rank != null && data.rank > 0 && (
                 <span className="tabular-nums">{t("detail.ranked", { rank: data.rank })}</span>
-              )}
+              )} */}
               {data.translated && (
                 <Badge variant="outline" className="text-[11px]">
                   {t("detail.machineTranslated")}
@@ -250,10 +256,6 @@ function AnimeDetailView({ param }: { param: string }) {
         <OverviewBlock anime={data} oneLiner={oneLiner} />
 
         <CharactersBlock animeId={data.id} />
-
-        <div className="p-5">
-          <ReviewsSection animeId={data.id} active />
-        </div>
 
         <div className="p-5">
           <CommentsSection animeId={data.id} />
@@ -480,7 +482,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
         ) : null,
       ],
       [t("detail.facts.members"), labels.plain(anime.members)],
-      [t("detail.facts.favorites"), anime.favorites ? "★" : null],
+      [t("detail.facts.favorites"), anime.favorites ? labels.plain(anime.favorites) : null],
     ] as Array<[string, React.ReactNode]>
   ).filter(([, value]) => value && value !== "—");
 
@@ -601,7 +603,7 @@ function EpisodesSection({
               disabled={page === 0}
               aria-label={t("common.previous")}
               onClick={() => setPage((p) => p - 1)}
-              className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronLeftIcon className="size-3.5" />
             </button>
@@ -613,7 +615,7 @@ function EpisodesSection({
               disabled={page === totalPages - 1}
               aria-label={t("common.next")}
               onClick={() => setPage((p) => p + 1)}
-              className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronRightIcon className="size-3.5" />
             </button>
@@ -703,7 +705,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("detail.searchCharacters")}
-              className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus:border-primary/50 sm:w-48"
+              className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-48"
             />
           </div>
         )}
@@ -712,14 +714,14 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       {isPending ? (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
           {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-full" />
+            <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
           ))}
         </div>
       ) : visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("detail.noCharactersMatch")}</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {visible.map((c) => (
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}

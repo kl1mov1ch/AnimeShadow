@@ -23,30 +23,75 @@ export function stripShikimoriMarkup(input: string | null | undefined): string |
   return text.trim() || null;
 }
 
+/** Editors write both `[spoiler]` and `[spoiler=label]`. */
+const SPOILER = /\[spoiler(?:=[^\]]*)?\]([\s\S]*?)\[\/spoiler\]/gi;
+
+/** Roughly two or three sentences — long enough to read as a fact, short enough to scan. */
+const FACT_TARGET_LENGTH = 220;
+
+/** A spoiler block can hold a whole paragraph — regroup its sentences into a few readable facts. */
+function spoilerToFacts(inner: string): string[] {
+  const cleaned = stripShikimoriMarkup(inner)?.trim();
+  if (!cleaned) return [];
+  const facts: string[] = [];
+  let current = "";
+  for (const sentence of cleaned.split(/(?<=[.!?])\s+(?=[А-ЯЁA-Z«"])/)) {
+    const part = sentence.trim();
+    if (!part) continue;
+    current = current ? `${current} ${part}` : part;
+    if (current.length >= FACT_TARGET_LENGTH) {
+      facts.push(current);
+      current = "";
+    }
+  }
+  if (current) facts.push(current);
+  return facts;
+}
+
 /**
  * Shikimori editors tag genuinely-interesting trivia (backstory reveals,
- * little-known details) inside `[spoiler]...[/spoiler]` — pull those out as
- * distinct "facts" instead of leaving them flattened into one wall of text.
- * Must run on the *raw* markup before `stripShikimoriMarkup`, which only
- * strips the tag itself and leaves the spoiler's text in place.
+ * little-known details) inside spoiler blocks — pull those out as distinct
+ * "facts" instead of leaving them flattened into one wall of text. Must run
+ * on the *raw* markup, before `stripShikimoriMarkup`.
  */
 export function splitCharacterFacts(
   input: string | null | undefined,
 ): { bio: string | null; facts: string[] } {
   if (!input) return { bio: null, facts: [] };
+  const facts: string[] = [];
+  const bioRaw = input.replace(SPOILER, (_, inner: string) => {
+    facts.push(...spoilerToFacts(inner));
+    return "";
+  });
+  return { bio: stripShikimoriMarkup(bioRaw), facts };
+}
+
+/**
+ * The whole description, structured: spoiler trivia as `facts`, each
+ * `[h3]Heading[/h3]` block (Внешность, История, Характер…) as its own titled
+ * section, and whatever precedes the first heading as the intro.
+ */
+export function parseCharacterDescription(input: string | null | undefined): {
+  intro: string | null;
+  sections: Array<{ title: string; body: string }>;
+  facts: string[];
+} {
+  if (!input) return { intro: null, sections: [], facts: [] };
 
   const facts: string[] = [];
-  const bioRaw = input.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner: string) => {
-    // A spoiler block can itself contain several sentences — keep it as one
-    // fact if short, otherwise split on sentence boundaries.
-    const cleaned = stripShikimoriMarkup(inner)?.trim();
-    if (!cleaned) return "";
-    for (const part of cleaned.split(/(?<=[.!?])\s+(?=[А-ЯA-Z])/)) {
-      const trimmed = part.trim();
-      if (trimmed) facts.push(trimmed);
-    }
+  const withoutSpoilers = input.replace(SPOILER, (_, inner: string) => {
+    facts.push(...spoilerToFacts(inner));
     return "";
   });
 
-  return { bio: stripShikimoriMarkup(bioRaw), facts };
+  // A capturing split yields [intro, title1, body1, title2, body2, …].
+  const parts = withoutSpoilers.split(/\[h3\]([\s\S]*?)\[\/h3\]/i);
+  const sections: Array<{ title: string; body: string }> = [];
+  for (let i = 1; i < parts.length; i += 2) {
+    const title = stripShikimoriMarkup(parts[i]);
+    const body = stripShikimoriMarkup(parts[i + 1]);
+    if (title && body) sections.push({ title, body });
+  }
+
+  return { intro: stripShikimoriMarkup(parts[0]), sections, facts };
 }

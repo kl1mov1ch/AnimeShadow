@@ -3,6 +3,7 @@ import type {
   JikanCharacterEntry,
   JikanCharacterSearchEntry,
   JikanGenre,
+  JikanImageSet,
   JikanList,
   JikanProducer,
   JikanRecommendationEntry,
@@ -150,6 +151,28 @@ export class JikanClient {
     return this.get<JikanList<JikanProducer>>("/producers", { q, limit }).then(
       (r) => r.data,
     );
+  }
+
+  /**
+   * Extra art for a character's gallery. Deliberately outside the serialised
+   * queue and without retries: MAL is often unreachable through Jikan (504),
+   * and purely decorative art must never hold up the catalogue requests
+   * queued behind it. Any failure is just an empty gallery.
+   */
+  async getCharacterPictures(id: number, timeoutMs = 3_500): Promise<string[]> {
+    try {
+      const response = await this.fetchImpl(this.buildUrl(`/characters/${id}/pictures`), {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) return [];
+      const body = (await response.json()) as { data?: JikanImageSet[] };
+      return (body.data ?? [])
+        .map((set) => set.jpg?.large_image_url ?? set.jpg?.image_url ?? set.webp?.image_url ?? null)
+        .filter((url): url is string => Boolean(url));
+    } catch {
+      return [];
+    }
   }
 
   // -- internals ------------------------------------------------------------

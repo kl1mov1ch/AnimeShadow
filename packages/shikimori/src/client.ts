@@ -93,9 +93,19 @@ export class ShikimoriClient {
     name: string;
     russian: string | null;
     japanese?: string | null;
+    /** Comma-separated aliases, e.g. "Zero, Lulu, Black Prince". */
+    altname?: string | null;
     image?: { original?: string | null; preview?: string | null } | null;
     description?: string | null;
+    /** Voice actors — the original Japanese cast comes first. */
+    seyu?: Array<{
+      id: number;
+      name: string;
+      russian?: string | null;
+      image?: { original?: string | null; preview?: string | null } | null;
+    }>;
     animes?: ShikiAnimeShort[];
+    mangas?: unknown[];
   }> {
     return this.get(`/api/characters/${id}`);
   }

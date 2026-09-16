@@ -101,12 +101,23 @@ export type Character = z.infer<typeof characterSchema>;
 export const characterDetailSchema = z.object({
   id: z.number().int(),
   name: z.string(),
+  /** Romanised name when the display name is localised. */
+  originalName: z.string().nullable().default(null),
   japaneseName: z.string().nullable(),
+  aliases: z.array(z.string()).default([]),
   imageUrl: z.string().nullable(),
   imageLargeUrl: z.string().nullable(),
+  /** Gallery, main portrait first. */
+  images: z.array(z.string()).default([]),
+  /** The part of the bio before the first titled section. */
   description: z.string().nullable(),
-  /** Trivia/backstory reveals the source tags separately — shown as its own section. */
+  /** Titled parts of the bio — Appearance, History, Personality… */
+  sections: z.array(z.object({ title: z.string(), body: z.string() })).default([]),
+  /** Trivia/backstory reveals the source tags as spoilers — shown as its own section. */
   facts: z.array(z.string()).default([]),
+  seiyu: z.array(z.object({ name: z.string(), imageUrl: z.string().nullable() })).default([]),
+  animeCount: z.number().int().nullable().default(null),
+  mangaCount: z.number().int().nullable().default(null),
   /** True when `description` is already in the requested locale. */
   translated: z.boolean().default(false),
 });

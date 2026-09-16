@@ -9,7 +9,7 @@ import {
   type Genre,
   slugify,
 } from "@animeshadow/shared";
-import { splitCharacterFacts, stripShikimoriMarkup } from "./markup.js";
+import { parseCharacterDescription, stripShikimoriMarkup } from "./markup.js";
 import type {
   ShikiAnimeFull,
   ShikiAnimeShort,
@@ -248,18 +248,42 @@ export function toCharacterDetail(raw: {
   name: string;
   russian: string | null;
   japanese?: string | null;
+  altname?: string | null;
   image?: { original?: string | null; preview?: string | null } | null;
   description?: string | null;
+  seyu?: Array<{
+    name: string;
+    russian?: string | null;
+    image?: { original?: string | null; preview?: string | null } | null;
+  }>;
+  animes?: unknown[];
+  mangas?: unknown[];
 }): CharacterDetail {
-  const { bio, facts } = splitCharacterFacts(raw.description);
+  const { intro, sections, facts } = parseCharacterDescription(raw.description);
+  const name = raw.russian || raw.name;
+  const large = imageUrl(raw.image?.original ?? raw.image?.preview);
   return {
     id: raw.id,
-    name: raw.russian || raw.name,
+    name,
+    originalName: raw.name && raw.name !== name ? raw.name : null,
     japaneseName: raw.japanese ?? null,
+    aliases: (raw.altname ?? "")
+      .split(",")
+      .map((alias) => alias.trim())
+      .filter((alias) => alias && alias !== raw.name && alias !== name)
+      .slice(0, 8),
     imageUrl: imageUrl(raw.image?.preview ?? raw.image?.original),
-    imageLargeUrl: imageUrl(raw.image?.original ?? raw.image?.preview),
-    description: bio,
+    imageLargeUrl: large,
+    images: large ? [large] : [],
+    description: intro,
+    sections,
     facts,
+    seiyu: (raw.seyu ?? []).slice(0, 3).map((person) => ({
+      name: person.russian || person.name,
+      imageUrl: imageUrl(person.image?.preview ?? person.image?.original),
+    })),
+    animeCount: raw.animes ? raw.animes.length : null,
+    mangaCount: raw.mangas ? raw.mangas.length : null,
     translated: true, // Shikimori descriptions are already Russian
   };
 }
