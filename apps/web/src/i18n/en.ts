@@ -136,7 +136,7 @@ export const en = {
       recommendations: "More like this",
       mainCharacters: "Main characters",
       details: "Details",
-      seasons: "Seasons & related titles",
+      seasons: "Seasons",
     },
     seasons: {
       current: "You're here",

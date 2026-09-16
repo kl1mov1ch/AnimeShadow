@@ -138,7 +138,7 @@ export const ru: Dict = {
       recommendations: "Похожее",
       mainCharacters: "Главные герои",
       details: "Детали",
-      seasons: "Сезоны и связанные тайтлы",
+      seasons: "Сезоны",
     },
     seasons: {
       current: "Вы сейчас здесь",

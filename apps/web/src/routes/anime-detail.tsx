@@ -26,7 +26,13 @@ import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useAnime, useAnimeProgress, useCharacters, useSimilarAnime } from "@/lib/query";
+import {
+  useAnime,
+  useAnimeProgress,
+  useCharacters,
+  useFranchise,
+  useSimilarAnime,
+} from "@/lib/query";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -444,6 +450,12 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   const labels = useLabels();
   const hasSynopsis = Boolean(anime.synopsis || anime.background);
   const hasThemes = anime.themes.length > 0 || anime.demographics.length > 0;
+  // Fetched here too (not just inside FranchiseRail) purely to decide the
+  // layout — react-query dedupes the identical query, so this costs nothing
+  // extra. Reserving the desktop two-column split for a title with no
+  // franchise data would leave an empty gap where the list should be.
+  const { data: franchise } = useFranchise(anime.id);
+  const hasFranchise = (franchise?.length ?? 0) >= 2;
 
   const facts = (
     [
@@ -529,18 +541,34 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
         </div>
       )}
 
-      {facts.length > 0 && (
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 border-t border-border/60 pt-3 text-sm sm:grid-cols-2">
-          {facts.map(([label, value]) => (
-            <div key={label} className="flex items-baseline justify-between gap-3">
-              <dt className="text-muted-foreground">{label}</dt>
-              <dd className="min-w-0 truncate text-right font-medium">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+      {(facts.length > 0 || hasFranchise) && (
+        <div
+          className={cn(
+            "flex flex-col gap-4 border-t border-border/60 pt-3",
+            hasFranchise && "lg:grid lg:grid-cols-[13rem_1fr] lg:items-start lg:gap-6",
+          )}
+        >
+          {/* Facts stay first in the DOM — below lg there's no grid at all,
+              just normal document flow, so that's what decides the order:
+              the seasons rail keeps following the facts, its usual
+              horizontally-swipeable self. From lg, the grid takes over and
+              `order` puts the seasons list first (leftmost) instead — "which
+              season am I on" is the more useful question than "how many
+              episodes" once there's room to show both side by side. */}
+          {facts.length > 0 && (
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2 lg:order-2">
+              {facts.map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="min-w-0 truncate text-right font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
 
-      <FranchiseRail animeId={anime.id} />
+          {hasFranchise && <FranchiseRail animeId={anime.id} className="lg:order-1" />}
+        </div>
+      )}
     </section>
   );
 }
@@ -715,7 +743,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       </div>
 
       {isPending ? (
-        <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]">
+        <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))]">
           {Array.from({ length: 12 }, (_, i) => (
             <div key={i} className="flex flex-col items-center gap-1.5">
               <Skeleton className="aspect-square w-full rounded-full" />
@@ -731,7 +759,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
               poster-sized tile — a cast can run into the dozens. Exactly 6
               per row on a phone (just smaller circles); from sm up, auto-fill
               packs as many ~88px-or-wider columns as the viewport allows. */}
-          <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]">
+          <div className="grid grid-cols-6 gap-x-2 gap-y-4 sm:grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))]">
             {visible.map((c) => (
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}
