@@ -641,6 +641,10 @@ export const ru: Dict = {
     },
     handle: "@{username}",
     memberSince: "с {date}",
+    modal: {
+      commentLikes: "Лайков к комментариям",
+      commenterRank: "{likes} · #{rank} из {total}",
+    },
     presence: {
       online: "Онлайн",
       offline: "Оффлайн",
@@ -695,7 +699,6 @@ export const ru: Dict = {
       themeLight: "Светлая",
       themeDark: "Тёмная",
       themeAuto: "Авто",
-      accentColor: "Акцентный цвет",
       showcase: "Значок в профиле",
       showcaseHint: "Выберите до 3 полученных наград, чтобы закрепить их под именем — любой сможет кликнуть и посмотреть, что это.",
       showcaseCount: "{count}/{max} закреплено",
@@ -705,14 +708,13 @@ export const ru: Dict = {
       genresLocked: "Жанры настроены и больше не редактируются. Живой список любимых тайтлов, который тоже влияет на подборку, — без ограничений, в «Рекомендациях».",
       username: "Никнейм",
       usernameHint: "3–20 символов: a–z, 0–9, _. Задаётся один раз — используется в ссылке на профиль.",
+      usernameClaimHint: "3–20 символов: a–z, 0–9, _. Можно задать только один раз.",
       usernameSet: "Никнейм сохранён",
       usernamePlaceholder: "например, shadow_fan",
       copyProfileLink: "Скопировать ссылку на профиль",
       titlePro: "Своя подпись",
       titleProHint: "Только для PRO: выберите короткую подпись и значок рядом с именем.",
       titlePlaceholder: "например, Повелитель аниме",
-      titleSaved: "Подпись сохранена",
-      titleCleared: "Подпись убрана",
       titleClear: "Убрать",
       age: {
         title: "Подтверждение возраста",
@@ -851,6 +853,7 @@ export const ru: Dict = {
   comments: {
     heading: "Комментарии",
     count: "комментариев: {count}",
+    viewProfile: "Профиль пользователя",
     placeholder: "Написать комментарий…",
     submit: "Отправить",
     mode: {

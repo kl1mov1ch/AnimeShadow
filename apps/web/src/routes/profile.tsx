@@ -83,11 +83,6 @@ import {
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-const ACCENTS = [
-  "#ff4d6d", "#f97316", "#facc15", "#4ade80", "#22d3ee", "#60a5fa",
-  "#a78bfa", "#f472b6", "#fb7185", "#34d399", "#818cf8", "#e879f9",
-];
-
 export function Component() {
   const t = useT();
   const { username } = useParams();
@@ -613,10 +608,32 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
   const [bio, setBio] = useState(profile.bio ?? "");
   const [statusValue, setStatusValue] = useState(profile.onlineStatus);
-  const [accent, setAccent] = useState(profile.accentColor ?? "");
   const [uname, setUname] = useState(profile.username ?? "");
 
   const earned = (achievements ?? []).filter((a) => a.earned);
+
+  // One card, one save — claiming a username (only possible once) and
+  // editing the bio used to each need their own button; a viewer editing
+  // both had to click twice for two changes that live in the same place.
+  const usernameClaimable = !profile.username && uname.trim().length >= 3;
+  const bioDirty = bio !== (profile.bio ?? "");
+  const identityDirty = usernameClaimable || bioDirty;
+  const identitySaving = setUsername.isPending || update.isPending;
+
+  const saveIdentity = () => {
+    if (usernameClaimable) {
+      setUsername.mutate(uname, {
+        onSuccess: () => {
+          toast.success(t("profile.settings.usernameSet"));
+          if (bioDirty) update.mutate({ bio: bio || null });
+        },
+        onError: (e) =>
+          toast.error(e instanceof Error ? e.message : t("errors.genericTitle")),
+      });
+    } else if (bioDirty) {
+      update.mutate({ bio: bio || null }, { onSuccess: () => toast.success(t("common.save")) });
+    }
+  };
 
   const onFile = async (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
@@ -642,18 +659,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
       },
       onError: () => toast.error(t("errors.genericTitle")),
     });
-  };
-
-  const applyAccent = (hex: string) => {
-    setAccent(hex);
-    try {
-      if (hex) document.documentElement.style.setProperty("--primary", hex);
-      else document.documentElement.style.removeProperty("--primary");
-      localStorage.setItem("animeshadow.accent", hex);
-    } catch {
-      /* ignore */
-    }
-    update.mutate({ accentColor: hex || null });
   };
 
   return (
@@ -738,7 +743,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
                   placeholder={t("profile.settings.usernamePlaceholder")}
                   className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                 />
-                {profile.username ? (
+                {profile.username && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -757,28 +762,12 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
                       {t("profile.settings.copyProfileLink")}
                     </span>
                   </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    disabled={setUsername.isPending || uname.length < 3}
-                    onClick={() =>
-                      setUsername.mutate(uname, {
-                        onSuccess: () =>
-                          toast.success(t("profile.settings.usernameSet")),
-                        onError: (e) =>
-                          toast.error(
-                            e instanceof Error ? e.message : t("errors.genericTitle"),
-                          ),
-                      })
-                    }
-                  >
-                    {t("profile.settings.save")}
-                  </Button>
                 )}
               </div>
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {t("profile.settings.usernameHint")}
+                {profile.username
+                  ? t("profile.settings.usernameHint")
+                  : t("profile.settings.usernameClaimHint")}
               </p>
             </div>
           </div>
@@ -793,22 +782,26 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
               className="w-full resize-y rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="🔥 …"
             />
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[11px] text-muted-foreground/80">
-                {bio.length}/500 · {t("profile.settings.bioHint")}
-              </span>
-              <Button
-                size="sm"
-                disabled={update.isPending || bio === (profile.bio ?? "")}
-                onClick={() => update.mutate({ bio: bio || null })}
-              >
-                {t("profile.settings.save")}
-              </Button>
-            </div>
+            <span className="text-[11px] text-muted-foreground/80">
+              {bio.length}/500 · {t("profile.settings.bioHint")}
+            </span>
+          </div>
+
+          {/* One button for both fields above — a username claim and a bio
+              edit used to each demand their own "Save", which meant two
+              clicks for one visit here. Whichever changed (or both) goes out
+              together. */}
+          <div className="flex justify-end">
+            <Button size="sm" disabled={!identityDirty || identitySaving} onClick={saveIdentity}>
+              {t("profile.settings.save")}
+            </Button>
           </div>
         </SettingsSection>
 
         <div className="flex flex-col gap-5">
+          {/* Theme and status both save the instant you pick them — a
+              two-option choice doesn't need a confirmation step, and one
+              less button to hunt for is one less thing to think about. */}
           <SettingsSection title={t("profile.settings.appearance")}>
             <div className="flex flex-col gap-1.5">
               <SettingsLabel>{t("profile.settings.theme")}</SettingsLabel>
@@ -833,51 +826,24 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <SettingsLabel>{t("profile.settings.accentColor")}</SettingsLabel>
-              <div className="flex flex-wrap items-center gap-2">
-                {ACCENTS.map((hex) => (
-                  <button
-                    key={hex}
-                    type="button"
-                    onClick={() => applyAccent(hex)}
-                    aria-label={hex}
-                    className={cn(
-                      "size-7 rounded-full ring-offset-2 ring-offset-background transition",
-                      accent === hex ? "ring-2 ring-foreground" : "hover:scale-110",
-                    )}
-                    style={{ backgroundColor: hex }}
-                  />
-                ))}
-                {accent && (
-                  <button
-                    type="button"
-                    onClick={() => applyAccent("")}
-                    className="rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {t("common.cancel")}
-                  </button>
-                )}
-              </div>
+              <SettingsLabel>{t("profile.settings.status")}</SettingsLabel>
+              <Select
+                value={statusValue}
+                onValueChange={(v) => {
+                  setStatusValue(v as MyProfile["onlineStatus"]);
+                  update.mutate({ onlineStatus: v as MyProfile["onlineStatus"] });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ONLINE">{t("profile.presence.online")}</SelectItem>
+                  <SelectItem value="OFFLINE">{t("profile.presence.offline")}</SelectItem>
+                  <SelectItem value="DND">{t("profile.presence.dnd")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </SettingsSection>
-
-          <SettingsSection title={t("profile.settings.status")}>
-            <Select
-              value={statusValue}
-              onValueChange={(v) => {
-                setStatusValue(v as MyProfile["onlineStatus"]);
-                update.mutate({ onlineStatus: v as MyProfile["onlineStatus"] });
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ONLINE">{t("profile.presence.online")}</SelectItem>
-                <SelectItem value="OFFLINE">{t("profile.presence.offline")}</SelectItem>
-                <SelectItem value="DND">{t("profile.presence.dnd")}</SelectItem>
-              </SelectContent>
-            </Select>
           </SettingsSection>
 
           <AgeVerificationSection profile={profile} update={update} />
@@ -1273,6 +1239,10 @@ function ShowcaseChips({
                 earned
                 earnedAt={a.earnedAt}
                 variant="circle"
+                // A picker can show every earned badge at once — the full
+                // tilt/foil-loop treatment on all of them simultaneously is
+                // the exact "system load" this is meant to avoid.
+                animated={false}
                 onClick={atLimit ? undefined : () => toggle(a.id)}
                 className={cn(atLimit && "opacity-40", !atLimit && "ring-2 ring-offset-2 ring-offset-card", isSelected ? "ring-primary" : "ring-transparent")}
               />
@@ -1300,19 +1270,18 @@ function TitleEditor({
   const t = useT();
   const [prefix, setPrefix] = useState(profile.titlePrefix ?? "");
   const [icon, setIcon] = useState<TitleIcon>(profile.titleIcon ?? "star");
+  const savedPrefix = profile.titlePrefix ?? "";
+  const savedIcon = profile.titleIcon ?? "star";
 
-  const save = () => {
-    const value = prefix.trim();
+  // Autosaves — an icon pick or leaving the text field, no separate button.
+  // It's two short strings; the cost of saving on every real change is
+  // trivial next to the cost of one more button to click.
+  const commit = (nextPrefix: string, nextIcon: TitleIcon) => {
+    const value = nextPrefix.trim();
+    if (value === savedPrefix && nextIcon === savedIcon) return;
     update.mutate(
-      { titlePrefix: value || null, titleIcon: value ? icon : null },
-      {
-        onSuccess: () =>
-          toast.success(
-            value ? t("profile.settings.titleSaved") : t("profile.settings.titleCleared"),
-          ),
-        onError: (e) =>
-          toast.error(e instanceof Error ? e.message : t("errors.genericTitle")),
-      },
+      { titlePrefix: value || null, titleIcon: value ? nextIcon : null },
+      { onError: (e) => toast.error(e instanceof Error ? e.message : t("errors.genericTitle")) },
     );
   };
 
@@ -1332,7 +1301,10 @@ function TitleEditor({
             <button
               key={key}
               type="button"
-              onClick={() => setIcon(key)}
+              onClick={() => {
+                setIcon(key);
+                commit(prefix, key);
+              }}
               aria-label={key}
               className={cn(
                 "flex size-8 items-center justify-center rounded-md border transition-colors",
@@ -1347,18 +1319,14 @@ function TitleEditor({
         })}
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          value={prefix}
-          onChange={(e) => setPrefix(e.target.value.slice(0, 20))}
-          maxLength={20}
-          placeholder={t("profile.settings.titlePlaceholder")}
-          className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <Button size="sm" className="shrink-0" disabled={update.isPending} onClick={save}>
-          {t("profile.settings.save")}
-        </Button>
-      </div>
+      <input
+        value={prefix}
+        onChange={(e) => setPrefix(e.target.value.slice(0, 20))}
+        onBlur={() => commit(prefix, icon)}
+        maxLength={20}
+        placeholder={t("profile.settings.titlePlaceholder")}
+        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{t("common.preview")}</span>

@@ -16,6 +16,15 @@ interface HoloAchievementBadgeProps {
   /** "badge" (wide, with title/rarity text) or "circle" (icon only, small —
    * for the pinned-achievement row under a name). Defaults to "badge". */
   variant?: "badge" | "circle";
+  /**
+   * False renders the earned look (colour, icon, foil hint) with none of
+   * the running cost: no pointer-tracked 3D tilt, no per-instance mousemove
+   * listener, no infinite CSS animation on the foil. A picker showing every
+   * earned badge at once (there can be dozens) doesn't need all of them
+   * animating simultaneously to make the point that they're earned —
+   * default true everywhere a badge appears mostly alone.
+   */
+  animated?: boolean;
   onClick?: () => void;
   className?: string;
 }
@@ -96,6 +105,7 @@ export function HoloAchievementBadge({
   earnedAt,
   progress,
   variant = "badge",
+  animated = true,
   onClick,
   className,
 }: HoloAchievementBadgeProps) {
@@ -363,16 +373,18 @@ export function HoloAchievementBadge({
   // Keyframe names are namespaced by id+variant so more than one badge on a
   // page (the grid, the pinned circles, the dialog) never collides.
   const kf = (n: number) => `holoOverlay-${id}-${variant}-${n}`;
-  const overlayAnimations = [...Array(10).keys()]
-    .map(
-      (e) => `
+  const overlayAnimations = animated
+    ? [...Array(10).keys()]
+        .map(
+          (e) => `
     @keyframes ${kf(e + 1)} {
       0% { transform: rotate(${e * 10}deg); }
       50% { transform: rotate(${(e + 1) * 10}deg); }
       100% { transform: rotate(${e * 10}deg); }
     }`,
-    )
-    .join(" ");
+        )
+        .join(" ")
+    : "";
 
   return (
     <div
@@ -383,16 +395,16 @@ export function HoloAchievementBadge({
       onClick={onClick}
       onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
       className={rootClassName}
-      onMouseMove={onMouseMove}
-      onMouseLeave={onMouseLeave}
-      onMouseEnter={onMouseEnter}
+      onMouseMove={animated ? onMouseMove : undefined}
+      onMouseLeave={animated ? onMouseLeave : undefined}
+      onMouseEnter={animated ? onMouseEnter : undefined}
     >
-      <style>{overlayAnimations}</style>
+      {animated && <style>{overlayAnimations}</style>}
       <div
         style={{
-          transform: `perspective(700px) matrix3d(${matrix})`,
+          transform: animated ? `perspective(700px) matrix3d(${matrix})` : undefined,
           transformOrigin: "center center",
-          transition: "transform 200ms ease-out",
+          transition: animated ? "transform 200ms ease-out" : undefined,
         }}
       >
         <svg viewBox={viewBox} className="h-auto w-full drop-shadow-md">
@@ -401,9 +413,11 @@ export function HoloAchievementBadge({
               <stop offset="0%" stopColor={style.from} />
               <stop offset="100%" stopColor={style.to} />
             </linearGradient>
-            <filter id={blurId}>
-              <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
-            </filter>
+            {animated && (
+              <filter id={blurId}>
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
+              </filter>
+            )}
             <mask id={maskId}>{maskShape}</mask>
           </defs>
 
@@ -438,24 +452,33 @@ export function HoloAchievementBadge({
           )}
 
           {/* Holographic foil — rotating tinted panels blended over the badge,
-              clipped to its shape. Purely decorative, aria-hidden. */}
+              clipped to its shape. Purely decorative, aria-hidden. Static
+              mode keeps one unblurred, unanimated panel: enough to read as
+              "this one has foil" without the per-frame blur+rotate cost of
+              five animating panels times however many badges are on screen. */}
           <g aria-hidden style={{ mixBlendMode: "overlay" }} mask={`url(#${maskId})`}>
-            {sheenHues.map((hue, i) => (
+            {(animated ? sheenHues : sheenHues.slice(0, 1)).map((hue, i) => (
               <g
                 key={i}
-                style={{
-                  transform: `rotate(${firstOverlayPosition + i * 20}deg)`,
-                  transformOrigin: "center center",
-                  transition: !disableInOutOverlayAnimation ? "transform 200ms ease-out" : "none",
-                  animation: disableOverlayAnimation ? "none" : `${kf(i + 1)} 6s infinite`,
-                  willChange: "transform",
-                }}
+                style={
+                  animated
+                    ? {
+                        transform: `rotate(${firstOverlayPosition + i * 20}deg)`,
+                        transformOrigin: "center center",
+                        transition: !disableInOutOverlayAnimation
+                          ? "transform 200ms ease-out"
+                          : "none",
+                        animation: disableOverlayAnimation ? "none" : `${kf(i + 1)} 6s infinite`,
+                        willChange: "transform",
+                      }
+                    : { transform: "rotate(20deg)", transformOrigin: "center center" }
+                }
               >
                 <polygon
                   points={polygonPoints}
                   fill={hue}
-                  filter={`url(#${blurId})`}
-                  opacity="0.5"
+                  filter={animated ? `url(#${blurId})` : undefined}
+                  opacity={animated ? 0.5 : 0.25}
                 />
               </g>
             ))}

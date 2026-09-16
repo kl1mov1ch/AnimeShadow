@@ -640,6 +640,10 @@ export const en = {
     },
     handle: "@{username}",
     memberSince: "since {date}",
+    modal: {
+      commentLikes: "Comment likes",
+      commenterRank: "{likes} · #{rank} of {total}",
+    },
     presence: {
       online: "Online",
       offline: "Offline",
@@ -694,7 +698,6 @@ export const en = {
       themeLight: "Light",
       themeDark: "Dark",
       themeAuto: "Auto",
-      accentColor: "Accent colour",
       showcase: "Profile badge",
       showcaseHint: "Pick up to 3 earned achievements to pin under your name — anyone can click one to see what it is.",
       showcaseCount: "{count}/{max} pinned",
@@ -704,14 +707,13 @@ export const en = {
       genresLocked: "Genres are set and can't be edited anymore. Your liked-titles list, which also shapes recommendations, has no such limit — see Recommendations.",
       username: "Username",
       usernameHint: "3–20 characters: a–z, 0–9, _. Set once — used in your profile link.",
+      usernameClaimHint: "3–20 characters: a–z, 0–9, _. Can only be set once.",
       usernameSet: "Username saved",
       usernamePlaceholder: "e.g. shadow_fan",
       copyProfileLink: "Copy profile link",
       titlePro: "Custom title",
       titleProHint: "PRO-only: pick a short tag and an icon to show next to your name.",
       titlePlaceholder: "e.g. Anime lord",
-      titleSaved: "Title saved",
-      titleCleared: "Title removed",
       titleClear: "Remove",
       age: {
         title: "Age verification",
@@ -850,6 +852,7 @@ export const en = {
   comments: {
     heading: "Comments",
     count: "{count} comments",
+    viewProfile: "User profile",
     placeholder: "Write a comment…",
     submit: "Send",
     mode: {
