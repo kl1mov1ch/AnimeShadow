@@ -20,6 +20,7 @@ import {
 } from "../lib/errors.js";
 import { isProfane } from "../lib/profanity.js";
 import { fetchReactionGif, randomReactionCategory } from "../lib/reaction-gif.js";
+import { TtlCache } from "../lib/cache.js";
 import type { AchievementService } from "./achievement.service.js";
 
 export interface ProfileServiceDeps {
@@ -46,6 +47,14 @@ export class ProfileService {
   private readonly achievements: AchievementService;
   private readonly uploadsDir: string;
   private readonly proForAll: boolean;
+  // Recomputing "everyone's total comment likes, ranked" is one groupBy over
+  // the whole Comment table — cheap at this site's scale, but there's no
+  // reason to pay it again for every profile view in the same few minutes.
+  // Single entry (the key is constant), so this is really just a TTL box
+  // around one value.
+  private readonly commenterLeaderboard = new TtlCache<
+    Array<{ userId: string; total: number }>
+  >(5 * 60_000, 1);
 
   constructor(deps: ProfileServiceDeps) {
     this.prisma = deps.prisma;
@@ -58,6 +67,17 @@ export class ProfileService {
     const user = await this.prisma.user.findUnique({ where: { username } });
     if (!user) throw new NotFoundError("Профиль не найден.");
     return this.build(user.id);
+  }
+
+  /** By id rather than username — comment authors don't all have one set,
+   * but every one of them should still be clickable through to a profile. */
+  async getById(userId: string): Promise<PublicProfile> {
+    const exists = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundError("Профиль не найден.");
+    return this.build(userId);
   }
 
   async getMine(userId: string): Promise<MyProfile> {
@@ -268,10 +288,11 @@ export class ProfileService {
   // ---- internals ----
 
   private async build(userId: string): Promise<PublicProfile> {
-    const [user, stats, achievements] = await Promise.all([
+    const [user, stats, achievements, standing] = await Promise.all([
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
       this.computeStats(userId),
       this.achievements.list(userId),
+      this.getCommenterStanding(userId),
     ]);
 
     return {
@@ -297,6 +318,34 @@ export class ProfileService {
       titlePrefix: user.proSince != null ? user.titlePrefix : null,
       titleIcon:
         user.proSince != null ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
+      totalCommentLikes: standing.totalLikes,
+      commenterRank: standing.rank,
+      totalRankedCommenters: standing.totalRanked,
+    };
+  }
+
+  /** 1-based rank by total likes received across every (non-deleted)
+   * comment, against everyone who's ever posted one. See the cache field
+   * above for why this doesn't hit the DB on every call. */
+  private async getCommenterStanding(
+    userId: string,
+  ): Promise<{ totalLikes: number; rank: number | null; totalRanked: number }> {
+    const board = await this.commenterLeaderboard.wrap("all", async () => {
+      const rows = await this.prisma.comment.groupBy({
+        by: ["userId"],
+        where: { deletedAt: null },
+        _sum: { likeCount: true },
+      });
+      return rows
+        .map((r) => ({ userId: r.userId, total: r._sum.likeCount ?? 0 }))
+        .sort((a, b) => b.total - a.total);
+    });
+
+    const idx = board.findIndex((r) => r.userId === userId);
+    return {
+      totalLikes: idx >= 0 ? board[idx]!.total : 0,
+      rank: idx >= 0 ? idx + 1 : null,
+      totalRanked: board.length,
     };
   }
 

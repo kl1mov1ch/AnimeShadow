@@ -8,6 +8,7 @@ import { z } from "zod";
 import { parse } from "../lib/validation.js";
 
 const usernameParams = z.object({ username: z.string().min(1) });
+const userIdParams = z.object({ id: z.string().min(1) });
 const avatarBody = z.object({ dataUrl: z.string().min(30) });
 
 export const profileRoutes: FastifyPluginAsync = async (fastify) => {
@@ -78,5 +79,11 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/profile/:username", async (request) => {
     const { username } = parse(usernameParams, request.params);
     return profile.getByUsername(username.replace(/^@/, ""));
+  });
+
+  // Same thing by id — for a comment author who hasn't claimed a username.
+  fastify.get("/users/:id/public-profile", async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    return profile.getById(id);
   });
 };

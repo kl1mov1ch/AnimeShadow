@@ -6,12 +6,17 @@ export type CommentMode = z.infer<typeof commentModeSchema>;
 
 export const commentAuthorSchema = z.object({
   kind: z.enum(["user", "anon", "deleted"]),
+  /** Only set for `kind: "user"` — enough to open their public profile even
+   * when they've never claimed a username. Anon/deleted stay null on
+   * purpose: an anonymous post has nothing to click through to. */
+  id: z.string().nullable(),
   displayName: z.string(),
   username: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   rank: z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]).nullable(),
   isPro: z.boolean(),
-  showcaseAchievementId: z.string().nullable(),
+  /** Up to MAX_SHOWCASE_ACHIEVEMENTS ids — the same pins shown on their profile. */
+  showcaseAchievementIds: z.array(z.string()),
   titlePrefix: z.string().nullable(),
   titleIcon: titleIconSchema.nullable(),
 });

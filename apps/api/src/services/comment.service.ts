@@ -201,36 +201,38 @@ export class CommentService {
     const author: CommentAuthor = deleted
       ? {
           kind: "deleted",
+          id: null,
           displayName: "[удалено]",
           username: null,
           avatarUrl: null,
           rank: null,
           isPro: false,
-          showcaseAchievementId: null,
+          showcaseAchievementIds: [],
           titlePrefix: null,
           titleIcon: null,
         }
       : anon
         ? {
             kind: "anon",
+            id: null,
             displayName: `Аниме-ниндзя #${row.anonSeq ?? 0}`,
             username: null,
             avatarUrl: null,
             rank: null,
             isPro: false,
-            showcaseAchievementId: null,
+            showcaseAchievementIds: [],
             titlePrefix: null,
             titleIcon: null,
           }
         : {
             kind: "user",
+            id: row.userId,
             displayName: row.user.displayName,
             username: row.user.username,
             avatarUrl: row.user.avatarUrl,
             rank: null,
             isPro: this.proForAll || row.user.proSince != null,
-            // Comments only have room for one badge — the first pinned achievement.
-            showcaseAchievementId: row.user.showcaseAchievementIds[0] ?? null,
+            showcaseAchievementIds: row.user.showcaseAchievementIds,
             // Saving these already requires real PRO (not proForAll), so no
             // extra gate is needed here beyond passing the stored value through.
             titlePrefix: row.user.titlePrefix,

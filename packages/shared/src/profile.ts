@@ -57,6 +57,14 @@ export const publicProfileSchema = z.object({
   /** PRO-only custom title next to the name. Both null unless the account is PRO. */
   titlePrefix: z.string().nullable(),
   titleIcon: titleIconSchema.nullable(),
+  /** Likes received across every comment that's still visible (not deleted). */
+  totalCommentLikes: z.number().int(),
+  /** 1-based standing among everyone who's ever posted a comment, by total
+   * likes received — null for an account with no comments at all (nothing
+   * to rank). */
+  commenterRank: z.number().int().nullable(),
+  /** How many accounts are in that ranking at all — the "of N" in "#4 of N". */
+  totalRankedCommenters: z.number().int(),
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 

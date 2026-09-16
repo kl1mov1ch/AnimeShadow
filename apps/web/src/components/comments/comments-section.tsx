@@ -13,6 +13,10 @@ import { toast } from "sonner";
 import { AchievementBadge } from "@/components/achievement-badge";
 import { UserTitleBadge } from "@/components/user-title-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import {
+  type ProfileModalTarget,
+  UserProfileModal,
+} from "@/components/user-profile-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +50,7 @@ export function CommentsSection({ animeId }: { animeId: number }) {
 
   const [query, setQuery] = useState<CommentQuery>({ sort: "new" });
   const { data, isPending } = useComments(animeId, query);
+  const [profileTarget, setProfileTarget] = useState<ProfileModalTarget | null>(null);
 
   return (
     <section className="flex flex-col gap-4">
@@ -123,11 +128,21 @@ export function CommentsSection({ animeId }: { animeId: number }) {
         <ul className="flex flex-col gap-4">
           {data.comments.map((c) => (
             <li key={c.id}>
-              <CommentItem animeId={animeId} comment={c} depth={0} />
+              <CommentItem
+                animeId={animeId}
+                comment={c}
+                depth={0}
+                onOpenProfile={setProfileTarget}
+              />
             </li>
           ))}
         </ul>
       )}
+
+      <UserProfileModal
+        target={profileTarget}
+        onOpenChange={(open) => !open && setProfileTarget(null)}
+      />
     </section>
   );
 }
@@ -232,10 +247,13 @@ function CommentItem({
   animeId,
   comment,
   depth,
+  onOpenProfile,
 }: {
   animeId: number;
   comment: Comment;
   depth: number;
+  /** Undefined for a deleted/anon author — there's no one to open a profile for. */
+  onOpenProfile: (author: { id: string; username: string | null }) => void;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -274,24 +292,43 @@ function CommentItem({
         depth > 0 && "ml-4 border-l border-border/50 pl-3 sm:ml-6 sm:pl-4",
       )}
     >
-      <Avatar className="size-8 shrink-0">
-        {comment.author.avatarUrl && (
-          <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
-        )}
-        <AvatarFallback className="text-xs">
-          {comment.author.displayName.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+      {comment.author.kind === "user" && comment.author.id ? (
+        <button
+          type="button"
+          onClick={() => onOpenProfile({ id: comment.author.id!, username: comment.author.username })}
+          aria-label={t("comments.viewProfile")}
+          className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Avatar className="size-8 transition-opacity hover:opacity-80">
+            {comment.author.avatarUrl && (
+              <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
+            )}
+            <AvatarFallback className="text-xs">
+              {comment.author.displayName.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      ) : (
+        <Avatar className="size-8 shrink-0">
+          {comment.author.avatarUrl && (
+            <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
+          )}
+          <AvatarFallback className="text-xs">
+            {comment.author.displayName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-          {comment.author.kind === "user" && comment.author.username ? (
-            <Link
-              to={`/profile/@${comment.author.username}`}
+          {comment.author.kind === "user" && comment.author.id ? (
+            <button
+              type="button"
+              onClick={() => onOpenProfile({ id: comment.author.id!, username: comment.author.username })}
               className="font-medium hover:text-primary"
             >
               {comment.author.displayName}
-            </Link>
+            </button>
           ) : (
             <span
               className={cn(
@@ -312,7 +349,12 @@ function CommentItem({
             icon={comment.author.titleIcon}
             className="h-4 px-1 py-0"
           />
-          <AchievementBadge id={comment.author.showcaseAchievementId} className="h-4 px-1 py-0" />
+          {/* Every pinned achievement, not just the first — a viewer who
+              pinned three shouldn't have two of them invisible to everyone
+              reading their comments. */}
+          {comment.author.showcaseAchievementIds.map((id) => (
+            <AchievementBadge key={id} id={id} className="h-4 px-1 py-0" />
+          ))}
           <span className="text-muted-foreground">{when}</span>
           {comment.editedAt && (
             <span className="text-muted-foreground/70">· {t("comments.edited")}</span>
@@ -457,7 +499,12 @@ function CommentItem({
           <ul className="mt-2 flex flex-col gap-3">
             {comment.replies.map((r) => (
               <li key={r.id}>
-                <CommentItem animeId={animeId} comment={r} depth={depth + 1} />
+                <CommentItem
+                  animeId={animeId}
+                  comment={r}
+                  depth={depth + 1}
+                  onOpenProfile={onOpenProfile}
+                />
               </li>
             ))}
           </ul>

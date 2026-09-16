@@ -307,6 +307,17 @@ export function usePublicProfile(username: string | undefined) {
   });
 }
 
+/** For a comment author who hasn't claimed a username — same data, by id. */
+export function usePublicProfileById(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["profile", "by-id", userId],
+    enabled: Boolean(userId),
+    queryFn: ({ signal }) =>
+      apiRequest<PublicProfile>(`/users/${userId}/public-profile`, { signal }),
+    staleTime: 60_000,
+  });
+}
+
 export function useMyProgress(enabled = true) {
   return useQuery({
     queryKey: ["me", "progress"],
