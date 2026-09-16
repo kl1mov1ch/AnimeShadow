@@ -55,7 +55,7 @@ export const ru: Dict = {
     countdownSoon: "со дня на день",
     releaseOn: "выходит {date}",
   },
-  theme: { toLight: "Светлая тема", toDark: "Тёмная тема" },
+  theme: { label: "Тема", toLight: "Светлая тема", toDark: "Тёмная тема" },
   locale: { label: "Язык", switchTo: "Переключить на {language}" },
   footer: {
     tagline: "Тёмный зал, где всё внимание — аниме.",

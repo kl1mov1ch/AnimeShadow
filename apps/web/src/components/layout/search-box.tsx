@@ -57,6 +57,13 @@ function pushRecent(term: string): string[] {
   }
   return next;
 }
+function clearRecent(): void {
+  try {
+    localStorage.removeItem(RECENT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function SearchBox() {
   const { t, locale } = useI18n();
@@ -200,9 +207,14 @@ export function SearchBox() {
               {!showResults ? (
                 <IdleState
                   recent={recent}
+                  onClearRecent={() => {
+                    clearRecent();
+                    setRecent([]);
+                  }}
                   moods={MOOD_CHIPS.map((m) => (locale === "ru" ? m.ru : m.en))}
                   onPick={pick}
                   recentLabel={t("search.recent")}
+                  clearLabel={t("common.clear")}
                   moodLabel={t("search.tryMood")}
                   favoriteGenres={favoriteGenres}
                   favoriteGenresLabel={t("search.forYou")}
@@ -289,18 +301,22 @@ function LoadingRows() {
 
 function IdleState({
   recent,
+  onClearRecent,
   moods,
   onPick,
   recentLabel,
+  clearLabel,
   moodLabel,
   favoriteGenres,
   favoriteGenresLabel,
   onPickGenre,
 }: {
   recent: string[];
+  onClearRecent: () => void;
   moods: string[];
   onPick: (value: string) => void;
   recentLabel: string;
+  clearLabel: string;
   moodLabel: string;
   favoriteGenres: Array<{ id: number; label: string }>;
   favoriteGenresLabel: string;
@@ -308,9 +324,23 @@ function IdleState({
 }) {
   return (
     <div className="flex flex-col gap-3 p-3">
+      {/* Three distinct sections, not one shared bucket — history is
+          something you did, favourite genres and mood are things you might
+          want, and mixing all three together made it unclear which chip
+          would search for a phrase and which would jump straight to a
+          genre. */}
       {recent.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-medium text-muted-foreground">{recentLabel}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">{recentLabel}</p>
+            <button
+              type="button"
+              onClick={onClearRecent}
+              className="text-[11px] text-muted-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
+            >
+              {clearLabel}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {recent.map((value) => (
               <Chip key={value} onClick={() => onPick(value)}>

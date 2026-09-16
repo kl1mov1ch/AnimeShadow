@@ -158,8 +158,25 @@ export function SiteHeader() {
               </TooltipTrigger>
               <TooltipContent>{t("footer.randomAnime")}</TooltipContent>
             </Tooltip>
-            <LanguageSwitcher />
-            <ThemeToggle />
+            {/* Icon-only buttons with no visible label — a tooltip is the
+                cheapest way to say what each one does without turning the
+                header into a row of text buttons. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <LanguageSwitcher />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{t("locale.label")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <ThemeToggle />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{t("theme.label")}</TooltipContent>
+            </Tooltip>
           </div>
           <UserMenu />
         </div>

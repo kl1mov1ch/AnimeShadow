@@ -53,7 +53,7 @@ export const en = {
     countdownSoon: "any day now",
     releaseOn: "airs {date}",
   },
-  theme: { toLight: "Switch to light theme", toDark: "Switch to dark theme" },
+  theme: { label: "Theme", toLight: "Switch to light theme", toDark: "Switch to dark theme" },
   locale: { label: "Language", switchTo: "Switch to {language}" },
   footer: {
     tagline: "A dark room where all the attention goes to the anime.",
