@@ -651,6 +651,7 @@ export const en = {
     },
     rank: {
       label: "Rank",
+      hint: "Grows with watch time: Novice from the start, Advanced from 10 hours, Expert from 100 hours, Legend from 500 hours.",
       novice: "Novice",
       advanced: "Advanced",
       expert: "Expert",
@@ -702,6 +703,7 @@ export const en = {
       showcase: "Profile badge",
       showcaseHint: "Pick up to 3 earned achievements to pin under your name — anyone can click one to see what it is.",
       showcaseCount: "{count}/{max} pinned",
+      showcaseEmpty: "nothing pinned yet",
       genres: "Favourite genres",
       genresCount: "{count} picked",
       genresHint: "Pick what you like — it shapes your home rail and every title's \"you might like\". You can set this twice: now, and once more later — after that it locks.",

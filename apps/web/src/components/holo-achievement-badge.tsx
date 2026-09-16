@@ -113,17 +113,9 @@ export function HoloAchievementBadge({
   const labels = useLabels();
   const isCircle = variant === "circle";
   const ref = useRef<HTMLDivElement>(null);
-  const [firstOverlayPosition, setFirstOverlayPosition] = useState<number>(0);
   const [matrix, setMatrix] = useState<string>(identityMatrix);
   const [currentMatrix, setCurrentMatrix] = useState<string>(identityMatrix);
-  const [disableInOutOverlayAnimation, setDisableInOutOverlayAnimation] =
-    useState<boolean>(true);
-  const [disableOverlayAnimation, setDisableOverlayAnimation] = useState<boolean>(false);
   const [isTimeoutFinished, setIsTimeoutFinished] = useState<boolean>(false);
-  const enterTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const leaveTimeout1 = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const leaveTimeout2 = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const leaveTimeout3 = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getDimensions = () => {
     const left = ref?.current?.getBoundingClientRect()?.left || 0;
@@ -195,25 +187,6 @@ export function HoloAchievementBadge({
   };
 
   const onMouseEnter = (e: MouseEvent<HTMLDivElement>) => {
-    if (leaveTimeout1.current) clearTimeout(leaveTimeout1.current);
-    if (leaveTimeout2.current) clearTimeout(leaveTimeout2.current);
-    if (leaveTimeout3.current) clearTimeout(leaveTimeout3.current);
-    setDisableOverlayAnimation(true);
-
-    const { left, right, top, bottom } = getDimensions();
-    const xCenter = (left + right) / 2;
-    const yCenter = (top + bottom) / 2;
-
-    setDisableInOutOverlayAnimation(false);
-    enterTimeout.current = setTimeout(() => setDisableInOutOverlayAnimation(true), 350);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setFirstOverlayPosition(
-          (Math.abs(xCenter - e.clientX) + Math.abs(yCenter - e.clientY)) / 1.5,
-        );
-      });
-    });
-
     const nextMatrix = getMatrix(e.clientX, e.clientY);
     const oppositeMatrix = getOppositeMatrix(nextMatrix, e.clientY, true);
 
@@ -223,18 +196,6 @@ export function HoloAchievementBadge({
   };
 
   const onMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    const { left, right, top, bottom } = getDimensions();
-    const xCenter = (left + right) / 2;
-    const yCenter = (top + bottom) / 2;
-
-    setTimeout(
-      () =>
-        setFirstOverlayPosition(
-          (Math.abs(xCenter - e.clientX) + Math.abs(yCenter - e.clientY)) / 1.5,
-        ),
-      150,
-    );
-
     if (isTimeoutFinished) {
       setCurrentMatrix(getMatrix(e.clientX, e.clientY));
     }
@@ -242,26 +203,8 @@ export function HoloAchievementBadge({
 
   const onMouseLeave = (e: MouseEvent<HTMLDivElement>) => {
     const oppositeMatrix = getOppositeMatrix(matrix, e.clientY);
-
-    if (enterTimeout.current) clearTimeout(enterTimeout.current);
-
     setCurrentMatrix(oppositeMatrix);
     setTimeout(() => setCurrentMatrix(identityMatrix), 200);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setDisableInOutOverlayAnimation(false);
-        leaveTimeout1.current = setTimeout(
-          () => setFirstOverlayPosition(-firstOverlayPosition / 4),
-          150,
-        );
-        leaveTimeout2.current = setTimeout(() => setFirstOverlayPosition(0), 300);
-        leaveTimeout3.current = setTimeout(() => {
-          setDisableOverlayAnimation(false);
-          setDisableInOutOverlayAnimation(true);
-        }, 500);
-      });
-    });
   };
 
   useEffect(() => {
@@ -275,7 +218,6 @@ export function HoloAchievementBadge({
     !earned && progress ? Math.round((progress.current / progress.target) * 100) : null;
   const gradId = `holo-grad-${id}-${variant}`;
   const maskId = `holo-mask-${id}-${variant}`;
-  const blurId = `holo-blur-${id}-${variant}`;
 
   const shortTitle = title.length > 22 ? `${title.slice(0, 21)}…` : title;
   const tooltip = earnedAt
@@ -369,22 +311,6 @@ export function HoloAchievementBadge({
   }
 
   const style = RARITY_STYLE[rarity];
-  const sheenHues = [style.sheen[0], style.sheen[1], style.sheen[2], style.sheen[0], style.sheen[1]];
-  // Keyframe names are namespaced by id+variant so more than one badge on a
-  // page (the grid, the pinned circles, the dialog) never collides.
-  const kf = (n: number) => `holoOverlay-${id}-${variant}-${n}`;
-  const overlayAnimations = animated
-    ? [...Array(10).keys()]
-        .map(
-          (e) => `
-    @keyframes ${kf(e + 1)} {
-      0% { transform: rotate(${e * 10}deg); }
-      50% { transform: rotate(${(e + 1) * 10}deg); }
-      100% { transform: rotate(${e * 10}deg); }
-    }`,
-        )
-        .join(" ")
-    : "";
 
   return (
     <div
@@ -399,7 +325,6 @@ export function HoloAchievementBadge({
       onMouseLeave={animated ? onMouseLeave : undefined}
       onMouseEnter={animated ? onMouseEnter : undefined}
     >
-      {animated && <style>{overlayAnimations}</style>}
       <div
         style={{
           transform: animated ? `perspective(700px) matrix3d(${matrix})` : undefined,
@@ -413,11 +338,6 @@ export function HoloAchievementBadge({
               <stop offset="0%" stopColor={style.from} />
               <stop offset="100%" stopColor={style.to} />
             </linearGradient>
-            {animated && (
-              <filter id={blurId}>
-                <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
-              </filter>
-            )}
             <mask id={maskId}>{maskShape}</mask>
           </defs>
 
@@ -451,37 +371,23 @@ export function HoloAchievementBadge({
             </>
           )}
 
-          {/* Holographic foil — rotating tinted panels blended over the badge,
-              clipped to its shape. Purely decorative, aria-hidden. Static
-              mode keeps one unblurred, unanimated panel: enough to read as
-              "this one has foil" without the per-frame blur+rotate cost of
-              five animating panels times however many badges are on screen. */}
-          <g aria-hidden style={{ mixBlendMode: "overlay" }} mask={`url(#${maskId})`}>
-            {(animated ? sheenHues : sheenHues.slice(0, 1)).map((hue, i) => (
-              <g
-                key={i}
-                style={
-                  animated
-                    ? {
-                        transform: `rotate(${firstOverlayPosition + i * 20}deg)`,
-                        transformOrigin: "center center",
-                        transition: !disableInOutOverlayAnimation
-                          ? "transform 200ms ease-out"
-                          : "none",
-                        animation: disableOverlayAnimation ? "none" : `${kf(i + 1)} 6s infinite`,
-                        willChange: "transform",
-                      }
-                    : { transform: "rotate(20deg)", transformOrigin: "center center" }
-                }
-              >
-                <polygon
-                  points={polygonPoints}
-                  fill={hue}
-                  filter={animated ? `url(#${blurId})` : undefined}
-                  opacity={animated ? 0.5 : 0.25}
-                />
-              </g>
-            ))}
+          {/* A single fixed diagonal foil streak, not five continuously
+              rotating, blurred panels — that ambient spin (running on every
+              earned badge on the page, all the time, whether hovered or
+              not) plus an SVG feGaussianBlur per panel was the actual lag:
+              dozens of always-on animations with an expensive, mostly
+              software-rendered filter behind them. The interactive tilt
+              above (real pointer tracking, only costs anything while
+              actually hovered) is the part worth keeping — it still reads
+              as "holographic", just without a foil that's spinning even
+              when nobody's looking at it. */}
+          <g
+            aria-hidden
+            style={{ mixBlendMode: "overlay" }}
+            mask={`url(#${maskId})`}
+            transform={`rotate(20 ${isCircle ? "32 32" : "130 32"})`}
+          >
+            <polygon points={polygonPoints} fill={style.sheen[0]} opacity={0.3} />
           </g>
         </svg>
       </div>

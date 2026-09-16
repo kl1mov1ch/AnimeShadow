@@ -37,6 +37,7 @@ import { useTheme } from "next-themes";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
+import { AchievementBadge } from "@/components/achievement-badge";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import {
@@ -267,6 +268,16 @@ const RANK_DOT: Record<Rank, string> = {
   LEGEND: "bg-amber-400",
 };
 
+/** A tinted chip per rank instead of a plain grey box with a coloured dot —
+ * the rank badge is the one thing in the hero that's actually earned, so it
+ * gets to look like it. */
+const RANK_CHIP: Record<Rank, string> = {
+  NOVICE: "border-border/60 bg-secondary/40",
+  ADVANCED: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  EXPERT: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
+  LEGEND: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+};
+
 /**
  * Avatar anchors the block, the name is the loudest thing on the page, and
  * rank/PRO live in their own labelled rail on the right instead of trailing
@@ -357,19 +368,24 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
         className="reveal flex flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-stretch sm:justify-center sm:gap-2.5 sm:self-stretch sm:border-l sm:border-border/60 sm:pl-6"
         style={{ "--i": 2 } as CSSProperties}
       >
-        <div className="flex items-center gap-2 rounded-lg border border-border/60 px-2.5 py-1.5">
-          <span
-            aria-hidden
-            className={cn("size-2 shrink-0 rounded-full", RANK_DOT[profile.rank])}
-          />
-          <span className="flex flex-col leading-tight">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-2.5 py-1.5",
+            RANK_CHIP[profile.rank],
+          )}
+        >
+          <span aria-hidden className={cn("size-2 shrink-0 rounded-full", RANK_DOT[profile.rank])} />
+          <span className="flex flex-1 flex-col leading-tight">
+            <span className="text-[10px] uppercase tracking-wide opacity-70">
               {t("profile.rank.label")}
             </span>
             <span className="text-xs font-medium">
               {t(`profile.rank.${profile.rank.toLowerCase()}`)}
             </span>
           </span>
+          <InfoTooltip side="left" className="opacity-70 hover:opacity-100">
+            {t("profile.rank.hint")}
+          </InfoTooltip>
         </div>
         {profile.isPro && (
           <span className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-semibold tracking-wide text-primary">
@@ -1418,14 +1434,34 @@ function ShowcaseChips({
     update.mutate({ showcaseAchievementIds: next });
   };
 
+  const pinnedInOrder = selected
+    .map((id) => earned.find((a) => a.id === id))
+    .filter((a): a is EarnedAchievement => a != null);
+
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <span className="text-xs tabular-nums text-muted-foreground">
         {t("profile.settings.showcaseCount", {
           count: selected.length,
           max: MAX_SHOWCASE_ACHIEVEMENTS,
         })}
       </span>
+
+      {/* Exactly the row a comment or the profile header actually renders —
+          picking a badge below updates this immediately, so there's no
+          guessing what "pinned" will look like next to your name until you
+          go find a comment of yours to check. */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-secondary/20 px-3 py-2 text-xs">
+        <span className="shrink-0 text-muted-foreground/70">{t("common.preview")}:</span>
+        <span className="font-medium">{profile.displayName}</span>
+        <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} compact />
+        {pinnedInOrder.length === 0 ? (
+          <span className="text-muted-foreground/60">{t("profile.settings.showcaseEmpty")}</span>
+        ) : (
+          pinnedInOrder.map((a) => <AchievementBadge key={a.id} id={a.id} compact />)
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-2.5">
         {earned.map((a) => {
           const isSelected = selected.includes(a.id);
