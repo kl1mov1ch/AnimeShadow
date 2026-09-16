@@ -380,7 +380,11 @@ function EpisodeStepper({
         <ChevronRightIcon className="size-4 sm:size-3.5" />
       </button>
 
-      <InfoTooltip>{t("watch.episodeHelpBody")}</InfoTooltip>
+      {/* A hover tooltip is a desktop affordance anyway — on a phone it's one
+          more tap target crowding the bar. */}
+      <span className="hidden sm:inline-flex">
+        <InfoTooltip>{t("watch.episodeHelpBody")}</InfoTooltip>
+      </span>
     </div>
   );
 }
@@ -678,15 +682,39 @@ function Player({
   };
 
   const winnerMediaRef = useRef<HTMLIFrameElement | HTMLVideoElement | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  /**
+   * Phones are where this button matters, and they're also where a single
+   * `requestFullscreen()` isn't enough: iOS Safari doesn't implement it on
+   * arbitrary elements at all — a `<video>` only goes fullscreen through
+   * `webkitEnterFullscreen()`, and an iframe only if its own embedded player
+   * asks. So: try the video's own native path first, then the player shell
+   * (which keeps our controls in frame), then the media element itself.
+   */
   const enterFullscreen = () => {
-    const el = winnerMediaRef.current;
-    if (!el) return;
-    const request =
-      el.requestFullscreen?.bind(el) ??
-      (el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen?.bind(
-        el,
-      );
-    request?.();
+    const media = winnerMediaRef.current;
+    const nativeVideo = media as
+      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+      | null;
+    if (nativeVideo?.webkitEnterFullscreen && !document.fullscreenEnabled) {
+      nativeVideo.webkitEnterFullscreen();
+      return;
+    }
+
+    for (const el of [shellRef.current, media]) {
+      if (!el) continue;
+      const request =
+        el.requestFullscreen?.bind(el) ??
+        (
+          el as unknown as { webkitRequestFullscreen?: () => void }
+        ).webkitRequestFullscreen?.bind(el);
+      if (request) {
+        void Promise.resolve(request()).catch(() => nativeVideo?.webkitEnterFullscreen?.());
+        return;
+      }
+    }
+
+    nativeVideo?.webkitEnterFullscreen?.();
   };
 
   const goToEpisode = (next: number, markCurrentDone: boolean) => {
@@ -723,11 +751,18 @@ function Player({
             onRetreatClick={() => goToEpisode(episode - 1, false)}
           />
         )}
-        <span className="min-w-0 truncate font-medium">{displaySource.title}</span>
-        <SourceKindBadge source={displaySource} />
-        <StabilityMark stable={displaySource.stable} />
+        {/* On a phone the bar has room for the episode control and the escape
+            hatch, and nothing else — the source name and its two badges are
+            reference detail, not something you act on mid-episode. */}
+        <span className="hidden min-w-0 truncate font-medium sm:inline">
+          {displaySource.title}
+        </span>
+        <span className="hidden shrink-0 items-center gap-2 sm:inline-flex">
+          <SourceKindBadge source={displaySource} />
+          <StabilityMark stable={displaySource.stable} />
+        </span>
         {searching && (
-          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
             <Loader2Icon className="size-3 animate-spin" />
             {t("watch.findingSource")}
           </span>
@@ -815,7 +850,10 @@ function Player({
           video is what benefits from real size on a small screen; the
           controls above/below it stay comfortably padded. Desktop keeps its
           rounded corners since there's no width to gain there anyway. */}
-      <div className="relative -mx-5 aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl">
+      <div
+        ref={shellRef}
+        className="relative -mx-5 aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl [&:fullscreen]:mx-0 [&:fullscreen]:aspect-auto [&:fullscreen]:size-full [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+      >
         {racePool.map((id) => {
           const source = data.sources.find((s) => s.id === id);
           if (!source) return null;
