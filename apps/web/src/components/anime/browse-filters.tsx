@@ -1,5 +1,12 @@
 import type { Genre } from "@animeshadow/shared";
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronsUpDownIcon,
+  MonitorSmartphoneIcon,
+  PlayCircleIcon,
+  SparklesIcon,
+  TrophyIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Command,
@@ -83,8 +90,71 @@ export function BrowseFilters({
 
   const minScore = params.minScore ?? 0;
 
+  // Four presets covering what people actually come here to ask for, each
+  // a plain toggle over params the catalogue already understands — no new
+  // backend concepts, just the combinations worth one tap instead of four.
+  const quickFilters = [
+    {
+      key: "customPlayer",
+      label: t("browse.quick.customPlayer"),
+      Icon: MonitorSmartphoneIcon,
+      active: params.hasCustomPlayer === true,
+      patch: (on: boolean): FilterPatch => ({ hasCustomPlayer: on ? "1" : null }),
+    },
+    {
+      key: "airingNow",
+      label: t("browse.quick.airingNow"),
+      Icon: PlayCircleIcon,
+      active: params.airing === "AIRING",
+      patch: (on: boolean): FilterPatch => ({ airing: on ? "AIRING" : null }),
+    },
+    {
+      key: "topRated",
+      label: t("browse.quick.topRated"),
+      Icon: TrophyIcon,
+      active: params.orderBy === "score",
+      patch: (on: boolean): FilterPatch => ({ orderBy: on ? "score" : null }),
+    },
+    {
+      key: "newest",
+      label: t("browse.quick.newest"),
+      Icon: SparklesIcon,
+      active: params.orderBy === "start_date",
+      patch: (on: boolean): FilterPatch => ({ orderBy: on ? "start_date" : null }),
+    },
+  ];
+
   return (
     <FieldGroup className="gap-4">
+      <div className="grid grid-cols-2 gap-2">
+        {quickFilters.map(({ key, label, Icon, active, patch }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(patch(!active))}
+            className={cn(
+              "group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-full border px-3 py-2 text-xs font-medium transition-all duration-200",
+              active
+                ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
+                : "border-border/60 bg-card/40 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
+            )}
+          >
+            <Icon className="relative z-10 size-3.5 shrink-0" />
+            <span className="relative z-10 truncate">{label}</span>
+            <span
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]",
+                active ? "via-white/40" : "via-primary/30",
+              )}
+            />
+          </button>
+        ))}
+      </div>
+
+      <FieldSeparator />
+
       <Field>
         <FieldLabel htmlFor="browse-search" className="text-xs">
           {t("browse.search")}

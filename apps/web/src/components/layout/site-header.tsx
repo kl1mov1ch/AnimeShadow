@@ -46,12 +46,31 @@ import { imageSrc } from "@/lib/format";
 import { useRecommendationsStatus } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
+// A plain underlined text link, active state aside, read as the most
+// static thing in the header — no motion, no fill, nothing to notice it
+// by except colour. Pills instead: a filled, gently lifted primary pill
+// for wherever the visitor already is, a quiet hover-fill for the rest —
+// the same shape language `navClass` uses everywhere else it was clicked,
+// now the header's own nav gets it too.
 function navClass({ isActive }: { isActive: boolean }): string {
   return cn(
-    "flex items-center border-b-2 px-0.5 py-1.5 text-sm font-semibold transition-colors",
+    "group relative flex items-center gap-1.5 overflow-hidden rounded-full px-3.5 py-1.5 text-sm font-semibold transition-all duration-200",
     isActive
-      ? "border-primary text-foreground"
-      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
+      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+      : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/70 hover:text-foreground",
+  );
+}
+
+/** The band of light that sweeps across a control on hover — the header's
+ * one repeated flourish, shared by the nav pills, the random-anime button
+ * and the register call to action so they read as the same idea rather
+ * than three unrelated effects. */
+function Shimmer() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/35 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+    />
   );
 }
 
@@ -133,12 +152,13 @@ export function SiteHeader() {
               className={navClass}
             >
               <span
-                className="reveal inline-flex items-center gap-1.5 whitespace-nowrap"
+                className="reveal relative z-10 inline-flex items-center gap-1.5 whitespace-nowrap"
                 style={{ "--i": i + 1 } as CSSProperties}
               >
                 <item.Icon className="size-4" />
                 {item.label}
               </span>
+              <Shimmer />
             </NavLink>
           ))}
         </nav>
@@ -148,6 +168,13 @@ export function SiteHeader() {
             <SearchBox />
           </div>
           <div className="hidden md:flex">
+            {/* The one icon worth a tooltip — it's an invitation ("just
+                pick something for me"), not a utility toggle, so it also
+                gets the one bit of flourish here: a soft band of light
+                sweeping across it on hover. Language/theme/install below
+                lost their tooltips on purpose — icons that self-explain
+                once you've seen them once don't need a label reappearing
+                every single hover. */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -155,45 +182,21 @@ export function SiteHeader() {
                   size="icon"
                   onClick={surprise}
                   aria-label={t("footer.randomAnime")}
+                  className="group relative overflow-hidden"
                 >
-                  <ShuffleIcon />
+                  <ShuffleIcon className="relative z-10" />
+                  <Shimmer />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t("footer.randomAnime")}</TooltipContent>
             </Tooltip>
-            {/* Icon-only buttons with no visible label — a tooltip is the
-                cheapest way to say what each one does without turning the
-                header into a row of text buttons. */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex">
-                  <LanguageSwitcher />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{t("locale.label")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex">
-                  <ThemeToggle />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{t("theme.label")}</TooltipContent>
-            </Tooltip>
+            <LanguageSwitcher />
+            <ThemeToggle />
             {/* Only rendered once the browser actually has something to
                 offer (a native prompt, or Safari on an iPhone/iPad) — no
                 dead button on the many browsers/platforms with no install
-                path at all, and no empty Tooltip wrapper either. */}
-            {(canInstall || isIosSafari) && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <InstallAppButton />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{t("pwa.install")}</TooltipContent>
-              </Tooltip>
-            )}
+                path at all. */}
+            {(canInstall || isIosSafari) && <InstallAppButton />}
           </div>
           <UserMenu />
         </div>

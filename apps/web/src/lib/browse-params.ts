@@ -12,7 +12,10 @@ export const TYPE_VALUES = ["TV", "MOVIE", "OVA", "ONA", "SPECIAL"] as const;
 
 export const AIRING_VALUES = ["AIRING", "FINISHED", "UPCOMING"] as const;
 
-const PER_PAGE = 24;
+// 20, not 24 — one upstream call and one grid render per page stay cheaper,
+// and it divides evenly into every column count the grid actually uses
+// (2/4/5), so the last row is never a stranded orphan.
+const PER_PAGE = 20;
 
 export function parseBrowseParams(search: URLSearchParams): Required<
   Pick<BrowseParams, "page" | "perPage" | "orderBy" | "sort">

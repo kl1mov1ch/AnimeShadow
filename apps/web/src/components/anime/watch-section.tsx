@@ -565,7 +565,16 @@ function CustomHlsPlayer({
           const instance = new Hls({ enableWorker: true });
           instance.loadSource(src);
           instance.attachMedia(video);
-          instance.on(Hls.Events.MANIFEST_PARSED, resumeIfWinner);
+          instance.on(Hls.Events.MANIFEST_PARSED, () => {
+            // "Ready" as far as the race is concerned: the manifest is
+            // parsed, so this source is real and answering. Waiting for
+            // `canplay` (a buffered first segment) meant the race's stall
+            // timer could retire a perfectly good stream mid-handshake and
+            // fall back to an iframe — the reason the custom player kept
+            // losing to Kodik on a slow first segment.
+            onReady();
+            resumeIfWinner();
+          });
           hls = instance;
         } else {
           // No native support and hls.js says it can't help either — set it
@@ -814,6 +823,12 @@ function CustomHlsPlayer({
         ref={videoRef}
         playsInline
         muted
+        // Both, deliberately: `loadedmetadata` is the earliest honest "this
+        // stream answered" (and the only one the native-Safari path gets,
+        // since it never goes through hls.js at all), `canplay` is the
+        // backstop if a browser skips it. handleLoad ignores everything
+        // after the first call, so firing twice costs nothing.
+        onLoadedMetadata={onReady}
         onCanPlay={onReady}
         className="absolute inset-0 size-full"
         tabIndex={-1}
@@ -1112,9 +1127,22 @@ function Player({
   // loads. If the whole batch times out, retire it and pull the next one; a
   // shorter fuse each round, since by then we're already in "keep hunting"
   // mode and every extra second is one the first attempt already spent.
+  // A direct HLS stream legitimately takes longer to answer than an iframe
+  // — hls.js has to load, then fetch and parse the manifest — so judging
+  // both on the same six-second fuse is what kept retiring a perfectly
+  // good custom player in favour of an iframe that merely fired `onLoad`
+  // sooner. Our own player gets a fuse long enough to actually finish.
+  const hlsStallMs = 20_000;
   useEffect(() => {
     if (winnerId != null || racePool.length === 0) return;
-    const timeout = triedIds.length === 0 ? STALL_MS : STALL_MS_RETRY;
+    const poolHasHls = racePool.some(
+      (id) => data.sources.find((s) => s.id === id)?.format === "hls",
+    );
+    const timeout = poolHasHls
+      ? hlsStallMs
+      : triedIds.length === 0
+        ? STALL_MS
+        : STALL_MS_RETRY;
     const timer = setTimeout(() => {
       setTriedIds((tried) => {
         const nextTried = [...tried, ...racePool];

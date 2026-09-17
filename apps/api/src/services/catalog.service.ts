@@ -477,12 +477,20 @@ export class CatalogService {
 
   async browse(query: AnimeQuery, allowAdult = false): Promise<Paginated<AnimeSummary>> {
     if (query.q) return this.search(query, query.q, allowAdult);
-    // Shikimori's list endpoint has no studio param — filtering upstream
-    // would silently ignore it and return the unfiltered catalogue. The
-    // local cache actually respects it, at the cost of only covering titles
-    // already synced (which, for a studio someone just clicked from an
-    // anime page, is usually exactly the titles worth surfacing anyway).
-    if (query.studio) return this.browseFromCache(query, allowAdult);
+    // Filters Shikimori's list endpoint has no concept of: studio, and our
+    // own player availability. Upstream would silently ignore them and hand
+    // back the unfiltered catalogue, so these run against the local cache
+    // instead — which only covers titles already synced (for a studio
+    // someone just clicked from an anime page, or a title we've actually
+    // resolved a player for, that's exactly the set worth surfacing anyway).
+    //
+    // It also fixes the page-size wobble: filtering upstream results *after*
+    // fetching them meant a page that asked for 20 could render 14. The
+    // cache applies all of it in SQL with a real LIMIT, so every page is
+    // exactly perPage until the last one.
+    if (query.studio || query.hasPlayer || query.hasCustomPlayer) {
+      return this.browseFromCache(query, allowAdult);
+    }
 
     // Read-through paginated: the whole upstream catalogue is reachable page by
     // page, but each unique (filters + page) costs one upstream call per 10 min.
@@ -610,11 +618,18 @@ export class CatalogService {
       const enriched = await this.enrichFromDb(summaries);
       await this.attachPlayerFlags(enriched);
 
+      // Search can't route these to the cache the way browse() does — a
+      // relevance-ranked query has no SQL equivalent here — so they stay a
+      // post-fetch filter, which is also why hasNextPage stops trusting the
+      // upstream count whenever either one is on.
       const filtered = filterAdultSummaries(enriched, allowAdult);
-      const items = query.hasPlayer
-        ? filtered.filter((s) => s.hasPlayer === true)
-        : filtered;
+      const items = filtered.filter(
+        (s) =>
+          (!query.hasPlayer || s.hasPlayer === true) &&
+          (!query.hasCustomPlayer || s.hasCustomPlayer),
+      );
       this.scheduleHealMissingDetail(items);
+      const playerFiltered = Boolean(query.hasPlayer || query.hasCustomPlayer);
 
       return {
         items,
@@ -622,7 +637,7 @@ export class CatalogService {
           page: query.page,
           perPage: query.perPage,
           total: (query.page - 1) * query.perPage + items.length,
-          hasNextPage: !query.hasPlayer && list.length === query.perPage,
+          hasNextPage: !playerFiltered && list.length === query.perPage,
         },
       };
     } catch (error) {

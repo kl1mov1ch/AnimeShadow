@@ -51,28 +51,36 @@ export function UserMenu() {
   if (!authed || !user) {
     return (
       <div className="flex items-center gap-1.5">
+        {/* Signing in is for people who already decided — it doesn't need to
+            compete for attention, so it's down to a bare icon with its
+            label in a tooltip. Registering is the one thing worth selling
+            here, so it keeps the only loud button in the header. */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="icon" aria-label={t("common.signIn")}>
               <Link to="/login">
                 <LogInIcon />
-                {t("common.signIn")}
               </Link>
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t("common.signIn")}</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button asChild size="sm" className="hidden sm:inline-flex">
-              <Link to="/register">
-                <UserPlusIcon />
-                {t("common.createAccount")}
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("common.createAccount")}</TooltipContent>
-        </Tooltip>
+        <Button
+          asChild
+          size="sm"
+          className="group relative hidden h-8 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-md shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40 sm:inline-flex"
+        >
+          <Link to="/register">
+            <UserPlusIcon className="relative z-10" />
+            <span className="relative z-10">{t("common.createAccount")}</span>
+            {/* Same band of light as the random-anime button, so the two
+                deliberate flourishes in the header read as one idea. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+            />
+          </Link>
+        </Button>
       </div>
     );
   }
