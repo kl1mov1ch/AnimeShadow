@@ -324,8 +324,17 @@ function CinematicHeader({
             up top reads as a washed-out glare across the image instead of a
             fade. */}
         <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/30 to-transparent" />
+        {/* From the desktop breakpoint the panel below only occupies the
+            left of the card, so the fade is steered that way too — the
+            right third of the artwork stays genuinely visible instead of
+            sitting under a panel nobody asked to cover it. */}
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-card/70 via-card/25 to-transparent lg:block" />
       </div>
-      <div className="relative flex min-h-[260px] flex-col justify-end p-4 sm:min-h-[300px] sm:p-6">
+      {/* Taller from sm up so the art has room to be looked at, and the
+          panel is capped rather than stretched edge to edge: a wall of
+          blurred background across a 1400px viewport was covering the
+          banner it was supposed to sit on. */}
+      <div className="relative flex min-h-[300px] flex-col justify-end p-4 sm:min-h-[380px] sm:p-6 lg:min-h-[440px]">
         {/* Everything the viewer needs to read or click sits on its own
             panel — lighter than before so the photo still reads through it,
             while staying solid enough to keep text legible over busy art.
@@ -333,7 +342,7 @@ function CinematicHeader({
             itself deliberately stays static (see the note on the image
             above — a pan would soften artwork that sits on screen for
             minutes at a time). */}
-        <div className="animate-in fade-in slide-in-from-bottom-2 relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-background/45 p-4 shadow-xl shadow-black/20 backdrop-blur-md duration-500 sm:p-5">
+        <div className="animate-in fade-in slide-in-from-bottom-2 relative flex w-full flex-col gap-3 overflow-hidden rounded-2xl bg-background/45 p-4 shadow-xl shadow-black/20 backdrop-blur-md duration-500 sm:p-5 lg:max-w-4xl">
           {/* The site's own hairline, the same one under the header and
               across the search panel. */}
           <span
