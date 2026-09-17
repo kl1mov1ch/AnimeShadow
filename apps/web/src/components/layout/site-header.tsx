@@ -17,6 +17,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { SearchBox } from "@/components/layout/search-box";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/sheet";
 import { LOCALE_LABELS, LOCALES, type Locale } from "@animeshadow/shared";
 import { useAuth } from "@/hooks/use-auth";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { useI18n } from "@/i18n";
 import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
@@ -70,6 +72,7 @@ function Wordmark() {
 export function SiteHeader() {
   const { t } = useI18n();
   const { status, user } = useAuth();
+  const { canInstall, isIosSafari } = usePwaInstall();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -177,6 +180,20 @@ export function SiteHeader() {
               </TooltipTrigger>
               <TooltipContent>{t("theme.label")}</TooltipContent>
             </Tooltip>
+            {/* Only rendered once the browser actually has something to
+                offer (a native prompt, or Safari on an iPhone/iPad) — no
+                dead button on the many browsers/platforms with no install
+                path at all, and no empty Tooltip wrapper either. */}
+            {(canInstall || isIosSafari) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <InstallAppButton />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{t("pwa.install")}</TooltipContent>
+              </Tooltip>
+            )}
           </div>
           <UserMenu />
         </div>
@@ -306,7 +323,7 @@ function MobileMenu({
       </nav>
 
       {/* quick action */}
-      <div className="p-3">
+      <div className="flex flex-col gap-2 p-3">
         <button
           type="button"
           onClick={surprise}
@@ -315,6 +332,7 @@ function MobileMenu({
           <ShuffleIcon className="size-4 shrink-0 text-primary" />
           {t("footer.randomAnime")}
         </button>
+        <InstallAppMenuRow />
       </div>
 
       <Separator />

@@ -57,6 +57,15 @@ export const ru: Dict = {
   },
   theme: { label: "Тема", toLight: "Светлая тема", toDark: "Тёмная тема" },
   locale: { label: "Язык", switchTo: "Переключить на {language}" },
+  pwa: {
+    install: "Установить приложение",
+    installHint: "Установите AnimeShadow на телефон — свой значок на экране, список открывается даже без сети.",
+    iosDialogTitle: "Установка на iPhone/iPad",
+    iosDialogBody: "Safari не даёт установить сайт по кнопке — только вручную, через «Поделиться».",
+    iosStep1: "Нажмите значок «Поделиться» в панели браузера",
+    iosStep2: "Выберите «На экран «Домой»»",
+    gotIt: "Понятно",
+  },
   footer: {
     tagline: "Тёмный зал, где всё внимание — аниме.",
     description:

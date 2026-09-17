@@ -55,6 +55,15 @@ export const en = {
   },
   theme: { label: "Theme", toLight: "Switch to light theme", toDark: "Switch to dark theme" },
   locale: { label: "Language", switchTo: "Switch to {language}" },
+  pwa: {
+    install: "Install app",
+    installHint: "Install AnimeShadow on your phone — its own icon on your home screen, and your list still opens with no connection.",
+    iosDialogTitle: "Install on iPhone/iPad",
+    iosDialogBody: "Safari won't install the site from a button — only manually, through Share.",
+    iosStep1: "Tap the Share icon in the browser bar",
+    iosStep2: "Choose \"Add to Home Screen\"",
+    gotIt: "Got it",
+  },
   footer: {
     tagline: "A dark room where all the attention goes to the anime.",
     description:

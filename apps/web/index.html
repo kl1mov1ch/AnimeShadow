@@ -9,6 +9,14 @@
     />
     <meta name="theme-color" content="#0a0b10" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- vite-plugin-pwa injects <link rel="manifest"> itself at build time —
+         everything below is what iOS specifically needs, since Safari
+         reads none of the manifest fields that cover it on every other
+         platform (icon, standalone display, status bar tinting). -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AnimeShadow" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Warms the connection for the hero's trailer embed before it's needed. -->
