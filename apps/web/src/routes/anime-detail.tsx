@@ -26,6 +26,7 @@ import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
   useAnime,
+  useAnimeStats,
   useCharacters,
   useFranchise,
   useSimilarAnime,
@@ -457,6 +458,76 @@ function SynopsisBody({
 }
 
 /**
+ * How the wider audience is tracking this title — counts from MAL via
+ * Jikan, not our own visitors. It fills the space under a short synopsis
+ * with something factual rather than padding, and it is deliberately
+ * quiet: five rows, one hue, no claim about whether any of it is good.
+ *
+ * Renders nothing at all when the upstream had no numbers (the endpoint
+ * answers null rather than failing), so a title without stats simply does
+ * not show the block instead of showing an empty one.
+ */
+function AudienceStats({ animeId }: { animeId: number }) {
+  const t = useT();
+  const labels = useLabels();
+  const { data } = useAnimeStats(animeId);
+  if (!data) return null;
+
+  const rows = [
+    { key: "watching", value: data.watching },
+    { key: "completed", value: data.completed },
+    { key: "onHold", value: data.onHold },
+    { key: "dropped", value: data.dropped },
+    { key: "planToWatch", value: data.planToWatch },
+  ].filter((row): row is { key: string; value: number } => row.value != null);
+
+  if (rows.length === 0) return null;
+  // Scaled against the biggest row, not the total — with five buckets, a
+  // share-of-total bar leaves every one of them a barely visible sliver.
+  const max = Math.max(...rows.map((row) => row.value), 1);
+
+  return (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-border/60 bg-card/40 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground/70">
+          {t("detail.audienceTitle")}
+        </span>
+        {data.total != null && (
+          <span className="text-[11px] tabular-nums text-muted-foreground/60">
+            {t("detail.audienceTotal", { count: labels.compact(data.total) })}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        {rows.map((row, i) => (
+          <div
+            key={row.key}
+            style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
+            className="animate-in fade-in slide-in-from-left-2 flex items-center gap-2.5 duration-500"
+          >
+            <span className="w-24 shrink-0 truncate text-[11px] text-muted-foreground">
+              {t(
+                `detail.audienceStats.${row.key}` as "detail.audienceStats.watching",
+              )}
+            </span>
+            <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary/70">
+              <span
+                className="block h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-[width] duration-700 ease-out"
+                style={{ width: `${Math.round((row.value / max) * 100)}%` }}
+              />
+            </span>
+            <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-foreground/80">
+              {labels.compact(row.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The block used to stack synopsis, themes, facts and seasons as separate
  * full-width rows, each claiming a row of its own regardless of how much it
  * actually had to say — a one-line "6 episodes" fact took the same width as
@@ -571,6 +642,8 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
           ) : (
             <p className="text-sm text-muted-foreground">{oneLiner}</p>
           )}
+
+          <AudienceStats animeId={anime.id} />
 
           {hasThemes && (
             <div className="flex flex-col gap-2.5">

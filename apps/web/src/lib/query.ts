@@ -6,6 +6,7 @@ import type {
   AdminUserQuery,
   AdminUserSummary,
   AnimeDetail,
+  AnimeStats,
   AnimeSummary,
   Character,
   CharacterDetail,
@@ -52,6 +53,7 @@ export const queryKeys = {
   characters: (id: number) => ["anime", id, "characters"] as const,
   recommendations: (id: number) => ["anime", id, "recommendations"] as const,
   franchise: (id: number) => ["anime", id, "franchise"] as const,
+  animeStats: (id: number) => ["anime", id, "stats"] as const,
   watch: (id: number) => ["anime", id, "watch"] as const,
   library: (status?: LibraryStatus) => ["library", status ?? "all"] as const,
   librarySummary: ["library", "summary"] as const,
@@ -141,6 +143,23 @@ export function useAnime(idOrSlug: number | string) {
     queryFn: ({ signal }) =>
       apiRequest<AnimeDetail>(path, { signal, query: { lang: locale } }),
     staleTime: 10 * 60_000,
+  });
+}
+
+/**
+ * Audience counts from MAL (via Jikan) for one title. Long stale time —
+ * these move slowly, and the endpoint answers null rather than failing
+ * when the upstream is down, so a miss costs the page nothing.
+ */
+export function useAnimeStats(id: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.animeStats(id),
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ stats: AnimeStats | null }>(`/anime/${id}/stats`, { signal }).then(
+        (r) => r.stats,
+      ),
+    staleTime: 60 * 60_000,
   });
 }
 

@@ -8,6 +8,7 @@ import type {
   JikanProducer,
   JikanRecommendationEntry,
   JikanSearchParams,
+  JikanStatistics,
 } from "./types.js";
 
 export interface JikanClientOptions {
@@ -98,6 +99,14 @@ export class JikanClient {
 
   getAnimeCharacters(id: number): Promise<JikanCharacterEntry[]> {
     return this.get<{ data: JikanCharacterEntry[] }>(`/anime/${id}/characters`).then(
+      (r) => r.data,
+    );
+  }
+
+  /** How MAL's own users are tracking this title — watching, completed,
+   * dropped and so on. Pure counts, nothing editorial. */
+  getAnimeStatistics(id: number): Promise<JikanStatistics> {
+    return this.get<{ data: JikanStatistics }>(`/anime/${id}/statistics`).then(
       (r) => r.data,
     );
   }

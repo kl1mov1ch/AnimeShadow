@@ -23,6 +23,7 @@ import {
   type AnimeDetail,
   type AnimeOrderBy,
   type AnimeQuery,
+  type AnimeStats,
   type AnimeSummary,
   type Character,
   type CharacterDetail,
@@ -1016,6 +1017,31 @@ export class CatalogService {
         return [];
       }
     }) as Promise<FranchiseEntry[]>;
+  }
+
+  /**
+   * Audience counts from MAL, cached alongside the other per-title extras.
+   * Returns null rather than throwing when Jikan is unreachable — this is
+   * a garnish under the synopsis, and a detail page must never fail over
+   * one that didn't load.
+   */
+  async getAnimeStats(id: number): Promise<AnimeStats | null> {
+    return this.auxCache.wrap(`stats:${id}`, async () => {
+      try {
+        const raw = await this.jikan.getAnimeStatistics(id);
+        return {
+          watching: raw.watching ?? null,
+          completed: raw.completed ?? null,
+          onHold: raw.on_hold ?? null,
+          dropped: raw.dropped ?? null,
+          planToWatch: raw.plan_to_watch ?? null,
+          total: raw.total ?? null,
+        };
+      } catch (error) {
+        this.logger.warn({ error, id }, "anime statistics fetch failed");
+        return null;
+      }
+    }) as Promise<AnimeStats | null>;
   }
 
   async getRecommendations(id: number): Promise<RecommendationItem[]> {

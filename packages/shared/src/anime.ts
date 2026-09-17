@@ -231,3 +231,19 @@ export const discoverResponseSchema = z.object({
   upcoming: z.array(animeSummarySchema).default([]),
 });
 export type DiscoverResponse = z.infer<typeof discoverResponseSchema>;
+
+/**
+ * How the wider anime audience is tracking a title — plain counts from
+ * MAL via Jikan, not our own visitors (the profile's charts are the
+ * place for those). Every field nullable: the upstream is optional and a
+ * missing number should read as "unknown", never as zero.
+ */
+export const animeStatsSchema = z.object({
+  watching: z.number().int().nonnegative().nullable(),
+  completed: z.number().int().nonnegative().nullable(),
+  onHold: z.number().int().nonnegative().nullable(),
+  dropped: z.number().int().nonnegative().nullable(),
+  planToWatch: z.number().int().nonnegative().nullable(),
+  total: z.number().int().nonnegative().nullable(),
+});
+export type AnimeStats = z.infer<typeof animeStatsSchema>;

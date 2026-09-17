@@ -92,6 +92,16 @@ export interface JikanCharacterSearchEntry {
   }>;
 }
 
+/** From `/anime/{id}/statistics` — how MAL's own users are tracking it. */
+export interface JikanStatistics {
+  watching?: number | null;
+  completed?: number | null;
+  on_hold?: number | null;
+  dropped?: number | null;
+  plan_to_watch?: number | null;
+  total?: number | null;
+}
+
 export interface JikanRecommendationEntry {
   entry: { mal_id: number; title: string; images?: JikanImageSet };
   votes?: number;
