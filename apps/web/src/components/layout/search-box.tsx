@@ -1,6 +1,6 @@
 import type { AnimeSummary, SearchGroup } from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ClockIcon, SearchIcon, XIcon } from "lucide-react";
+import { ClockIcon, Loader2Icon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/i18n";
-import {animeHref, imageSrc } from "@/lib/format";
+import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,27 @@ function clearRecent(): void {
   } catch {
     /* ignore */
   }
+}
+
+/** The shortcut badge only ever claims what the platform actually uses. */
+function shortcutLabel(): string {
+  if (typeof navigator === "undefined") return "Ctrl K";
+  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ K" : "Ctrl K";
+}
+
+/** The same band of light the header's buttons sweep on hover — repeated
+ * here (rather than imported from site-header, which imports this file)
+ * so the search panel's own actions read as the same family of control. */
+function Sheen({ tone = "primary" }: { tone?: "primary" | "light" }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]",
+        tone === "light" ? "via-white/45" : "via-primary/30",
+      )}
+    />
+  );
 }
 
 export function SearchBox() {
@@ -165,8 +186,23 @@ export function SearchBox() {
           }
         }}
       >
-        <div className="relative">
-          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        {/* A pill, like every other control in the header — and it earns the
+            focus state rather than just outlining: the ring blooms, the
+            glyph picks up the site colour, the shortcut badge steps aside
+            for the clear button once there's something to clear. */}
+        <div
+          className={cn(
+            "group relative flex items-center rounded-full border bg-card/70 transition-all duration-200",
+            "focus-within:border-primary/50 focus-within:bg-card focus-within:shadow-lg focus-within:shadow-primary/10 focus-within:ring-4 focus-within:ring-primary/15",
+            open ? "border-primary/30" : "border-border/60 hover:border-border",
+          )}
+        >
+          <SearchIcon
+            className={cn(
+              "pointer-events-none absolute left-3 size-4 transition-all duration-200",
+              "text-muted-foreground group-focus-within:scale-110 group-focus-within:text-primary",
+            )}
+          />
           <input
             ref={inputRef}
             type="search"
@@ -178,28 +214,46 @@ export function SearchBox() {
             onFocus={() => setOpen(true)}
             placeholder={t("search.placeholder")}
             aria-label={t("search.open")}
-            className="h-9 w-full rounded-md border bg-card pl-8 pr-8 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="h-10 w-full rounded-full bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
           />
-          {term && (
-            <button
-              type="button"
-              onClick={() => {
-                setTerm("");
-                inputRef.current?.focus();
-              }}
-              aria-label={t("common.clear")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-            >
-              <XIcon className="size-3.5" />
-            </button>
-          )}
+
+          <div className="absolute right-2 flex items-center gap-1">
+            {isFetching && showResults && (
+              <Loader2Icon className="size-3.5 animate-spin text-primary" />
+            )}
+            {term ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTerm("");
+                  inputRef.current?.focus();
+                }}
+                aria-label={t("common.clear")}
+                className="animate-in zoom-in-75 flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 hover:bg-secondary hover:text-foreground"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            ) : (
+              // Only advertised while there's nothing typed — once you're
+              // mid-query the shortcut is noise, not help.
+              <kbd className="pointer-events-none hidden select-none rounded-md border border-border/70 bg-secondary/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/80 sm:inline-block">
+                {shortcutLabel()}
+              </kbd>
+            )}
+          </div>
         </div>
 
         {open && (
           // Same width as the input right above it, not a fixed size of its
           // own — a dropdown wider than what it hangs off of read as
           // visually disconnected from the search box.
-          <div className="animate-in fade-in-0 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg duration-150">
+          <div className="animate-in fade-in-0 slide-in-from-top-1 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-border/60 bg-popover/95 text-popover-foreground shadow-xl shadow-black/20 backdrop-blur-md duration-200">
+            {/* The header's own hairline, repeated — it's what marks a
+                surface as belonging to the site rather than to the browser. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+            />
             {/* Tall enough that the now-capped result list (6 items) and the
                 idle suggestions never actually need to scroll — the ceiling
                 is a safety net, not the normal path. */}
@@ -225,7 +279,8 @@ export function SearchBox() {
               ) : data && data.flat.length > 0 ? (
                 <>
                   {data.detectedGenres.length > 0 && (
-                    <p className="px-3 pb-1 pt-2.5 text-xs text-muted-foreground">
+                    <p className="flex items-center gap-1.5 px-3 pb-1 pt-3 text-xs text-muted-foreground">
+                      <SparklesIcon className="size-3 text-primary" />
                       {t("search.detectedAs", {
                         genres: data.detectedGenres.join(", "),
                       })}
@@ -252,25 +307,33 @@ export function SearchBox() {
                             onSelect={goToAnime}
                           />
                         ))}
-                        <CommandGroup>
+                        <div className="p-2 pt-1">
                           <CommandItem
                             value="see-all"
                             onSelect={() => submit(term)}
-                            className="justify-center text-center font-medium text-primary"
+                            className="group relative justify-center overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg data-[selected=true]:shadow-primary/40"
                           >
-                            <SearchIcon />
-                            {hasMore
-                              ? t("search.seeMore", { query: term.trim() })
-                              : t("search.seeAll", { query: term.trim() })}
+                            <SearchIcon className="relative z-10 text-primary-foreground!" />
+                            <span className="relative z-10 truncate">
+                              {hasMore
+                                ? t("search.seeMore", { query: term.trim() })
+                                : t("search.seeAll", { query: term.trim() })}
+                            </span>
+                            <Sheen tone="light" />
                           </CommandItem>
-                        </CommandGroup>
+                        </div>
                       </>
                     );
                   })()}
                 </>
               ) : (
                 <CommandEmpty>
-                  {isFetching ? `${t("search.searching")}…` : t("search.noMatches")}
+                  <span className="flex flex-col items-center gap-1.5 py-2">
+                    <span aria-hidden className="font-display text-2xl text-primary/30">
+                      影
+                    </span>
+                    {isFetching ? `${t("search.searching")}…` : t("search.noMatches")}
+                  </span>
                 </CommandEmpty>
               )}
             </CommandList>
@@ -287,7 +350,11 @@ function LoadingRows() {
   return (
     <div className="flex flex-col gap-2 p-3">
       {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="flex gap-2.5">
+        <div
+          key={i}
+          className="animate-in fade-in slide-in-from-left-2 flex gap-2.5 duration-300"
+          style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
+        >
           <Skeleton className="h-12 w-[34px] rounded-md" />
           <div className="flex flex-1 flex-col gap-1.5 pt-1">
             <Skeleton className="h-3.5 w-2/3" />
@@ -296,6 +363,14 @@ function LoadingRows() {
         </div>
       ))}
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+      {children}
+    </p>
   );
 }
 
@@ -322,17 +397,20 @@ function IdleState({
   favoriteGenresLabel: string;
   onPickGenre: (id: number) => void;
 }) {
+  // One running counter across all three sections, so the chips cascade in
+  // as a single wave instead of three simultaneous ones.
+  let order = 0;
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="flex flex-col gap-3.5 p-3">
       {/* Three distinct sections, not one shared bucket — history is
           something you did, favourite genres and mood are things you might
           want, and mixing all three together made it unclear which chip
           would search for a phrase and which would jump straight to a
           genre. */}
       {recent.length > 0 && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-muted-foreground">{recentLabel}</p>
+            <SectionLabel>{recentLabel}</SectionLabel>
             <button
               type="button"
               onClick={onClearRecent}
@@ -343,8 +421,8 @@ function IdleState({
           </div>
           <div className="flex flex-wrap gap-1.5">
             {recent.map((value) => (
-              <Chip key={value} onClick={() => onPick(value)}>
-                <ClockIcon className="size-3" />
+              <Chip key={value} index={order++} onClick={() => onPick(value)}>
+                <ClockIcon className="size-3 shrink-0 opacity-70" />
                 {value}
               </Chip>
             ))}
@@ -352,22 +430,28 @@ function IdleState({
         </div>
       )}
       {favoriteGenres.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-medium text-muted-foreground">{favoriteGenresLabel}</p>
+        <div className="flex flex-col gap-2">
+          <SectionLabel>{favoriteGenresLabel}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {favoriteGenres.map((genre) => (
-              <Chip key={genre.id} onClick={() => onPickGenre(genre.id)}>
+              <Chip
+                key={genre.id}
+                index={order++}
+                accent
+                onClick={() => onPickGenre(genre.id)}
+              >
+                <SparklesIcon className="size-3 shrink-0" />
                 {genre.label}
               </Chip>
             ))}
           </div>
         </div>
       )}
-      <div className="flex flex-col gap-1.5">
-        <p className="text-xs font-medium text-muted-foreground">{moodLabel}</p>
+      <div className="flex flex-col gap-2">
+        <SectionLabel>{moodLabel}</SectionLabel>
         <div className="flex flex-wrap gap-1.5">
           {moods.map((value) => (
-            <Chip key={value} onClick={() => onPick(value)}>
+            <Chip key={value} index={order++} onClick={() => onPick(value)}>
               {value}
             </Chip>
           ))}
@@ -380,17 +464,32 @@ function IdleState({
 function Chip({
   children,
   onClick,
+  index,
+  accent = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
+  /** Position in the cascade — drives the entry delay, nothing else. */
+  index: number;
+  /** The "for you" chips, which jump straight to a genre rather than
+   * filling the field, get the site colour so the difference is visible
+   * before clicking rather than after. */
+  accent?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-full border bg-secondary/60 px-2.5 py-1 text-xs text-secondary-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+      style={{ animationDelay: `${index * 25}ms`, animationFillMode: "backwards" }}
+      className={cn(
+        "group animate-in fade-in zoom-in-95 relative inline-flex items-center gap-1 overflow-hidden rounded-full border px-2.5 py-1 text-xs transition-all duration-200 hover:-translate-y-0.5",
+        accent
+          ? "border-primary/30 bg-primary/10 text-primary hover:border-primary/50 hover:bg-primary/15"
+          : "border-border/60 bg-secondary/50 text-secondary-foreground hover:border-primary/40 hover:text-foreground",
+      )}
     >
-      {children}
+      <span className="relative z-10 inline-flex items-center gap-1">{children}</span>
+      <Sheen />
     </button>
   );
 }
@@ -411,14 +510,14 @@ function ResultGroup({
   const labels = useLabels();
   if (items.length === 0) return null;
   return (
-    <CommandGroup heading={heading}>
+    <CommandGroup heading={heading} className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide">
       {items.map((anime, i) => (
         <CommandItem
           key={anime.id}
           value={`${group.reason}-${anime.id}`}
           onSelect={() => onSelect(anime)}
-          className="animate-in fade-in slide-in-from-top-1 gap-2.5 py-1.5 duration-200"
-          style={{ animationDelay: `${i * 22}ms` }}
+          className="group animate-in fade-in slide-in-from-top-1 gap-2.5 rounded-xl py-1.5 duration-200 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected=true]:ring-1 data-[selected=true]:ring-primary/20"
+          style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
         >
           <span className="h-12 w-[34px] shrink-0 overflow-hidden rounded-md bg-muted">
             {anime.imageUrl && (
@@ -426,7 +525,7 @@ function ResultGroup({
                 src={imageSrc(anime.imageUrl)}
                 alt=""
                 loading="lazy"
-                className="size-full object-cover"
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-110 group-data-[selected=true]:scale-110"
               />
             )}
           </span>
@@ -483,7 +582,10 @@ function Highlighted({
   for (const [start, end] of ranges) {
     if (start > cursor) parts.push(text.slice(cursor, start));
     parts.push(
-      <mark key={start} className="rounded-[2px] bg-primary/25 text-foreground">
+      <mark
+        key={start}
+        className="rounded-[3px] bg-primary/25 px-0.5 font-semibold text-foreground"
+      >
         {text.slice(start, end + 1)}
       </mark>,
     );
