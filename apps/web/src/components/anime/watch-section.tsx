@@ -20,6 +20,12 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   Popover,
@@ -409,6 +415,24 @@ const RACE_SIZE = 2;
 function viableSources(sources: WatchSource[]): WatchSource[] {
   const ok = sources.filter((s) => s.stable !== false);
   return ok.length > 0 ? ok : sources;
+}
+
+/** Two providers can carry the exact same dub — same studio, same name —
+ * and there's no reason to make the viewer choose between two entries that
+ * read identically. Keeps the first occurrence of each (title, kind) pair,
+ * which is also the better-ranked one: the list arrives sorted best-first
+ * from the server, so whichever copy shows up first is the one worth
+ * keeping. */
+function dedupeSources(sources: WatchSource[]): WatchSource[] {
+  const seen = new Set<string>();
+  const deduped: WatchSource[] = [];
+  for (const source of sources) {
+    const key = `${source.kind}:${source.title.trim().toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(source);
+  }
+  return deduped;
 }
 
 /**
@@ -1113,7 +1137,14 @@ function Player({
   // Auto-retry is the offered fix when everything's failed — the raw list is
   // now an opt-in "pick manually" escape hatch (via the existing "not
   // working" toggle), not something dumped on the viewer automatically.
-  const pickerOpen = showAll;
+  // Confirmed-dead sources (a probe that actually failed — Alloha not
+  // responding at all is exactly this) never make it into that list; showing
+  // a pick the server already knows is broken just moves the "doesn't load"
+  // problem one click later instead of fixing it. Two providers can also
+  // independently carry the exact same dub (same studio, same name) — kept
+  // once, the better-ranked of the two, since `data.sources` already arrives
+  // sorted best-first.
+  const pickable = dedupeSources(viableSources(data.sources));
 
   const pick = (id: string) => {
     setWinnerId(null);
@@ -1143,14 +1174,16 @@ function Player({
   // interrupting them.
   const [showStuckHint, setShowStuckHint] = useState(false);
   useEffect(() => {
-    if (winnerId == null || alternatives.length === 0 || isPaused) {
+    // Also skipped while the manual picker is already open — nagging with
+    // one nudge while the viewer is busy looking at another is just noise.
+    if (winnerId == null || alternatives.length === 0 || isPaused || showAll) {
       setShowStuckHint(false);
       return;
     }
     const timer = setTimeout(() => setShowStuckHint(true), 45_000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [winnerId, data.sources.length, isPaused]);
+  }, [winnerId, data.sources.length, isPaused, showAll]);
 
   /** Retries from the very top, as if the page had just been opened. */
   const retryAll = () => {
@@ -1230,62 +1263,100 @@ function Player({
             pulse — the one moment it's fair to draw the eye — and its own
             popover opens right here instead of a screen-center dialog. */}
         {alternatives.length > 0 && (
-          <Popover open={showStuckHint} onOpenChange={setShowStuckHint}>
-            <PopoverAnchor asChild>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAll((v) => !v);
-                  setShowStuckHint(false);
-                }}
-                className={cn(
-                  "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
-                  showAll
-                    ? "border-primary/50 bg-primary/10 text-primary"
-                    : "border-border/60 bg-secondary/40 text-foreground/80 hover:border-primary/40 hover:bg-secondary/70 hover:text-primary",
-                )}
+          <DropdownMenu open={showAll} onOpenChange={setShowAll}>
+            <Popover open={showStuckHint} onOpenChange={setShowStuckHint}>
+              {/* Anchor (not Trigger) for the stuck-hint popover — its open
+                  state is driven by the 45s timer above, not by a click on
+                  this button. The button's actual click is spoken for by
+                  DropdownMenuTrigger just inside; both wrap the same node,
+                  which Radix's asChild composes onto cleanly. */}
+              <PopoverAnchor asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setShowStuckHint(false)}
+                    className={cn(
+                      "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
+                      showAll
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-border/60 bg-secondary/40 text-foreground/80 hover:border-primary/40 hover:bg-secondary/70 hover:text-primary",
+                    )}
+                  >
+                    <ShuffleIcon
+                      className={cn(
+                        "size-3.5",
+                        showStuckHint && !showAll && "animate-pulse text-primary",
+                      )}
+                    />
+                    {showAll ? t("common.cancel") : t("watch.notWorking")}
+                  </button>
+                </DropdownMenuTrigger>
+              </PopoverAnchor>
+              <PopoverContent
+                side="bottom"
+                align="end"
+                sideOffset={8}
+                className="w-72 p-3.5 text-sm"
+                onOpenAutoFocus={(e) => e.preventDefault()}
               >
-                <ShuffleIcon
+                <p className="font-medium">{t("watch.stuckModalTitle")}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t("watch.stuckModalBody")}
+                </p>
+                {/* Stacked, not side-by-side — two buttons with real labels
+                    ("Переключить источник" plus an icon, next to "Всё
+                    хорошо") never actually fit next to each other in a
+                    popover this narrow; they just overflowed its edge. A
+                    full-width primary action with the dismiss as a plain
+                    link below it fits regardless of label length. */}
+                <div className="mt-3 flex flex-col gap-2">
+                  <Button size="sm" onClick={switchNow} className="w-full">
+                    <ShuffleIcon />
+                    {t("watch.stuckModalSwitch")}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowStuckHint(false)}
+                    className="self-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {t("watch.stuckModalDismiss")}
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* A real dropdown, not an inline block pushing the player down
+                — narrow (a handful of sources at most, so it never needs to
+                be wide) and positioned by Radix itself, which flips above
+                the trigger on its own when there isn't room below. Only
+                sources the server hasn't already confirmed dead show up
+                here at all (see `pickable`), deduplicated by dub name — a
+                pick from this list is one that should actually work. */}
+            <DropdownMenuContent align="end" className="w-56">
+              {pickable.map((source) => (
+                <DropdownMenuItem
+                  key={source.id}
+                  onSelect={() => pick(source.id)}
                   className={cn(
-                    "size-3.5",
-                    showStuckHint && !showAll && "animate-pulse text-primary",
+                    "gap-2 text-xs",
+                    source.id === displaySource.id && "bg-primary/10 font-medium text-primary",
                   )}
-                />
-                {showAll ? t("common.cancel") : t("watch.notWorking")}
-              </button>
-            </PopoverAnchor>
-            <PopoverContent
-              side="bottom"
-              align="end"
-              sideOffset={8}
-              className="w-72 p-3.5 text-sm"
-              onOpenAutoFocus={(e) => e.preventDefault()}
-            >
-              <p className="font-medium">{t("watch.stuckModalTitle")}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {t("watch.stuckModalBody")}
-              </p>
-              {/* Stacked, not side-by-side — two buttons with real labels
-                  ("Переключить источник" plus an icon, next to "Всё
-                  хорошо") never actually fit next to each other in a
-                  popover this narrow; they just overflowed its edge. A
-                  full-width primary action with the dismiss as a plain
-                  link below it fits regardless of label length. */}
-              <div className="mt-3 flex flex-col gap-2">
-                <Button size="sm" onClick={switchNow} className="w-full">
-                  <ShuffleIcon />
-                  {t("watch.stuckModalSwitch")}
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setShowStuckHint(false)}
-                  className="self-center text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  {t("watch.stuckModalDismiss")}
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full",
+                      source.id === displaySource.id ? "bg-primary" : "bg-border",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {sourceLabel(source, t)}
+                  </span>
+                  <StabilityMark stable={source.stable} />
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
@@ -1300,37 +1371,6 @@ function Player({
             <RefreshCwIcon />
             {t("watch.retry")}
           </Button>
-        </div>
-      )}
-
-      {pickerOpen && alternatives.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card/40 p-1.5">
-          {data.sources.map((source) => (
-            <button
-              key={source.id}
-              type="button"
-              onClick={() => pick(source.id)}
-              aria-current={source.id === displaySource.id}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
-                source.id === displaySource.id
-                  ? "bg-primary/10 font-medium text-primary"
-                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  source.id === displaySource.id ? "bg-primary" : "bg-border",
-                )}
-              />
-              <span className="min-w-0 flex-1 truncate">
-                {sourceLabel(source, t)}
-              </span>
-              <StabilityMark stable={source.stable} />
-            </button>
-          ))}
         </div>
       )}
 
