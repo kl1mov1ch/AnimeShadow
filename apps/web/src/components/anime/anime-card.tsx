@@ -59,7 +59,11 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
       to={animeHref(anime)}
       className={cn("group flex flex-col gap-2 outline-none", className)}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border/60 bg-muted transition-[border-color,transform] duration-300 group-hover:-translate-y-0.5 group-hover:border-border group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:border-primary/30 group-hover:shadow-xl group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
+        {/* Everything below is opacity/transform only — nothing that forces
+            a repaint on scroll — and all of it sits behind `group-hover:`,
+            which Tailwind v4 compiles into `@media (hover: hover)`, so a
+            phone never runs any of it. */}
         {anime.imageUrl ? (
           <img
             src={imageSrc(anime.imageUrl)}

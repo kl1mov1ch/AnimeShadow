@@ -88,13 +88,23 @@ export function PaginationBar({
           />
         </PaginationItem>
 
+        {/* The numbers cascade in as the window slides, so paging forward
+            reads as movement rather than a silent swap. Entry only — no
+            looping animation to keep running afterwards. */}
         {items.map((item, index) =>
           item === "…" ? (
             <PaginationItem key={`gap-${index}`} className="hidden sm:list-item">
               <PaginationEllipsis />
             </PaginationItem>
           ) : (
-            <PaginationItem key={item} className="hidden sm:list-item">
+            <PaginationItem
+              key={item}
+              className="animate-in fade-in zoom-in-95 hidden duration-300 sm:list-item"
+              style={{
+                animationDelay: `${index * 30}ms`,
+                animationFillMode: "backwards",
+              }}
+            >
               <PaginationLink to={buildHref(item)} isActive={item === page}>
                 {item}
               </PaginationLink>
@@ -102,9 +112,14 @@ export function PaginationBar({
           ),
         )}
 
+        {/* A phone has no room for the number row, so it gets the same
+            information as a compact readout — the current page carried in
+            the site colour rather than a flat grey fraction. */}
         <PaginationItem className="sm:hidden">
-          <span className="px-3 text-sm text-muted-foreground tabular-nums">
-            {page} / {totalPages}
+          <span className="flex items-baseline gap-1 px-3 text-sm tabular-nums">
+            <span className="font-semibold text-primary">{page}</span>
+            <span className="text-muted-foreground/60">/</span>
+            <span className="text-muted-foreground">{totalPages}</span>
           </span>
         </PaginationItem>
 
