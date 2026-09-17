@@ -328,8 +328,18 @@ function CinematicHeader({
       <div className="relative flex min-h-[260px] flex-col justify-end p-4 sm:min-h-[300px] sm:p-6">
         {/* Everything the viewer needs to read or click sits on its own
             panel — lighter than before so the photo still reads through it,
-            while staying solid enough to keep text legible over busy art. */}
-        <div className="flex flex-col gap-3 rounded-xl bg-background/45 p-4 shadow-lg backdrop-blur-md sm:p-5">
+            while staying solid enough to keep text legible over busy art.
+            It fades up on arrival rather than snapping in; the banner
+            itself deliberately stays static (see the note on the image
+            above — a pan would soften artwork that sits on screen for
+            minutes at a time). */}
+        <div className="animate-in fade-in slide-in-from-bottom-2 relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-background/45 p-4 shadow-xl shadow-black/20 backdrop-blur-md duration-500 sm:p-5">
+          {/* The site's own hairline, the same one under the header and
+              across the search panel. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+          />
           {children}
         </div>
       </div>

@@ -431,9 +431,20 @@ function NavButton({ side, onClick }: { side: "left" | "right"; onClick: () => v
       type="button"
       onClick={onClick}
       aria-label={side === "left" ? t("common.previous") : t("common.next")}
-      className="grid size-9 shrink-0 place-items-center rounded-full text-foreground/80 transition-[background-color,color,transform] hover:bg-foreground/10 hover:text-foreground active:scale-90"
+      className="group relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-full text-foreground/80 transition-[background-color,color,transform] hover:bg-foreground/10 hover:text-foreground active:scale-90"
     >
-      {side === "left" ? <ChevronLeftIcon className="size-5" /> : <ChevronRightIcon className="size-5" />}
+      {/* The arrow leans the way it's about to take you — the same nudge the
+          pagination arrows use, so stepping through slides and stepping
+          through pages feel like the same gesture. */}
+      {side === "left" ? (
+        <ChevronLeftIcon className="relative z-10 size-5 transition-transform duration-200 group-hover:-translate-x-0.5" />
+      ) : (
+        <ChevronRightIcon className="relative z-10 size-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+      )}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+      />
     </button>
   );
 }
