@@ -14,6 +14,11 @@
          reads none of the manifest fields that cover it on every other
          platform (icon, standalone display, status bar tinting). -->
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <!-- The standards-track name, for Chrome/Edge/other engines that honour
+         it — apple-mobile-web-app-capable below is now deprecated in
+         Chromium's own eyes, but Safari still only recognises that one, so
+         both ship rather than picking one and dropping iOS or everyone else. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AnimeShadow" />

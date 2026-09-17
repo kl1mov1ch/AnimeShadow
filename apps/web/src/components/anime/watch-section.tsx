@@ -412,19 +412,26 @@ function viableSources(sources: WatchSource[]): WatchSource[] {
 }
 
 /**
- * A source already confirmed reachable (`stable === true`) — AniLibria,
- * almost always, since it's ranked to win that spot whenever it has the
- * title — is trusted alone instead of raced against a lower-ranked pick.
- * Racing it anyway was the actual bug: a merely-faster Kodik/Alloha mirror
- * could "win" over the pick the stability probe had already verified,
- * purely on timing, so the confirmed-good default rarely got shown. Only a
- * genuinely uncertain top pick (never probed, or its own last probe failed)
- * still races two at once as a hedge.
+ * A source already confirmed reachable (`stable === true`), or our own HLS
+ * player (AniLibria — ranked to lead outright whenever it has the title, see
+ * rankSource server-side), is trusted alone instead of raced against a
+ * lower-ranked pick. Racing either was a real bug, just two different
+ * shapes of it: a merely-faster Kodik/Alloha mirror could "win" over a pick
+ * the stability probe had already verified, purely on timing; and the HLS
+ * player specifically could never win a fair race even when it *was* the
+ * better pick — its "ready" signal is genuinely later (hls.js's chunk,
+ * fetching the manifest, then the first segment) than an iframe's `onLoad`,
+ * which fires the instant the embed's outer document loads, nowhere near
+ * "the video is actually ready". Racing them on load order alone meant the
+ * ranked-first custom player almost always lost to a plain iframe regardless
+ * of rank. Only a genuinely uncertain top pick (a third-party iframe, never
+ * probed or its last probe failed) still races two at once as a hedge.
  */
 function initialRacePool(sources: WatchSource[]): string[] {
   const viable = viableSources(sources);
-  const poolSize = viable[0]?.stable === true ? 1 : RACE_SIZE;
-  return viable.slice(0, poolSize).map((s) => s.id);
+  const top = viable[0];
+  const trustAlone = top != null && (top.stable === true || top.format === "hls");
+  return viable.slice(0, trustAlone ? 1 : RACE_SIZE).map((s) => s.id);
 }
 
 /** The URL to actually load right now — for an "hls" source this genuinely
