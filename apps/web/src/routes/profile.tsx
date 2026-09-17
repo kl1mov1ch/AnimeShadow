@@ -205,30 +205,40 @@ function OwnView() {
             value="progress"
             icon={PlayCircleIcon}
             label={t("profile.tabs.progress")}
-            hue="sky"
           />
           <ProfileTabTrigger
             value="settings"
             icon={SettingsIcon}
             label={t("profile.tabs.settings")}
-            hue="violet"
           />
           <ProfileTabTrigger
             value="achievements"
             icon={TrophyIcon}
             label={t("profile.tabs.achievements")}
-            hue="amber"
           />
         </TabsList>
 
+        {/* Switching tabs used to swap content instantly, which read as a
+            jump rather than a move. Each panel now fades and rises the
+            moment it mounts — Radix unmounts the inactive ones, so the
+            animation replays on every switch without any state of its own. */}
         <div className="min-w-0">
-          <TabsContent value="progress">
+          <TabsContent
+            value="progress"
+            className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
             <ProgressTab profile={profile} />
           </TabsContent>
-          <TabsContent value="settings">
+          <TabsContent
+            value="settings"
+            className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
             <SettingsTab profile={profile} />
           </TabsContent>
-          <TabsContent value="achievements">
+          <TabsContent
+            value="achievements"
+            className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
             <AchievementsTab />
           </TabsContent>
         </div>
@@ -237,35 +247,37 @@ function OwnView() {
   );
 }
 
-const TAB_HUE: Record<"sky" | "violet" | "amber", string> = {
-  sky: "data-[state=active]:border-sky-500/30 data-[state=active]:bg-sky-500/15 data-[state=active]:text-sky-600 dark:data-[state=active]:text-sky-400",
-  violet:
-    "data-[state=active]:border-violet-500/30 data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-600 dark:data-[state=active]:text-violet-400",
-  amber:
-    "data-[state=active]:border-amber-500/30 data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400",
-};
-
+/**
+ * Three tabs used to mean three unrelated accent colours — sky, violet,
+ * amber — which made the rail read as a paint chart rather than as one
+ * control. They now share the site's own pill language: a gradient fill
+ * for wherever you are, a quiet lift for everywhere else, and the same
+ * band of light every other button here sweeps on hover.
+ */
 function ProfileTabTrigger({
   value,
   icon: Icon,
   label,
-  hue,
 }: {
   value: ProfileTab;
   icon: typeof PlayCircleIcon;
   label: string;
-  hue: keyof typeof TAB_HUE;
 }) {
   return (
     <TabsTrigger
       value={value}
       className={cn(
-        "h-auto flex-none justify-start gap-2 rounded-lg border-transparent px-3.5 py-2 text-foreground/70 transition-colors duration-200 sm:px-4 lg:w-full",
-        TAB_HUE[hue],
+        "group relative h-auto flex-none justify-start gap-2 overflow-hidden rounded-full border-transparent px-3.5 py-2 text-foreground/70 transition-all duration-200 sm:px-4 lg:w-full",
+        "hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
+        "data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:via-primary/85 data-[state=active]:to-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:hover:translate-y-0",
       )}
     >
-      <Icon className="size-4 shrink-0" />
-      {label}
+      <Icon className="relative z-10 size-4 shrink-0" />
+      <span className="relative z-10">{label}</span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%] group-data-[state=active]:via-white/30"
+      />
     </TabsTrigger>
   );
 }
@@ -753,14 +765,18 @@ function StatsGrid({ stats }: { stats: ProfileStats }) {
       {cards.map(({ icon: Icon, label, value }, i) => (
         <div
           key={label}
-          className="reveal flex h-full flex-col justify-between gap-2.5 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] to-transparent p-4"
+          className="reveal group relative flex h-full flex-col justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] to-transparent p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10"
           style={{ "--i": i } as CSSProperties}
         >
-          <span className="flex w-fit items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs text-primary/90">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+          />
+          <span className="relative z-10 flex w-fit items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs text-primary/90">
             <Icon className="size-3.5 shrink-0" />
             <span className="truncate">{label}</span>
           </span>
-          <span className="min-w-0 truncate font-display text-lg leading-tight tabular-nums sm:text-xl">
+          <span className="relative z-10 min-w-0 truncate font-display text-lg leading-tight tabular-nums sm:text-xl">
             {value}
           </span>
         </div>
@@ -868,8 +884,11 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
         />
         {rows.length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
+            {/* The same focus-blooming pill as the header and catalogue
+                search fields, so every search box on the site behaves
+                identically. */}
+            <div className="group relative">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-primary" />
               <input
                 type="text"
                 value={query}
@@ -878,7 +897,7 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
                   resetPage();
                 }}
                 placeholder={t("profile.progress.searchPlaceholder")}
-                className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-48"
+                className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-all duration-200 focus:border-primary/50 focus:bg-card focus:ring-4 focus:ring-primary/15 sm:w-48"
               />
             </div>
             <Select
@@ -1080,8 +1099,15 @@ function SettingsRow({
   return (
     <div>
       {header}
+      {/* Opens with a fade and a small rise rather than appearing outright.
+          Still conditionally mounted: keeping a collapsed form in the DOM
+          just to animate its height would leave its inputs reachable by
+          keyboard while invisible, which is a worse bug than an instant
+          close. */}
       {expanded && children && (
-        <div className="flex flex-col gap-3 px-4 pb-4 pt-1">{children}</div>
+        <div className="animate-in fade-in slide-in-from-top-1 flex flex-col gap-3 px-4 pb-4 pt-1 duration-200">
+          {children}
+        </div>
       )}
     </div>
   );
@@ -1971,11 +1997,11 @@ function GenrePreferencesSection() {
               disabled={locked}
               onClick={() => toggle(g.id)}
               className={cn(
-                "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                "rounded-full border px-2.5 py-1 text-xs transition-all duration-200",
                 locked && "cursor-not-allowed opacity-50",
                 on
-                  ? "border-primary/50 bg-primary/15 text-primary"
-                  : "border-border/60 text-muted-foreground hover:text-foreground",
+                  ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
+                  : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
               )}
             >
               {labels.genreLabel(g.name)}
@@ -2091,7 +2117,7 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
           <div
-            className="h-full rounded-full bg-primary transition-[width] duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-primary/70 via-primary to-primary shadow-[0_0_12px_-2px_var(--primary)] transition-[width] duration-700 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -2103,10 +2129,10 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
               aria-pressed={filter === f}
               onClick={() => setFilter(f)}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs transition-colors",
+                "group relative overflow-hidden rounded-full border px-3 py-1 text-xs transition-all duration-200",
                 filter === f
-                  ? "border-primary/50 bg-primary/15 text-primary"
-                  : "border-border/60 text-muted-foreground hover:text-foreground",
+                  ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
+                  : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
               )}
             >
               {t(
