@@ -28,10 +28,16 @@ export function CookieConsent() {
     return () => clearTimeout(id);
   }, []);
 
-  const dismiss = () => {
+  /**
+   * Both answers are remembered, and remembered distinctly — "declined" is
+   * not the same fact as "accepted", even though nothing on the site reads
+   * it yet (there is no analytics or ad script gated behind it today). If
+   * one ever gets added, this is the flag it has to respect.
+   */
+  const choose = (accepted: boolean) => {
     setVisible(false);
     try {
-      localStorage.setItem(STORAGE_KEY, "1");
+      localStorage.setItem(STORAGE_KEY, accepted ? "accepted" : "declined");
     } catch {
       /* ignore */
     }
@@ -46,8 +52,8 @@ export function CookieConsent() {
     >
       <button
         type="button"
-        onClick={dismiss}
-        aria-label={t("common.cancel")}
+        onClick={() => choose(false)}
+        aria-label={t("cookies.decline")}
         className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
       >
         <XIcon className="size-3.5" />
@@ -56,9 +62,30 @@ export function CookieConsent() {
         <CookieIcon className="mt-0.5 size-4 shrink-0 text-primary" />
         <p className="text-xs leading-relaxed text-muted-foreground">{t("cookies.text")}</p>
       </div>
-      <Button size="sm" className="mt-3 w-full" onClick={dismiss}>
-        {t("cookies.accept")}
-      </Button>
+      {/* Two visible answers, not one button and a corner cross — declining
+          should be as findable as accepting, not something you have to
+          work out for yourself. */}
+      <div className="mt-3 flex gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="flex-1 text-muted-foreground hover:text-foreground"
+          onClick={() => choose(false)}
+        >
+          {t("cookies.decline")}
+        </Button>
+        <Button
+          size="sm"
+          className="group relative flex-1 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:shadow-md hover:shadow-primary/35"
+          onClick={() => choose(true)}
+        >
+          <span className="relative z-10">{t("cookies.accept")}</span>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+          />
+        </Button>
+      </div>
     </div>
   );
 }

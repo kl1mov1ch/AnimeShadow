@@ -1,6 +1,4 @@
 import type { CSSProperties } from "react";
-import { XIcon } from "lucide-react";
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimeRail } from "@/components/anime/anime-rail";
 import {
@@ -60,7 +58,6 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-12">
-      {!isAuthed && <FirstVisitStrip />}
 
       {isPending || !data ? (
         <SpotlightSkeleton />
@@ -159,47 +156,3 @@ export function Component() {
   );
 }
 
-function FirstVisitStrip() {
-  const t = useT();
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return localStorage.getItem("animeshadow.fv") === "1";
-    } catch {
-      return false;
-    }
-  });
-  if (dismissed) return null;
-
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-4 py-3 text-sm">
-      <span aria-hidden className="text-lg text-primary">
-        影
-      </span>
-      <div className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-        <span className="font-medium">{t("home.firstVisit.title")}</span>
-        <span className="text-muted-foreground">{t("home.firstVisit.text")}</span>
-      </div>
-      <Link
-        to="/about"
-        className="shrink-0 font-medium text-primary hover:text-primary/80"
-      >
-        {t("home.firstVisit.link")}
-      </Link>
-      <button
-        type="button"
-        aria-label={t("common.close")}
-        className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={() => {
-          setDismissed(true);
-          try {
-            localStorage.setItem("animeshadow.fv", "1");
-          } catch {
-            /* ignore */
-          }
-        }}
-      >
-        <XIcon className="size-4" />
-      </button>
-    </div>
-  );
-}

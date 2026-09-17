@@ -3,7 +3,8 @@ export const en = {
   nav: { discover: "Discover", browse: "Browse", library: "My list", admin: "Admin" },
   cookies: {
     text: "This site uses cookies to keep you signed in and remember your preferences.",
-    accept: "Got it",
+    accept: "Accept",
+    decline: "Decline",
   },
   common: {
     search: "Search anime",

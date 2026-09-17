@@ -129,8 +129,16 @@ function FooterLink({ to, children }: { to: string; children: React.ReactNode })
   return (
     <Link
       to={to}
-      className="text-muted-foreground transition-colors hover:text-foreground"
+      // Deliberately quieter than the header's nav pills: the same nudge on
+      // hover, but no fill, no lift and no sweep. The footer is where you
+      // look when you already know what you want — it should never pull
+      // harder than the navigation at the top of the page.
+      className="group inline-flex w-fit items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
     >
+      <span
+        aria-hidden
+        className="h-px w-0 bg-primary/70 transition-all duration-300 group-hover:w-3"
+      />
       {children}
     </Link>
   );

@@ -5,7 +5,8 @@ export const ru: Dict = {
   nav: { discover: "Обзор", browse: "Каталог", library: "Мой список", admin: "Админка" },
   cookies: {
     text: "Сайт использует куки, чтобы не разлогинивать вас и помнить настройки.",
-    accept: "Понятно",
+    accept: "Принять",
+    decline: "Отказаться",
   },
   common: {
     search: "Поиск аниме",

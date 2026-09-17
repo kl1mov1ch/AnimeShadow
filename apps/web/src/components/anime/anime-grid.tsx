@@ -3,8 +3,12 @@ import { AnimeCard, AnimeCardSkeleton } from "@/components/anime/anime-card";
 import { AnimeListRow, AnimeListRowSkeleton } from "@/components/anime/anime-list-row";
 import { cn } from "@/lib/utils";
 
+// Column counts that all divide the catalogue's 20-per-page evenly (20 = 2x10
+// = 4x5 = 5x4), so the last row is always full instead of trailing two lonely
+// cards. The old ladder included 3 and 6, neither of which divides 20 — which
+// is exactly where the stranded last row came from.
 const GRID_CLASS =
-  "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
+  "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-5";
 const LIST_CLASS = "flex flex-col gap-2.5";
 
 export type AnimeViewMode = "grid" | "list";
