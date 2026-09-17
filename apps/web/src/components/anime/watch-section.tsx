@@ -2,18 +2,33 @@ import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/share
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  GaugeIcon,
   Loader2Icon,
   Maximize2Icon,
+  Minimize2Icon,
+  PauseIcon,
+  PictureInPicture2Icon,
+  PlayIcon,
   RefreshCwIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
   ShuffleIcon,
+  Volume2Icon,
+  VolumeXIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
@@ -425,37 +440,93 @@ function sourceUrlFor(source: WatchSource, episode: number): string | null {
   );
 }
 
+/** How long the control bar stays up after the last interaction once
+ * playback is under way — long enough to read the time/title, short
+ * enough to get out of the way of the actual video. */
+const CONTROLS_HIDE_MS = 2600;
+const SKIP_SECONDS = 10;
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
+}
+
 /**
  * A direct HLS stream (AniLibria) — Safari plays `.m3u8` natively, everything
  * else needs hls.js, loaded lazily so the ~50 KB of it never ships to a
  * visitor whose sources are all plain iframes. Reloads on every `src` change
- * (an episode switch) without remounting the element, so the same racing/
- * fullscreen refs stay valid across it.
+ * (an episode switch) without remounting the element, so playback state and
+ * the fullscreen target stay valid across it.
+ *
+ * Ships its own control bar instead of the browser's native `<video
+ * controls>` — a third-party iframe (Kodik/Alloha) already brings its own
+ * player UI; this is the one source where AnimeShadow *is* the player, so it
+ * gets to look like the rest of the site (rounded pills, the primary accent
+ * on the seek bar) instead of whatever the platform's stock controls render.
  */
-function HlsVideo({
+function CustomHlsPlayer({
   src,
   isWinner,
   onReady,
   onPlayingChange,
-  mediaRef,
 }: {
   src: string;
   isWinner: boolean;
   onReady: () => void;
   /** Only ever fires for the winner — a deliberate pause shouldn't count as "stuck". */
   onPlayingChange: (playing: boolean) => void;
-  mediaRef: (el: HTMLVideoElement | null) => void;
 }) {
-  const elRef = useRef<HTMLVideoElement | null>(null);
-
+  const t = useT();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Read from the src-loading effect below without re-running it on every
+  // isWinner flip — it only needs to know, at the moment a *new episode's*
+  // manifest finishes loading, whether to resume playback automatically.
+  const isWinnerRef = useRef(isWinner);
   useEffect(() => {
-    const video = elRef.current;
+    isWinnerRef.current = isWinner;
+  }, [isWinner]);
+
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [speed, setSpeed] = useState(1);
+  const [buffering, setBuffering] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+
+  // Load the manifest — native on Safari, hls.js everywhere else. Resumes
+  // playback itself if this load was triggered by switching episodes while
+  // already the winner (assigning a fresh `src` otherwise leaves autoplay
+  // up to the browser, which usually just... doesn't).
+  useEffect(() => {
+    const video = videoRef.current;
     if (!video) return;
     let hls: { destroy: () => void } | null = null;
     let cancelled = false;
 
+    const resumeIfWinner = () => {
+      if (!isWinnerRef.current) return;
+      video.muted = false;
+      void video.play().catch(() => undefined);
+    };
+
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
+      resumeIfWinner();
     } else {
       void import("hls.js").then(({ default: Hls }) => {
         if (cancelled) return;
@@ -463,11 +534,13 @@ function HlsVideo({
           const instance = new Hls({ enableWorker: true });
           instance.loadSource(src);
           instance.attachMedia(video);
+          instance.on(Hls.Events.MANIFEST_PARSED, resumeIfWinner);
           hls = instance;
         } else {
           // No native support and hls.js says it can't help either — set it
           // anyway; a handful of very old browsers still get lucky.
           video.src = src;
+          resumeIfWinner();
         }
       });
     }
@@ -478,30 +551,434 @@ function HlsVideo({
     };
   }, [src]);
 
+  // Only the winner actually plays and makes sound — every other racer
+  // sits muted and paused behind it until it either wins or is dropped.
   useEffect(() => {
-    const video = elRef.current;
+    const video = videoRef.current;
     if (!video) return;
-    video.muted = !isWinner;
-    if (isWinner) void video.play().catch(() => undefined);
-    else video.pause();
+    if (isWinner) {
+      video.muted = false;
+      void video.play().catch(() => undefined);
+    } else {
+      video.muted = true;
+      video.pause();
+    }
   }, [isWinner]);
 
+  // Native media events -> our own state, so the bar below is drawn from
+  // the element's real state instead of guessed at.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onTimeUpdate = () => setCurrentTime(video.currentTime);
+    const onDurationChange = () =>
+      setDuration(Number.isFinite(video.duration) ? video.duration : 0);
+    const onProgress = () => {
+      const ranges = video.buffered;
+      setBuffered(ranges.length > 0 ? ranges.end(ranges.length - 1) : 0);
+    };
+    const onPlay = () => {
+      setPlaying(true);
+      if (isWinner) onPlayingChange(true);
+    };
+    const onPause = () => {
+      setPlaying(false);
+      if (isWinner) onPlayingChange(false);
+    };
+    const onWaiting = () => setBuffering(true);
+    const onPlaying = () => setBuffering(false);
+    const onVolumeChange = () => {
+      setVolume(video.volume);
+      setMuted(video.muted);
+    };
+    const onRateChange = () => setSpeed(video.playbackRate);
+
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("durationchange", onDurationChange);
+    video.addEventListener("progress", onProgress);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("waiting", onWaiting);
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("volumechange", onVolumeChange);
+    video.addEventListener("ratechange", onRateChange);
+    return () => {
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("durationchange", onDurationChange);
+      video.removeEventListener("progress", onProgress);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("waiting", onWaiting);
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("volumechange", onVolumeChange);
+      video.removeEventListener("ratechange", onRateChange);
+    };
+  }, [isWinner, onPlayingChange]);
+
+  useEffect(() => {
+    const onFsChange = () =>
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  // Auto-hide once playback is running and nothing's been touched for a
+  // bit; paused always keeps the bar up (nothing else to look at then).
+  const wake = () => {
+    setControlsVisible(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (playing) {
+      hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_MS);
+    }
+  };
+  useEffect(() => {
+    wake();
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) void video.play().catch(() => undefined);
+    else video.pause();
+    wake();
+  };
+
+  const skip = (delta: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = Math.min(
+      Math.max(0, video.currentTime + delta),
+      video.duration || Number.POSITIVE_INFINITY,
+    );
+    wake();
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    if (!video.muted && video.volume === 0) video.volume = 1;
+    wake();
+  };
+
+  const changeVolume = (next: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = next;
+    video.muted = next === 0;
+    wake();
+  };
+
+  const changeSpeed = (rate: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = rate;
+    setSpeedMenuOpen(false);
+    wake();
+  };
+
+  /** iOS Safari has no arbitrary-element fullscreen at all — only the
+   * `<video>` itself can go fullscreen there. Everywhere else, the whole
+   * container goes fullscreen so our own control bar stays on top of the
+   * video instead of disappearing along with it. */
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    const video = videoRef.current as
+      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+      | null;
+    if (video?.webkitEnterFullscreen && !document.fullscreenEnabled) {
+      video.webkitEnterFullscreen();
+      return;
+    }
+    const container = containerRef.current as
+      | (HTMLDivElement & { webkitRequestFullscreen?: () => void })
+      | null;
+    const request =
+      container?.requestFullscreen?.bind(container) ??
+      container?.webkitRequestFullscreen?.bind(container);
+    request?.();
+  };
+
+  const togglePip = () => {
+    const video = videoRef.current as
+      | (HTMLVideoElement & { requestPictureInPicture?: () => Promise<unknown> })
+      | null;
+    if (!video?.requestPictureInPicture) return;
+    if (document.pictureInPictureElement) {
+      void document.exitPictureInPicture().catch(() => undefined);
+    } else {
+      void video.requestPictureInPicture().catch(() => undefined);
+    }
+  };
+
+  // Keyboard shortcuts — only the actual winner responds, and never while
+  // an input/textarea elsewhere on the page (the episode number field, a
+  // comment box) is what the keystroke was actually meant for.
+  useEffect(() => {
+    if (!isWinner) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(input|textarea)$/i.test(target.tagName)) return;
+      const video = videoRef.current;
+      if (!video) return;
+      switch (e.key.toLowerCase()) {
+        case " ":
+        case "k":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "arrowleft":
+          skip(-5);
+          break;
+        case "arrowright":
+          skip(5);
+          break;
+        case "arrowup":
+          e.preventDefault();
+          changeVolume(Math.min(1, video.volume + 0.05));
+          break;
+        case "arrowdown":
+          e.preventDefault();
+          changeVolume(Math.max(0, video.volume - 0.05));
+          break;
+        case "m":
+          toggleMute();
+          break;
+        case "f":
+          toggleFullscreen();
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWinner]);
+
+  const shownTime = scrubTime ?? currentTime;
+  const bufferedPct = duration > 0 ? Math.min(100, (buffered / duration) * 100) : 0;
+  const canPip =
+    typeof document !== "undefined" &&
+    "pictureInPictureEnabled" in document &&
+    document.pictureInPictureEnabled;
+
   return (
-    <video
-      ref={(el) => {
-        elRef.current = el;
-        mediaRef(el);
-      }}
-      playsInline
-      muted
-      controls={isWinner}
-      onCanPlay={onReady}
-      onPlay={() => isWinner && onPlayingChange(true)}
-      onPause={() => isWinner && onPlayingChange(false)}
-      className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
-      tabIndex={isWinner ? undefined : -1}
-      aria-hidden={isWinner ? undefined : true}
-    />
+    <div
+      ref={containerRef}
+      className={cn(
+        "absolute inset-0 size-full bg-black",
+        !isWinner && "pointer-events-none opacity-0",
+      )}
+      onMouseMove={wake}
+      onTouchStart={wake}
+    >
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        onCanPlay={onReady}
+        className="absolute inset-0 size-full"
+        tabIndex={-1}
+      />
+
+      {isWinner && (
+        <>
+          {/* Tap/click anywhere on the video toggles play — the bar below
+              handles everything else. Sits under the centred play button
+              (rendered after, so it wins the hit test in that one spot). */}
+          <button
+            type="button"
+            aria-label={playing ? t("watch.pause") : t("watch.play")}
+            onClick={togglePlay}
+            className="absolute inset-0 cursor-pointer"
+          />
+
+          {playing && buffering && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <Loader2Icon className="size-8 animate-spin text-white/80" />
+            </div>
+          )}
+
+          {!playing && (
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={t("watch.play")}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <span className="flex size-16 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur transition-transform hover:scale-105">
+                <PlayIcon className="size-7 fill-current" />
+              </span>
+            </button>
+          )}
+
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3 pb-2 pt-8 transition-opacity duration-300",
+              controlsVisible ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+          >
+            <div className="group relative flex h-4 items-center">
+              <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/20">
+                <div className="h-full bg-white/35" style={{ width: `${bufferedPct}%` }} />
+              </div>
+              <Slider
+                value={[shownTime]}
+                min={0}
+                max={duration || 0}
+                step={0.1}
+                onValueChange={([v]) => setScrubTime(v ?? 0)}
+                onValueCommit={([v]) => {
+                  const video = videoRef.current;
+                  if (video && v != null) video.currentTime = v;
+                  setScrubTime(null);
+                  wake();
+                }}
+                className="relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-range]]:bg-primary group-hover:[&_[data-slot=slider-thumb]]:opacity-100"
+              />
+            </div>
+
+            <div className="flex items-center gap-0.5 text-white">
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={playing ? t("watch.pause") : t("watch.play")}
+                className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15"
+              >
+                {playing ? (
+                  <PauseIcon className="size-4 fill-current" />
+                ) : (
+                  <PlayIcon className="size-4 fill-current" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => skip(-SKIP_SECONDS)}
+                aria-label={t("watch.skipBack")}
+                className="hidden size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:flex"
+              >
+                <RotateCcwIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => skip(SKIP_SECONDS)}
+                aria-label={t("watch.skipForward")}
+                className="hidden size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:flex"
+              >
+                <RotateCwIcon className="size-4" />
+              </button>
+
+              {/* Volume — a hover-reveal slider where hover exists at all; a
+                  phone just gets the mute toggle (dragging a sliver-thin
+                  slider on touch fights the page's own scroll gesture). */}
+              <div className="group hidden items-center sm:flex">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
+                  className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                >
+                  {muted || volume === 0 ? (
+                    <VolumeXIcon className="size-4" />
+                  ) : (
+                    <Volume2Icon className="size-4" />
+                  )}
+                </button>
+                <div className="w-0 overflow-hidden transition-all group-hover:w-16 group-focus-within:w-16">
+                  <Slider
+                    value={[muted ? 0 : volume]}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onValueChange={([v]) => changeVolume(v ?? 0)}
+                    className="w-16 px-1 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-track]]:h-1"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={toggleMute}
+                aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
+                className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:hidden"
+              >
+                {muted || volume === 0 ? (
+                  <VolumeXIcon className="size-4" />
+                ) : (
+                  <Volume2Icon className="size-4" />
+                )}
+              </button>
+
+              <span className="ml-1 shrink-0 text-xs tabular-nums text-white/80">
+                {formatTime(shownTime)} / {formatTime(duration)}
+              </span>
+
+              <span className="ml-auto flex shrink-0 items-center gap-0.5">
+                <Popover open={speedMenuOpen} onOpenChange={setSpeedMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t("watch.speed")}
+                      className="flex h-8 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/15"
+                    >
+                      <GaugeIcon className="size-3.5" />
+                      {speed}x
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent side="top" align="end" className="w-28 p-1">
+                    {SPEED_OPTIONS.map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => changeSpeed(rate)}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
+                          rate === speed
+                            ? "bg-primary/10 font-medium text-primary"
+                            : "text-foreground/80 hover:bg-secondary/60",
+                        )}
+                      >
+                        {rate}x
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+
+                {canPip && (
+                  <button
+                    type="button"
+                    onClick={togglePip}
+                    aria-label={t("watch.pip")}
+                    className="hidden size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:flex"
+                  >
+                    <PictureInPicture2Icon className="size-4" />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  aria-label={isFullscreen ? t("watch.exitFullscreen") : t("watch.fullscreen")}
+                  className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                >
+                  {isFullscreen ? (
+                    <Minimize2Icon className="size-4" />
+                  ) : (
+                    <Maximize2Icon className="size-4" />
+                  )}
+                </button>
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -689,36 +1166,6 @@ function Player({
     setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
   };
 
-  const winnerMediaRef = useRef<HTMLIFrameElement | HTMLVideoElement | null>(null);
-  /**
-   * Our own button only ever targets the real `<video>` element behind an
-   * HLS (AniLibria) source — a same-origin element the Fullscreen API
-   * genuinely works on everywhere, `webkitEnterFullscreen` covering the one
-   * gap (iOS Safari, which has no arbitrary-element fullscreen at all).
-   * A third-party iframe (Kodik/Alloha) is cross-origin: nothing outside it
-   * can put it into fullscreen, so for those the button used to render but
-   * silently do nothing — duplicating the working fullscreen control the
-   * embed's own player already shows (permitted via `allow="fullscreen"`).
-   * Rather than ship a second, broken button next to a working one, it's
-   * simply not rendered for iframe sources — see the `winner?.format`
-   * check below.
-   */
-  const enterFullscreen = () => {
-    const video = winnerMediaRef.current;
-    if (!(video instanceof HTMLVideoElement)) return;
-    const nativeVideo = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
-    if (nativeVideo.webkitEnterFullscreen && !document.fullscreenEnabled) {
-      nativeVideo.webkitEnterFullscreen();
-      return;
-    }
-    const request =
-      video.requestFullscreen?.bind(video) ??
-      (
-        video as unknown as { webkitRequestFullscreen?: () => void }
-      ).webkitRequestFullscreen?.bind(video);
-    request?.();
-  };
-
   const goToEpisode = (next: number, markCurrentDone: boolean) => {
     if (next < 1) return;
     if (episodesTotal != null && next > episodesTotal) return;
@@ -894,15 +1341,12 @@ function Player({
             const url = sourceUrlFor(source, episode);
             if (!url) return null;
             return (
-              <HlsVideo
+              <CustomHlsPlayer
                 key={source.id}
                 src={url}
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
                 onPlayingChange={(playing) => setIsPaused(!playing)}
-                mediaRef={(el) => {
-                  if (isWinner) winnerMediaRef.current = el;
-                }}
               />
             );
           }
@@ -910,13 +1354,6 @@ function Player({
           return (
             <iframe
               key={source.id}
-              ref={
-                isWinner
-                  ? (el) => {
-                      winnerMediaRef.current = el;
-                    }
-                  : undefined
-              }
               src={source.embedUrl}
               title={`${title} — ${source.title}`}
               // Autoplay permission only ever goes to the confirmed winner —
@@ -935,20 +1372,6 @@ function Player({
             />
           );
         })}
-        {/* Only for the HLS player — a real <video> we control directly.
-            Third-party iframe embeds (the common case) already show their
-            own working fullscreen control in their own UI; see the note on
-            enterFullscreen above for why we don't duplicate it here. */}
-        {winnerId != null && winner?.format === "hls" && (
-          <button
-            type="button"
-            onClick={enterFullscreen}
-            aria-label={t("watch.fullscreen")}
-            className="absolute bottom-2 right-2 z-10 flex size-10 items-center justify-center rounded-full bg-background/80 text-foreground shadow-md backdrop-blur transition-colors hover:bg-background hover:text-primary sm:hidden"
-          >
-            <Maximize2Icon className="size-4" />
-          </button>
-        )}
         {searching && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
             <Loader2Icon className="size-6 animate-spin text-primary" />
