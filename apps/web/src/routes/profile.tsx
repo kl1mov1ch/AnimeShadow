@@ -366,7 +366,7 @@ function ProfileHero({
     <>
     <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:p-6 lg:flex-row lg:items-stretch">
       <div
-        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4 text-center lg:w-48"
+        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-border/60 bg-secondary/20 p-4 text-center transition-all duration-300 hover:border-primary/25 hover:shadow-lg hover:shadow-primary/5 lg:w-48"
         style={{ "--i": 0 } as CSSProperties}
       >
         {editable ? (
@@ -951,22 +951,29 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
               />
             ))}
           </div>
+          {/* Matches the catalogue's pager: rounded, lifting, with the
+              current position carried in the site colour rather than as
+              flat grey text. */}
           {pageCount > 1 && (
             <div className="flex items-center justify-center gap-3 pt-1">
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
                 disabled={safePage <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
                 {t("common.previous")}
               </Button>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {t("common.pageOf", { page: safePage, total: pageCount })}
+              <span className="flex items-baseline gap-1 text-xs tabular-nums">
+                <span className="font-semibold text-primary">{safePage}</span>
+                <span className="text-muted-foreground/60">/</span>
+                <span className="text-muted-foreground">{pageCount}</span>
               </span>
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
                 disabled={safePage >= pageCount}
                 onClick={() => setPage((p) => p + 1)}
               >
@@ -1920,10 +1927,10 @@ function TitleEditor({
               }}
               aria-label={key}
               className={cn(
-                "flex size-8 items-center justify-center rounded-md border transition-colors",
+                "flex size-8 items-center justify-center rounded-full border transition-all duration-200",
                 icon === key
-                  ? "border-primary/50 bg-primary/15 text-primary"
-                  : "border-border/60 text-muted-foreground hover:text-foreground",
+                  ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
+                  : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
               )}
             >
               <Icon className="size-3.5" />
@@ -2179,6 +2186,9 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
 function ProfileSkeleton() {
   return (
     <ProfileShell>
+      {/* Shapes match what actually loads — rounded to the same radius as
+          the real hero and stat cards, so the page does not visibly change
+          geometry the moment data arrives. */}
       <div className="flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
         <Skeleton className="size-20 shrink-0 rounded-full sm:size-24" />
         <div className="flex flex-1 flex-col gap-2">
@@ -2186,14 +2196,14 @@ function ProfileSkeleton() {
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-4 w-64" />
         </div>
-        <Skeleton className="h-12 w-28 rounded-lg" />
+        <Skeleton className="h-12 w-28 rounded-xl" />
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" />
+          <Skeleton key={i} className="h-20 rounded-2xl" />
         ))}
       </div>
-      <Skeleton className="h-12 rounded-xl" />
+      <Skeleton className="h-12 rounded-full" />
     </ProfileShell>
   );
 }
