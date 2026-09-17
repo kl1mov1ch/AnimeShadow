@@ -1,7 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { SearchIcon } from "lucide-react";
+import { BookOpenIcon, SearchIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -396,10 +396,10 @@ function SynopsisBody({
 }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const long = (synopsis?.length ?? 0) > SYNOPSIS_CLAMP_AT || Boolean(background);
+  const long = (synopsis?.length ?? 0) > SYNOPSIS_CLAMP_AT;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {synopsis && (
         <p
           className={cn(
@@ -410,9 +410,6 @@ function SynopsisBody({
           {synopsis}
         </p>
       )}
-      {expanded && background && (
-        <p className="text-sm leading-relaxed text-muted-foreground">{background}</p>
-      )}
       {long && (
         <button
           type="button"
@@ -421,6 +418,20 @@ function SynopsisBody({
         >
           {expanded ? t("common.showLess") : t("common.showMore")}
         </button>
+      )}
+      {/* Real production/background trivia, not a stat — its own quietly
+          bordered card instead of a plain paragraph tacked on behind
+          "show more". Used to only appear once expanded, which meant most
+          visitors never saw it at all and a short-synopsis title read as
+          emptier than it actually was. */}
+      {background && (
+        <div className="flex flex-col gap-1.5 rounded-xl border border-primary/15 bg-primary/[0.04] p-3.5">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-primary/90">
+            <BookOpenIcon className="size-3.5" />
+            {t("detail.background")}
+          </span>
+          <p className="text-sm leading-relaxed text-foreground/80">{background}</p>
+        </div>
       )}
     </div>
   );

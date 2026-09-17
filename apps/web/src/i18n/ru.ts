@@ -167,6 +167,7 @@ export const ru: Dict = {
     related: "Вам может понравиться",
     relatedEmpty: "Пока нечего посоветовать.",
     overview: "Обзор",
+    background: "История",
     mainRole: "Главный герой",
     showAllCharacters: "Показать всех ({count})",
     collapseCharacters: "Свернуть",

@@ -165,6 +165,7 @@ export const en = {
     related: "You might like",
     relatedEmpty: "Nothing close enough to suggest yet.",
     overview: "Overview",
+    background: "History",
     mainRole: "Main character",
     showAllCharacters: "Show all ({count})",
     collapseCharacters: "Show fewer",

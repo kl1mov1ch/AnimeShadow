@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/i18n";
+import { cn } from "@/lib/utils";
 
 /* Edit these to your real handles. */
 const SOCIALS: Array<{
@@ -54,7 +55,16 @@ export function SiteFooter() {
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={label}
-                className="flex size-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                className={cn(
+                  "flex size-9 items-center justify-center rounded-full border transition-colors",
+                  // Telegram is the actual community home for this
+                  // audience — worth its own brand colour instead of
+                  // reading as one interchangeable grey circle among four.
+                  // Discord/VK/GitHub stay quiet on purpose.
+                  label === "Telegram"
+                    ? "border-transparent bg-[#26A5E4] text-white shadow-sm shadow-[#26A5E4]/30 hover:brightness-110"
+                    : "border-border/60 text-muted-foreground hover:border-primary/50 hover:text-primary",
+                )}
               >
                 <Icon className="size-4" />
               </a>
