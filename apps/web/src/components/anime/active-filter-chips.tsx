@@ -1,5 +1,5 @@
 import type { AnimeAiring, AnimeType, Genre } from "@animeshadow/shared";
-import { XIcon } from "lucide-react";
+import { RotateCcwIcon, XIcon } from "lucide-react";
 import type { FilterPatch } from "@/components/anime/browse-filters";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
@@ -96,19 +96,48 @@ export function ActiveFilterChips({
 
   if (chips.length === 0) return null;
 
+  // Every filter key this row can show, so "clear all" really clears all of
+  // it in one patch rather than leaving whatever it didn't know about.
+  const clearAll = () =>
+    onChange({
+      orderBy: null,
+      type: null,
+      airing: null,
+      year: null,
+      minScore: null,
+      hasPlayer: null,
+      hasCustomPlayer: null,
+      studio: null,
+      genres: null,
+    });
+
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {chips.map((chip) => (
+      {chips.map((chip, i) => (
         <button
           key={chip.key}
           type="button"
           onClick={chip.onRemove}
-          className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 py-1 pl-3 pr-2 text-xs text-foreground transition-colors hover:border-destructive/40"
+          style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
+          className="group animate-in fade-in zoom-in-95 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 py-1 pl-3 pr-2 text-xs text-foreground duration-300 transition-all hover:-translate-y-0.5 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
         >
           {chip.label}
           <XIcon className="size-3 text-muted-foreground transition-colors group-hover:text-destructive" />
         </button>
       ))}
+
+      {/* Only once there's more than one thing to undo — with a single chip,
+          removing it *is* clearing everything. */}
+      {chips.length > 1 && (
+        <button
+          type="button"
+          onClick={clearAll}
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
+        >
+          <RotateCcwIcon className="size-3" />
+          {t("browse.clearAll")}
+        </button>
+      )}
     </div>
   );
 }
