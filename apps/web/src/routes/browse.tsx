@@ -209,6 +209,7 @@ function applyClientFilters(
     if (params.year && a.year !== params.year) return false;
     if (params.minScore && (a.score ?? 0) < params.minScore) return false;
     if (params.hasPlayer && a.hasPlayer !== true) return false;
+    if (params.hasCustomPlayer && !a.hasCustomPlayer) return false;
     // Smart search has no server-side genre filter of its own — this is the
     // only place a genre filter can actually apply while a search term is
     // active, and it was missing entirely (genre picks silently did nothing

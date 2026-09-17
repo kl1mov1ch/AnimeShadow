@@ -43,6 +43,7 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     year: num("year"),
     genres: genres.length > 0 ? genres : undefined,
     hasPlayer: search.get("hasPlayer") === "1" ? true : undefined,
+    hasCustomPlayer: search.get("hasCustomPlayer") === "1" ? true : undefined,
     studio: search.get("studio")?.trim() || undefined,
   };
 }
@@ -56,6 +57,7 @@ export function hasActiveFilters(params: BrowseParams): boolean {
       params.minScore ||
       params.year ||
       params.hasPlayer ||
+      params.hasCustomPlayer ||
       params.studio ||
       (params.genres && params.genres.length > 0) ||
       (params.orderBy && params.orderBy !== "popularity"),

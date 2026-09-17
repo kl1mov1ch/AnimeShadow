@@ -409,9 +409,17 @@ model WatchAvailability {
   hasPlayer   Boolean?
   sourceCount Int      @default(0)
   provider    String?
+  /// True when at least one resolved source is a direct HLS stream (format
+  /// "hls" — currently only AniLibria) rather than a third-party iframe.
+  /// Its own flag rather than reading `provider` (which only ever records
+  /// whichever provider resolved *first*, not "does AniLibria also have
+  /// this") — a title Kodik found first but AniLibria also has would
+  /// otherwise be invisible to the "own player" filter.
+  hasCustomPlayer Boolean @default(false)
   checkedAt   DateTime @default(now())
 
   @@index([hasPlayer])
+  @@index([hasCustomPlayer])
 }
 
 /// A single playable variant (one dub/sub from one provider) for an anime.

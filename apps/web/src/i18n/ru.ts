@@ -116,6 +116,7 @@ export const ru: Dict = {
     genresSelected: "выбрано: {count}",
     noGenre: "Жанр не найден.",
     onlyWithPlayer: "Только с плеером",
+    onlyOwnPlayer: "Свой плеер (без чужого окна)",
     searching: "Ищем…",
     clearAll: "Сбросить фильтры",
     noResultsTitle: "Ничего не найдено",

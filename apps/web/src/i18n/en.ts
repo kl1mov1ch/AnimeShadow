@@ -114,6 +114,7 @@ export const en = {
     genresSelected: "{count} selected",
     noGenre: "No genre found.",
     onlyWithPlayer: "Only with a player",
+    onlyOwnPlayer: "Our own player (no third-party window)",
     searching: "Searching…",
     clearAll: "Clear all filters",
     noResultsTitle: "Nothing matched",

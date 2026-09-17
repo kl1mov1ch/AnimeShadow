@@ -67,6 +67,13 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ hasPlayer: null }),
     });
   }
+  if (params.hasCustomPlayer) {
+    chips.push({
+      key: "hasCustomPlayer",
+      label: t("browse.onlyOwnPlayer"),
+      onRemove: () => onChange({ hasCustomPlayer: null }),
+    });
+  }
   if (params.studio) {
     chips.push({
       key: "studio",

@@ -118,6 +118,7 @@ export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
     synopsis: row.synopsis,
     airedFrom: row.airedFrom?.toISOString() ?? null,
     hasPlayer: row.watchAvailability?.hasPlayer ?? null,
+    hasCustomPlayer: row.watchAvailability?.hasCustomPlayer ?? false,
     rating: row.rating,
     scoredBy: row.scoredBy,
     trailerEmbedUrl: row.trailerEmbedUrl,

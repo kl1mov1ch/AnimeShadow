@@ -38,6 +38,8 @@ export const animeSummarySchema = z.object({
   titleLocalized: z.string().nullable().default(null),
   /** true = an embed player has this title; false = confirmed none; null = unknown. */
   hasPlayer: z.boolean().nullable().default(null),
+  /** true = playable in our own HLS player, no third-party iframe. */
+  hasCustomPlayer: z.boolean().default(false),
   /** MAL-style content rating ("Rx" = hentai) — null until the title's been detail-synced. */
   rating: z.string().nullable().default(null),
   /** How many users scored it — the card's "votes" figure. Null until detail-synced. */
@@ -192,6 +194,11 @@ export const animeQuerySchema = z.object({
     .default(true),
   /** Only titles with a playable embed. */
   hasPlayer: z
+    .union([z.boolean(), z.string()])
+    .transform((value) => value === true || value === "true" || value === "1")
+    .optional(),
+  /** Only titles playable in our own HLS player — no third-party iframe. */
+  hasCustomPlayer: z
     .union([z.boolean(), z.string()])
     .transform((value) => value === true || value === "true" || value === "1")
     .optional(),

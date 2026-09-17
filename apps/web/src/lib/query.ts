@@ -70,6 +70,7 @@ export type BrowseParams = {
   orderBy?: string;
   sort?: "asc" | "desc";
   hasPlayer?: boolean;
+  hasCustomPlayer?: boolean;
   studio?: string;
 };
 

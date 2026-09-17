@@ -304,11 +304,13 @@ export class SearchService {
     if (summaries.length === 0) return;
     const rows = await this.prisma.watchAvailability.findMany({
       where: { animeId: { in: summaries.map((s) => s.id) } },
-      select: { animeId: true, hasPlayer: true },
+      select: { animeId: true, hasPlayer: true, hasCustomPlayer: true },
     });
-    const byId = new Map(rows.map((r) => [r.animeId, r.hasPlayer]));
+    const byId = new Map(rows.map((r) => [r.animeId, r]));
     for (const summary of summaries) {
-      summary.hasPlayer = byId.get(summary.id) ?? null;
+      const row = byId.get(summary.id);
+      summary.hasPlayer = row?.hasPlayer ?? null;
+      summary.hasCustomPlayer = row?.hasCustomPlayer ?? false;
     }
   }
 }

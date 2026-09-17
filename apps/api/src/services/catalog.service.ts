@@ -1121,11 +1121,13 @@ export class CatalogService {
     if (summaries.length === 0) return;
     const rows = await this.prisma.watchAvailability.findMany({
       where: { animeId: { in: summaries.map((s) => s.id) } },
-      select: { animeId: true, hasPlayer: true },
+      select: { animeId: true, hasPlayer: true, hasCustomPlayer: true },
     });
-    const byId = new Map(rows.map((r) => [r.animeId, r.hasPlayer]));
+    const byId = new Map(rows.map((r) => [r.animeId, r]));
     for (const summary of summaries) {
-      summary.hasPlayer = byId.get(summary.id) ?? null;
+      const row = byId.get(summary.id);
+      summary.hasPlayer = row?.hasPlayer ?? null;
+      summary.hasCustomPlayer = row?.hasCustomPlayer ?? false;
     }
   }
 
@@ -1211,8 +1213,17 @@ export class CatalogService {
     if (query.studio) {
       where.studios = { has: query.studio };
     }
-    if (query.hasPlayer) {
-      where.watchAvailability = { is: { hasPlayer: true } };
+    // Both conditions can be requested together (a stricter "and it's our
+    // own player" on top of "has a player at all") — merge into the same
+    // `is` filter rather than letting the second assignment clobber the
+    // first outright.
+    if (query.hasPlayer || query.hasCustomPlayer) {
+      where.watchAvailability = {
+        is: {
+          ...(query.hasPlayer ? { hasPlayer: true } : {}),
+          ...(query.hasCustomPlayer ? { hasCustomPlayer: true } : {}),
+        },
+      };
     }
     return withContentGuard(where, allowAdult);
   }

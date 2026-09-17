@@ -463,6 +463,11 @@ export class WatchService {
     provider: string | null,
     sources: WatchSource[],
   ): Promise<void> {
+    // "Own player" means a direct stream we render ourselves (currently
+    // only AniLibria's HLS) — independent of which provider `rankSource`
+    // happens to pick as the default, and independent of `provider` above
+    // (which only ever records whichever provider resolved *first*).
+    const hasCustomPlayer = sources.some((s) => s.format === "hls");
     await Promise.all([
       kinopoiskId != null
         ? this.prisma.anime
@@ -477,11 +482,13 @@ export class WatchService {
             hasPlayer: sources.length > 0,
             sourceCount: sources.length,
             provider,
+            hasCustomPlayer,
           },
           update: {
             hasPlayer: sources.length > 0,
             sourceCount: sources.length,
             provider,
+            hasCustomPlayer,
             checkedAt: new Date(),
           },
         })

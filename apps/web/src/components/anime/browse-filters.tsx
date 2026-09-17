@@ -271,6 +271,22 @@ export function BrowseFilters({
         />
       </Field>
 
+      {/* AniLibria's direct HLS stream — no third-party iframe UI, so it's
+          worth its own filter rather than folding into "has a player at
+          all" above (which Kodik/Alloha iframes already satisfy). */}
+      <Field orientation="horizontal" className="justify-between">
+        <FieldLabel htmlFor="browse-has-custom-player" className="text-xs font-normal">
+          {t("browse.onlyOwnPlayer")}
+        </FieldLabel>
+        <Switch
+          id="browse-has-custom-player"
+          checked={params.hasCustomPlayer === true}
+          onCheckedChange={(checked) =>
+            onChange({ hasCustomPlayer: checked ? "1" : null })
+          }
+        />
+      </Field>
+
       {showReset && (
         <Button
           variant="ghost"
