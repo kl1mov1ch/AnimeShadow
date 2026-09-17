@@ -804,21 +804,31 @@ function Player({
               side="bottom"
               align="end"
               sideOffset={8}
-              className="w-64 p-3.5 text-sm"
+              className="w-72 p-3.5 text-sm"
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
               <p className="font-medium">{t("watch.stuckModalTitle")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                 {t("watch.stuckModalBody")}
               </p>
-              <div className="mt-3 flex justify-end gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setShowStuckHint(false)}>
-                  {t("watch.stuckModalDismiss")}
-                </Button>
-                <Button size="sm" onClick={switchNow}>
+              {/* Stacked, not side-by-side — two buttons with real labels
+                  ("Переключить источник" plus an icon, next to "Всё
+                  хорошо") never actually fit next to each other in a
+                  popover this narrow; they just overflowed its edge. A
+                  full-width primary action with the dismiss as a plain
+                  link below it fits regardless of label length. */}
+              <div className="mt-3 flex flex-col gap-2">
+                <Button size="sm" onClick={switchNow} className="w-full">
                   <ShuffleIcon />
                   {t("watch.stuckModalSwitch")}
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => setShowStuckHint(false)}
+                  className="self-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {t("watch.stuckModalDismiss")}
+                </button>
               </div>
             </PopoverContent>
           </Popover>

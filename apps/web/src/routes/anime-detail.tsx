@@ -1,7 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
+import { SearchIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -19,16 +19,13 @@ import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
-import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
   useAnime,
-  useAnimeProgress,
   useCharacters,
   useFranchise,
   useSimilarAnime,
@@ -253,13 +250,6 @@ function AnimeDetailView({ param }: { param: string }) {
           />
         </Block>
 
-        <EpisodesSection
-          animeId={data.id}
-          episodesTotal={data.episodes}
-          currentEpisode={episode}
-          onSelect={setEpisode}
-        />
-
         <OverviewBlock anime={data} oneLiner={oneLiner} />
 
         <CharactersBlock animeId={data.id} />
@@ -439,11 +429,15 @@ function SynopsisBody({
 }
 
 /**
- * One "Overview" section instead of three separate blocks (synopsis / themes
- * / a tall facts sidebar) — the synopsis leads, thematic tags and the fact
- * strip follow underneath at a lower visual weight, so the section reads as
- * one coherent "everything about the show" surface rather than a stack of
- * competing boxes.
+ * The block used to stack synopsis, themes, facts and seasons as separate
+ * full-width rows, each claiming a row of its own regardless of how much it
+ * actually had to say — a one-line "6 episodes" fact took the same width as
+ * three paragraphs of synopsis. Now it's one deliberate split: the synopsis
+ * (almost always the most content, and prose rather than a lookup list) gets
+ * the wide column, while facts and seasons — both short, scannable, reference
+ * material rather than something you read start to finish — share a single
+ * narrow rail beside it. Below the desktop breakpoint there's no room for two
+ * columns, so it's plain document order: synopsis first, the rail after.
  */
 function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string }) {
   const t = useT();
@@ -471,7 +465,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
       [
         t("detail.facts.studios"),
         anime.studios.length > 0 ? (
-          <span className="flex flex-wrap justify-end gap-x-3 gap-y-1.5">
+          <span className="flex flex-wrap gap-x-3 gap-y-1.5">
             {anime.studios.map((s) => {
               const logo = anime.studioLogos?.[s];
               return (
@@ -500,7 +494,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
     ] as Array<[string, React.ReactNode]>
   ).filter(([, value]) => value && value !== "—");
 
-  if (!hasSynopsis && !hasThemes && facts.length === 0) return null;
+  if (!hasSynopsis && !hasThemes && facts.length === 0 && !hasFranchise) return null;
 
   const chips = (items: string[]) =>
     items.map((v) => (
@@ -509,176 +503,118 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
       </Badge>
     ));
 
+  const hasRail = facts.length > 0 || hasFranchise;
+
   return (
     <section className="flex flex-col gap-4 p-5">
       <h2 className="font-display text-lg tracking-tight sm:text-xl">
         {t("detail.overview")}
       </h2>
 
-      {hasSynopsis ? (
-        <SynopsisBody synopsis={anime.synopsis} background={anime.background} />
-      ) : (
-        <p className="text-sm text-muted-foreground">{oneLiner}</p>
-      )}
+      <div
+        className={cn(
+          "flex flex-col gap-5",
+          hasRail && "lg:grid lg:grid-cols-[15rem_1fr] lg:items-start lg:gap-6",
+        )}
+      >
+        {/* Synopsis stays first in the DOM — below lg there's no grid at
+            all, just normal document flow, so that's what decides the
+            stacking order: prose leads, the rail follows. From lg, the grid
+            takes over and `order` puts the rail first (leftmost) instead. */}
+        <div className="flex min-w-0 flex-col gap-4 lg:order-2">
+          {hasSynopsis ? (
+            <SynopsisBody synopsis={anime.synopsis} background={anime.background} />
+          ) : (
+            <p className="text-sm text-muted-foreground">{oneLiner}</p>
+          )}
 
-      {hasThemes && (
-        <div className="flex flex-col gap-2.5">
-          {anime.themes.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground/70">
-                {t("detail.themes")}
-              </span>
-              <div className="flex flex-wrap gap-1.5">{chips(anime.themes)}</div>
-            </div>
-          )}
-          {anime.demographics.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground/70">
-                {t("detail.audience")}
-              </span>
-              <div className="flex flex-wrap gap-1.5">{chips(anime.demographics)}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {(facts.length > 0 || hasFranchise) && (
-        <div
-          className={cn(
-            "flex flex-col gap-4 border-t border-border/60 pt-3",
-            hasFranchise && "lg:grid lg:grid-cols-[13rem_1fr] lg:items-start lg:gap-6",
-          )}
-        >
-          {/* Facts stay first in the DOM — below lg there's no grid at all,
-              just normal document flow, so that's what decides the order:
-              the seasons rail keeps following the facts, its usual
-              horizontally-swipeable self. From lg, the grid takes over and
-              `order` puts the seasons list first (leftmost) instead — "which
-              season am I on" is the more useful question than "how many
-              episodes" once there's room to show both side by side. */}
-          {facts.length > 0 && (
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2 lg:order-2">
-              {facts.map(([label, value]) => (
-                <div key={label} className="flex items-baseline justify-between gap-3">
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd className="min-w-0 truncate text-right font-medium">{value}</dd>
+          {hasThemes && (
+            <div className="flex flex-col gap-2.5">
+              {anime.themes.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground/70">
+                    {t("detail.themes")}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">{chips(anime.themes)}</div>
                 </div>
-              ))}
-            </dl>
+              )}
+              {anime.demographics.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground/70">
+                    {t("detail.audience")}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">{chips(anime.demographics)}</div>
+                </div>
+              )}
+            </div>
           )}
-
-          {hasFranchise && <FranchiseRail animeId={anime.id} className="lg:order-1" />}
         </div>
-      )}
+
+        {hasRail && (
+          <aside
+            className={cn(
+              "flex flex-col gap-4 lg:order-1",
+              hasSynopsis && "border-t border-border/60 pt-4 lg:border-t-0 lg:pt-0",
+            )}
+          >
+            {facts.length > 0 && <FactsPanel facts={facts} />}
+            {hasFranchise && <FranchiseRail animeId={anime.id} />}
+          </aside>
+        )}
+      </div>
     </section>
   );
 }
 
-const EPISODES_PER_PAGE = 24;
+// Enough to answer "what, when, how long" at a glance — the rest (exact end
+// date, season, studios, list/favorite counts) is real but secondary, one
+// tap away instead of stretching the rail to fit however many facts a given
+// title happens to have.
+const FACTS_COLLAPSED = 5;
 
-/**
- * A jump-to-any-episode strip, separate from the player's own compact
- * stepper — this is for scanning watch history at a glance (which episodes
- * are done) and jumping further than one step at a time. One row, horizontal
- * scroll instead of wrapping — a 1000+ episode long-runner never turns into
- * a tall wall of buttons. Signed-in only: nothing persists per-episode
- * otherwise, so there'd be no watched state to show.
- */
-function EpisodesSection({
-  animeId,
-  episodesTotal,
-  currentEpisode,
-  onSelect,
-}: {
-  animeId: number;
-  episodesTotal: number | null;
-  currentEpisode: number;
-  onSelect: (episode: number) => void;
-}) {
+/** A compact, Telegram-settings-style list rather than a two-column grid —
+ * the rail is only 15rem wide, nowhere near enough room for label/value
+ * pairs to sit two abreast. Values that are more than a short string (the
+ * studio links, each with its own logo) drop the inline label/value row for
+ * a stacked one, so they can wrap onto their own lines without fighting a
+ * `truncate` that was never going to work on them anyway. */
+function FactsPanel({ facts }: { facts: Array<[string, React.ReactNode]> }) {
   const t = useT();
-  const { status } = useAuth();
-  const authed = status === "authenticated";
-  const { data: progress } = useAnimeProgress(animeId, authed);
-  const [page, setPage] = useState(() => Math.floor((currentEpisode - 1) / EPISODES_PER_PAGE));
-
-  useEffect(() => {
-    setPage(Math.floor((currentEpisode - 1) / EPISODES_PER_PAGE));
-  }, [currentEpisode]);
-
-  if (!authed) return null;
-
-  const completed = new Set(
-    (progress?.episodes ?? []).filter((e) => e.completed).map((e) => e.episode),
-  );
-  const knownMax = Math.max(currentEpisode, ...(progress?.episodes.map((e) => e.episode) ?? [0]));
-  const total = episodesTotal ?? knownMax + 4;
-  if (total <= 1) return null;
-
-  const totalPages = Math.ceil(total / EPISODES_PER_PAGE);
-  const start = page * EPISODES_PER_PAGE + 1;
-  const end = Math.min(total, start + EPISODES_PER_PAGE - 1);
-  const episodes = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? facts : facts.slice(0, FACTS_COLLAPSED);
+  const hasMore = facts.length > FACTS_COLLAPSED;
 
   return (
-    <section className="flex flex-col gap-3 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5">
-          <h2 className="font-display text-lg tracking-tight sm:text-xl">
-            {t("detail.sections.episodes")}
-          </h2>
-          <InfoTooltip>{t("detail.episodesHelpBody")}</InfoTooltip>
-        </div>
-        {totalPages > 1 && (
-          <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-            <button
-              type="button"
-              disabled={page === 0}
-              aria-label={t("common.previous")}
-              onClick={() => setPage((p) => p - 1)}
-              className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ChevronLeftIcon className="size-3.5" />
-            </button>
-            <span className="tabular-nums">
-              {start}–{end}
-            </span>
-            <button
-              type="button"
-              disabled={page === totalPages - 1}
-              aria-label={t("common.next")}
-              onClick={() => setPage((p) => p + 1)}
-              className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ChevronRightIcon className="size-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
-      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {episodes.map((ep) => {
-          const done = completed.has(ep);
-          const active = ep === currentEpisode;
+    <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card/40 p-3.5">
+      <span className="text-xs font-medium text-muted-foreground/70">
+        {t("detail.sections.details")}
+      </span>
+      <dl className="flex flex-col gap-2 text-sm">
+        {visible.map(([label, value]) => {
+          const inline = typeof value === "string" || typeof value === "number";
           return (
-            <button
-              key={ep}
-              type="button"
-              onClick={() => onSelect(ep)}
-              aria-current={active}
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-md border text-xs font-medium tabular-nums transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : done
-                    ? "border-primary/30 bg-primary/10 text-primary"
-                    : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground",
-              )}
+            <div
+              key={label}
+              className={inline ? "flex items-baseline justify-between gap-3" : "flex flex-col gap-1"}
             >
-              {ep}
-            </button>
+              <dt className={cn("text-muted-foreground", inline && "shrink-0")}>{label}</dt>
+              <dd className={inline ? "min-w-0 truncate text-right font-medium" : "font-medium"}>
+                {value}
+              </dd>
+            </div>
           );
         })}
-      </div>
-    </section>
+      </dl>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="self-start text-xs font-medium text-primary transition-colors hover:text-primary/80"
+        >
+          {expanded ? t("common.showLess") : t("common.showMore")}
+        </button>
+      )}
+    </div>
   );
 }
 
