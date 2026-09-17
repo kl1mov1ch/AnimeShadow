@@ -252,8 +252,6 @@ function AnimeDetailView({ param }: { param: string }) {
 
         <OverviewBlock anime={data} oneLiner={oneLiner} />
 
-        <CharactersBlock animeId={data.id} />
-
         <div className="p-5">
           <CommentsSection animeId={data.id} />
         </div>
@@ -438,6 +436,14 @@ function SynopsisBody({
  * material rather than something you read start to finish — share a single
  * narrow rail beside it. Below the desktop breakpoint there's no room for two
  * columns, so it's plain document order: synopsis first, the rail after.
+ *
+ * The cast used to be its own full section further down the page, divided
+ * off by a hairline like Overview and Comments — its own heading, its own
+ * card row, for content that's really just more of "everything about this
+ * show". It's folded in here instead, directly under the description
+ * (and the facts/seasons rail beside it), so the whole page reads as one
+ * "about this title" block followed by "what people are saying" rather
+ * than four stacked sections of decreasing relevance.
  */
 function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string }) {
   const t = useT();
@@ -451,6 +457,10 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   // is excluded — see FranchiseRail) would leave an empty gap on the page.
   const { data: franchise } = useFranchise(anime.id);
   const hasFranchise = (franchise ?? []).some((entry) => !entry.current);
+  // Same deduping logic, so the empty-everything guard below doesn't hide
+  // a title that has nothing else *but* a cast worth showing.
+  const { data: characters } = useCharacters(anime.id);
+  const hasCharacters = (characters ?? []).some((c) => c.imageUrl != null);
 
   const facts = (
     [
@@ -494,7 +504,8 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
     ] as Array<[string, React.ReactNode]>
   ).filter(([, value]) => value && value !== "—");
 
-  if (!hasSynopsis && !hasThemes && facts.length === 0 && !hasFranchise) return null;
+  if (!hasSynopsis && !hasThemes && facts.length === 0 && !hasFranchise && !hasCharacters)
+    return null;
 
   const chips = (items: string[]) =>
     items.map((v) => (
@@ -507,7 +518,10 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
 
   return (
     <section className="flex flex-col gap-4 p-5">
-      <h2 className="font-display text-lg tracking-tight sm:text-xl">
+      <h2 className="flex items-center gap-1.5 font-display text-lg tracking-tight sm:text-xl">
+        <span aria-hidden className="text-primary">
+          影
+        </span>
         {t("detail.overview")}
       </h2>
 
@@ -562,6 +576,8 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
           </aside>
         )}
       </div>
+
+      <CharactersBlock animeId={anime.id} />
     </section>
   );
 }
@@ -660,7 +676,12 @@ function CharactersBlock({ animeId }: { animeId: number }) {
   const hidden = matched.length - CHARACTERS_COLLAPSED;
 
   return (
-    <section className="flex flex-col gap-4 p-5">
+    // A plain div, not its own section — this used to be a full block
+    // further down the page with its own hairline divider; now it's the
+    // tail end of Overview, just under the description (and the facts/
+    // seasons rail beside it), so a light top border is enough to mark
+    // where one ends and the cast begins without a whole new card row.
+    <div className="flex flex-col gap-4 border-t border-border/60 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg tracking-tight sm:text-xl">
           {t("detail.sections.mainCharacters")}
@@ -721,7 +742,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }
 

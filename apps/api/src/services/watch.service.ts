@@ -39,14 +39,18 @@ const TRUSTED_STUDIOS =
   /anilibria|animevost|shiza|studio.?band|dreamcast|anidub|jam.?club|kodik/i;
 
 /**
- * How good a source is as the *default* pick. Verified-reachable beats
- * everything; after that AniLibria leads (a real HLS stream we control —
- * actual per-episode switching, no third-party UI to get stuck), then Kodik
- * (best anime coverage), then Alloha; a real dub over subs, fuller episode
- * lists, and studios that tend to stay up.
+ * How good a source is as the *default* pick. Our own HLS player (AniLibria,
+ * currently the only "hls" format) leads outright whenever it isn't
+ * confirmed dead — no third-party iframe UI to get stuck inside, so it
+ * outranks even a merely-probed-stable Kodik/Alloha mirror, not just an
+ * untested one. Only once it's actually confirmed unreachable does it drop
+ * behind, same as any other dead source. After that: verified-reachable
+ * beats everything, then Kodik (best anime coverage), then Alloha; a real
+ * dub over subs, fuller episode lists, and studios that tend to stay up.
  */
 function rankSource(s: WatchSource): number {
   let score = 0;
+  if (s.format === "hls" && s.stable !== false) score += 2000;
   if (s.stable === true) score += 1000;
   else if (s.stable === false) score -= 1000;
 
