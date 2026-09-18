@@ -1,5 +1,21 @@
+<!--
+  The site's mark: 影 — the same glyph as the loading splash, the header
+  wordmark and every page watermark.
+
+  Drawn as text rather than as an outline path, so this file stays two lines
+  instead of a wall of bezier data. Browsers render it with a system CJK font,
+  which Windows, macOS, iOS and Android all ship. The PWA and iOS icons in
+  public/icons are rasterized copies (see scripts/pwa-icon-source.mjs) and
+  carry no font dependency at all.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="8" fill="#0a0b10" />
-  <circle cx="13" cy="16" r="8" fill="#ff4d6d" />
-  <circle cx="18" cy="14" r="7" fill="#0a0b10" />
+  <text
+    x="16"
+    y="23.9"
+    font-size="21.25"
+    fill="#ff4d6d"
+    text-anchor="middle"
+    font-family="'Noto Sans CJK JP','Noto Sans JP','Source Han Sans','Yu Gothic','Hiragino Sans','Microsoft YaHei','PingFang SC','SimSun',sans-serif"
+  >影</text>
 </svg>

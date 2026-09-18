@@ -100,6 +100,13 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     return { opening: await catalog.getOpening(id) };
   });
 
+  /** Opening and ending together, for the theme player. Same cached upstream
+   *  record as /opening above. */
+  fastify.get("/anime/:id/themes", async (request) => {
+    const { id } = parse(idParams, request.params);
+    return catalog.getThemes(id);
+  });
+
   fastify.get("/anime/:id/franchise", async (request) => {
     const { id } = parse(idParams, request.params);
     return { items: await catalog.getFranchise(id) };

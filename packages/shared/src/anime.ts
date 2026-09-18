@@ -239,12 +239,24 @@ export type AnimeQueryInput = z.input<typeof animeQuerySchema>;
  */
 export const animeOpeningSchema = z.object({
   url: z.string(),
+  /** Audio-only track, when the archive has one — what the theme player uses. */
+  audioUrl: z.string().nullable().default(null),
   song: z.string().nullable(),
+  artist: z.string().nullable().default(null),
   slug: z.string(),
   resolution: z.number().int().nullable(),
   size: z.number().int().nullable(),
+  /** The archive's own page for this title. */
+  pageUrl: z.string().nullable().default(null),
 });
 export type AnimeOpening = z.infer<typeof animeOpeningSchema>;
+
+/** A title's opening and ending, whichever of the two the archive has. */
+export const animeThemesSchema = z.object({
+  opening: animeOpeningSchema.nullable(),
+  ending: animeOpeningSchema.nullable(),
+});
+export type AnimeThemes = z.infer<typeof animeThemesSchema>;
 
 export const recommendationItemSchema = z.object({
   id: z.number().int(),

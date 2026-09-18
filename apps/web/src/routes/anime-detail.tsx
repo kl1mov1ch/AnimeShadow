@@ -16,6 +16,7 @@ import { OpeningVideo } from "@/components/anime/opening-video";
 // import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
+import { ThemePlayer } from "@/components/anime/theme-player";
 import { PulseRings } from "@/components/common/pulse-rings";
 import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
@@ -796,6 +797,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
             </div>
           )}
 
+          <ThemePlayer animeId={anime.id} />
           <TagCloud tags={anime.tags ?? []} />
           <StreamingLinks links={anime.streamingLinks ?? []} />
         </div>

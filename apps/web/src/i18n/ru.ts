@@ -170,6 +170,12 @@ export const ru: Dict = {
     nextEpisodeInHours: "через {hours} ч.",
     themes: "Темы",
     audience: "Аудитория",
+    soundtrack: {
+      title: "Саундтрек",
+      opening: "Опенинг",
+      ending: "Эндинг",
+      source: "Слушать в AnimeThemes",
+    },
     tags: "Теги сообщества",
     watchOfficially: "Смотреть официально",
     oneLiner: "{type}, {year} · {genres}",

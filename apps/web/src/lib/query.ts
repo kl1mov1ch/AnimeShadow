@@ -8,6 +8,7 @@ import type {
   AnimeDetail,
   AnimeOpening,
   AnimeStats,
+  AnimeThemes,
   AnimeSummary,
   Character,
   CharacterDetail,
@@ -247,6 +248,19 @@ export function useAnimeOpening(id: number, enabled = true) {
       apiRequest<{ opening: AnimeOpening | null }>(`/anime/${id}/opening`, {
         signal,
       }).then((r) => r.opening),
+    staleTime: Infinity,
+    gcTime: 60 * 60_000,
+    retry: false,
+  });
+}
+
+/** A title's opening and ending — song titles, artists and audio tracks. */
+export function useAnimeThemes(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ["anime", "themes", id],
+    enabled: enabled && id > 0,
+    queryFn: ({ signal }) =>
+      apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }),
     staleTime: Infinity,
     gcTime: 60 * 60_000,
     retry: false,

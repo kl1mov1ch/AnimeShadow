@@ -28,6 +28,7 @@ import {
   type AnimeDetail,
   type AnimeOpening,
   type AnimeOrderBy,
+  type AnimeThemes,
   type AnimeQuery,
   type AnimeStats,
   type AnimeSummary,
@@ -817,10 +818,17 @@ export class CatalogService {
    * cached just as firmly as a hit, so a title without one stops costing a
    * request per hover.
    */
+  async getThemes(malId: number): Promise<AnimeThemes> {
+    return this.auxCache.wrap(`themes:${malId}`, () =>
+      this.animethemes.getThemes(malId),
+    ) as Promise<AnimeThemes>;
+  }
+
   async getOpening(malId: number): Promise<AnimeOpening | null> {
-    return this.auxCache.wrap(`opening:${malId}`, () =>
-      this.animethemes.getOpening(malId),
-    ) as Promise<AnimeOpening | null>;
+    // Same cached record as getThemes — the background-motion callers only
+    // want half of it, and asking twice would be a second round trip for
+    // something already in hand.
+    return (await this.getThemes(malId)).opening;
   }
 
   /**

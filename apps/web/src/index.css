@@ -552,3 +552,24 @@ html body[data-scroll-locked] {
   --accent-surface: color-mix(in srgb, var(--accent) 7%, transparent);
   --accent-surface-strong: color-mix(in srgb, var(--accent) 14%, transparent);
 }
+
+/* Four bars keeping time next to whichever theme is playing (see
+   ThemePlayer). Purely decorative, so it simply holds still rather than
+   animating when reduced motion is asked for. */
+.equaliser-bar {
+  height: 40%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .equaliser-bar {
+    animation: equaliser 900ms ease-in-out infinite;
+  }
+}
+@keyframes equaliser {
+  0%,
+  100% {
+    height: 25%;
+  }
+  50% {
+    height: 100%;
+  }
+}

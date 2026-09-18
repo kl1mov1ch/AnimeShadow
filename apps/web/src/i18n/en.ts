@@ -168,6 +168,12 @@ export const en = {
     nextEpisodeInHours: "in {hours}h",
     themes: "Themes",
     audience: "Audience",
+    soundtrack: {
+      title: "Soundtrack",
+      opening: "Opening",
+      ending: "Ending",
+      source: "Listen on AnimeThemes",
+    },
     tags: "Community tags",
     watchOfficially: "Watch officially",
     oneLiner: "{type}, {year} · {genres}",

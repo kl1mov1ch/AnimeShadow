@@ -108,16 +108,6 @@ export function SiteHeader() {
   const nav = [
     { to: "/", label: t("nav.discover"), end: true, Icon: CompassIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
-    // Shown to everyone, on purpose: a signed-out visitor has no way to find
-    // out this exists if the only entry point is hidden from them. The page
-    // itself explains that an account is needed, and the API refuses the
-    // search regardless — so this advertises the feature without granting it.
-    {
-      to: "/frame-search",
-      label: t("frameSearch.navLabel"),
-      end: false,
-      Icon: ScanSearchIcon,
-    },
     ...(status === "authenticated"
       ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
       : []),
@@ -154,7 +144,9 @@ export function SiteHeader() {
           <Wordmark />
         </div>
 
-        <nav className="hidden items-center gap-5 md:flex lg:gap-6">
+        {/* Tighter than it was: with the labels this wide, gap-5/6 pushed the
+            search field and the icon row outward on a narrow laptop. */}
+        <nav className="hidden items-center gap-3 md:flex lg:gap-4">
           {nav.map((item, i) => (
             <NavLink
               key={item.to}
@@ -179,7 +171,28 @@ export function SiteHeader() {
             <SearchBox />
           </div>
           <div className="hidden md:flex">
-            {/* The one icon worth a tooltip — it's an invitation ("just
+            {/* Frame search sits here as an icon rather than as a labelled
+                nav item: it was the longest label in the bar and stretched
+                the whole header for a feature most visits never use. It
+                keeps a tooltip — unlike the theme and language toggles, a
+                scan glyph is genuinely unguessable, and this is now its only
+                entry point on desktop. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("frameSearch.navLabel")}
+                >
+                  <Link to="/frame-search">
+                    <ScanSearchIcon />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("frameSearch.navLabel")}</TooltipContent>
+            </Tooltip>
+            {/* The other icon worth a tooltip — it's an invitation ("just
                 pick something for me"), not a utility toggle, so it also
                 gets the one bit of flourish here: a soft band of light
                 sweeping across it on hover. Language/theme/install below
@@ -338,6 +351,17 @@ function MobileMenu({
 
       {/* quick action */}
       <div className="flex flex-col gap-2 p-3">
+        {/* Keeps its label here. It left the desktop bar because the label
+            was stretching the header, but a sheet has the room and an
+            unexplained glyph in a vertical list would be worse. */}
+        <Link
+          to="/frame-search"
+          onClick={onNavigate}
+          className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+        >
+          <ScanSearchIcon className="size-4 shrink-0 text-primary" />
+          {t("frameSearch.navLabel")}
+        </Link>
         <button
           type="button"
           onClick={surprise}
