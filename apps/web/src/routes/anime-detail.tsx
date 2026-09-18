@@ -142,14 +142,38 @@ function AnimeDetailView({ param }: { param: string }) {
     // everything below can reach for. Declared with a fallback at each use
     // site rather than conditionally set, so a title AniList has no colour
     // for simply keeps the site accent and needs no second code path.
+    // `isolate` is load-bearing: it gives the article its own stacking
+    // context, so the wash below can sit at -z-10 behind the content without
+    // falling behind the body's own opaque background, where it would be
+    // invisible.
     <article
-      className="flex flex-col gap-6"
+      className="relative isolate flex flex-col gap-6"
       style={
         data.accentColor
           ? ({ "--title-accent": data.accentColor } as CSSProperties)
           : undefined
       }
     >
+      {/* The page wearing the title's colour. Full-bleed past the layout's
+          own gutters (the shell caps content at 1400px), strongest behind the
+          header and gone well before the comments — a wash, not a tint over
+          everything, so text contrast is never at its mercy. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[90vh] w-screen -translate-x-1/2"
+        style={{
+          background:
+            "radial-gradient(80% 60% at 50% 0%, color-mix(in srgb, var(--title-accent, var(--primary)) 20%, transparent), transparent 72%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-[40vh] -z-10 h-[70vh] w-screen -translate-x-1/2"
+        style={{
+          background:
+            "radial-gradient(60% 50% at 20% 40%, color-mix(in srgb, var(--title-accent, var(--primary)) 9%, transparent), transparent 70%)",
+        }}
+      />
       <TitleHeader
         animeId={data.id}
         banner={data.bannerImage ? imageSrc(data.bannerImage) ?? null : null}
@@ -482,7 +506,17 @@ function SynopsisBody({
           visitors never saw it at all and a short-synopsis title read as
           emptier than it actually was. */}
       {background && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-primary/15 bg-primary/[0.04] p-3.5">
+        <div
+          className="flex flex-col gap-1.5 rounded-xl border p-3.5"
+          // Frame and fill take the title's colour; the label inside keeps
+          // the site's, because a pale cover would leave that text unreadable.
+          style={{
+            borderColor:
+              "color-mix(in srgb, var(--title-accent, var(--primary)) 22%, transparent)",
+            background:
+              "color-mix(in srgb, var(--title-accent, var(--primary)) 5%, transparent)",
+          }}
+        >
           <span className="flex items-center gap-1.5 text-xs font-medium text-primary/90">
             <BookOpenIcon className="size-3.5" />
             {t("detail.background")}
@@ -504,27 +538,47 @@ function SynopsisBody({
  * answers null rather than failing), so a title without stats simply does
  * not show the block instead of showing an empty one.
  */
+/** One hue — the title's own — at five strengths, so the five buckets stay
+ *  distinguishable without introducing five unrelated colours to a page that
+ *  is already wearing a colour. Ordered the way a list is actually read:
+ *  the biggest commitment first. */
+const AUDIENCE_KEYS = [
+  { key: "completed", strength: 100 },
+  { key: "watching", strength: 76 },
+  { key: "planToWatch", strength: 54 },
+  { key: "onHold", strength: 36 },
+  { key: "dropped", strength: 22 },
+] as const;
+
 function AudienceStats({ animeId }: { animeId: number }) {
   const t = useT();
   const labels = useLabels();
   const { data } = useAnimeStats(animeId);
+  const [hovered, setHovered] = useState<string | null>(null);
+
   if (!data) return null;
 
-  const rows = [
-    { key: "watching", value: data.watching },
-    { key: "completed", value: data.completed },
-    { key: "onHold", value: data.onHold },
-    { key: "dropped", value: data.dropped },
-    { key: "planToWatch", value: data.planToWatch },
-  ].filter((row): row is { key: string; value: number } => row.value != null);
+  // flatMap rather than map+filter: dropping the empty buckets this way
+  // narrows `value` to a number on its own, with no type predicate to keep
+  // in step with the shape it is narrowing.
+  const rows = AUDIENCE_KEYS.flatMap(({ key, strength }) => {
+    const value = data[key];
+    return value == null
+      ? []
+      : [{ key: key as string, strength: strength as number, value }];
+  });
 
   if (rows.length === 0) return null;
+
+  const sum = rows.reduce((n, row) => n + row.value, 0) || 1;
   // Scaled against the biggest row, not the total — with five buckets, a
   // share-of-total bar leaves every one of them a barely visible sliver.
   const max = Math.max(...rows.map((row) => row.value), 1);
+  const tint = (strength: number) =>
+    `color-mix(in srgb, var(--title-accent, var(--primary)) ${strength}%, transparent)`;
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-2xl border border-border/60 bg-card/40 p-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-4 transition-colors duration-300 hover:border-[color-mix(in_srgb,var(--title-accent,var(--primary))_35%,transparent)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground/70">
           {t("detail.audienceTitle")}
@@ -536,29 +590,74 @@ function AudienceStats({ animeId }: { animeId: number }) {
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        {rows.map((row, i) => (
-          <div
+      {/* One bar for the whole audience, split by what they did with the
+          title. The per-row bars below answer "how many"; this answers "out
+          of everyone, how does this title get treated" — which is the
+          question the block is actually here for and which five separate
+          bars never quite showed. */}
+      <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
+        {rows.map((row) => (
+          <span
             key={row.key}
-            style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
-            className="animate-in fade-in slide-in-from-left-2 flex items-center gap-2.5 duration-500"
-          >
-            <span className="w-24 shrink-0 truncate text-[11px] text-muted-foreground">
-              {t(
-                `detail.audienceStats.${row.key}` as "detail.audienceStats.watching",
-              )}
-            </span>
-            <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary/70">
-              <span
-                className="block h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-[width] duration-700 ease-out"
-                style={{ width: `${Math.round((row.value / max) * 100)}%` }}
-              />
-            </span>
-            <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-foreground/80">
-              {labels.compact(row.value)}
-            </span>
-          </div>
+            className="h-full rounded-full transition-all duration-500 ease-out first:rounded-l-full last:rounded-r-full"
+            style={{
+              width: `${(row.value / sum) * 100}%`,
+              background: tint(row.strength),
+              opacity: hovered && hovered !== row.key ? 0.25 : 1,
+            }}
+          />
         ))}
+      </div>
+
+      <div className="flex flex-col gap-0.5">
+        {rows.map((row, i) => {
+          const share = Math.round((row.value / sum) * 100);
+          const dimmed = hovered != null && hovered !== row.key;
+          return (
+            <div
+              key={row.key}
+              onMouseEnter={() => setHovered(row.key)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
+              className={cn(
+                "animate-in fade-in slide-in-from-left-2 flex items-center gap-2.5 rounded-lg px-1.5 py-1 duration-500",
+                "transition-[opacity,background-color]",
+                dimmed ? "opacity-45" : "opacity-100",
+                hovered === row.key && "bg-secondary/50",
+              )}
+            >
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: tint(row.strength) }}
+              />
+              <span className="w-24 shrink-0 truncate text-[11px] text-muted-foreground">
+                {t(
+                  `detail.audienceStats.${row.key}` as "detail.audienceStats.watching",
+                )}
+              </span>
+              <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary/70">
+                <span
+                  className="block h-full rounded-full transition-[width] duration-700 ease-out"
+                  style={{
+                    width: `${Math.round((row.value / max) * 100)}%`,
+                    background: tint(row.strength),
+                  }}
+                />
+              </span>
+              {/* The share only appears for the row being pointed at — five
+                  percentages sitting there permanently is a wall of numbers
+                  nobody asked for, but it is the first thing you want the
+                  moment you single one out. */}
+              <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground/70">
+                {hovered === row.key ? `${share}%` : ""}
+              </span>
+              <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-foreground/80">
+                {labels.compact(row.value)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
