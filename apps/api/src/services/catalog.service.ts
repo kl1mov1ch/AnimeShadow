@@ -826,9 +826,21 @@ export class CatalogService {
    * request per hover.
    */
   async getThemes(malId: number): Promise<AnimeThemes> {
-    return this.auxCache.wrap(`themes:${malId}`, () =>
-      this.animethemes.getThemes(malId),
-    ) as Promise<AnimeThemes>;
+    const key = `themes:${malId}`;
+    const cached = this.auxCache.get(key) as AnimeThemes | undefined;
+    if (cached) return cached;
+
+    const result = await this.animethemes.getThemes(malId);
+    if (result.error) {
+      // Not cached, deliberately. A failed lookup used to be stored for the
+      // full hour exactly like a real "this title has no music" answer, so
+      // one blocked request hid the player for everyone for an hour with
+      // nothing in the logs to say why.
+      this.logger.warn({ malId, reason: result.error }, "animethemes lookup failed");
+      return result;
+    }
+    this.auxCache.set(key, result);
+    return result;
   }
 
   async getOpening(malId: number): Promise<AnimeOpening | null> {

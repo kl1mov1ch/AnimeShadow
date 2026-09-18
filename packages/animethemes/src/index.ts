@@ -44,6 +44,13 @@ export interface AnimeThemes {
   tracks: AnimeOpening[];
   /** The first opening, for background motion. Also present in `tracks`. */
   opening: AnimeOpening | null;
+  /**
+   * Set only when the lookup itself failed, as opposed to the archive
+   * genuinely having nothing. The two used to be indistinguishable — both
+   * came back as an empty list — so a blocked request looked exactly like a
+   * title without music, and nobody could tell which one they were seeing.
+   */
+  error?: string;
 }
 
 interface RawAudio {
@@ -120,9 +127,10 @@ export class AnimeThemesClient {
         "animethemes.animethemeentries.videos.audio,animethemes.song.artists",
     });
 
-    const data = await this.request<{ anime?: RawAnime[] }>(
+    const { data, error } = await this.request<{ anime?: RawAnime[] }>(
       `/anime?${params.toString()}`,
     );
+    if (error) return { tracks: [], opening: null, error };
     const anime = data?.anime?.[0];
     const themes = anime?.animethemes ?? [];
 
@@ -158,7 +166,7 @@ export class AnimeThemesClient {
     return run;
   }
 
-  private request<T>(path: string): Promise<T | null> {
+  private request<T>(path: string): Promise<{ data: T | null; error: string | null }> {
     return this.schedule(async () => {
       try {
         const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
@@ -168,11 +176,27 @@ export class AnimeThemesClient {
           },
           signal: AbortSignal.timeout(this.timeoutMs),
         });
-        if (!response.ok) return null;
-        return (await response.json().catch(() => null)) as T | null;
-      } catch {
-        // Decoration. Never a reason to fail the page that asked.
-        return null;
+        const type = response.headers.get("content-type") ?? "";
+        if (!response.ok) {
+          return { data: null, error: `HTTP ${response.status} (${type || "no content-type"})` };
+        }
+        // The failure worth naming: an edge in front of the archive answering
+        // with an HTML challenge page and a 200. It parses as nothing, and
+        // without this check it was reported as "no themes for this title".
+        if (!type.includes("json")) {
+          return { data: null, error: `expected JSON, got ${type || "no content-type"}` };
+        }
+        const data = (await response.json().catch(() => null)) as T | null;
+        return data == null
+          ? { data: null, error: "unparseable JSON" }
+          : { data, error: null };
+      } catch (error) {
+        // Still never a reason to fail the page that asked — but now it says
+        // what happened instead of vanishing.
+        return {
+          data: null,
+          error: error instanceof Error ? `${error.name}: ${error.message}` : "request failed",
+        };
       }
     });
   }

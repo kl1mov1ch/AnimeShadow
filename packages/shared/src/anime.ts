@@ -256,6 +256,12 @@ export type AnimeOpening = z.infer<typeof animeOpeningSchema>;
 export const animeThemesSchema = z.object({
   tracks: z.array(animeOpeningSchema).default([]),
   opening: animeOpeningSchema.nullable(),
+  /**
+   * Present only when the upstream lookup failed — as distinct from the
+   * archive simply having nothing. Exposed on purpose: it is the one way to
+   * tell, from a browser, why the soundtrack section is not showing.
+   */
+  error: z.string().optional(),
 });
 export type AnimeThemes = z.infer<typeof animeThemesSchema>;
 
