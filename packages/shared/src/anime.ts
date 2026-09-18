@@ -238,6 +238,7 @@ export type AnimeQueryInput = z.input<typeof animeQuerySchema>;
  * autoplay based on how big the file actually is.
  */
 export const animeOpeningSchema = z.object({
+  kind: z.enum(["OP", "ED"]).default("OP"),
   url: z.string(),
   /** Audio-only track, when the archive has one — what the theme player uses. */
   audioUrl: z.string().nullable().default(null),
@@ -251,10 +252,10 @@ export const animeOpeningSchema = z.object({
 });
 export type AnimeOpening = z.infer<typeof animeOpeningSchema>;
 
-/** A title's opening and ending, whichever of the two the archive has. */
+/** Every theme the archive has for a title — the page's mini library. */
 export const animeThemesSchema = z.object({
+  tracks: z.array(animeOpeningSchema).default([]),
   opening: animeOpeningSchema.nullable(),
-  ending: animeOpeningSchema.nullable(),
 });
 export type AnimeThemes = z.infer<typeof animeThemesSchema>;
 

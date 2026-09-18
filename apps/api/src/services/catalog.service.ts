@@ -78,6 +78,8 @@ export interface CatalogServiceDeps {
   shikimori: ShikimoriClient;
   jikan: JikanClient;
   anilist: AniListClient;
+  /** Same API, its own request queue — see the note in container.ts. */
+  anilistBackground: AniListClient;
   animethemes: AnimeThemesClient;
   cacheTtlSeconds: number;
   logger: CatalogLogger;
@@ -125,6 +127,7 @@ export class CatalogService {
   private readonly shikimori: ShikimoriClient;
   private readonly jikan: JikanClient;
   private readonly anilist: AniListClient;
+  private readonly anilistBackground: AniListClient;
   private readonly animethemes: AnimeThemesClient;
   private readonly ttlMs: number;
   private readonly logger: CatalogLogger;
@@ -148,6 +151,7 @@ export class CatalogService {
     this.shikimori = deps.shikimori;
     this.jikan = deps.jikan;
     this.anilist = deps.anilist;
+    this.anilistBackground = deps.anilistBackground;
     this.animethemes = deps.animethemes;
     this.ttlMs = deps.cacheTtlSeconds * 1000;
     this.logger = deps.logger;
@@ -340,7 +344,8 @@ export class CatalogService {
           const cover = external?.get(item.id)?.artwork.cover ?? null;
           const externalPoster =
             cover ??
-            (await this.anilist.getByMalId(item.id, item.title))?.artwork.cover ??
+            (await withTimeout(this.anilist.getByMalId(item.id, item.title), 2_000, null))
+              ?.artwork.cover ??
             (await kitsuPoster(item.title)) ??
             (await anilibriaPoster(item.title));
 
@@ -427,7 +432,8 @@ export class CatalogService {
     if (anime.bannerImage) return anime;
     try {
       const banner =
-        (await this.anilist.getByMalId(anime.id, anime.title))?.artwork.banner ??
+        (await withTimeout(this.anilist.getByMalId(anime.id, anime.title), 2_000, null))
+          ?.artwork.banner ??
         (await kitsuBanner(anime.title));
       if (!banner) return anime;
       await this.prisma.anime
@@ -778,7 +784,8 @@ export class CatalogService {
       let small: string | null = null;
 
       const external =
-        (await this.anilist.getByMalId(row.id, row.title))?.artwork.cover ??
+        (await withTimeout(this.anilist.getByMalId(row.id, row.title), 2_000, null))
+          ?.artwork.cover ??
         (await kitsuPoster(row.title)) ??
         (await anilibriaPoster(row.title));
       if (external) {
@@ -839,14 +846,22 @@ export class CatalogService {
   private anilistMedia(
     malId: number,
     title: string,
+    client: AniListClient = this.anilist,
   ): Promise<Awaited<ReturnType<AniListClient["getByMalId"]>>> {
     return this.auxCache.wrap(`anilist-media:${malId}`, () =>
-      this.anilist.getByMalId(malId, title),
+      client.getByMalId(malId, title),
     ) as Promise<Awaited<ReturnType<AniListClient["getByMalId"]>>>;
   }
 
   private async enrichFromAniList(detail: AnimeDetail): Promise<void> {
-    const media = await this.anilistMedia(detail.id, detail.title);
+    // Tags, streaming links and the next airing date are all enrichment: a
+    // page that renders without them is fine, a page that waits seconds for
+    // them is not. The lookup keeps running and fills the cache for next time.
+    const media = await withTimeout(
+      this.anilistMedia(detail.id, detail.title),
+      2_000,
+      null,
+    );
     if (!media) return;
 
     // Only meaningful while a title is still going out; a finished show
@@ -944,16 +959,19 @@ export class CatalogService {
 
     this.logger.info({ count: targets.length }, "warming artwork");
     for (const row of targets) {
-      await this.healArtwork(row);
+      await this.healArtwork(row, this.anilistBackground);
     }
     this.logger.info({ count: targets.length }, "artwork warm done");
   }
 
   /** The awaitable half of the heal, so a warm pass can pace itself against
    *  it instead of firing every title at once. */
-  private async healArtwork(row: ArtworkHealRow): Promise<void> {
+  private async healArtwork(
+    row: ArtworkHealRow,
+    client: AniListClient = this.anilist,
+  ): Promise<void> {
     try {
-      const media = await this.anilistMedia(row.id, row.title);
+      const media = await this.anilistMedia(row.id, row.title, client);
       const artwork = media?.artwork;
       // Keep a banner we already have: re-resolving it would cost a Kitsu
       // round trip to arrive at the same URL. This pass may now run a second

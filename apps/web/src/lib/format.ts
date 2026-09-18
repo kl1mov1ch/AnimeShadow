@@ -39,3 +39,17 @@ export function imageSrc(url: string | null | undefined): string | undefined {
     return url;
   }
 }
+
+/**
+ * Routes a theme's audio through our own proxy.
+ *
+ * Not for hot-linking reasons — the archive allows that — but for CORS. Its
+ * audio host sends no Access-Control-Allow-Origin, and a <audio> element read
+ * by Web Audio without it produces a tainted stream: the analyser sees
+ * silence and the sound itself stops. The proxy adds the header (and forwards
+ * range requests, so seeking still works).
+ */
+export function audioSrc(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  return `${API_BASE}/api/audio?u=${encodeURIComponent(url)}`;
+}

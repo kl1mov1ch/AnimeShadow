@@ -18,6 +18,8 @@ export interface AnimeThemesClientOptions {
 }
 
 export interface AnimeOpening {
+  /** Which half of the show this belongs to. */
+  kind: "OP" | "ED";
   /** Direct .webm URL. */
   url: string;
   /** Separate audio-only track (.ogg), when the archive has one. */
@@ -36,10 +38,12 @@ export interface AnimeOpening {
   pageUrl: string | null;
 }
 
-/** A title's opening and ending, whichever of the two the archive has. */
+/** Every usable theme the archive has for a title, openings first. */
 export interface AnimeThemes {
+  /** All of them — the mini library on the title page. */
+  tracks: AnimeOpening[];
+  /** The first opening, for background motion. Also present in `tracks`. */
   opening: AnimeOpening | null;
-  ending: AnimeOpening | null;
 }
 
 interface RawAudio {
@@ -106,15 +110,7 @@ export class AnimeThemesClient {
     this.userAgent = options.userAgent ?? DEFAULTS.userAgent;
   }
 
-  /**
-   * The opening worth playing for a title, or null when the archive has none.
-   *
-   * "Worth playing" is a real filter, not just the first row: an entry marked
-   * as a spoiler has no business appearing under a title someone has not
-   * watched yet, a subtitled or lyric-burned copy has text baked into the
-   * picture, and a version with credits shows a staff roll over the footage.
-   */
-  /** The opening and the ending together — one request serves both. */
+  /** Every theme the title has, openings then endings — one request. */
   async getThemes(malId: number): Promise<AnimeThemes> {
     const params = new URLSearchParams({
       "filter[has]": "resources",
@@ -130,9 +126,15 @@ export class AnimeThemesClient {
     const anime = data?.anime?.[0];
     const themes = anime?.animethemes ?? [];
 
+    // Openings before endings, then by sequence — the order someone would
+    // expect a title's music listed in, rather than the archive's own.
+    const tracks = [
+      ...collectThemes(themes, "OP", anime?.slug),
+      ...collectThemes(themes, "ED", anime?.slug),
+    ];
     return {
-      opening: pickTheme(themes, "OP", anime?.slug),
-      ending: pickTheme(themes, "ED", anime?.slug),
+      tracks,
+      opening: tracks.find((t) => t.kind === "OP") ?? null,
     };
   }
 
@@ -188,15 +190,16 @@ function sleep(ms: number): Promise<void> {
  * yet, a subtitled or lyric-burned copy has text baked into the picture, and
  * a version with credits shows a staff roll over the footage.
  */
-function pickTheme(
+function collectThemes(
   themes: RawTheme[],
   kind: "OP" | "ED",
   animeSlug: string | undefined,
-): AnimeOpening | null {
+): AnimeOpening[] {
   const ordered = themes
     .filter((t) => (t.type ?? "").toUpperCase() === kind)
     .sort((a, b) => (a.sequence ?? 99) - (b.sequence ?? 99));
 
+  const out: AnimeOpening[] = [];
   for (const theme of ordered) {
     for (const entry of theme.animethemeentries ?? []) {
       if (entry.spoiler) continue;
@@ -212,7 +215,8 @@ function pickTheme(
       const artists = (theme.song?.artists ?? [])
         .map((a) => a.name)
         .filter((n): n is string => Boolean(n));
-      return {
+      out.push({
+        kind,
         url: video.link,
         audioUrl: video.audio?.link ?? null,
         song: theme.song?.title ?? null,
@@ -223,8 +227,10 @@ function pickTheme(
         // The archive's own page for the title, so anything beyond listening
         // is its call to offer, not ours to route around.
         pageUrl: animeSlug ? `https://animethemes.moe/anime/${animeSlug}` : null,
-      };
+      });
+      // One entry per theme: the rest are alternate encodes of the same song.
+      break;
     }
   }
-  return null;
+  return out;
 }

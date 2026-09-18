@@ -1,7 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { BookOpenIcon, ExternalLinkIcon, SearchIcon } from "lucide-react";
+import { BookOpenIcon, SearchIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -798,8 +798,6 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
           )}
 
           <ThemePlayer animeId={anime.id} />
-          <TagCloud tags={anime.tags ?? []} />
-          <StreamingLinks links={anime.streamingLinks ?? []} />
         </div>
 
         {hasRail && (
@@ -820,85 +818,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   );
 }
 
-/** Past this the tail is all 60-something percent agreement — true of the
- *  title in someone's reading, but not what it is actually about. */
-const TAGS_SHOWN = 12;
 
-/**
- * AniList's community tags. Unlike genres, each carries how strongly its
- * voters thought it applies, and that number is the whole point: "Cute Girls
- * Doing Cute Things, 98%" says far more about a show than the same phrase
- * listed flat beside eleven others. Spoiler tags are filtered out upstream.
- */
-function TagCloud({ tags }: { tags: Array<{ name: string; rank: number }> }) {
-  const t = useT();
-  if (tags.length === 0) return null;
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground/70">
-        {t("detail.tags")}
-      </span>
-      <div className="flex flex-wrap gap-1.5">
-        {tags.slice(0, TAGS_SHOWN).map((tag) => (
-          <span
-            key={tag.name}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-xs text-secondary-foreground transition-colors hover:border-[var(--accent-line)] hover:bg-[var(--accent-surface-strong)]"
-          >
-            {tag.name}
-            <span className="tabular-nums text-[10px] text-muted-foreground/70">
-              {tag.rank}%
-            </span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Where the title can be watched legally, as AniList lists it. Deliberately
- * kept as plain outbound links with no ranking of our own — this is the one
- * block on the page that sends people somewhere else on purpose.
- */
-function StreamingLinks({
-  links,
-}: {
-  links: Array<{ site: string; url: string; language: string | null }>;
-}) {
-  const t = useT();
-  if (links.length === 0) return null;
-  // AniList often lists the same service several times (one entry per
-  // regional feed); the site name is all we show, so the repeats would read
-  // as a mistake.
-  const seen = new Set<string>();
-  const unique = links.filter((link) => {
-    if (seen.has(link.site)) return false;
-    seen.add(link.site);
-    return true;
-  });
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground/70">
-        {t("detail.watchOfficially")}
-      </span>
-      <div className="flex flex-wrap gap-1.5">
-        {unique.map((link) => (
-          <a
-            key={link.site}
-            href={link.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--accent-line)] hover:text-[var(--accent-ink)]"
-          >
-            {link.site}
-            <ExternalLinkIcon className="size-3 opacity-60 transition-opacity group-hover:opacity-100" />
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // Enough to answer "what, when, how long" at a glance — the rest (exact end
 // date, season, studios, list/favorite counts) is real but secondary, one

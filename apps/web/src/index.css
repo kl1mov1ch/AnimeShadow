@@ -573,3 +573,54 @@ html body[data-scroll-locked] {
     height: 100%;
   }
 }
+
+/* The soundtrack scrubber. A native range input so it drags, takes arrow
+   keys and is announced properly — restyled here because the stock control
+   looks nothing like the rest of the site. --played is set inline per render
+   and paints the portion already heard in the title's own colour. */
+.theme-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.theme-scrubber::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--accent-ink) var(--played, 0%),
+    color-mix(in srgb, var(--foreground) 15%, transparent) var(--played, 0%)
+  );
+}
+.theme-scrubber::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--accent-ink) var(--played, 0%),
+    color-mix(in srgb, var(--foreground) 15%, transparent) var(--played, 0%)
+  );
+}
+.theme-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -4px;
+  height: 12px;
+  width: 12px;
+  border-radius: 9999px;
+  background: var(--accent-ink);
+  transition: transform 150ms ease;
+}
+.theme-scrubber::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--accent-ink);
+}
+.theme-scrubber:hover::-webkit-slider-thumb,
+.theme-scrubber:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.25);
+}

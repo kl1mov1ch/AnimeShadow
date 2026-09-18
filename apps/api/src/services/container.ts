@@ -83,10 +83,14 @@ export function createServices(deps: ContainerDeps): Services {
   });
   const alloha = new AllohaClient({ token: deps.watch.allohaToken });
   const anilibria = new AniLibriaClient();
-  // One shared instance on purpose: it serialises its own requests to stay
-  // inside AniList's rate limit, which only works if everything goes through
-  // the same queue.
+  // One instance for anything a visitor is waiting on, and a second for
+  // background passes. Each serialises its own requests to stay inside
+  // AniList's rate limit — but sharing a single queue between the two meant a
+  // warm pass of 60 titles put 45 seconds of backlog in front of every page
+  // load that needed AniList. Separate lanes: background work can take as
+  // long as it likes without anyone waiting on it.
   const anilist = new AniListClient();
+  const anilistBackground = new AniListClient();
   // Same reasoning as AniList: one instance, so its own request queue is
   // actually shared rather than one queue per caller.
   const animethemes = new AnimeThemesClient();
@@ -109,6 +113,7 @@ export function createServices(deps: ContainerDeps): Services {
     shikimori,
     jikan: deps.jikan,
     anilist,
+    anilistBackground,
     animethemes,
     cacheTtlSeconds: deps.cacheTtlSeconds,
     logger: deps.logger,
