@@ -1,7 +1,7 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { BookOpenIcon, SearchIcon } from "lucide-react";
+import { BookOpenIcon, ExternalLinkIcon, SearchIcon } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -138,7 +138,10 @@ function AnimeDetailView({ param }: { param: string }) {
 
   return (
     <article className="flex flex-col gap-6">
-      <TitleHeader>
+      <TitleHeader
+        banner={data.bannerImage ? imageSrc(data.bannerImage) ?? null : null}
+        accent={data.accentColor}
+      >
         {/* Poster alongside everything else, not stacked in a separate
             sidebar below — the header is the one place all of a title's
             identity (art, name, rating, genres, actions) lives together.
@@ -277,27 +280,81 @@ function AnimeDetailView({ param }: { param: string }) {
  * artwork on it, every title page is laid out identically, and the decoration
  * is monochrome, so it reads the same in either theme.
  */
-function TitleHeader({ children }: { children: React.ReactNode }) {
+function TitleHeader({
+  banner,
+  accent,
+  children,
+}: {
+  /** AniList's own widescreen key visual, when the title has one. */
+  banner: string | null;
+  /** Dominant colour of the cover art, `#rrggbb`. */
+  accent: string | null;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
+    <div
+      className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card"
+      // The title's own colour, applied as a custom property so the layers
+      // below can use it without a second render path for "has a colour" and
+      // "doesn't". Falls back to the site accent.
+      style={
+        accent
+          ? ({ "--title-accent": accent } as React.CSSProperties)
+          : undefined
+      }
+    >
       {/* The site's own hairline, the same one under the header. */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
       />
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 -top-32 size-[30rem] rounded-full bg-primary/[0.07] blur-[120px]" />
-        <div className="absolute -bottom-32 right-[8%] size-[24rem] rounded-full bg-primary/[0.05] blur-[110px]" />
-        <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
-          影
-        </span>
-        <LottieMono
-          animation={pulseRings}
-          className="absolute -left-24 -bottom-24 size-[26rem] text-primary/20"
-        />
-      </div>
-      {/* No forced minimum height any more: with no photo to give room to,
-          a 440px floor was just empty space under short content. */}
+
+      {banner ? (
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {/* A real landscape key visual, framed as one. This is the reason
+              the banner came back at all: the old backdrop was whatever
+              portrait poster we had, stretched across a 16:5 box, which is
+              why it read as broken rather than cinematic. */}
+          <img
+            src={banner}
+            alt=""
+            fetchPriority="high"
+            className="absolute inset-0 size-full object-cover object-center"
+          />
+          {/* Legibility first — the panel's text sits on top of this. */}
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/85 to-card/45" />
+          <div className="absolute inset-0 hidden bg-gradient-to-r from-card via-card/70 to-transparent sm:block" />
+          {accent && (
+            <div
+              className="absolute inset-0 opacity-25 mix-blend-overlay"
+              style={{
+                background:
+                  "radial-gradient(120% 90% at 15% 0%, var(--title-accent), transparent 70%)",
+              }}
+            />
+          )}
+        </div>
+      ) : (
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {/* No banner for this title — the same plain, monochrome treatment
+              as before, tinted by the cover's colour when we know it. */}
+          <div
+            className="absolute -left-24 -top-32 size-[30rem] rounded-full opacity-[0.10] blur-[120px]"
+            style={{ background: accent ? "var(--title-accent)" : undefined }}
+          />
+          <div className="absolute -bottom-32 right-[8%] size-[24rem] rounded-full bg-primary/[0.05] blur-[110px]" />
+          <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
+            影
+          </span>
+          <LottieMono
+            animation={pulseRings}
+            className="absolute -left-24 -bottom-24 size-[26rem] text-primary/20"
+          />
+        </div>
+      )}
+
+      {/* No forced minimum height: the content decides how tall this is, so a
+          short title never sits above a band of empty artwork. */}
       <div className="relative flex flex-col gap-3 p-4 sm:p-6 lg:p-8">{children}</div>
     </div>
   );
@@ -611,6 +668,9 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
               )}
             </div>
           )}
+
+          <TagCloud tags={anime.tags ?? []} />
+          <StreamingLinks links={anime.streamingLinks ?? []} />
         </div>
 
         {hasRail && (
@@ -628,6 +688,86 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
 
       <CharactersBlock animeId={anime.id} />
     </section>
+  );
+}
+
+/** Past this the tail is all 60-something percent agreement — true of the
+ *  title in someone's reading, but not what it is actually about. */
+const TAGS_SHOWN = 12;
+
+/**
+ * AniList's community tags. Unlike genres, each carries how strongly its
+ * voters thought it applies, and that number is the whole point: "Cute Girls
+ * Doing Cute Things, 98%" says far more about a show than the same phrase
+ * listed flat beside eleven others. Spoiler tags are filtered out upstream.
+ */
+function TagCloud({ tags }: { tags: Array<{ name: string; rank: number }> }) {
+  const t = useT();
+  if (tags.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground/70">
+        {t("detail.tags")}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {tags.slice(0, TAGS_SHOWN).map((tag) => (
+          <span
+            key={tag.name}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-xs text-secondary-foreground transition-colors hover:border-primary/40"
+          >
+            {tag.name}
+            <span className="tabular-nums text-[10px] text-muted-foreground/70">
+              {tag.rank}%
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Where the title can be watched legally, as AniList lists it. Deliberately
+ * kept as plain outbound links with no ranking of our own — this is the one
+ * block on the page that sends people somewhere else on purpose.
+ */
+function StreamingLinks({
+  links,
+}: {
+  links: Array<{ site: string; url: string; language: string | null }>;
+}) {
+  const t = useT();
+  if (links.length === 0) return null;
+  // AniList often lists the same service several times (one entry per
+  // regional feed); the site name is all we show, so the repeats would read
+  // as a mistake.
+  const seen = new Set<string>();
+  const unique = links.filter((link) => {
+    if (seen.has(link.site)) return false;
+    seen.add(link.site);
+    return true;
+  });
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground/70">
+        {t("detail.watchOfficially")}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {unique.map((link) => (
+          <a
+            key={link.site}
+            href={link.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground"
+          >
+            {link.site}
+            <ExternalLinkIcon className="size-3 opacity-60 transition-opacity group-hover:opacity-100" />
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 

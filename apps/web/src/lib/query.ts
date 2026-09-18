@@ -13,6 +13,7 @@ import type {
   DeleteAccountInput,
   DiscoverResponse,
   ForgotPasswordInput,
+  FrameSearchResponse,
   FranchiseEntry,
   Genre,
   LibraryEntry,
@@ -228,6 +229,21 @@ export function useFranchise(id: number, enabled = true) {
         (r) => r.items,
       ),
     staleTime: 60 * 60_000,
+  });
+}
+
+/**
+ * "Which anime is this frame from?" — a one-shot mutation rather than a
+ * query: the input is an image the visitor just picked, there is nothing to
+ * key a cache on, and re-running it is always a deliberate act.
+ */
+export function useFrameSearch() {
+  return useMutation({
+    mutationFn: (dataUrl: string) =>
+      apiRequest<FrameSearchResponse>("/search/frame", {
+        method: "POST",
+        body: { dataUrl },
+      }),
   });
 }
 

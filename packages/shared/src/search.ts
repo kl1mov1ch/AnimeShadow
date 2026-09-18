@@ -38,3 +38,37 @@ export const searchQuerySchema = z.object({
   fast: z.coerce.boolean().default(false),
 });
 export type SearchQuery = z.infer<typeof searchQuerySchema>;
+
+/**
+ * "Which anime is this frame from?" — a screenshot identified by trace.moe.
+ * Sent as a data URL for the same reason avatar uploads are: it keeps the
+ * request plain JSON, so no multipart parser has to exist for one endpoint.
+ */
+export const frameSearchInputSchema = z.object({
+  dataUrl: z.string().min(64),
+});
+export type FrameSearchInput = z.infer<typeof frameSearchInputSchema>;
+
+export const frameMatchSchema = z.object({
+  /** Our own catalogue entry, when this title is one we know. */
+  anime: animeSummarySchema.nullable(),
+  /** Always present — the fallback label when `anime` is null. */
+  title: z.string(),
+  episode: z.number().nullable(),
+  /** Where in the episode the frame is, in seconds. */
+  fromSeconds: z.number(),
+  toSeconds: z.number(),
+  /** 0-1. trace.moe's own guidance is that below ~0.87 is usually wrong. */
+  similarity: z.number(),
+  /** Short muted clip of the moment, straight from trace.moe. */
+  previewVideo: z.string().nullable(),
+  previewImage: z.string().nullable(),
+});
+export type FrameMatch = z.infer<typeof frameMatchSchema>;
+
+export const frameSearchResponseSchema = z.object({
+  results: z.array(frameMatchSchema),
+  /** How many frames trace.moe compared against — shown as a bit of scale. */
+  framesSearched: z.number().int().nonnegative(),
+});
+export type FrameSearchResponse = z.infer<typeof frameSearchResponseSchema>;

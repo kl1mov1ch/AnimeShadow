@@ -138,6 +138,7 @@ export function toDetailDto(row: AnimeWithGenres): AnimeDetail {
     studios: row.studios,
     screenshots: row.screenshots ?? [],
     bannerImage: row.bannerImage ?? null,
+    accentColor: row.accentColor ?? null,
     genresDetailed: row.genres.map((link) => ({
       id: link.genre.id,
       name: link.genre.name,

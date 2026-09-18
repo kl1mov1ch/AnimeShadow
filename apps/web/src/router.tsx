@@ -37,6 +37,7 @@ export const router = createBrowserRouter([
           { path: "anime/:id/:slug", lazy: () => import("@/routes/anime-detail") },
           { path: "library", lazy: () => import("@/routes/library") },
           { path: "recommendations", lazy: () => import("@/routes/recommendations") },
+          { path: "frame-search", lazy: () => import("@/routes/frame-search") },
           { path: "profile", lazy: () => import("@/routes/profile") },
           { path: "profile/:username", lazy: () => import("@/routes/profile") },
           { path: "admin", lazy: () => import("@/routes/admin") },

@@ -348,6 +348,7 @@ model Anime {
   imageUrl        String?
   imageLargeUrl   String?
   bannerImage     String? // wide key-visual banner (AniList) — spotlight backdrop only
+  accentColor     String? // dominant colour of the cover art (AniList), as #rrggbb
   screenshots     String[]
   type            AnimeType      @default(UNKNOWN)
   airing          AnimeAiring    @default(UNKNOWN)

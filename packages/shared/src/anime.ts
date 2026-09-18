@@ -65,6 +65,31 @@ export const animeDetailSchema = animeSummarySchema.extend({
   screenshots: z.array(z.string()).default([]),
   /** Wide official key-visual banner (AniList) — the spotlight's preferred backdrop. */
   bannerImage: z.string().nullable().default(null),
+  /**
+   * Dominant colour of the cover art, as `#rrggbb` (AniList). Lets a title
+   * page take on its own key visual's colour without the browser sampling
+   * the poster's pixels, which it can only do after the image has loaded.
+   */
+  accentColor: z.string().nullable().default(null),
+  /**
+   * AniList community tags with how strongly each was voted to apply, 0-100,
+   * strongest first. Spoiler tags are filtered out upstream. Same
+   * `.optional()` reasoning as `nextEpisode` below — no provider mapper
+   * knows these, only the live AniList lookup sets them.
+   */
+  tags: z
+    .array(z.object({ name: z.string(), rank: z.number().int() }))
+    .optional(),
+  /** Official, legal places to watch this (AniList external links). */
+  streamingLinks: z
+    .array(
+      z.object({
+        site: z.string(),
+        url: z.string(),
+        language: z.string().nullable(),
+      }),
+    )
+    .optional(),
   /** True when `synopsis` is in the requested locale. */
   translated: z.boolean().default(false),
   /**

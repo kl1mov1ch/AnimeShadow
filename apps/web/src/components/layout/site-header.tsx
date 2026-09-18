@@ -7,6 +7,7 @@ import {
   LogOutIcon,
   MenuIcon,
   MoonStarIcon,
+  ScanSearchIcon,
   ShieldIcon,
   ShuffleIcon,
   SunIcon,
@@ -108,7 +109,18 @@ export function SiteHeader() {
     { to: "/", label: t("nav.discover"), end: true, Icon: CompassIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
     ...(status === "authenticated"
-      ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
+      ? [
+          { to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon },
+          // Signed-in only, because each search spends part of a shared
+          // monthly quota on trace.moe's free tier — the API enforces that
+          // too, this just avoids offering a door that would be shut.
+          {
+            to: "/frame-search",
+            label: t("frameSearch.navLabel"),
+            end: false,
+            Icon: ScanSearchIcon,
+          },
+        ]
       : []),
     ...(status === "authenticated" && user?.role === "ADMIN"
       ? [{ to: "/admin", label: t("nav.admin"), end: false, Icon: ShieldIcon }]

@@ -1,4 +1,8 @@
 import {
+  type AniListClient,
+  type AniListTrendingEntry,
+} from "@animeshadow/anilist";
+import {
   ANIME_WITH_GENRES_INCLUDE,
   type Prisma,
   type PrismaClient,
@@ -62,6 +66,7 @@ export interface CatalogServiceDeps {
   prisma: PrismaClient;
   shikimori: ShikimoriClient;
   jikan: JikanClient;
+  anilist: AniListClient;
   cacheTtlSeconds: number;
   logger: CatalogLogger;
   translation: TranslationService;
@@ -107,6 +112,7 @@ export class CatalogService {
   private readonly prisma: PrismaClient;
   private readonly shikimori: ShikimoriClient;
   private readonly jikan: JikanClient;
+  private readonly anilist: AniListClient;
   private readonly ttlMs: number;
   private readonly logger: CatalogLogger;
   private readonly translation: TranslationService;
@@ -128,6 +134,7 @@ export class CatalogService {
     this.prisma = deps.prisma;
     this.shikimori = deps.shikimori;
     this.jikan = deps.jikan;
+    this.anilist = deps.anilist;
     this.ttlMs = deps.cacheTtlSeconds * 1000;
     this.logger = deps.logger;
     this.translation = deps.translation;
@@ -295,10 +302,10 @@ export class CatalogService {
    * entry already carries a poster/banner, which `ensureImages` reuses for
    * free instead of making a second round of lookups.
    */
-  private async externalTrendingMap(): Promise<Map<number, AnilistTrendingEntry>> {
-    const entries = (await this.auxCache.wrap("anilist-trending", async () =>
-      anilistTrendingBatch(),
-    )) as AnilistTrendingEntry[];
+  private async externalTrendingMap(): Promise<Map<number, AniListTrendingEntry>> {
+    const entries = (await this.auxCache.wrap("anilist-trending", () =>
+      this.anilist.getTrending(),
+    )) as AniListTrendingEntry[];
     return new Map(entries.map((e) => [e.idMal, e]));
   }
 
@@ -310,17 +317,16 @@ export class CatalogService {
    */
   private async ensureImages(
     items: AnimeSummary[],
-    external?: Map<number, AnilistTrendingEntry>,
+    external?: Map<number, AniListTrendingEntry>,
   ): Promise<AnimeSummary[]> {
     return Promise.all(
       items.map(async (item) => {
         if (item.imageUrl || item.imageLargeUrl) return item;
         try {
-          const fromBatch = external?.get(item.id)?.coverImage;
-          const cover = fromBatch?.extraLarge ?? fromBatch?.large ?? null;
+          const cover = external?.get(item.id)?.artwork.cover ?? null;
           const externalPoster =
             cover ??
-            (await anilistPoster(item.id, item.title)) ??
+            (await this.anilist.getByMalId(item.id, item.title))?.artwork.cover ??
             (await kitsuPoster(item.title)) ??
             (await anilibriaPoster(item.title));
 
@@ -407,7 +413,7 @@ export class CatalogService {
     if (anime.bannerImage) return anime;
     try {
       const banner =
-        (await anilistBanner(anime.id, anime.title)) ??
+        (await this.anilist.getByMalId(anime.id, anime.title))?.artwork.banner ??
         (await kitsuBanner(anime.title));
       if (!banner) return anime;
       await this.prisma.anime
@@ -697,7 +703,7 @@ export class CatalogService {
       this.assertViewable(existing.rating, allowAdult);
       this.scheduleHealBanner(existing);
       const detail = toDetailDto(existing);
-      detail.nextEpisode = await this.getNextEpisode(existing.id, existing.title, existing.airing);
+      await this.enrichFromAniList(detail);
       detail.studioLogos = await this.getStudioLogos(detail.studios);
       return this.translation.localizeDetail(detail, lang);
     }
@@ -712,7 +718,7 @@ export class CatalogService {
       }
       this.scheduleHealBanner(row);
       const dto = toDetailDto(row);
-      dto.nextEpisode = await this.getNextEpisode(row.id, row.title, row.airing);
+      await this.enrichFromAniList(dto);
       dto.studioLogos = await this.getStudioLogos(dto.studios);
       return this.translation.localizeDetail(dto, lang);
     } catch (error) {
@@ -758,7 +764,7 @@ export class CatalogService {
       let small: string | null = null;
 
       const external =
-        (await anilistPoster(row.id, row.title)) ??
+        (await this.anilist.getByMalId(row.id, row.title))?.artwork.cover ??
         (await kitsuPoster(row.title)) ??
         (await anilibriaPoster(row.title));
       if (external) {
@@ -784,20 +790,39 @@ export class CatalogService {
   }
 
   /**
-   * Only worth asking for on titles that are actually still airing — cached
-   * an hour at a time (episode air times don't need finer precision than
-   * that, and it keeps a popular airing title from re-querying AniList on
-   * every single page view).
+   * The three things AniList knows that our own catalogue does not: when the
+   * next episode airs, what the community tagged the title as, and where it
+   * can legally be watched. One request for all three — they used to cost a
+   * round trip each — cached an hour at a time, which is finer precision than
+   * any of them actually change at and keeps a popular title from re-querying
+   * AniList on every single page view.
    */
-  private async getNextEpisode(
+  /**
+   * One cached AniList record per title. Both the artwork heal and the detail
+   * enrichment want the same Media node, and a title whose colour AniList
+   * simply does not have would otherwise re-ask on every single page view.
+   */
+  private anilistMedia(
     malId: number,
     title: string,
-    airing: string,
-  ): Promise<{ episode: number; airingAt: string } | null> {
-    if (airing !== "AIRING") return null;
-    return this.auxCache.wrap(`next-episode:${malId}`, () =>
-      anilistNextEpisode(malId, title),
-    ) as Promise<{ episode: number; airingAt: string } | null>;
+  ): Promise<Awaited<ReturnType<AniListClient["getByMalId"]>>> {
+    return this.auxCache.wrap(`anilist-media:${malId}`, () =>
+      this.anilist.getByMalId(malId, title),
+    ) as Promise<Awaited<ReturnType<AniListClient["getByMalId"]>>>;
+  }
+
+  private async enrichFromAniList(detail: AnimeDetail): Promise<void> {
+    const media = await this.anilistMedia(detail.id, detail.title);
+    if (!media) return;
+
+    // Only meaningful while a title is still going out; a finished show
+    // reports whatever its last entry was, which would read as a promise of
+    // a new episode that is never coming.
+    if (detail.airing === "AIRING" && media.nextEpisode) {
+      detail.nextEpisode = media.nextEpisode;
+    }
+    if (media.tags.length > 0) detail.tags = media.tags;
+    if (media.streamingLinks.length > 0) detail.streamingLinks = media.streamingLinks;
   }
 
   /**
@@ -854,25 +879,43 @@ export class CatalogService {
    * Shikimori, so the poster gets upgraded in the same pass. This is a
    * quality upgrade, not a "fix missing data" heal, so it overwrites an
    * existing poster on purpose. Fire-and-forget (never blocks a page load on
-   * an external lookup); gated on `bannerImage` alone so a title is only
-   * ever put through this once, not re-fetched on every later visit.
+   * an external lookup), and it runs once per title rather than on every
+   * later visit — but only once it has everything it came for. Gating on the
+   * banner alone would have permanently skipped the accent colour for every
+   * title that already had a banner stored from before that column existed.
    */
   private scheduleHealBanner(row: {
     id: number;
     bannerImage: string | null;
+    accentColor: string | null;
     title: string;
   }): void {
-    if (row.bannerImage) return;
+    if (row.bannerImage && row.accentColor) return;
     void (async () => {
       try {
-        const artwork = await anilistArtwork(row.id, row.title);
-        const banner = artwork.banner ?? (await kitsuBanner(row.title));
-        const data: { bannerImage?: string; imageUrl?: string; imageLargeUrl?: string } = {};
+        const media = await this.anilistMedia(row.id, row.title);
+        const artwork = media?.artwork;
+        // Keep a banner we already have: re-resolving it would cost a Kitsu
+        // round trip to arrive at the same URL. This pass may now run a
+        // second time for a title that has a banner but no colour yet.
+        const banner = row.bannerImage
+          ? null
+          : artwork?.banner ?? (await kitsuBanner(row.title));
+        const data: {
+          bannerImage?: string;
+          imageUrl?: string;
+          imageLargeUrl?: string;
+          accentColor?: string;
+        } = {};
         if (banner) data.bannerImage = banner;
-        if (artwork.poster) {
-          data.imageUrl = artwork.poster;
-          data.imageLargeUrl = artwork.poster;
+        if (artwork?.cover) {
+          data.imageUrl = artwork.cover;
+          data.imageLargeUrl = artwork.cover;
         }
+        // Comes free with the artwork request — AniList reports the cover's
+        // own dominant colour, so the page can be tinted without the browser
+        // having to load and sample the poster first.
+        if (artwork?.color) data.accentColor = artwork.color;
         if (Object.keys(data).length === 0) return;
         await this.prisma.anime.update({ where: { id: row.id }, data });
       } catch (error) {
@@ -1306,252 +1349,11 @@ function mapOrderToShikimori(orderBy: AnimeOrderBy): string {
   }
 }
 
-const ANILIST_URL = "https://graphql.anilist.co";
-
-/**
- * A cover image from AniList — by MAL id first, then by title. AniList covers
- * effectively the whole medium (including not-yet-aired titles) and allows
- * hot-linking, so the URL can be used directly. Returns null on any failure.
- */
-async function anilistPoster(
-  malId: number,
-  title?: string,
-): Promise<string | null> {
-  const ask = async (
-    query: string,
-    variables: Record<string, unknown>,
-  ): Promise<string | null> => {
-    try {
-      const res = await fetch(ANILIST_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        data?: { Media?: { coverImage?: { extraLarge?: string; large?: string } } };
-      };
-      const img = json.data?.Media?.coverImage;
-      const url = img?.extraLarge ?? img?.large ?? null;
-      return url && !url.includes("default.jpg") ? url : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const byId = await ask(
-    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){coverImage{extraLarge large}}}",
-    { idMal: malId },
-  );
-  if (byId) return byId;
-  if (title && title.trim().length >= 2) {
-    return ask(
-      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){coverImage{extraLarge large}}}",
-      { search: title.trim() },
-    );
-  }
-  return null;
-}
-
-/**
- * The wide official key-visual banner from AniList — by MAL id first, then by
- * title. Distinct from `coverImage` (the tall poster): this is what AniList
- * shows atop a title's own page, framed for a landscape hero, not Shikimori's
- * incidental first-episode screenshot. Returns null on any failure or when
- * the title has no banner uploaded (not every anime does).
- */
-async function anilistBanner(
-  malId: number,
-  title?: string,
-): Promise<string | null> {
-  const ask = async (
-    query: string,
-    variables: Record<string, unknown>,
-  ): Promise<string | null> => {
-    try {
-      const res = await fetch(ANILIST_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        data?: { Media?: { bannerImage?: string | null } };
-      };
-      return json.data?.Media?.bannerImage ?? null;
-    } catch {
-      return null;
-    }
-  };
-
-  const byId = await ask(
-    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){bannerImage}}",
-    { idMal: malId },
-  );
-  if (byId) return byId;
-  if (title && title.trim().length >= 2) {
-    return ask(
-      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){bannerImage}}",
-      { search: title.trim() },
-    );
-  }
-  return null;
-}
-
-/**
- * Poster + banner in one request — AniList's own cover art is consistently
- * higher-resolution than what most titles have synced from Shikimori, so a
- * detail-page visit upgrades both together instead of spending a second
- * round-trip just for the poster.
- */
-async function anilistArtwork(
-  malId: number,
-  title?: string,
-): Promise<{ poster: string | null; banner: string | null }> {
-  const empty = { poster: null, banner: null };
-  const ask = async (
-    query: string,
-    variables: Record<string, unknown>,
-  ): Promise<{ poster: string | null; banner: string | null } | null> => {
-    try {
-      const res = await fetch(ANILIST_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        data?: {
-          Media?: {
-            coverImage?: { extraLarge?: string; large?: string } | null;
-            bannerImage?: string | null;
-          };
-        };
-      };
-      const media = json.data?.Media;
-      if (!media) return null;
-      const cover = media.coverImage;
-      const poster = cover?.extraLarge ?? cover?.large ?? null;
-      return {
-        poster: poster && !poster.includes("default.jpg") ? poster : null,
-        banner: media.bannerImage ?? null,
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const byId = await ask(
-    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){coverImage{extraLarge large} bannerImage}}",
-    { idMal: malId },
-  );
-  if (byId && (byId.poster || byId.banner)) return byId;
-  if (title && title.trim().length >= 2) {
-    const bySearch = await ask(
-      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){coverImage{extraLarge large} bannerImage}}",
-      { search: title.trim() },
-    );
-    if (bySearch) return bySearch;
-  }
-  return empty;
-}
-
-/**
- * When the next episode of a still-airing title goes up — a field AniList
- * has and neither Shikimori nor Jikan expose. `airingAt` is a Unix seconds
- * timestamp on the wire; converted to ISO here so the frontend never has to
- * know that detail.
- */
-async function anilistNextEpisode(
-  malId: number,
-  title?: string,
-): Promise<{ episode: number; airingAt: string } | null> {
-  const ask = async (
-    query: string,
-    variables: Record<string, unknown>,
-  ): Promise<{ episode: number; airingAt: string } | null> => {
-    try {
-      const res = await fetch(ANILIST_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        data?: {
-          Media?: { nextAiringEpisode?: { episode: number; airingAt: number } | null };
-        };
-      };
-      const next = json.data?.Media?.nextAiringEpisode;
-      if (!next) return null;
-      return { episode: next.episode, airingAt: new Date(next.airingAt * 1000).toISOString() };
-    } catch {
-      return null;
-    }
-  };
-
-  const byId = await ask(
-    "query($idMal:Int){Media(idMal:$idMal,type:ANIME){nextAiringEpisode{episode airingAt}}}",
-    { idMal: malId },
-  );
-  if (byId) return byId;
-  if (title && title.trim().length >= 2) {
-    return ask(
-      "query($search:String){Media(search:$search,type:ANIME,sort:SEARCH_MATCH){nextAiringEpisode{episode airingAt}}}",
-      { search: title.trim() },
-    );
-  }
-  return null;
-}
-
-interface AnilistTrendingEntry {
-  idMal: number;
-  trending: number;
-  bannerImage: string | null;
-  coverImage: { extraLarge?: string; large?: string } | null;
-}
-
-/**
- * AniList's own trending ranking (`Page(sort: TRENDING_DESC)`) — one request
- * for a whole batch, each entry already carrying its poster and banner. This
- * is the "what's the rest of the internet watching" half of the homepage's
- * trending row; our own WatchSession data is the other half. Cached by the
- * caller (aggressively — this doesn't need to be fresh to the minute).
- */
-async function anilistTrendingBatch(): Promise<AnilistTrendingEntry[]> {
-  try {
-    const query = `query($page:Int){
-      Page(page:$page,perPage:50){
-        media(type:ANIME,sort:TRENDING_DESC){
-          idMal
-          trending
-          bannerImage
-          coverImage{extraLarge large}
-        }
-      }
-    }`;
-    const res = await fetch(ANILIST_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ query, variables: { page: 1 } }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return [];
-    const json = (await res.json()) as {
-      data?: { Page?: { media?: Array<Partial<AnilistTrendingEntry>> } };
-    };
-    const media = json.data?.Page?.media ?? [];
-    return media.filter(
-      (m): m is AnilistTrendingEntry => typeof m.idMal === "number",
-    );
-  } catch {
-    return [];
-  }
-}
+// AniList lookups all live in @animeshadow/anilist now. They used to be five
+// near-identical functions here, each with its own fetch, timeout and error
+// swallowing, and — between them — no notion of AniList's rate limit at all,
+// so a background heal pass could burst straight into a minute of 429s and
+// take the live requests down with it.
 
 /** A poster from Kitsu by title text search. Allows hot-linking. Null on failure. */
 async function kitsuPoster(title?: string): Promise<string | null> {

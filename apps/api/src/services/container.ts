@@ -1,5 +1,6 @@
 import { AllohaClient } from "@animeshadow/alloha";
 import { AniLibriaClient } from "@animeshadow/anilibria";
+import { AniListClient } from "@animeshadow/anilist";
 import type { PrismaClient } from "@animeshadow/db";
 import type { JikanClient } from "@animeshadow/jikan";
 import { KodikClient } from "@animeshadow/kodik";
@@ -13,6 +14,7 @@ import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
 import { CommentService } from "./comment.service.js";
 import { EmailService } from "./email.service.js";
+import { FrameService } from "./frame.service.js";
 import { LibraryService } from "./library.service.js";
 import { ProfileService } from "./profile.service.js";
 import { ProgressService } from "./progress.service.js";
@@ -56,6 +58,7 @@ export interface Services {
   library: LibraryService;
   watch: WatchService;
   search: SearchService;
+  frames: FrameService;
   progress: ProgressService;
   comments: CommentService;
   profile: ProfileService;
@@ -79,6 +82,10 @@ export function createServices(deps: ContainerDeps): Services {
   });
   const alloha = new AllohaClient({ token: deps.watch.allohaToken });
   const anilibria = new AniLibriaClient();
+  // One shared instance on purpose: it serialises its own requests to stay
+  // inside AniList's rate limit, which only works if everything goes through
+  // the same queue.
+  const anilist = new AniListClient();
 
   const translator = deps.translate.enabled
     ? chainTranslators([
@@ -97,6 +104,7 @@ export function createServices(deps: ContainerDeps): Services {
     prisma: deps.prisma,
     shikimori,
     jikan: deps.jikan,
+    anilist,
     cacheTtlSeconds: deps.cacheTtlSeconds,
     logger: deps.logger,
     translation,
@@ -127,6 +135,11 @@ export function createServices(deps: ContainerDeps): Services {
   const search = new SearchService({
     prisma: deps.prisma,
     shikimori,
+    logger: deps.logger,
+  });
+  const frames = new FrameService({
+    prisma: deps.prisma,
+    anilist,
     logger: deps.logger,
   });
   const watch = new WatchService({
@@ -160,6 +173,7 @@ export function createServices(deps: ContainerDeps): Services {
     library,
     watch,
     search,
+    frames,
     progress,
     comments,
     profile,

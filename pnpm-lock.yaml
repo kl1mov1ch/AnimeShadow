@@ -41,6 +41,9 @@ importers:
       '@animeshadow/anilibria':
         specifier: workspace:*
         version: link:../../packages/anilibria
+      '@animeshadow/anilist':
+        specifier: workspace:*
+        version: link:../../packages/anilist
       '@animeshadow/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -228,6 +231,12 @@ importers:
         version: 5.9.3
 
   packages/anilibria:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/anilist:
     devDependencies:
       typescript:
         specifier: ^5.7.3
