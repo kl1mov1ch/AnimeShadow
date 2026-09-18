@@ -69,7 +69,15 @@ export function SearchCommandDialog() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+      // `event.code`, not `event.key`: code names the physical key, so this
+      // matches whatever the active keyboard layout puts there. On a Russian
+      // layout that key reports `event.key === "л"`, so a `key === "k"` test
+      // simply never fired — and because it never fired, preventDefault never
+      // ran either and the browser's own Ctrl+K (focus the address bar) won
+      // by default. `key` stays as a fallback for anything not reporting a
+      // code at all.
+      const isK = event.code === "KeyK" || event.key.toLowerCase() === "k";
+      if (isK && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         setOpen((wasOpen) => !wasOpen);
       }

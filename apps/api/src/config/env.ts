@@ -64,6 +64,9 @@ const envSchema = z.object({
   WATCH_EMBED_TEMPLATE: z.string().optional(),
   // Warm the watch-availability cache for the N most popular cached titles on boot.
   WATCH_WARM_LIMIT: z.coerce.number().int().nonnegative().default(120),
+  /** How often the warm pass repeats. 0 disables the repeat (boot pass only),
+   * which is what the service effectively did before this existed. */
+  WATCH_WARM_INTERVAL_MS: z.coerce.number().int().nonnegative().default(900_000),
 
   // ---- Telegram Login Widget — https://core.telegram.org/widgets/login.
   // Optional: "Sign in with Telegram" simply doesn't verify without it.

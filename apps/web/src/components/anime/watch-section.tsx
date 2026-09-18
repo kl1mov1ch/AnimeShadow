@@ -506,11 +506,17 @@ function CustomHlsPlayer({
   src,
   isWinner,
   onReady,
+  onFailed,
   onPlayingChange,
 }: {
   src: string;
   isWinner: boolean;
   onReady: () => void;
+  /** This stream cannot play here — hls.js itself failed to load, or gave up
+   * on the manifest. Lets the race retire this source at once instead of
+   * sitting out the full stall timeout waiting for a signal that is never
+   * coming. */
+  onFailed: () => void;
   /** Only ever fires for the winner — a deliberate pause shouldn't count as "stuck". */
   onPlayingChange: (playing: boolean) => void;
 }) {
@@ -525,6 +531,13 @@ function CustomHlsPlayer({
   useEffect(() => {
     isWinnerRef.current = isWinner;
   }, [isWinner]);
+
+  // Same reason as isWinnerRef: reachable from the src-loading effect without
+  // making that effect depend on a callback identity.
+  const onFailedRef = useRef(onFailed);
+  useEffect(() => {
+    onFailedRef.current = onFailed;
+  }, [onFailed]);
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -559,30 +572,56 @@ function CustomHlsPlayer({
       video.src = src;
       resumeIfWinner();
     } else {
-      void import("hls.js").then(({ default: Hls }) => {
-        if (cancelled) return;
-        if (Hls.isSupported()) {
-          const instance = new Hls({ enableWorker: true });
-          instance.loadSource(src);
-          instance.attachMedia(video);
-          instance.on(Hls.Events.MANIFEST_PARSED, () => {
-            // "Ready" as far as the race is concerned: the manifest is
-            // parsed, so this source is real and answering. Waiting for
-            // `canplay` (a buffered first segment) meant the race's stall
-            // timer could retire a perfectly good stream mid-handshake and
-            // fall back to an iframe — the reason the custom player kept
-            // losing to Kodik on a slow first segment.
-            onReady();
+      void import("hls.js")
+        .then(({ default: Hls }) => {
+          if (cancelled) return;
+          if (Hls.isSupported()) {
+            const instance = new Hls({ enableWorker: true });
+            instance.loadSource(src);
+            instance.attachMedia(video);
+            instance.on(Hls.Events.MANIFEST_PARSED, () => {
+              // "Ready" as far as the race is concerned: the manifest is
+              // parsed, so this source is real and answering. Waiting for
+              // `canplay` (a buffered first segment) meant the race's stall
+              // timer could retire a perfectly good stream mid-handshake and
+              // fall back to an iframe — the reason the custom player kept
+              // losing to Kodik on a slow first segment.
+              onReady();
+              resumeIfWinner();
+            });
+            instance.on(Hls.Events.ERROR, (_event, payload) => {
+              // hls.js recovers from most errors by itself; only a fatal one
+              // means this stream will not play in this browser. Reported at
+              // once so the race moves on, and logged so a report of "the
+              // custom player doesn't work here" has something behind it.
+              if (!payload.fatal || cancelled) return;
+              console.error(
+                "[AnimeShadow] HLS fatal error",
+                payload.type,
+                payload.details,
+              );
+              onFailedRef.current();
+            });
+            hls = instance;
+          } else {
+            // No native support and hls.js says it can't help either — set it
+            // anyway; a handful of very old browsers still get lucky.
+            video.src = src;
             resumeIfWinner();
-          });
-          hls = instance;
-        } else {
-          // No native support and hls.js says it can't help either — set it
-          // anyway; a handful of very old browsers still get lucky.
-          video.src = src;
-          resumeIfWinner();
-        }
-      });
+          }
+        })
+        .catch((error: unknown) => {
+          // The chunk itself never arrived — offline, a stale service worker
+          // still pointing at a filename the last deploy replaced, or an
+          // extension blocking it. This path had no catch at all, so the
+          // promise rejected silently and the player simply never reported
+          // ready: the race sat out its full timeout and handed the slot to
+          // an iframe. Safari never comes through here (it plays HLS
+          // natively), which is exactly why the failure looked like "the
+          // custom player only works in Safari" rather than a failed import.
+          console.error("[AnimeShadow] hls.js failed to load", error);
+          if (!cancelled) onFailedRef.current();
+        });
     }
 
     return () => {
@@ -1191,6 +1230,22 @@ function Player({
     });
   };
 
+  /** A source that reported it cannot play at all. Retires it and pulls the
+   *  next candidate straight away — the same move the stall timer makes, just
+   *  without waiting out a timeout for an answer we have already been given. */
+  const handleFailed = (id: string) => {
+    if (winnerId != null) return;
+    setTriedIds((tried) => {
+      if (tried.includes(id)) return tried;
+      const nextTried = [...tried, id];
+      const remaining = viableSources(data.sources).filter(
+        (s) => !nextTried.includes(s.id),
+      );
+      setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
+      return nextTried;
+    });
+  };
+
   // A stuck third-party embed gives us no signal to detect automatically —
   // no access to its internal player state. What we *can* do is offer the
   // fix after a source has had a fair amount of time to misbehave, and make
@@ -1421,6 +1476,7 @@ function Player({
                 src={url}
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
+                onFailed={() => handleFailed(id)}
                 onPlayingChange={(playing) => setIsPaused(!playing)}
               />
             );
