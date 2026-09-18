@@ -112,6 +112,7 @@ export function toAnimeSummary(group: KodikGroup): AnimeSummary {
     airedFrom: md.aired_at ?? null,
     titleLocalized: md.anime_title ?? md.title ?? null,
     hasPlayer: true,
+    hasCustomPlayer: false,
     rating: null,
     scoredBy: md.shikimori_votes ?? null,
     trailerEmbedUrl: null,
