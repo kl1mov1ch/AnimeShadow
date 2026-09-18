@@ -378,7 +378,7 @@ export function AnimeThumb({
 }) {
   return (
     <Link to={animeHref({ id, slug })} className="group flex min-w-0 items-center gap-2.5">
-      <span className="h-12 w-8 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted">
+      <span className="h-12 w-8 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted">
         {imageUrl && (
           <img
             src={imageSrc(imageUrl)}
@@ -426,7 +426,7 @@ export function SearchInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-9 rounded-lg bg-background/60 pl-9"
+        className="h-9 bg-background/60 pl-9"
       />
     </div>
   );
@@ -445,7 +445,7 @@ export function FilterSelect<T extends string>({
 }) {
   return (
     <Select value={value} onValueChange={(next) => onChange(next as T)}>
-      <SelectTrigger className="h-9 min-w-[10.5rem] gap-2 rounded-lg bg-background/60">
+      <SelectTrigger className="h-9 min-w-[10.5rem] gap-2 bg-background/60">
         {icon && <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>}
         <SelectValue />
       </SelectTrigger>
@@ -519,7 +519,9 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
             <Skeleton className="h-3.5 w-40 max-w-full" />
             <Skeleton className="h-3 w-24" />
           </div>
-          <Skeleton className="hidden h-8 w-28 rounded-lg sm:block" />
+          {/* Stands in for a button, and buttons are pills now — a
+              rounded-lg placeholder changed shape on load. */}
+          <Skeleton className="hidden h-8 w-28 rounded-full sm:block" />
         </div>
       ))}
     </div>

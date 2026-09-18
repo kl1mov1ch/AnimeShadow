@@ -54,7 +54,9 @@ export function LibraryControls({ animeId, title }: LibraryControlsProps) {
   const entry = entries?.find((item) => item.anime.id === animeId);
 
   if (authStatus === "loading") {
-    return <div className="h-10 w-full max-w-sm animate-pulse rounded-md bg-muted" />;
+    // rounded-full, matching the pill the real control is — a rounded-md
+    // placeholder swapped shape the moment auth resolved.
+    return <div className="h-10 w-full max-w-sm animate-pulse rounded-full bg-muted" />;
   }
 
   if (!isAuthed) {
@@ -133,7 +135,10 @@ export function LibraryControls({ animeId, title }: LibraryControlsProps) {
         onValueChange={(value) => handleStatus(value as LibraryStatus)}
         disabled={busy}
       >
-        <SelectTrigger className="w-[180px]" aria-label={t("library.watchStatus")}>
+        <SelectTrigger
+          className="w-[180px] rounded-full transition-all duration-200 hover:border-primary/40"
+          aria-label={t("library.watchStatus")}
+        >
           <SelectValue placeholder={t("library.addToLibrary")} />
         </SelectTrigger>
         <SelectContent>
@@ -151,7 +156,10 @@ export function LibraryControls({ animeId, title }: LibraryControlsProps) {
           onValueChange={handleScore}
           disabled={busy}
         >
-          <SelectTrigger className="w-[130px]" aria-label={t("library.yourScore")}>
+          <SelectTrigger
+            className="w-[130px] rounded-full transition-all duration-200 hover:border-primary/40"
+            aria-label={t("library.yourScore")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

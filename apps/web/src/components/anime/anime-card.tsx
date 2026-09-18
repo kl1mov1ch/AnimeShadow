@@ -1,5 +1,5 @@
 import type { AnimeSummary } from "@animeshadow/shared";
-import { ClockIcon } from "lucide-react";
+import { ClockIcon, PlayIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
@@ -59,7 +59,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
       to={animeHref(anime)}
       className={cn("group flex flex-col gap-2 outline-none", className)}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:border-primary/30 group-hover:shadow-xl group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:shadow-lg group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
         {/* Everything below is opacity/transform only — nothing that forces
             a repaint on scroll — and all of it sits behind `group-hover:`,
             which Tailwind v4 compiles into `@media (hover: hover)`, so a
@@ -71,11 +71,33 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             loading={priority ? "eager" : "lazy"}
             decoding="async"
             fetchPriority={priority ? "high" : "auto"}
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transition-none"
           />
         ) : (
           <PosterFallback title={title} seed={anime.id} />
         )}
+
+        {/* One focal move, not five: the art darkens from the bottom and a
+            single play disc eases up in the middle. Both are opacity and
+            transform only, so the card stays cheap to animate even with
+            thirty of them on screen.
+
+            Deliberately restrained — a solid brand-coloured disc over every
+            poster in a 20-card grid competed with the artwork instead of
+            pointing at it. Frosted glass and a hairline ring read as "this
+            is clickable" without repainting the middle of the image. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+        >
+          <span className="grid size-10 scale-90 place-items-center rounded-full bg-background/25 text-white opacity-0 shadow-lg shadow-black/30 ring-1 ring-white/35 backdrop-blur-md transition-all duration-300 group-hover:scale-100 group-hover:opacity-100 motion-reduce:transition-none">
+            <PlayIcon className="size-4 translate-x-[1px] fill-current" />
+          </span>
+        </span>
 
         {isAdult && (
           <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur">
@@ -188,8 +210,11 @@ function AnimeCardPreview({ anime }: { anime: AnimeSummary }) {
 
 export function AnimeCardSkeleton({ className }: { className?: string }) {
   return (
+    // rounded-2xl, matching the real poster — the skeleton used to draw a
+    // rounded-xl box, so every card visibly changed shape the moment its
+    // data arrived.
     <div className={cn("flex flex-col gap-2", className)}>
-      <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+      <Skeleton className="aspect-[2/3] w-full rounded-2xl" />
       <Skeleton className="h-4 w-4/5" />
       <Skeleton className="h-3 w-2/5" />
     </div>

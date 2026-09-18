@@ -44,21 +44,32 @@ export function AchievementDetailDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <HoloAchievementBadge
-              id={achievement.id}
-              rarity={achievement.rarity}
-              earned={achievement.earned}
-              earnedAt={achievement.earnedAt}
-              progress={achievement.progress}
-              className="w-[200px] sm:w-[240px]"
-            />
+            {/* A soft pool of light behind the badge — earned ones get it,
+                locked ones stay flat, so the difference is visible before
+                reading a word. */}
+            <span className="relative flex items-center justify-center">
+              {achievement.earned && (
+                <span
+                  aria-hidden
+                  className="animate-in fade-in pointer-events-none absolute size-48 rounded-full bg-primary/20 blur-3xl duration-700"
+                />
+              )}
+              <HoloAchievementBadge
+                id={achievement.id}
+                rarity={achievement.rarity}
+                earned={achievement.earned}
+                earnedAt={achievement.earnedAt}
+                progress={achievement.progress}
+                className="relative w-[200px] sm:w-[240px]"
+              />
+            </span>
 
-            <p className="text-sm leading-relaxed text-muted-foreground">
+            <p className="animate-in fade-in slide-in-from-bottom-1 text-sm leading-relaxed text-muted-foreground duration-500">
               {t(`achievements.items.${achievement.id}.desc` as "achievements.items.critic.desc")}
             </p>
 
             {achievement.earned && achievement.earnedAt && (
-              <p className="text-xs text-primary/80">
+              <p className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                 {t("achievements.earnedOn", {
                   date: labels.formatDate(achievement.earnedAt) ?? "",
                 })}

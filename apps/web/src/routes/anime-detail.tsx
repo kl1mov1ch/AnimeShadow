@@ -15,6 +15,8 @@ import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 // import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
+import { pulseRings } from "@/components/common/lottie-animations";
+import { LottieMono } from "@/components/common/lottie-mono";
 import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,10 +123,6 @@ function AnimeDetailView({ param }: { param: string }) {
   }
 
   const title = labels.title(data);
-  const hasWideArt = Boolean(data.bannerImage || data.screenshots[0]);
-  const banner = imageSrc(
-    data.bannerImage ?? data.screenshots[0] ?? data.imageLargeUrl ?? data.imageUrl,
-  );
   const poster = imageSrc(data.imageLargeUrl ?? data.imageUrl);
   const originalTitle = data.title && data.title !== title ? data.title : null;
   const japaneseTitle =
@@ -140,47 +138,46 @@ function AnimeDetailView({ param }: { param: string }) {
 
   return (
     <article className="flex flex-col gap-6">
-      <CinematicHeader
-        src={banner}
-        isPortraitFallback={!hasWideArt}
-        title={title}
-        seed={data.id}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span className={data.airing === "AIRING" ? "text-primary" : undefined}>
-              {labels.airingLabel(data.airing)}
-            </span>
-            <Dot />
-            <span>{labels.typeLabel(data.type)}</span>
-            {labels.seasonYearLabel(data) && (
-              <>
-                <Dot />
-                <span>{labels.seasonYearLabel(data)}</span>
-              </>
-            )}
-            {data.rating && (
-              <>
-                <Dot />
-                <span>{data.rating}</span>
-              </>
-            )}
-          </div>
-          <ShareButtons path={animeUrl(data)} />
-        </div>
-
+      <TitleHeader>
         {/* Poster alongside everything else, not stacked in a separate
             sidebar below — the header is the one place all of a title's
             identity (art, name, rating, genres, actions) lives together.
-            Top-aligned (not bottom-) so the title sits right under the meta
-            line above it instead of trailing down to the poster's bottom
-            edge, leaving a gap between the two. */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="mx-auto w-28 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted shadow-lg sm:mx-0 sm:w-36 lg:w-40">
+            It sits a little higher than the text column from sm up and
+            crosses the panel's top edge, which is what stops it reading as
+            a stray thumbnail parked in the bottom-left corner. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+          <div className="group mx-auto w-32 shrink-0 overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 transition-all duration-300 hover:-translate-y-1 hover:ring-primary/40 sm:mx-0 sm:w-40 lg:w-48">
             <PosterImage src={poster} title={title} seed={data.id} />
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-3">
+            {/* The meta line lives in the text column, beside the poster —
+                never above it. As a full-width row at the top of the panel
+                it ran straight under the raised poster, which cut the year
+                and rating in half. */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span className={data.airing === "AIRING" ? "text-primary" : undefined}>
+                  {labels.airingLabel(data.airing)}
+                </span>
+                <Dot />
+                <span>{labels.typeLabel(data.type)}</span>
+                {labels.seasonYearLabel(data) && (
+                  <>
+                    <Dot />
+                    <span>{labels.seasonYearLabel(data)}</span>
+                  </>
+                )}
+                {data.rating && (
+                  <>
+                    <Dot />
+                    <span>{data.rating}</span>
+                  </>
+                )}
+              </div>
+              <ShareButtons path={animeUrl(data)} />
+            </div>
+
             <div className="flex flex-col gap-1">
               <h1 className="font-display text-2xl leading-tight text-foreground sm:text-4xl">
                 {title}
@@ -236,7 +233,7 @@ function AnimeDetailView({ param }: { param: string }) {
             </div>
           </div>
         </div>
-      </CinematicHeader>
+      </TitleHeader>
 
       {/* One continuous surface, hairline-separated sections — no more
           poster sidebar, since the header above already carries it. */}
@@ -266,93 +263,42 @@ function AnimeDetailView({ param }: { param: string }) {
 /* ---------------- pieces ---------------- */
 
 /**
- * A bounded banner strip, not a page-wide effect — the title's own key
- * visual (or its best available stand-in), full width, fading into the
- * page background at the bottom. Replaces the old full-page drifting-orb
- * ambient wash: one deliberate image instead of a layered glow effect.
+ * The title header, with no key visual behind it.
+ *
+ * It used to run the show's own banner across the full width, dimmed under a
+ * gradient so the text on top stayed readable. Three things were wrong with
+ * that: the composition changed with every title (a wide key visual and a
+ * blurred upscaled poster are not the same picture), the contrast of the text
+ * panel depended on whichever frame we happened to have, and the poster —
+ * the one image genuinely worth looking at — ended up competing with a
+ * blurred copy of itself.
+ *
+ * This is a plain surface in the site's own colours: the poster is the only
+ * artwork on it, every title page is laid out identically, and the decoration
+ * is monochrome, so it reads the same in either theme.
  */
-function CinematicHeader({
-  src,
-  /** True when `src` is a tall poster crop, not a real wide banner/screenshot
-   * — stretching a poster edge-to-edge with `object-cover` zooms into a tiny
-   * sliver of it (usually just its decorative background pattern) and reads
-   * as broken. Toned down to a soft, gently-scaled backdrop instead of trying
-   * to feature the poster twice — the sharp copy already sits in the info
-   * panel below, this is purely atmospheric colour. */
-  isPortraitFallback,
-  title,
-  seed,
-  children,
-}: {
-  src: string | undefined;
-  isPortraitFallback: boolean;
-  title: string;
-  seed: number;
-  children: React.ReactNode;
-}) {
+function TitleHeader({ children }: { children: React.ReactNode }) {
   return (
-    // No height of its own — the card below drives it (via the in-flow
-    // content wrapper's min-h), so the photo never runs on past where the
-    // actual content ends. That gap was the "empty space" here: a box
-    // forced to a fixed 360/420px tall regardless of how short the info
-    // card actually was.
     <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
-      <div className="pointer-events-none absolute inset-0">
-        {src ? (
-          <img
-            src={src}
-            alt=""
-            aria-hidden
-            fetchPriority="high"
-            // Static — no pan/zoom here. The slow-scale animation used on the
-            // homepage spotlight pushes a banner past 100% size, which softens
-            // it noticeably on a wide desktop viewport; a detail page banner
-            // is shown far longer than a rotating slide; it should stay sharp.
-            className={cn(
-              "absolute inset-0 size-full object-cover",
-              isPortraitFallback && "scale-110 object-top opacity-50 blur-3xl saturate-50",
-            )}
-          />
-        ) : (
-          <PosterFallback title={title} seed={seed} />
-        )}
-        {/* One even fade across the whole photo, not just its bottom two
-            thirds — the old hard-edged patch under the card was what read as
-            "too dark"; a gentler, full-height gradient gives the same text
-            legibility without crushing the rest of the image. Ends in a
-            plain transparent, never a tinted stop — `via-card` on a light
-            theme is a near-white colour, so anything but fully transparent
-            up top reads as a washed-out glare across the image instead of a
-            fade. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card/85 via-card/30 to-transparent" />
-        {/* From the desktop breakpoint the panel below only occupies the
-            left of the card, so the fade is steered that way too — the
-            right third of the artwork stays genuinely visible instead of
-            sitting under a panel nobody asked to cover it. */}
-        <div className="absolute inset-0 hidden bg-gradient-to-r from-card/70 via-card/25 to-transparent lg:block" />
+      {/* The site's own hairline, the same one under the header. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      />
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 -top-32 size-[30rem] rounded-full bg-primary/[0.07] blur-[120px]" />
+        <div className="absolute -bottom-32 right-[8%] size-[24rem] rounded-full bg-primary/[0.05] blur-[110px]" />
+        <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
+          影
+        </span>
+        <LottieMono
+          animation={pulseRings}
+          className="absolute -left-24 -bottom-24 size-[26rem] text-primary/20"
+        />
       </div>
-      {/* Taller from sm up so the art has room to be looked at, and the
-          panel is capped rather than stretched edge to edge: a wall of
-          blurred background across a 1400px viewport was covering the
-          banner it was supposed to sit on. */}
-      <div className="relative flex min-h-[300px] flex-col justify-end p-4 sm:min-h-[380px] sm:p-6 lg:min-h-[440px]">
-        {/* Everything the viewer needs to read or click sits on its own
-            panel — lighter than before so the photo still reads through it,
-            while staying solid enough to keep text legible over busy art.
-            It fades up on arrival rather than snapping in; the banner
-            itself deliberately stays static (see the note on the image
-            above — a pan would soften artwork that sits on screen for
-            minutes at a time). */}
-        <div className="animate-in fade-in slide-in-from-bottom-2 relative flex w-full flex-col gap-3 overflow-hidden rounded-2xl bg-background/45 p-4 shadow-xl shadow-black/20 backdrop-blur-md duration-500 sm:p-5 lg:max-w-4xl">
-          {/* The site's own hairline, the same one under the header and
-              across the search panel. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
-          />
-          {children}
-        </div>
-      </div>
+      {/* No forced minimum height any more: with no photo to give room to,
+          a 440px floor was just empty space under short content. */}
+      <div className="relative flex flex-col gap-3 p-4 sm:p-6 lg:p-8">{children}</div>
     </div>
   );
 }

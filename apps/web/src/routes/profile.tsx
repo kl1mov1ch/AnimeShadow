@@ -21,8 +21,10 @@ import {
   Loader2Icon,
   type LucideIcon,
   MailIcon,
+  MonitorSmartphoneIcon,
   MoonStarIcon,
   StarIcon,
+  SunIcon,
   PaletteIcon,
   PencilIcon,
   PlayCircleIcon,
@@ -35,6 +37,7 @@ import {
   Trash2Icon,
   TrophyIcon,
   UserIcon,
+  XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -1029,24 +1032,8 @@ function SettingsList({ children }: { children: React.ReactNode }) {
  *   collapsed behind the row and only takes up space once it's opened; the
  *   summary value (if any) is what's visible either way.
  */
-/** Each row gets its own colour chip behind the icon — a whole list of
- * identical grey icons is itself a big part of what read as flat and grey;
- * a different, deliberate hue per row (à la Telegram's own settings icons)
- * makes each one legible as a distinct destination at a glance instead of
- * a row of interchangeable bullets. */
-const ROW_HUE = {
-  primary: "bg-primary/15 text-primary",
-  violet: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-  sky: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  amber: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  rose: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-  emerald: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  fuchsia: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400",
-} satisfies Record<string, string>;
-
 function SettingsRow({
   icon: Icon,
-  hue = "primary",
   label,
   value,
   info,
@@ -1056,7 +1043,6 @@ function SettingsRow({
   children,
 }: {
   icon: LucideIcon;
-  hue?: keyof typeof ROW_HUE;
   label: string;
   value?: React.ReactNode;
   info?: React.ReactNode;
@@ -1068,7 +1054,7 @@ function SettingsRow({
   const header = (
     <div
       className={cn(
-        "flex min-h-14 items-center gap-3 px-4 py-2.5",
+        "group/row flex min-h-14 items-center gap-3 px-4 py-2.5",
         onToggle && "cursor-pointer transition-colors hover:bg-secondary/40 active:bg-secondary/60",
       )}
       onClick={onToggle}
@@ -1076,7 +1062,19 @@ function SettingsRow({
       tabIndex={onToggle ? 0 : undefined}
       onKeyDown={onToggle ? (e) => e.key === "Enter" && onToggle() : undefined}
     >
-      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", ROW_HUE[hue])}>
+      {/* One treatment for every row, not a hue per row. Eight different
+          colours down a single list made the list itself the loudest thing
+          on the page, and implied a grouping that does not exist — these
+          rows are siblings, not categories. The chip stays neutral and only
+          takes the site colour once its row is open or hovered, so colour
+          means state here rather than decoration. */}
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-xl border border-border/60 bg-secondary/40 text-muted-foreground transition-colors duration-200",
+          onToggle && "group-hover/row:border-primary/30 group-hover/row:text-foreground",
+          expanded && "border-primary/40 bg-primary/10 text-primary",
+        )}
+      >
         <Icon className="size-4" />
       </span>
       <span className="flex min-w-0 flex-1 items-center gap-1 text-sm font-medium">
@@ -1197,7 +1195,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
       <SettingsList>
         <SettingsRow
           icon={UserIcon}
-          hue="primary"
           label={t("profile.title")}
           value={profile.username ? t("profile.handle", { username: profile.username }) : bio || undefined}
           expanded={openRow === "identity"}
@@ -1338,35 +1335,71 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {/* Theme and status both save the instant you pick them — a
             two/three-way choice doesn't need a confirmation step, so the
             picker sits right in the row instead of behind a tap. */}
+        {/* Three choices hidden inside a 32px dropdown, where you could not
+            see the options without opening it and could not tell which was
+            active without reading. They are all on screen now, wide enough
+            to hit, each showing what it actually means. */}
         <SettingsRow
           icon={PaletteIcon}
-          hue="violet"
           label={t("profile.settings.theme")}
-          control={
-            <Select
-              value={theme ?? "system"}
-              onValueChange={(value) => {
-                setTheme(value);
-                // Saved to the account, not just this browser — so it
-                // follows the user to a new device (see ThemeSync).
-                update.mutate({ theme: value as "light" | "dark" | "system" });
-              }}
-            >
-              <SelectTrigger className="h-8 w-32 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">{t("profile.settings.themeLight")}</SelectItem>
-                <SelectItem value="dark">{t("profile.settings.themeDark")}</SelectItem>
-                <SelectItem value="system">{t("profile.settings.themeAuto")}</SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
+          value={t(
+            theme === "light"
+              ? "profile.settings.themeLight"
+              : theme === "dark"
+                ? "profile.settings.themeDark"
+                : "profile.settings.themeAuto",
+          )}
+          expanded={openRow === "theme"}
+          onToggle={() => toggle("theme")}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { key: "light", Icon: SunIcon, label: t("profile.settings.themeLight") },
+                { key: "dark", Icon: MoonStarIcon, label: t("profile.settings.themeDark") },
+                {
+                  key: "system",
+                  Icon: MonitorSmartphoneIcon,
+                  label: t("profile.settings.themeAuto"),
+                },
+              ] as const
+            ).map(({ key, Icon, label }) => {
+              const active = (theme ?? "system") === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    setTheme(key);
+                    // Saved to the account, not just this browser — so it
+                    // follows the user to a new device (see ThemeSync).
+                    update.mutate({ theme: key });
+                  }}
+                  className={cn(
+                    "group relative flex flex-col items-center gap-1.5 overflow-hidden rounded-2xl border px-2 py-3 text-xs font-medium transition-all duration-200",
+                    active
+                      ? "border-transparent bg-gradient-to-br from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
+                      : "border-border/60 bg-card/40 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="relative z-10 size-5" />
+                  <span className="relative z-10 truncate">{label}</span>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]",
+                      active ? "via-white/30" : "via-primary/25",
+                    )}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </SettingsRow>
 
         <SettingsRow
           icon={MoonStarIcon}
-          hue="sky"
           label={t("profile.settings.status")}
           info={<InfoTooltip>{t("profile.settings.statusHint")}</InfoTooltip>}
           control={
@@ -1377,7 +1410,10 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
                 update.mutate({ onlineStatus: v as MyProfile["onlineStatus"] });
               }}
             >
-              <SelectTrigger className="h-8 w-32 text-xs">
+              {/* Narrower on a phone: at 320px the fixed 8rem trigger plus
+                  the icon chip and the label left the label nothing to
+                  truncate into. */}
+              <SelectTrigger className="h-8 w-28 text-xs sm:w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1391,7 +1427,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
         <SettingsRow
           icon={ShieldCheckIcon}
-          hue="amber"
           label={t("profile.settings.age.title")}
           value={
             profile.birthDate
@@ -1408,7 +1443,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {earned.length > 0 && (
           <SettingsRow
             icon={TrophyIcon}
-            hue="fuchsia"
             label={t("profile.settings.showcase")}
             value={t("profile.settings.showcaseCount", {
               count: profile.showcaseAchievementIds.length,
@@ -1427,7 +1461,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {profile.isPro && (
           <SettingsRow
             icon={CrownIcon}
-            hue="amber"
             label={t("profile.settings.titlePro")}
             value={profile.titlePrefix ?? undefined}
             expanded={openRow === "title"}
@@ -1439,7 +1472,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
 
         <SettingsRow
           icon={SparklesIcon}
-          hue="rose"
           label={t("profile.settings.genres")}
           value={
             genreStatus?.genreIds.length
@@ -1517,7 +1549,6 @@ function EmailVerificationRow({
   return (
     <SettingsRow
       icon={MailIcon}
-      hue="primary"
       label={t("profile.settings.emailVerification.title")}
       value={t("profile.settings.emailVerification.unverified")}
       expanded={expanded}
@@ -1964,6 +1995,30 @@ function TitleEditor({
  * five genres costs one edit, not five. Liked titles on /recommendations
  * have no such limit; only this explicit genre list does.
  */
+/** Mirrors `setGenrePreferencesInputSchema`'s own `.max(30)` in shared. The
+ *  server stays the authority; this only stops us sending a request that is
+ *  guaranteed to come back 400 — which is what used to happen, silently. */
+const MAX_FAVOURITE_GENRES = 30;
+
+/** How much of the full list is shown before "show all". Rendering every
+ *  genre at once was the densest thing on the page by a wide margin. */
+const GENRE_PREVIEW_COUNT = 18;
+
+/**
+ * The favourite-genre picker.
+ *
+ * Previously: every genre the site knows, rendered as one flat wrap of
+ * identical pills, with no search, no count, and a save whose failure was
+ * invisible. Two things were actually broken by that. The list was a wall
+ * you had to read linearly to find anything in, and picking more than the
+ * thirty the API accepts produced a rejected request that nothing on screen
+ * acknowledged — the button simply returned to idle, so the feature read as
+ * dead.
+ *
+ * Now the picks are lifted out above the list (so the list below is only
+ * ever "what you could add"), the rest is searchable and folded to a
+ * preview, the cap is enforced and stated, and a failed save says so.
+ */
 function GenrePreferencesSection() {
   const t = useT();
   const labels = useLabels();
@@ -1971,6 +2026,8 @@ function GenrePreferencesSection() {
   const { data: status } = useGenrePreferencesStatus();
   const setPrefs = useSetGenrePreferences();
   const [draft, setDraft] = useState<number[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
   const saved = status?.genreIds ?? [];
   const active = draft ?? saved;
@@ -1978,56 +2035,159 @@ function GenrePreferencesSection() {
   const locked = remainingEdits <= 0;
   const dirty = draft != null && !arraysMatchAsSets(draft, saved);
 
+  const genres = allGenres ?? [];
+  const term = query.trim().toLowerCase();
+  const picked = genres.filter((g) => active.includes(g.id));
+  const pickable = genres
+    .filter((g) => !active.includes(g.id))
+    .filter((g) => !term || labels.genreLabel(g.name).toLowerCase().includes(term));
+  // A search is already a narrowing, so it overrides the fold — hiding
+  // matches behind "show all" would defeat the point of having typed.
+  const visible = showAll || term ? pickable : pickable.slice(0, GENRE_PREVIEW_COUNT);
+  const atCap = active.length >= MAX_FAVOURITE_GENRES;
+
   const toggle = (id: number) => {
     if (locked) return;
     const base = draft ?? saved;
-    setDraft(
-      base.includes(id) ? base.filter((g) => g !== id) : [...base, id],
-    );
+    if (!base.includes(id) && base.length >= MAX_FAVOURITE_GENRES) {
+      toast.error(t("profile.settings.genresMax", { max: MAX_FAVOURITE_GENRES }));
+      return;
+    }
+    setDraft(base.includes(id) ? base.filter((g) => g !== id) : [...base, id]);
   };
 
   const save = () => {
     if (!draft) return;
-    setPrefs.mutate(draft, { onSuccess: () => setDraft(null) });
+    setPrefs.mutate(draft, {
+      onSuccess: () => {
+        setDraft(null);
+        toast.success(t("common.save"));
+      },
+      // Without this branch a rejected save did nothing observable at all.
+      onError: (err) =>
+        toast.error(
+          err instanceof ApiRequestError
+            ? err.message
+            : t("profile.settings.genresSaveError"),
+        ),
+    });
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-1.5">
-        {(allGenres ?? []).map((g) => {
-          const on = active.includes(g.id);
-          return (
+      {/* What you've picked, first and on its own — the answer to "what did
+          I choose?" should never require scanning the whole catalogue for
+          highlighted pills. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+            {t("profile.settings.genresPicked", {
+              count: active.length,
+              max: MAX_FAVOURITE_GENRES,
+            })}
+          </span>
+          {!locked && picked.length > 0 && (
             <button
-              key={g.id}
               type="button"
-              aria-pressed={on}
-              disabled={locked}
-              onClick={() => toggle(g.id)}
-              className={cn(
-                "rounded-full border px-2.5 py-1 text-xs transition-all duration-200",
-                locked && "cursor-not-allowed opacity-50",
-                on
-                  ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
-                  : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
-              )}
+              onClick={() => setDraft([])}
+              className="text-[11px] text-muted-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
             >
-              {labels.genreLabel(g.name)}
+              {t("profile.settings.genresClear")}
             </button>
-          );
-        })}
+          )}
+        </div>
+        {picked.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border/70 px-3 py-2.5 text-[11px] text-muted-foreground">
+            {t("profile.settings.genresNonePicked")}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {picked.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                disabled={locked}
+                onClick={() => toggle(g.id)}
+                aria-label={t("profile.settings.genresRemove", {
+                  genre: labels.genreLabel(g.name),
+                })}
+                className={cn(
+                  "group inline-flex items-center gap-1 rounded-full border border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-2.5 py-1 text-xs text-primary-foreground shadow-sm shadow-primary/25 transition-all duration-200",
+                  locked ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5",
+                )}
+              >
+                {labels.genreLabel(g.name)}
+                {!locked && <XIcon className="size-3 opacity-70 group-hover:opacity-100" />}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {!locked && (
+        <>
+          {/* Search instead of scanning. Same pill and focus bloom as every
+              other field on the site. */}
+          <div className="group relative flex items-center rounded-full border border-border/60 bg-background/60 transition-all duration-200 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/15">
+            <SearchIcon className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground transition-colors group-focus-within:text-primary" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("profile.settings.genresSearch")}
+              className="h-9 w-full rounded-full bg-transparent pl-9 pr-3 text-xs outline-none placeholder:text-muted-foreground/80"
+            />
+          </div>
+
+          {visible.length === 0 ? (
+            <p className="py-2 text-[11px] text-muted-foreground">
+              {t("search.noMatches")}
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {visible.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  aria-pressed={false}
+                  disabled={atCap}
+                  onClick={() => toggle(g.id)}
+                  className={cn(
+                    "rounded-full border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200",
+                    atCap
+                      ? "cursor-not-allowed opacity-40"
+                      : "hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
+                  )}
+                >
+                  {labels.genreLabel(g.name)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!term && pickable.length > GENRE_PREVIEW_COUNT && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="self-start text-[11px] font-medium text-primary transition-colors hover:text-primary/80"
+            >
+              {showAll
+                ? t("common.showLess")
+                : t("profile.settings.genresShowAll", {
+                    count: pickable.length - GENRE_PREVIEW_COUNT,
+                  })}
+            </button>
+          )}
+        </>
+      )}
 
       {locked ? (
         <p className="text-[11px] leading-relaxed text-muted-foreground/80">
           {t("profile.settings.genresLocked")}
         </p>
       ) : (
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            disabled={!dirty || setPrefs.isPending}
-            onClick={save}
-          >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Button size="sm" disabled={!dirty || setPrefs.isPending} onClick={save}>
+            {setPrefs.isPending && <Spinner data-icon="inline-start" />}
             {t("profile.settings.save")}
           </Button>
           <span className="text-[11px] text-muted-foreground/80">

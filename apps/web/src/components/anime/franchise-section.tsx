@@ -150,7 +150,14 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
       to={`/anime/${entry.id}`}
       className="group w-[88%] shrink-0 snap-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-[calc((100%-2*0.625rem)/3)] lg:w-full"
     >
-      <div className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 p-2 transition-colors group-hover:border-primary/40 group-hover:bg-primary/[0.06]">
+      <div className="relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-xl border border-border/60 bg-card/40 p-2 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:bg-primary/[0.06] group-hover:shadow-md group-hover:shadow-primary/10">
+        {/* The same band of light the rest of the site sweeps on hover —
+            pointer devices only, since group-hover compiles behind a
+            hover-capable media query. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+        />
         <div className="h-10 w-7 shrink-0 overflow-hidden rounded-md bg-muted">
           {entry.imageUrl ? (
             <img

@@ -118,21 +118,23 @@ function CharacterGallery({
 
         {images.length > 1 && (
           <>
+            {/* The arrows lean the way they will take you, same as the
+                pagination and spotlight controls. */}
             <button
               type="button"
               onClick={() => step(-1)}
               aria-label={t("common.previous")}
-              className="absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-background/70 text-foreground shadow backdrop-blur transition-colors hover:bg-background"
+              className="group absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border/50 bg-background/70 text-foreground shadow-md backdrop-blur transition-all duration-200 hover:border-primary/40 hover:bg-background hover:text-primary"
             >
-              <ChevronLeftIcon className="size-5" />
+              <ChevronLeftIcon className="size-5 transition-transform duration-200 group-hover:-translate-x-0.5" />
             </button>
             <button
               type="button"
               onClick={() => step(1)}
               aria-label={t("common.next")}
-              className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-background/70 text-foreground shadow backdrop-blur transition-colors hover:bg-background"
+              className="group absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border/50 bg-background/70 text-foreground shadow-md backdrop-blur transition-all duration-200 hover:border-primary/40 hover:bg-background hover:text-primary"
             >
-              <ChevronRightIcon className="size-5" />
+              <ChevronRightIcon className="size-5 transition-transform duration-200 group-hover:translate-x-0.5" />
             </button>
             <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-background/70 px-2.5 py-0.5 text-xs font-medium backdrop-blur">
               {safeIndex + 1} / {images.length}
@@ -194,11 +196,12 @@ function StatTile({
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
-        "flex min-w-0 items-center gap-2.5 rounded-xl border border-border/60 bg-card/60 px-3 py-2.5 text-left",
-        onClick && "transition-colors hover:border-primary/40 hover:bg-primary/[0.06]",
+        "group flex min-w-0 items-center gap-2.5 rounded-2xl border border-border/60 bg-card/60 px-3 py-2.5 text-left transition-all duration-300",
+        onClick &&
+          "hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.06] hover:shadow-lg hover:shadow-primary/10",
       )}
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary [&_svg]:size-4">
+      <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary/12 text-primary transition-transform duration-300 group-hover:scale-105 [&_svg]:size-4">
         {icon}
       </span>
       <div className="min-w-0 flex-1">

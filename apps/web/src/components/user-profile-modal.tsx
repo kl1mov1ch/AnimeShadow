@@ -175,9 +175,9 @@ function ModalStat({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border/60 bg-card/40 p-2.5 text-left">
+    <div className="group flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-2.5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10">
       <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <Icon className="size-3 shrink-0 text-muted-foreground/70" />
+        <Icon className="size-3 shrink-0 text-primary/70 transition-transform duration-300 group-hover:scale-110" />
         <span className="truncate">{label}</span>
       </span>
       <span className="truncate text-sm font-semibold tabular-nums">{children}</span>

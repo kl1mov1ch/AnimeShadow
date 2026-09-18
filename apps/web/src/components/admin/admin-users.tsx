@@ -58,7 +58,7 @@ function StatChip({ icon, value, label }: { icon: ReactNode; value: number; labe
       <TooltipTrigger asChild>
         <span
           className={cn(
-            "inline-flex items-center gap-1 rounded-md border border-border/50 px-1.5 py-0.5 tabular-nums [&_svg]:size-3",
+            "inline-flex items-center gap-1 rounded-full border border-border/50 px-2 py-0.5 tabular-nums [&_svg]:size-3",
             value > 0 ? "text-foreground" : "text-muted-foreground/60",
           )}
         >
@@ -264,7 +264,10 @@ export function AdminUsers() {
                       >
                         <SelectTrigger
                           className={cn(
-                            "h-8 w-[10.5rem] rounded-lg text-xs",
+                            // No explicit radius — it inherits the shared
+                            // trigger shape, which these overrides used to
+                            // undo.
+                            "h-8 w-[10.5rem] text-xs",
                             row.role === "ADMIN" && "border-primary/40 bg-primary/10 text-primary",
                           )}
                         >
@@ -300,7 +303,7 @@ export function AdminUsers() {
                       >
                         <SelectTrigger
                           className={cn(
-                            "h-8 w-[10.5rem] rounded-lg text-xs",
+                            "h-8 w-[10.5rem] text-xs",
                             row.isBanned
                               ? "border-destructive/40 bg-destructive/10 text-destructive"
                               : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",

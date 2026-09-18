@@ -18,8 +18,8 @@ import {
 import { Link } from "react-router-dom";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-// Overall score is hidden for now (not deleted) — uncomment to bring it back.
-// import { ScoreBadge } from "@/components/anime/score-badge";
+// Overall score is hidden site-wide (not deleted) — see ScoreBadge's call
+// sites. The slider deliberately does not reintroduce it on its own.
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,6 +31,7 @@ import { useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 const ROTATE_MS = 9_000;
+const CLIP_START_SECONDS = 180;
 
 function prefersReducedMotion() {
   return (
@@ -47,23 +48,26 @@ function shortRating(rating: string | null): string | null {
 }
 
 /**
- * Rotating homepage hero. Always rendered as a dark "screening room" card
- * (the `dark` class re-scopes every theme token inside it), so the text,
- * buttons and the list select stay legible over the artwork in either site
- * theme. Title and metadata sit top-left; actions and carousel controls
- * share one wrapping row at the bottom, so they can never overlap.
+ * Rotating homepage hero, rebuilt so that changing slides reads as one
+ * surface dissolving into the next rather than a hard swap: every slide's
+ * artwork stays mounted and cross-fades, and only the text block remounts
+ * (which is what replays its own entrance).
+ *
+ * Always rendered as a dark "screening room" card (the `dark` class
+ * re-scopes every theme token inside it), so text, buttons and the list
+ * select stay legible over artwork in either site theme.
  */
 export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
   const slides = items.slice(0, 6);
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
-  const [hovered, setHovered] = useState(false);
+  const [paused, setPaused] = useState(false);
   const reduced = prefersReducedMotion();
   const desktop = useMediaQuery("(min-width: 640px)");
   const touchX = useRef<number | null>(null);
 
   const count = slides.length;
-  const paused = hidden || hovered;
+  const stopped = hidden || paused;
   const go = useCallback(
     (dir: 1 | -1) => setIndex((i) => (i + dir + count) % count),
     [count],
@@ -72,10 +76,10 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
   // `index` is a dependency on purpose: any manual jump restarts the full
   // interval, keeping auto-advance in step with the progress bar.
   useEffect(() => {
-    if (reduced || paused || count < 2) return;
+    if (reduced || stopped || count < 2) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % count), ROTATE_MS);
     return () => clearInterval(id);
-  }, [reduced, paused, count, index]);
+  }, [reduced, stopped, count, index]);
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.visibilityState === "hidden");
@@ -85,16 +89,15 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
 
   if (count === 0) return null;
   const anime = slides[index] ?? slides[0]!;
-  const shot = anime.bannerImage ?? anime.screenshots[0];
-  const heroImg = shot ? imageSrc(shot) : imageSrc(anime.imageLargeUrl ?? anime.imageUrl);
-  const landscape = Boolean(shot);
 
   return (
     <section
       aria-roledescription="carousel"
-      className="dark relative isolate overflow-hidden rounded-3xl border border-border/70 bg-background text-foreground shadow-xl shadow-black/10"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="dark group/hero relative isolate overflow-hidden rounded-3xl border border-border/70 bg-background text-foreground shadow-2xl shadow-black/30"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
       onTouchStart={(e) => (touchX.current = e.touches[0]?.clientX ?? null)}
       onTouchEnd={(e) => {
         const start = touchX.current;
@@ -105,27 +108,24 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         touchX.current = null;
       }}
     >
-      <div className="relative flex flex-col sm:min-h-[430px] lg:min-h-[480px]">
-        {/* Mobile: artwork on top at its natural ratio, content stacked below.
-            Desktop: artwork fills the card behind the content. */}
-        <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto">
-          {heroImg ? (
-            <img
-              key={heroImg}
-              src={heroImg}
-              alt=""
-              fetchPriority="high"
-              className={cn(
-                "absolute inset-0 size-full object-cover",
-                !landscape && "object-[center_22%]",
-                desktop && "hero-pan",
-              )}
-            />
-          ) : (
-            <PosterFallback title={anime.title} seed={anime.id} />
-          )}
+      {/* The site hairline, as on every other surface. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      />
 
-          {desktop && !reduced && <SpotlightVideo key={anime.id} animeId={anime.id} />}
+      <div className="relative flex flex-col sm:min-h-[460px] lg:min-h-[520px]">
+        {/* Mobile: artwork on top at its natural ratio, content stacked
+            below. Desktop: artwork fills the card behind the content. */}
+        <div className="relative aspect-video w-full overflow-hidden sm:absolute sm:inset-0 sm:aspect-auto">
+          {slides.map((slide, i) => (
+            <SlideArt
+              key={slide.id}
+              anime={slide}
+              active={i === index}
+              animate={desktop && !reduced && i === index}
+            />
+          ))}
 
           <div
             aria-hidden
@@ -148,12 +148,14 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         <SlideContent
           key={anime.id}
           anime={anime}
+          position={index + 1}
+          total={count}
           controls={
             count > 1 ? (
               <SlideControls
                 slides={slides}
                 index={index}
-                running={!reduced && !paused}
+                running={!reduced && !stopped}
                 onSelect={setIndex}
                 onStep={go}
               />
@@ -162,6 +164,52 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * One slide's artwork. Every slide stays mounted and fades, which is what
+ * makes a change of slide read as a dissolve; only the active one is given
+ * the video, so a rotation never leaves five streams running.
+ */
+function SlideArt({
+  anime,
+  active,
+  animate,
+}: {
+  anime: AnimeDetail;
+  active: boolean;
+  animate: boolean;
+}) {
+  const shot = anime.bannerImage ?? anime.screenshots[0];
+  const heroImg = shot ? imageSrc(shot) : imageSrc(anime.imageLargeUrl ?? anime.imageUrl);
+  const landscape = Boolean(shot);
+
+  return (
+    <div
+      aria-hidden={!active}
+      className={cn(
+        "absolute inset-0 transition-opacity duration-700 ease-out",
+        active ? "opacity-100" : "opacity-0",
+      )}
+    >
+      {heroImg ? (
+        <img
+          src={heroImg}
+          alt=""
+          fetchPriority={active ? "high" : "low"}
+          loading={active ? "eager" : "lazy"}
+          className={cn(
+            "absolute inset-0 size-full object-cover",
+            !landscape && "object-[center_22%]",
+            animate && "hero-pan",
+          )}
+        />
+      ) : (
+        <PosterFallback title={anime.title} seed={anime.id} />
+      )}
+      {active && animate && <SpotlightVideo key={anime.id} animeId={anime.id} />}
+    </div>
   );
 }
 
@@ -177,7 +225,7 @@ function MetaChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-foreground/90 backdrop-blur [&_svg]:size-3.5 [&_svg]:text-foreground/55",
+        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-foreground/90 backdrop-blur transition-colors [&_svg]:size-3.5 [&_svg]:text-foreground/55",
         className,
       )}
     >
@@ -189,10 +237,10 @@ function MetaChip({
 
 /**
  * A muted clip of the show itself behind the slide — AniLibria's direct HLS
- * stream, so no YouTube embed and no bot check. Only when a playable HLS
- * source exists; it fades in over the still once it's actually playing and
- * simply never appears otherwise. Armed after a short dwell, so clicking
- * through slides quickly doesn't fire a stream lookup per slide.
+ * stream, so no third-party embed. Only when a playable HLS source exists;
+ * it fades in over the still once it's actually playing and simply never
+ * appears otherwise. Armed after a short dwell, so clicking through slides
+ * quickly doesn't fire a stream lookup per slide.
  */
 function SpotlightVideo({ animeId }: { animeId: number }) {
   const [armed, setArmed] = useState(false);
@@ -272,11 +320,10 @@ function SpotlightVideo({ animeId }: { animeId: number }) {
   );
 }
 
-const CLIP_START_SECONDS = 180;
-
 function pickClip(data: WatchResponse | undefined): string | null {
   const source = data?.sources.find(
-    (candidate) => candidate.format === "hls" && candidate.stable !== false && candidate.hlsEpisodes,
+    (candidate) =>
+      candidate.format === "hls" && candidate.stable !== false && candidate.hlsEpisodes,
   );
   const episodes = source?.hlsEpisodes;
   if (!episodes) return null;
@@ -285,9 +332,13 @@ function pickClip(data: WatchResponse | undefined): string | null {
 
 function SlideContent({
   anime,
+  position,
+  total,
   controls,
 }: {
   anime: AnimeDetail;
+  position: number;
+  total: number;
   controls: ReactNode;
 }) {
   const t = useT();
@@ -306,6 +357,11 @@ function SlideContent({
     <div className="reveal-group relative z-10 flex flex-1 flex-col gap-4 p-4 sm:justify-between sm:gap-7 sm:p-7 lg:p-9">
       <div className="flex max-w-2xl flex-col gap-3">
         <div className="reveal flex flex-col gap-1" style={step(0)}>
+          {total > 1 && (
+            <span className="text-[11px] font-semibold tabular-nums tracking-widest text-foreground/40">
+              {String(position).padStart(2, "0")} / {String(total).padStart(2, "0")}
+            </span>
+          )}
           <h1 className="line-clamp-2 font-display text-2xl leading-[1.1] text-foreground [overflow-wrap:anywhere] sm:text-3xl lg:text-[2.5rem]">
             {title}
           </h1>
@@ -324,7 +380,7 @@ function SlideContent({
                 className={cn(
                   "size-1.5 rounded-full",
                   anime.airing === "AIRING"
-                    ? "bg-emerald-400"
+                    ? "animate-pulse bg-emerald-400"
                     : anime.airing === "UPCOMING"
                       ? "bg-amber-400"
                       : "bg-foreground/40",
@@ -341,27 +397,41 @@ function SlideContent({
             <Link
               key={genre.id}
               to={`/browse?genres=${genre.id}`}
-              className="rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 backdrop-blur transition-colors hover:border-primary/50 hover:text-primary"
+              className="rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary"
             >
               {labels.genreLabel(genre.name)}
             </Link>
           ))}
         </div>
+
+        {/* The synopsis, clamped hard — enough to decide whether to click,
+            never enough to become the page. */}
+        {anime.synopsis && (
+          <p
+            className="reveal hidden max-w-xl text-sm leading-relaxed text-foreground/70 sm:line-clamp-3"
+            style={step(2)}
+          >
+            {anime.synopsis}
+          </p>
+        )}
       </div>
 
       <div
         className="reveal flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
-        style={step(2)}
+        style={step(3)}
       >
         <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/50 [&_[data-slot=select-trigger]]:backdrop-blur [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
           <Button
             asChild
-            variant="outline"
-            className="border-white/15 bg-white/10 px-4 text-foreground backdrop-blur hover:bg-white/20"
+            className="group relative overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary px-5 font-semibold shadow-lg shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
           >
             <Link to={animeHref(anime)}>
-              <PlayIcon className="size-3.5" />
-              {t("discover.viewDetails")}
+              <PlayIcon className="relative z-10 size-3.5 fill-current" />
+              <span className="relative z-10">{t("discover.viewDetails")}</span>
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
+              />
             </Link>
           </Button>
           <TrailerButton url={anime.trailerEmbedUrl} title={title} />
@@ -402,18 +472,23 @@ function SlideControls({
               onClick={() => onSelect(i)}
               className={cn(
                 "relative h-1.5 overflow-hidden rounded-full transition-all duration-500 ease-out",
-                active ? "w-10 bg-foreground/20" : "w-1.5 bg-foreground/35 hover:w-3 hover:bg-foreground/70",
+                active
+                  ? "w-10 bg-foreground/20"
+                  : "w-1.5 bg-foreground/35 hover:w-4 hover:bg-foreground/70",
               )}
             >
               {active &&
                 (running ? (
                   <span
                     aria-hidden
-                    className="absolute inset-0 origin-left rounded-full bg-primary"
+                    className="absolute inset-0 origin-left rounded-full bg-gradient-to-r from-primary/70 to-primary"
                     style={{ animation: `spotlight-progress ${ROTATE_MS}ms linear` }}
                   />
                 ) : (
-                  <span aria-hidden className="absolute inset-0 rounded-full bg-primary" />
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/70 to-primary"
+                  />
                 ))}
             </button>
           );
@@ -459,7 +534,7 @@ export function SpotlightSkeleton() {
     <div className="flex flex-col gap-3 sm:block">
       <Skeleton className="aspect-video w-full rounded-3xl sm:hidden" />
       <Skeleton className="h-56 w-full rounded-3xl sm:hidden" />
-      <Skeleton className="hidden rounded-3xl sm:block sm:h-[430px] lg:h-[480px]" />
+      <Skeleton className="hidden rounded-3xl sm:block sm:h-[460px] lg:h-[520px]" />
     </div>
   );
 }

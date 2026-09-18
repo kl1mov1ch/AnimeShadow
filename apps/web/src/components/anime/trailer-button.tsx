@@ -22,7 +22,13 @@ export function TrailerButton({ url, title }: TrailerButtonProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        {/* Sits directly beside the library controls, which are pills now —
+            an unrounded button next to them read as a leftover. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary"
+        >
           <PlayCircleIcon data-icon="inline-start" />
           {t("trailer.open")}
         </Button>

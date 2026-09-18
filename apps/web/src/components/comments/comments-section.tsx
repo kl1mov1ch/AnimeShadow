@@ -44,6 +44,14 @@ import { cn } from "@/lib/utils";
 
 const MODES: CommentMode[] = ["PUBLIC", "ANON", "SUPPORTER"];
 
+/** Shared shape for every action under a comment — a real pill with a real
+ * tap target, rather than the bare icon-and-text runs these used to be. */
+const COMMENT_ACTION_CLASS =
+  "inline-flex items-center gap-1 rounded-full px-2 py-1 transition-all duration-200 hover:bg-secondary/60 hover:text-foreground";
+
+/** A cast vote, or the reply/quote composer currently open. */
+const COMMENT_ACTION_ACTIVE = "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary";
+
 /**
  * A quoted reply is stored as two leading blockquote lines — the quoted
  * author's name, then their snippet — followed by a blank line and the
@@ -83,7 +91,7 @@ function QuotePreview({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md border-l-2 border-primary/60 bg-primary/[0.06] py-1 pl-2 pr-2.5",
+        "flex items-start gap-2 rounded-xl border-l-2 border-primary/60 bg-primary/[0.06] py-1 pl-2 pr-2.5",
         className,
       )}
     >
@@ -118,7 +126,7 @@ export function CommentsSection({ animeId }: { animeId: number }) {
       {authed ? (
         <Composer animeId={animeId} />
       ) : (
-        <p className="rounded-lg border border-border/60 bg-card/40 p-3 text-sm text-muted-foreground">
+        <p className="rounded-2xl border border-border/60 bg-card/40 p-3 text-sm text-muted-foreground transition-colors duration-300 hover:border-primary/25">
           <Link to="/login" className="text-primary hover:underline">
             {t("comments.signInToComment")}
           </Link>
@@ -169,7 +177,7 @@ export function CommentsSection({ animeId }: { animeId: number }) {
       {isPending ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 3 }, (_, i) => (
-            <Skeleton key={i} className="h-20 rounded-lg" />
+            <Skeleton key={i} className="h-20 rounded-2xl" />
           ))}
         </div>
       ) : !data || data.comments.length === 0 ? (
@@ -214,10 +222,10 @@ function FilterToggle({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs transition-colors",
+        "rounded-full border px-2.5 py-1 text-xs transition-all duration-200",
         active
-          ? "border-primary/50 bg-primary/10 text-primary"
-          : "border-border/60 text-muted-foreground hover:text-foreground",
+          ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
+          : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
       )}
     >
       {label}
@@ -265,7 +273,7 @@ function Composer({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/40 p-3">
+    <div className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/40 p-3 transition-colors duration-300 focus-within:border-primary/30">
       {quoting && quote && (
         <div className="relative">
           <QuotePreview author={quote.author} snippet={quote.snippet} className="pr-7" />
@@ -297,17 +305,22 @@ function Composer({
               aria-pressed={mode === m}
               title={t(`comments.mode.${modeHintKey(m)}`)}
               className={cn(
-                "rounded-md px-2 py-1 text-xs transition-colors",
+                "rounded-full px-2.5 py-1 text-xs transition-all duration-200",
                 mode === m
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
+                  : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
               )}
             >
               {t(`comments.mode.${modeKey(m)}`)}
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={submit} disabled={create.isPending || !body.trim()}>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={create.isPending || !body.trim()}
+          className="rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
+        >
           {t("comments.submit")}
         </Button>
       </div>
@@ -377,7 +390,7 @@ function CommentItem({
           aria-label={t("comments.viewProfile")}
           className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Avatar className="size-8 transition-opacity hover:opacity-80">
+          <Avatar className="size-8 ring-2 ring-border/60 transition-all duration-200 hover:ring-primary/40">
             {comment.author.avatarUrl && (
               <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
             )}
@@ -418,7 +431,7 @@ function CommentItem({
             </span>
           )}
           {comment.author.isPro && (
-            <Badge className="h-4 bg-primary/15 px-1 text-[10px] text-primary">
+            <Badge className="h-4 border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-1.5 text-[10px] font-semibold tracking-wide text-primary-foreground shadow-sm shadow-primary/25">
               PRO
             </Badge>
           )}
@@ -466,10 +479,16 @@ function CommentItem({
                   );
                 }}
                 disabled={edit.isPending || !draft.trim()}
+                className="rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
               >
                 {t("common.save")}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+                className="rounded-full"
+              >
                 {t("common.cancel")}
               </Button>
             </div>
@@ -489,7 +508,7 @@ function CommentItem({
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                className="rounded-full px-2 py-0.5 text-xs font-medium text-primary/80 transition-all duration-200 hover:bg-primary/10 hover:text-primary"
               >
                 {expanded ? t("common.showLess") : t("common.showMore")}
               </button>
@@ -497,26 +516,27 @@ function CommentItem({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {/* These were bare text-plus-icon runs: no shape, no hit area, and
+            nothing but a colour change on hover. At this type size that
+            left a tap target a few pixels tall on a phone. Each action is
+            a real pill now, and a cast vote is a filled one rather than
+            just tinted text. */}
+        <div className="-ml-2 flex flex-wrap items-center gap-x-0.5 gap-y-1 text-xs text-muted-foreground">
           <button
             type="button"
             aria-label={t("comments.likeAria")}
+            aria-pressed={comment.myVote === 1}
             onClick={() => setVote(1)}
-            className={cn(
-              "inline-flex items-center gap-1 hover:text-foreground",
-              comment.myVote === 1 && "text-primary",
-            )}
+            className={cn(COMMENT_ACTION_CLASS, comment.myVote === 1 && COMMENT_ACTION_ACTIVE)}
           >
             <ThumbsUpIcon className="size-3.5" /> {comment.likeCount || ""}
           </button>
           <button
             type="button"
             aria-label={t("comments.dislikeAria")}
+            aria-pressed={comment.myVote === -1}
             onClick={() => setVote(-1)}
-            className={cn(
-              "inline-flex items-center gap-1 hover:text-foreground",
-              comment.myVote === -1 && "text-primary",
-            )}
+            className={cn(COMMENT_ACTION_CLASS, comment.myVote === -1 && COMMENT_ACTION_ACTIVE)}
           >
             <ThumbsDownIcon className="size-3.5" /> {comment.dislikeCount || ""}
           </button>
@@ -524,7 +544,7 @@ function CommentItem({
             <button
               type="button"
               onClick={() => setReplyMode((m) => (m === "reply" ? null : "reply"))}
-              className="inline-flex items-center gap-1 hover:text-foreground"
+              className={cn(COMMENT_ACTION_CLASS, replyMode === "reply" && COMMENT_ACTION_ACTIVE)}
             >
               <MessageSquareIcon className="size-3.5" /> {t("comments.actions.reply")}
             </button>
@@ -532,7 +552,7 @@ function CommentItem({
           <button
             type="button"
             onClick={() => setReplyMode((m) => (m === "quote" ? null : "quote"))}
-            className="inline-flex items-center gap-1 hover:text-foreground"
+            className={cn(COMMENT_ACTION_CLASS, replyMode === "quote" && COMMENT_ACTION_ACTIVE)}
           >
             <QuoteIcon className="size-3.5" /> {t("comments.actions.quote")}
           </button>
@@ -544,14 +564,17 @@ function CommentItem({
                   setDraft(comment.body);
                   setEditing(true);
                 }}
-                className="inline-flex items-center gap-1 hover:text-foreground"
+                className={COMMENT_ACTION_CLASS}
               >
                 <PencilIcon className="size-3.5" /> {t("comments.actions.edit")}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="inline-flex items-center gap-1 hover:text-destructive"
+                className={cn(
+                  COMMENT_ACTION_CLASS,
+                  "hover:bg-destructive/10 hover:text-destructive",
+                )}
               >
                 <Trash2Icon className="size-3.5" /> {t("comments.actions.delete")}
               </button>

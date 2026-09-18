@@ -1,6 +1,7 @@
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { AchievementWatcher } from "@/components/achievement-watcher";
 import { CookieConsent } from "@/components/cookie-consent";
+import { SearchCommandDialog } from "@/components/layout/search-command-dialog";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
@@ -24,6 +25,8 @@ export function AppShell() {
         </main>
         <SiteFooter />
       </div>
+      {/* Mounted once, globally: it owns ⌘K for the whole app. */}
+      <SearchCommandDialog />
       <Toaster position="bottom-right" />
       <AchievementWatcher />
       <CookieConsent />

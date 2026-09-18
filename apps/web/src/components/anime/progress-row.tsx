@@ -50,10 +50,10 @@ export function ProgressRow({
       : null;
 
   return (
-    <article className="group flex gap-3 rounded-xl border border-border/60 bg-card/40 p-3 transition-colors hover:border-border sm:gap-4">
+    <article className="group flex gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 sm:gap-4">
       <Link
         to={`/anime/${row.slug}`}
-        className="relative h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted sm:h-28 sm:w-20"
+        className="relative h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border/50 transition-shadow duration-300 group-hover:ring-primary/30 sm:h-28 sm:w-20"
       >
         {row.imageUrl ? (
           <img
@@ -102,9 +102,12 @@ export function ProgressRow({
         </div>
 
         <div className="flex flex-col gap-1">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          {/* Same bar as the achievements collection — one gradient that
+              glows, so progress reads the same way everywhere on the site
+              rather than flat here and lit there. */}
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary/70">
             <div
-              className="h-full rounded-full bg-primary transition-[width] duration-500"
+              className="h-full rounded-full bg-gradient-to-r from-primary/70 via-primary to-primary shadow-[0_0_12px_-2px_var(--primary)] transition-[width] duration-700 ease-out"
               style={{ width: `${Math.min(100, percent)}%` }}
             />
           </div>
