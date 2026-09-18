@@ -238,6 +238,7 @@ export const en = {
     },
   },
   watch: {
+    loadPlayer: "Load the player",
     voiceover: "Audio / subtitles",
     switchPlayer: "Switch player ({count})",
     notWorking: "Not loading?",

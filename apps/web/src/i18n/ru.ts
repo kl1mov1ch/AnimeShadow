@@ -240,6 +240,7 @@ export const ru: Dict = {
     },
   },
   watch: {
+    loadPlayer: "Запустить плеер",
     voiceover: "Озвучка / субтитры",
     switchPlayer: "Сменить плеер ({count})",
     notWorking: "Не грузится?",

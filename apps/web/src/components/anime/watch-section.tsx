@@ -38,11 +38,16 @@ import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
+import { imageSrc } from "@/lib/format";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 interface WatchSectionProps {
-  anime: Pick<AnimeDetail, "id" | "airing" | "airedFrom" | "episodes">;
+  anime: Pick<
+    AnimeDetail,
+    // The image fields are for the facade shown before the player loads.
+    "id" | "airing" | "airedFrom" | "episodes" | "bannerImage" | "imageLargeUrl" | "imageUrl"
+  >;
   title: string;
   active: boolean;
   /** Which episode is loaded — lifted up so a separate Episodes section can jump the player. */
@@ -58,6 +63,19 @@ export function WatchSection({
   onEpisodeChange,
 }: WatchSectionProps) {
   const t = useT();
+  // The embeds are not mounted until someone asks for them. Mounting them on
+  // page open meant two full third-party players — their own scripts, ads and
+  // trackers, easily megabytes — racing each other for bandwidth before the
+  // visitor had scrolled anywhere near the player, which on a weak connection
+  // was most of what made a title page slow. The source list itself (a few
+  // KB from our own API) still loads up front, so the facade knows whether
+  // there is anything to play.
+  const [activated, setActivated] = useState(false);
+  // Same route, different title: the component is reused, so the choice to
+  // load a player on one page must not carry over to the next.
+  useEffect(() => {
+    setActivated(false);
+  }, [anime.id]);
   const releaseDate = anime.airedFrom ? new Date(anime.airedFrom) : null;
   const notYetOut =
     anime.airing === "UPCOMING" &&
@@ -79,6 +97,15 @@ export function WatchSection({
   }
 
   if (data?.available && data.sources.length > 0) {
+    if (!activated) {
+      return (
+        <PlayerFacade
+          poster={imageSrc(anime.bannerImage ?? anime.imageLargeUrl ?? anime.imageUrl)}
+          label={t("watch.loadPlayer")}
+          onActivate={() => setActivated(true)}
+        />
+      );
+    }
     return (
       <Player
         data={data}
@@ -102,6 +129,49 @@ export function WatchSection({
     <Alert>
       <AlertDescription>{notice}</AlertDescription>
     </Alert>
+  );
+}
+
+/**
+ * What sits in the player's slot until it is asked for: the title's own art
+ * and one obvious button. Clicking mounts the real player, which then runs
+ * its usual source race — nothing about playback changes, only when it
+ * starts costing bandwidth.
+ */
+function PlayerFacade({
+  poster,
+  label,
+  onActivate,
+}: {
+  poster: string | undefined;
+  label: string;
+  onActivate: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onActivate}
+      className="group relative mx-auto block aspect-video w-full overflow-hidden rounded-xl border bg-black sm:w-[88%]"
+    >
+      {poster && (
+        <img
+          src={poster}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 size-full object-cover opacity-60 transition-opacity duration-300 group-hover:opacity-75"
+        />
+      )}
+      <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      <span className="relative flex size-full flex-col items-center justify-center gap-3">
+        <span className="grid size-16 place-items-center rounded-full bg-[var(--accent-ink,var(--primary))] text-background shadow-2xl transition-transform duration-300 group-hover:scale-110">
+          <PlayIcon className="size-7 translate-x-[2px] fill-current" />
+        </span>
+        <span className="rounded-full bg-black/50 px-3 py-1 text-sm font-medium text-white backdrop-blur">
+          {label}
+        </span>
+      </span>
+    </button>
   );
 }
 
