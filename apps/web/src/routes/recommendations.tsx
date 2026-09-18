@@ -463,7 +463,9 @@ function Tile({
         >
           {anime.imageUrl ? (
             <img
-              src={imageSrc(anime.imageUrl)}
+              // Full-size 2:3 poster, so it takes the large variant for the
+              // same reason AnimeCard does — the small one is 160px wide.
+              src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
               alt=""
               loading="lazy"
               className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"

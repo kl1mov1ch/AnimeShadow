@@ -66,7 +66,12 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             phone never runs any of it. */}
         {anime.imageUrl ? (
           <img
-            src={imageSrc(anime.imageUrl)}
+            // The large variant, not the small one. `imageUrl` is Shikimori's
+            // "preview" — 160x226 — and this card draws it across a full
+            // 2:3 poster, which on any 2x screen means upscaling it roughly
+            // double. That was the blur. `imageLargeUrl` is 225x318 from
+            // Shikimori or 319x450 from MAL, for about 20-35KB more.
+            src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
             alt=""
             loading={priority ? "eager" : "lazy"}
             decoding="async"
