@@ -120,6 +120,9 @@ export function toAnimeDetail(raw: JikanAnime): AnimeDetail {
     demographics: (raw.demographics ?? []).map((d) => d.name),
     screenshots: [],
     bannerImage: null,
+    // Neither is anything Jikan reports; both are filled in later from
+    // AniList by the catalogue's own artwork heal.
+    accentColor: null,
     titleLocalized: null,
     translated: false,
   };

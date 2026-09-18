@@ -67,6 +67,10 @@ const envSchema = z.object({
   /** How often the warm pass repeats. 0 disables the repeat (boot pass only),
    * which is what the service effectively did before this existed. */
   WATCH_WARM_INTERVAL_MS: z.coerce.number().int().nonnegative().default(900_000),
+  /** Titles per pass whose banner/cover/accent colour get filled in from
+   * AniList. Smaller than the watch limit because each one is a live external
+   * lookup paced by that client's own rate limiter. */
+  ARTWORK_WARM_LIMIT: z.coerce.number().int().nonnegative().default(60),
 
   // ---- Telegram Login Widget — https://core.telegram.org/widgets/login.
   // Optional: "Sign in with Telegram" simply doesn't verify without it.

@@ -11,6 +11,7 @@ import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
+import { OpeningVideo } from "@/components/anime/opening-video";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
 // import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
@@ -137,10 +138,21 @@ function AnimeDetailView({ param }: { param: string }) {
   });
 
   return (
-    <article className="flex flex-col gap-6">
+    // The title's own colour, published once here as a custom property that
+    // everything below can reach for. Declared with a fallback at each use
+    // site rather than conditionally set, so a title AniList has no colour
+    // for simply keeps the site accent and needs no second code path.
+    <article
+      className="flex flex-col gap-6"
+      style={
+        data.accentColor
+          ? ({ "--title-accent": data.accentColor } as CSSProperties)
+          : undefined
+      }
+    >
       <TitleHeader
+        animeId={data.id}
         banner={data.bannerImage ? imageSrc(data.bannerImage) ?? null : null}
-        accent={data.accentColor}
       >
         {/* Poster alongside everything else, not stacked in a separate
             sidebar below — the header is the one place all of a title's
@@ -240,7 +252,17 @@ function AnimeDetailView({ param }: { param: string }) {
 
       {/* One continuous surface, hairline-separated sections — no more
           poster sidebar, since the header above already carries it. */}
-      <div className="flex flex-col divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
+      <div className="relative flex flex-col divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
+        {/* Same hairline as the header above, in the same colour — it is what
+            ties the two surfaces together as one page belonging to one show. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px"
+          style={{
+            background:
+              "linear-gradient(to right, transparent, color-mix(in srgb, var(--title-accent, var(--primary)) 45%, transparent), transparent)",
+          }}
+        />
         <Block title={t("detail.sections.watch")}>
           <WatchSection
             anime={data}
@@ -281,77 +303,79 @@ function AnimeDetailView({ param }: { param: string }) {
  * is monochrome, so it reads the same in either theme.
  */
 function TitleHeader({
+  animeId,
   banner,
-  accent,
   children,
 }: {
+  animeId: number;
   /** AniList's own widescreen key visual, when the title has one. */
   banner: string | null;
-  /** Dominant colour of the cover art, `#rrggbb`. */
-  accent: string | null;
   children: React.ReactNode;
 }) {
+  // A short dwell before the opening is even requested. Opening a title and
+  // immediately going back must not cost a video fetch, and the header is
+  // readable from the first frame either way — the motion is a reward for
+  // staying, not part of the page loading.
+  const [wantsOpening, setWantsOpening] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWantsOpening(true), 1_500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div
-      className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card"
-      // The title's own colour, applied as a custom property so the layers
-      // below can use it without a second render path for "has a colour" and
-      // "doesn't". Falls back to the site accent.
-      style={
-        accent
-          ? ({ "--title-accent": accent } as React.CSSProperties)
-          : undefined
-      }
-    >
-      {/* The site's own hairline, the same one under the header. */}
+    <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
+      {/* The hairline, wearing the title's colour. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px"
+        style={{
+          background:
+            "linear-gradient(to right, transparent, color-mix(in srgb, var(--title-accent, var(--primary)) 60%, transparent), transparent)",
+        }}
       />
 
-      {banner ? (
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          {/* A real landscape key visual, framed as one. This is the reason
-              the banner came back at all: the old backdrop was whatever
-              portrait poster we had, stretched across a 16:5 box, which is
-              why it read as broken rather than cinematic. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        {banner ? (
+          // A real landscape key visual, framed as one — not a portrait
+          // poster stretched across a 16:5 box, which is what made the old
+          // backdrop read as broken rather than cinematic.
           <img
             src={banner}
             alt=""
             fetchPriority="high"
             className="absolute inset-0 size-full object-cover object-center"
           />
-          {/* Legibility first — the panel's text sits on top of this. */}
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/85 to-card/45" />
-          <div className="absolute inset-0 hidden bg-gradient-to-r from-card via-card/70 to-transparent sm:block" />
-          {accent && (
-            <div
-              className="absolute inset-0 opacity-25 mix-blend-overlay"
-              style={{
-                background:
-                  "radial-gradient(120% 90% at 15% 0%, var(--title-accent), transparent 70%)",
-              }}
+        ) : (
+          <>
+            <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
+              影
+            </span>
+            <LottieMono
+              animation={pulseRings}
+              className="absolute -left-24 -bottom-24 size-[26rem] text-primary/20"
             />
-          )}
+          </>
+        )}
+
+        {/* The show itself, over whatever still is behind it. OpeningVideo
+            fades in only once there are real frames and refuses outright on
+            a touch device or a metered connection, so this is either an
+            upgrade on the banner or nothing at all. */}
+        <div className="absolute inset-0">
+          <OpeningVideo animeId={animeId} active={wantsOpening} />
         </div>
-      ) : (
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          {/* No banner for this title — the same plain, monochrome treatment
-              as before, tinted by the cover's colour when we know it. */}
-          <div
-            className="absolute -left-24 -top-32 size-[30rem] rounded-full opacity-[0.10] blur-[120px]"
-            style={{ background: accent ? "var(--title-accent)" : undefined }}
-          />
-          <div className="absolute -bottom-32 right-[8%] size-[24rem] rounded-full bg-primary/[0.05] blur-[110px]" />
-          <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
-            影
-          </span>
-          <LottieMono
-            animation={pulseRings}
-            className="absolute -left-24 -bottom-24 size-[26rem] text-primary/20"
-          />
-        </div>
-      )}
+
+        {/* Legibility first — every layer above sits under these. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/85 to-card/45" />
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-card via-card/70 to-transparent sm:block" />
+        <div
+          className="absolute inset-0 opacity-25 mix-blend-overlay"
+          style={{
+            background:
+              "radial-gradient(120% 90% at 15% 0%, var(--title-accent, var(--primary)), transparent 70%)",
+          }}
+        />
+      </div>
 
       {/* No forced minimum height: the content decides how tall this is, so a
           short title never sits above a band of empty artwork. */}
@@ -373,7 +397,17 @@ function Block({
 }) {
   return (
     <section className="flex flex-col gap-3 p-5">
-      <h2 className="font-display text-lg tracking-tight sm:text-xl">{title}</h2>
+      <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
+        {/* A short bar in the title's own colour. The colour never touches
+            the text itself — a pale cover would make the heading unreadable
+            — only a mark beside it. */}
+        <span
+          aria-hidden
+          className="h-4 w-1 shrink-0 rounded-full"
+          style={{ background: "var(--title-accent, var(--primary))" }}
+        />
+        {title}
+      </h2>
       {children}
     </section>
   );

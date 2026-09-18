@@ -15,21 +15,40 @@ import { cn } from "@/lib/utils";
  * preview with) never downloads a byte.
  */
 
-/** Only one opening is ever allowed to play. The newest claim wins, and the
- *  previous holder is told to stand down — sweeping a grid of cards must not
- *  leave a trail of videos playing behind the cursor. */
-let currentHolder: symbol | null = null;
-const listeners = new Map<symbol, () => void>();
+/**
+ * Only one opening plays at a time, and the claims form a stack rather than a
+ * single slot.
+ *
+ * A single slot was wrong in the obvious case: the hero is playing, the
+ * cursor settles on a card, the card takes over — and when the cursor leaves,
+ * the hero stays dead, because nothing ever handed playback back. A stack
+ * suspends the interrupted holder and resumes it the moment the one on top
+ * goes away.
+ */
+interface Holder {
+  id: symbol;
+  pause: () => void;
+  resume: () => void;
+}
 
-function claimPlayback(id: symbol): void {
-  if (currentHolder === id) return;
-  const previous = currentHolder;
-  currentHolder = id;
-  if (previous) listeners.get(previous)?.();
+const stack: Holder[] = [];
+
+function claimPlayback(holder: Holder): void {
+  const top = stack.at(-1);
+  if (top?.id === holder.id) return;
+  top?.pause();
+  // Re-claiming from lower in the stack moves it to the top rather than
+  // sitting in it twice.
+  const existing = stack.findIndex((h) => h.id === holder.id);
+  if (existing >= 0) stack.splice(existing, 1);
+  stack.push(holder);
 }
 
 function releasePlayback(id: symbol): void {
-  if (currentHolder === id) currentHolder = null;
+  const wasTop = stack.at(-1)?.id === id;
+  const index = stack.findIndex((h) => h.id === id);
+  if (index >= 0) stack.splice(index, 1);
+  if (wasTop) stack.at(-1)?.resume();
 }
 
 /**
@@ -77,18 +96,22 @@ export function OpeningVideo({
     const video = videoRef.current;
     if (!video || !opening || !active) return;
 
-    claimPlayback(token);
-    // Told to stand down by a newer claim: stop, and give the bytes back by
-    // detaching the source rather than leaving a paused stream buffering.
-    listeners.set(token, () => {
-      video.pause();
-      setPlaying(false);
+    claimPlayback({
+      id: token,
+      // Told to stand down by a newer claim — paused, not torn down, so
+      // resuming costs nothing and picks up where it left off.
+      pause: () => {
+        video.pause();
+        setPlaying(false);
+      },
+      resume: () => {
+        void video.play().catch(() => undefined);
+      },
     });
 
     void video.play().catch(() => undefined);
 
     return () => {
-      listeners.delete(token);
       releasePlayback(token);
       video.pause();
       setPlaying(false);

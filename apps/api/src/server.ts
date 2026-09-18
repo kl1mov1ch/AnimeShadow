@@ -40,6 +40,15 @@ try {
       await app.services.watch.warm(env.WATCH_WARM_LIMIT);
     } catch (error) {
       app.log.warn({ err: error }, "watch warm failed");
+    }
+    try {
+      // Same pass, separate concern: fills in each title's banner, cover and
+      // accent colour. Without it the accent only ever arrived one
+      // detail-page visit at a time, so a catalogue of thousands had it on a
+      // few dozen rows and the tinting looked broken rather than pending.
+      await app.services.catalog.warmArtwork(env.ARTWORK_WARM_LIMIT);
+    } catch (error) {
+      app.log.warn({ err: error }, "artwork warm failed");
     } finally {
       warming = false;
     }

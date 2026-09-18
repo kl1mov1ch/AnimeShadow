@@ -196,6 +196,7 @@ export function toAnimeDetail(anime: ShikiAnimeFull): AnimeDetail {
       .filter((url): url is string => url != null)
       .slice(0, 8),
     bannerImage: null,
+    accentColor: null,
     titleLocalized: anime.russian ?? null,
     translated: false,
   };

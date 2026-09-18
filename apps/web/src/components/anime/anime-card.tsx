@@ -1,5 +1,5 @@
 import type { AnimeSummary } from "@animeshadow/shared";
-import { ClockIcon, PlayIcon } from "lucide-react";
+import { ClockIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { OpeningVideo } from "@/components/anime/opening-video";
@@ -84,8 +84,10 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
       className={cn("group flex flex-col gap-2 outline-none", className)}
     >
       <div
-        onMouseEnter={startIntent}
-        onMouseLeave={cancelIntent}
+        // Not even attached on a touch device: there is no hover to intend,
+        // OpeningVideo would refuse to render, and the request is disabled —
+        // so the only thing these could do there is churn state on a tap.
+        {...(canHover ? { onMouseEnter: startIntent, onMouseLeave: cancelIntent } : {})}
         className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:shadow-lg group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
       >
         {/* Everything below is opacity/transform only — nothing that forces
@@ -118,27 +120,17 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           <OpeningVideo animeId={anime.id} active={openingWanted} />
         </div>
 
-        {/* One focal move, not five: the art darkens from the bottom and a
-            single play disc eases up in the middle. Both are opacity and
-            transform only, so the card stays cheap to animate even with
-            thirty of them on screen.
-
-            Deliberately restrained — a solid brand-coloured disc over every
-            poster in a 20-card grid competed with the artwork instead of
-            pointing at it. Frosted glass and a hairline ring read as "this
-            is clickable" without repainting the middle of the image. */}
+        {/* One move, not three. The play disc is gone: with the opening
+            itself running behind this, a badge in the middle of the picture
+            was covering the very thing it was inviting you to look at, and
+            saying "playable" over footage that is already playing. What's
+            left is a gentle darkening from the bottom, which exists only so
+            the countdown and "coming soon" badges keep their contrast once
+            the video underneath them starts moving. */}
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none"
         />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 flex items-center justify-center"
-        >
-          <span className="grid size-10 scale-90 place-items-center rounded-full bg-background/25 text-white opacity-0 shadow-lg shadow-black/30 ring-1 ring-white/35 backdrop-blur-md transition-all duration-300 group-hover:scale-100 group-hover:opacity-100 motion-reduce:transition-none">
-            <PlayIcon className="size-4 translate-x-[1px] fill-current" />
-          </span>
-        </span>
 
         {isAdult && (
           <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur">

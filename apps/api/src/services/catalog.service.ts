@@ -59,6 +59,14 @@ import {
 import type { TranslationService } from "./translation.service.js";
 import type { Translator } from "./translator.js";
 
+/** What the artwork heal needs to know about a row before deciding to run. */
+interface ArtworkHealRow {
+  id: number;
+  title: string;
+  bannerImage: string | null;
+  accentColor: string | null;
+}
+
 interface CatalogLogger {
   warn: (obj: unknown, msg?: string) => void;
   info: (obj: unknown, msg?: string) => void;
@@ -902,44 +910,69 @@ export class CatalogService {
    * banner alone would have permanently skipped the accent colour for every
    * title that already had a banner stored from before that column existed.
    */
-  private scheduleHealBanner(row: {
-    id: number;
-    bannerImage: string | null;
-    accentColor: string | null;
-    title: string;
-  }): void {
+  private scheduleHealBanner(row: ArtworkHealRow): void {
     if (row.bannerImage && row.accentColor) return;
-    void (async () => {
-      try {
-        const media = await this.anilistMedia(row.id, row.title);
-        const artwork = media?.artwork;
-        // Keep a banner we already have: re-resolving it would cost a Kitsu
-        // round trip to arrive at the same URL. This pass may now run a
-        // second time for a title that has a banner but no colour yet.
-        const banner = row.bannerImage
-          ? null
-          : artwork?.banner ?? (await kitsuBanner(row.title));
-        const data: {
-          bannerImage?: string;
-          imageUrl?: string;
-          imageLargeUrl?: string;
-          accentColor?: string;
-        } = {};
-        if (banner) data.bannerImage = banner;
-        if (artwork?.cover) {
-          data.imageUrl = artwork.cover;
-          data.imageLargeUrl = artwork.cover;
-        }
-        // Comes free with the artwork request — AniList reports the cover's
-        // own dominant colour, so the page can be tinted without the browser
-        // having to load and sample the poster first.
-        if (artwork?.color) data.accentColor = artwork.color;
-        if (Object.keys(data).length === 0) return;
-        await this.prisma.anime.update({ where: { id: row.id }, data });
-      } catch (error) {
-        this.logger.warn({ error, id: row.id }, "detail artwork heal failed");
+    void this.healArtwork(row);
+  }
+
+  /**
+   * Fills in artwork for titles nobody has opened yet, most-popular first.
+   *
+   * Without this the accent colour only ever arrived one detail-page visit at
+   * a time, so "the page wears the title's colour" was true of a few dozen
+   * rows out of thousands — which reads as the feature not working rather
+   * than as it not having got there yet. Paced by the AniList client's own
+   * queue; the batch size is what bounds a single pass.
+   */
+  async warmArtwork(limit: number): Promise<void> {
+    if (limit <= 0) return;
+    const targets = await this.prisma.anime.findMany({
+      where: { accentColor: null },
+      orderBy: [{ members: { sort: "desc", nulls: "last" } }],
+      take: limit,
+      select: { id: true, title: true, bannerImage: true, accentColor: true },
+    });
+    if (targets.length === 0) return;
+
+    this.logger.info({ count: targets.length }, "warming artwork");
+    for (const row of targets) {
+      await this.healArtwork(row);
+    }
+    this.logger.info({ count: targets.length }, "artwork warm done");
+  }
+
+  /** The awaitable half of the heal, so a warm pass can pace itself against
+   *  it instead of firing every title at once. */
+  private async healArtwork(row: ArtworkHealRow): Promise<void> {
+    try {
+      const media = await this.anilistMedia(row.id, row.title);
+      const artwork = media?.artwork;
+      // Keep a banner we already have: re-resolving it would cost a Kitsu
+      // round trip to arrive at the same URL. This pass may now run a second
+      // time for a title that has a banner but no colour yet.
+      const banner = row.bannerImage
+        ? null
+        : artwork?.banner ?? (await kitsuBanner(row.title));
+      const data: {
+        bannerImage?: string;
+        imageUrl?: string;
+        imageLargeUrl?: string;
+        accentColor?: string;
+      } = {};
+      if (banner) data.bannerImage = banner;
+      if (artwork?.cover) {
+        data.imageUrl = artwork.cover;
+        data.imageLargeUrl = artwork.cover;
       }
-    })();
+      // Comes free with the artwork request — AniList reports the cover's own
+      // dominant colour, so the page can be tinted without the browser having
+      // to load and sample the poster first.
+      if (artwork?.color) data.accentColor = artwork.color;
+      if (Object.keys(data).length === 0) return;
+      await this.prisma.anime.update({ where: { id: row.id }, data });
+    } catch (error) {
+      this.logger.warn({ error, id: row.id }, "artwork heal failed");
+    }
   }
 
   /**
