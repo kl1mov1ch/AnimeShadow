@@ -6,6 +6,7 @@ import type {
   AdminUserQuery,
   AdminUserSummary,
   AnimeDetail,
+  AnimeOpening,
   AnimeStats,
   AnimeSummary,
   Character,
@@ -229,6 +230,26 @@ export function useFranchise(id: number, enabled = true) {
         (r) => r.items,
       ),
     staleTime: 60 * 60_000,
+  });
+}
+
+/**
+ * A title's opening, for use as background motion. Cached hard and shared
+ * across every card and hero that asks for the same title: the answer never
+ * changes, and a null (the archive has no opening for it) is worth
+ * remembering just as much as a hit.
+ */
+export function useAnimeOpening(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ["anime", "opening", id],
+    enabled: enabled && id > 0,
+    queryFn: ({ signal }) =>
+      apiRequest<{ opening: AnimeOpening | null }>(`/anime/${id}/opening`, {
+        signal,
+      }).then((r) => r.opening),
+    staleTime: Infinity,
+    gcTime: 60 * 60_000,
+    retry: false,
   });
 }
 

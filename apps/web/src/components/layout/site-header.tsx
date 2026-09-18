@@ -108,19 +108,18 @@ export function SiteHeader() {
   const nav = [
     { to: "/", label: t("nav.discover"), end: true, Icon: CompassIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
+    // Shown to everyone, on purpose: a signed-out visitor has no way to find
+    // out this exists if the only entry point is hidden from them. The page
+    // itself explains that an account is needed, and the API refuses the
+    // search regardless — so this advertises the feature without granting it.
+    {
+      to: "/frame-search",
+      label: t("frameSearch.navLabel"),
+      end: false,
+      Icon: ScanSearchIcon,
+    },
     ...(status === "authenticated"
-      ? [
-          { to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon },
-          // Signed-in only, because each search spends part of a shared
-          // monthly quota on trace.moe's free tier — the API enforces that
-          // too, this just avoids offering a door that would be shut.
-          {
-            to: "/frame-search",
-            label: t("frameSearch.navLabel"),
-            end: false,
-            Icon: ScanSearchIcon,
-          },
-        ]
+      ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
       : []),
     ...(status === "authenticated" && user?.role === "ADMIN"
       ? [{ to: "/admin", label: t("nav.admin"), end: false, Icon: ShieldIcon }]

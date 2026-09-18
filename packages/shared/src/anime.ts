@@ -231,6 +231,21 @@ export const animeQuerySchema = z.object({
 export type AnimeQuery = z.infer<typeof animeQuerySchema>;
 export type AnimeQueryInput = z.input<typeof animeQuerySchema>;
 
+/**
+ * A title's opening, as a plain video file (AnimeThemes). Used as motion on
+ * the page — the hero's backdrop, a card's hover preview — which is why the
+ * size matters enough to travel with it: the client decides whether to
+ * autoplay based on how big the file actually is.
+ */
+export const animeOpeningSchema = z.object({
+  url: z.string(),
+  song: z.string().nullable(),
+  slug: z.string(),
+  resolution: z.number().int().nullable(),
+  size: z.number().int().nullable(),
+});
+export type AnimeOpening = z.infer<typeof animeOpeningSchema>;
+
 export const recommendationItemSchema = z.object({
   id: z.number().int(),
   slug: z.string(),

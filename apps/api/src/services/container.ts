@@ -1,6 +1,7 @@
 import { AllohaClient } from "@animeshadow/alloha";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
+import { AnimeThemesClient } from "@animeshadow/animethemes";
 import type { PrismaClient } from "@animeshadow/db";
 import type { JikanClient } from "@animeshadow/jikan";
 import { KodikClient } from "@animeshadow/kodik";
@@ -86,6 +87,9 @@ export function createServices(deps: ContainerDeps): Services {
   // inside AniList's rate limit, which only works if everything goes through
   // the same queue.
   const anilist = new AniListClient();
+  // Same reasoning as AniList: one instance, so its own request queue is
+  // actually shared rather than one queue per caller.
+  const animethemes = new AnimeThemesClient();
 
   const translator = deps.translate.enabled
     ? chainTranslators([
@@ -105,6 +109,7 @@ export function createServices(deps: ContainerDeps): Services {
     shikimori,
     jikan: deps.jikan,
     anilist,
+    animethemes,
     cacheTtlSeconds: deps.cacheTtlSeconds,
     logger: deps.logger,
     translation,

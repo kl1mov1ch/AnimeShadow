@@ -19,7 +19,6 @@ import { AnimeCard } from "@/components/anime/anime-card";
 import { AnimeGridSkeleton } from "@/components/anime/anime-grid";
 import { LibraryControls } from "@/components/anime/library-controls";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { PageHeader } from "@/components/common/page-header";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -168,18 +167,40 @@ export function Component() {
   const total = summary?.total ?? 0;
 
   return (
-    <div className="reveal-group flex flex-col gap-4">
-      <PageHeader
-        title={t("library.title")}
-        description={
-          total > 0
+    <div className="reveal-group flex flex-col gap-5">
+      <header
+        className="reveal relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7"
+        style={{ "--i": 0 } as CSSProperties}
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-4 -top-8 select-none font-display text-[10rem] leading-none text-foreground/[0.03]"
+        >
+          影
+        </span>
+        <div className="flex items-center gap-2 text-primary">
+          <BookmarkIcon className="size-5" />
+          <span className="text-sm font-medium uppercase tracking-wide">
+            {t("nav.library")}
+          </span>
+        </div>
+        <h1 className="font-display text-2xl sm:text-3xl">{t("library.title")}</h1>
+        <p className="text-sm text-muted-foreground">
+          {total > 0
             ? t("library.countTracked", { count: total })
-            : t("library.nothingTracked")
-        }
-      />
+            : t("library.nothingTracked")}
+        </p>
+      </header>
 
       {/* Status dashboard — clickable stat cards double as the filter. */}
-      <div className="reveal grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+      <div
+        className="reveal grid grid-cols-3 gap-2 sm:grid-cols-6"
+        style={{ "--i": 1 } as CSSProperties}
+      >
         <StatCard
           label={t("common.all")}
           count={total}
@@ -199,21 +220,26 @@ export function Component() {
       </div>
 
       {/* Toolbar */}
-      <div className="reveal flex flex-wrap items-center gap-1.5">
-        <div className="relative min-w-0 flex-1 sm:max-w-xs">
-          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <div
+        className="reveal flex flex-wrap items-center gap-2"
+        style={{ "--i": 2 } as CSSProperties}
+      >
+        {/* The same pill and focus bloom as the header's search and the
+            genre picker — one control, three places. */}
+        <div className="group relative min-w-0 flex-1 sm:max-w-xs">
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors duration-200 group-focus-within:text-primary" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("library.searchPlaceholder")}
-            className="h-8 w-full rounded-md border border-border/60 bg-transparent pl-7 pr-7 text-sm text-foreground/90 outline-none placeholder:text-muted-foreground/70 focus-visible:border-border focus-visible:ring-1 focus-visible:ring-ring"
+            className="h-10 w-full rounded-full border border-border/60 bg-card/70 pl-10 pr-9 text-sm outline-none transition-all duration-200 placeholder:text-muted-foreground/80 focus-visible:border-primary/50 focus-visible:bg-card focus-visible:ring-4 focus-visible:ring-primary/15"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label={t("common.clear")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="animate-in zoom-in-75 absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <XIcon className="size-3.5" />
             </button>
@@ -222,7 +248,7 @@ export function Component() {
 
         <Select value={sortBy} onValueChange={(v) => changeSort(v as SortKey)}>
           <SelectTrigger
-            className="h-8 w-[140px] border-border/60 text-sm"
+            className="h-10! w-[150px] rounded-full bg-card/70 text-sm"
             aria-label={t("library.sortBy")}
           >
             <SelectValue />
@@ -240,7 +266,7 @@ export function Component() {
           value={view}
           onValueChange={(v) => changeView(v as ViewMode)}
           variant="outline"
-          className="ml-auto h-8 [&>*]:h-8 [&>*]:w-8"
+          className="ml-auto h-10 rounded-full border border-border/60 bg-card/70 p-1 [&>*]:size-8 [&>*]:rounded-full [&>*]:border-0 [&>*[data-state=on]]:bg-primary [&>*[data-state=on]]:text-primary-foreground"
         >
           <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
             <LayoutGridIcon className="size-3.5" />
@@ -314,16 +340,27 @@ function StatCard({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2 text-center transition-colors",
+        "group relative flex flex-col items-center gap-1 overflow-hidden rounded-2xl border px-2 py-3 text-center transition-all duration-300",
         active
-          ? "border-foreground/25 bg-card text-foreground"
-          : "border-border/50 bg-card/30 text-muted-foreground hover:border-border/70 hover:text-foreground/80",
+          ? "border-transparent bg-gradient-to-br from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
+          : "border-border/60 bg-card/40 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/30 hover:text-foreground",
       )}
     >
-      {Icon && <Icon className="size-3.5" />}
-      <span className="font-display text-base tabular-nums leading-none">{count}</span>
-      <span className="text-[11px] leading-tight">{label}</span>
+      {Icon && <Icon className="relative z-10 size-4" />}
+      <span className="relative z-10 font-display text-lg tabular-nums leading-none">
+        {count}
+      </span>
+      <span className="relative z-10 text-[11px] leading-tight">{label}</span>
+      {/* The same band of light every other control on the site sweeps. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]",
+          active ? "via-white/30" : "via-primary/25",
+        )}
+      />
     </button>
   );
 }
@@ -334,7 +371,10 @@ function ProgressBar({ entry }: { entry: LibraryEntry }) {
   const percent = Math.min(100, Math.round((entry.progress / total) * 100));
   return (
     <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-      <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-[width] duration-500"
+        style={{ width: `${percent}%` }}
+      />
     </div>
   );
 }

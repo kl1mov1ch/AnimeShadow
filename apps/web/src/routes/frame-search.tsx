@@ -11,7 +11,6 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { EmptyState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
@@ -89,13 +88,28 @@ export function Component() {
     return () => window.removeEventListener("paste", onPaste);
   }, [submit]);
 
+  // Signed out still gets the pitch, not just the door. Anyone can reach this
+  // page from the header now, and a bare "sign in" panel would tell them
+  // nothing about what they would be signing in for.
   if (status !== "loading" && status !== "authenticated") {
     return (
-      <EmptyState
-        title={t("frameSearch.signedOutTitle")}
-        description={t("frameSearch.signedOutBody")}
-        action={
-          <div className="flex gap-2">
+      <div className="reveal-group mx-auto flex max-w-4xl flex-col gap-6 py-6">
+        <Hero />
+        <div
+          className="reveal flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border/70 p-8 text-center sm:p-10"
+          style={step(1)}
+        >
+          <span
+            aria-hidden
+            className="grid size-12 place-items-center rounded-2xl border border-border/60 bg-secondary/40 text-muted-foreground"
+          >
+            <ScanSearchIcon className="size-5" />
+          </span>
+          <p className="font-medium">{t("frameSearch.signedOutTitle")}</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            {t("frameSearch.signedOutBody")}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
             <Button asChild>
               <Link to="/login">{t("common.signIn")}</Link>
             </Button>
@@ -103,8 +117,8 @@ export function Component() {
               <Link to="/register">{t("common.createAccount")}</Link>
             </Button>
           </div>
-        }
-      />
+        </div>
+      </div>
     );
   }
 
@@ -122,31 +136,7 @@ export function Component() {
 
   return (
     <div className="reveal-group mx-auto flex max-w-4xl flex-col gap-6 py-6">
-      <header
-        className="reveal relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7"
-        style={step(0)}
-      >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-4 -top-8 select-none font-display text-[10rem] leading-none text-foreground/[0.03]"
-        >
-          影
-        </span>
-        <div className="flex items-center gap-2 text-primary">
-          <ScanSearchIcon className="size-5" />
-          <span className="text-sm font-medium uppercase tracking-wide">
-            {t("frameSearch.eyebrow")}
-          </span>
-        </div>
-        <h1 className="font-display text-2xl sm:text-3xl">{t("frameSearch.title")}</h1>
-        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-          {t("frameSearch.lead")}
-        </p>
-      </header>
+      <Hero />
 
       <section className="reveal" style={step(1)}>
         <input
@@ -262,6 +252,39 @@ export function Component() {
         </section>
       )}
     </div>
+  );
+}
+
+/** The pitch. Shown whether or not the visitor can actually run a search —
+ *  it is what tells them the feature exists at all. */
+function Hero() {
+  const t = useT();
+  return (
+    <header
+      className="reveal relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7"
+      style={step(0)}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-4 -top-8 select-none font-display text-[10rem] leading-none text-foreground/[0.03]"
+      >
+        影
+      </span>
+      <div className="flex items-center gap-2 text-primary">
+        <ScanSearchIcon className="size-5" />
+        <span className="text-sm font-medium uppercase tracking-wide">
+          {t("frameSearch.eyebrow")}
+        </span>
+      </div>
+      <h1 className="font-display text-2xl sm:text-3xl">{t("frameSearch.title")}</h1>
+      <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+        {t("frameSearch.lead")}
+      </p>
+    </header>
   );
 }
 

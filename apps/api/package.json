@@ -15,6 +15,7 @@
     "@animeshadow/alloha": "workspace:*",
     "@animeshadow/anilibria": "workspace:*",
     "@animeshadow/anilist": "workspace:*",
+    "@animeshadow/animethemes": "workspace:*",
     "@animeshadow/db": "workspace:*",
     "@animeshadow/jikan": "workspace:*",
     "@animeshadow/kodik": "workspace:*",

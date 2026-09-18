@@ -1,6 +1,8 @@
 import type { AnimeSummary } from "@animeshadow/shared";
 import { ClockIcon, PlayIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { OpeningVideo } from "@/components/anime/opening-video";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
 // import { ScoreBadge } from "@/components/anime/score-badge";
@@ -38,10 +40,32 @@ function useReleaseCountdown(airedFrom: string | null): string | null {
   return hours > 0 ? t("card.countdownHours", { hours }) : t("card.countdownSoon");
 }
 
+/** How long the cursor has to settle before the opening is even requested.
+ *  Sweeping across a grid crosses a dozen cards in well under this, so a
+ *  pass over the catalogue costs no requests and no video at all. */
+const OPENING_HOVER_INTENT_MS = 700;
+
 export function AnimeCard({ anime, priority = false, className }: AnimeCardProps) {
   const t = useT();
   const labels = useLabels();
   const canHover = useMediaQuery("(hover: hover)");
+  const [openingWanted, setOpeningWanted] = useState(false);
+  const intentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startIntent = () => {
+    if (intentTimer.current) clearTimeout(intentTimer.current);
+    intentTimer.current = setTimeout(
+      () => setOpeningWanted(true),
+      OPENING_HOVER_INTENT_MS,
+    );
+  };
+  const cancelIntent = () => {
+    if (intentTimer.current) clearTimeout(intentTimer.current);
+    setOpeningWanted(false);
+  };
+  useEffect(() => () => {
+    if (intentTimer.current) clearTimeout(intentTimer.current);
+  }, []);
   const title = labels.title(anime);
   const when = labels.seasonYearLabel(anime);
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
@@ -59,7 +83,11 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
       to={animeHref(anime)}
       className={cn("group flex flex-col gap-2 outline-none", className)}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:shadow-lg group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
+      <div
+        onMouseEnter={startIntent}
+        onMouseLeave={cancelIntent}
+        className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:shadow-lg group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
+      >
         {/* Everything below is opacity/transform only — nothing that forces
             a repaint on scroll — and all of it sits behind `group-hover:`,
             which Tailwind v4 compiles into `@media (hover: hover)`, so a
@@ -81,6 +109,14 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         ) : (
           <PosterFallback title={title} seed={anime.id} />
         )}
+
+        {/* The show itself, once the cursor has actually settled here. Sits
+            over the poster and fades in only when there are real frames, so
+            a title with no opening in the archive — or a request that never
+            finishes — simply leaves the poster alone. */}
+        <div className="pointer-events-none absolute inset-0">
+          <OpeningVideo animeId={anime.id} active={openingWanted} />
+        </div>
 
         {/* One focal move, not five: the art darkens from the bottom and a
             single play disc eases up in the middle. Both are opacity and

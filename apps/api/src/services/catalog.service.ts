@@ -2,6 +2,7 @@ import {
   type AniListClient,
   type AniListTrendingEntry,
 } from "@animeshadow/anilist";
+import type { AnimeThemesClient } from "@animeshadow/animethemes";
 import {
   ANIME_WITH_GENRES_INCLUDE,
   type Prisma,
@@ -25,6 +26,7 @@ import {
 } from "@animeshadow/shikimori";
 import {
   type AnimeDetail,
+  type AnimeOpening,
   type AnimeOrderBy,
   type AnimeQuery,
   type AnimeStats,
@@ -67,6 +69,7 @@ export interface CatalogServiceDeps {
   shikimori: ShikimoriClient;
   jikan: JikanClient;
   anilist: AniListClient;
+  animethemes: AnimeThemesClient;
   cacheTtlSeconds: number;
   logger: CatalogLogger;
   translation: TranslationService;
@@ -113,6 +116,7 @@ export class CatalogService {
   private readonly shikimori: ShikimoriClient;
   private readonly jikan: JikanClient;
   private readonly anilist: AniListClient;
+  private readonly animethemes: AnimeThemesClient;
   private readonly ttlMs: number;
   private readonly logger: CatalogLogger;
   private readonly translation: TranslationService;
@@ -135,6 +139,7 @@ export class CatalogService {
     this.shikimori = deps.shikimori;
     this.jikan = deps.jikan;
     this.anilist = deps.anilist;
+    this.animethemes = deps.animethemes;
     this.ttlMs = deps.cacheTtlSeconds * 1000;
     this.logger = deps.logger;
     this.translation = deps.translation;
@@ -797,6 +802,19 @@ export class CatalogService {
    * any of them actually change at and keeps a popular title from re-querying
    * AniList on every single page view.
    */
+  /**
+   * A title's opening, for use as motion on the page. Cached because the
+   * answer never changes and because both the hero and any hovered card ask
+   * for it — a null (the archive simply has no opening for this title) is
+   * cached just as firmly as a hit, so a title without one stops costing a
+   * request per hover.
+   */
+  async getOpening(malId: number): Promise<AnimeOpening | null> {
+    return this.auxCache.wrap(`opening:${malId}`, () =>
+      this.animethemes.getOpening(malId),
+    ) as Promise<AnimeOpening | null>;
+  }
+
   /**
    * One cached AniList record per title. Both the artwork heal and the detail
    * enrichment want the same Media node, and a title whose colour AniList

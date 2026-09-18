@@ -1,4 +1,4 @@
-import type { AnimeDetail, WatchResponse } from "@animeshadow/shared";
+import type { AnimeDetail } from "@animeshadow/shared";
 import {
   CalendarDaysIcon,
   ChevronLeftIcon,
@@ -17,6 +17,7 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { LibraryControls } from "@/components/anime/library-controls";
+import { OpeningVideo } from "@/components/anime/opening-video";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 // Overall score is hidden site-wide (not deleted) — see ScoreBadge's call
 // sites. The slider deliberately does not reintroduce it on its own.
@@ -27,11 +28,9 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 const ROTATE_MS = 9_000;
-const CLIP_START_SECONDS = 180;
 
 function prefersReducedMotion() {
   return (
@@ -208,7 +207,14 @@ function SlideArt({
       ) : (
         <PosterFallback title={anime.title} seed={anime.id} />
       )}
-      {active && animate && <SpotlightVideo key={anime.id} animeId={anime.id} />}
+      {/* The show's own opening, rather than a clip cut out of episode one.
+          It is short, built to loop, and creditless, which is exactly what a
+          backdrop needs and what an arbitrary mid-episode excerpt never is. */}
+      {active && animate && (
+        <div className="absolute inset-0">
+          <OpeningVideo animeId={anime.id} active />
+        </div>
+      )}
     </div>
   );
 }
@@ -233,101 +239,6 @@ function MetaChip({
       {children}
     </span>
   );
-}
-
-/**
- * A muted clip of the show itself behind the slide — AniLibria's direct HLS
- * stream, so no third-party embed. Only when a playable HLS source exists;
- * it fades in over the still once it's actually playing and simply never
- * appears otherwise. Armed after a short dwell, so clicking through slides
- * quickly doesn't fire a stream lookup per slide.
- */
-function SpotlightVideo({ animeId }: { animeId: number }) {
-  const [armed, setArmed] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const id = setTimeout(() => setArmed(true), 1_200);
-    return () => clearTimeout(id);
-  }, []);
-
-  const { data } = useWatchSources(animeId, armed);
-  const src = pickClip(data);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src) return;
-    let hls: { destroy: () => void } | null = null;
-    let cancelled = false;
-    const native = video.canPlayType("application/vnd.apple.mpegurl") !== "";
-
-    // Past the opening credits, into actual scenes.
-    const onMetadata = () => {
-      if (native && video.duration > 400) video.currentTime = CLIP_START_SECONDS;
-      void video.play().catch(() => undefined);
-    };
-    // Native `loop` just restarts at 0 — right back into the OP/credits this
-    // clip specifically skipped past. Looping by hand instead means every
-    // replay lands on the same in-scene moment, not the show's title card.
-    const onEnded = () => {
-      video.currentTime = CLIP_START_SECONDS;
-      void video.play().catch(() => undefined);
-    };
-    video.addEventListener("loadedmetadata", onMetadata);
-    video.addEventListener("ended", onEnded);
-
-    if (native) {
-      video.src = src;
-    } else {
-      void import("hls.js").then(({ default: Hls }) => {
-        if (cancelled || !Hls.isSupported()) return;
-        const instance = new Hls({
-          startPosition: CLIP_START_SECONDS,
-          capLevelToPlayerSize: true,
-          maxBufferLength: 20,
-        });
-        instance.loadSource(src);
-        instance.attachMedia(video);
-        hls = instance;
-      });
-    }
-
-    return () => {
-      cancelled = true;
-      video.removeEventListener("loadedmetadata", onMetadata);
-      video.removeEventListener("ended", onEnded);
-      hls?.destroy();
-      video.removeAttribute("src");
-      video.load();
-    };
-  }, [src]);
-
-  if (!src) return null;
-  return (
-    <video
-      ref={videoRef}
-      muted
-      playsInline
-      aria-hidden
-      tabIndex={-1}
-      onPlaying={() => setPlaying(true)}
-      className={cn(
-        "absolute inset-0 size-full object-cover transition-opacity duration-1000",
-        playing ? "opacity-100" : "opacity-0",
-      )}
-    />
-  );
-}
-
-function pickClip(data: WatchResponse | undefined): string | null {
-  const source = data?.sources.find(
-    (candidate) =>
-      candidate.format === "hls" && candidate.stable !== false && candidate.hlsEpisodes,
-  );
-  const episodes = source?.hlsEpisodes;
-  if (!episodes) return null;
-  return episodes["1"] ?? Object.values(episodes)[0] ?? null;
 }
 
 function SlideContent({

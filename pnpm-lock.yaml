@@ -44,6 +44,9 @@ importers:
       '@animeshadow/anilist':
         specifier: workspace:*
         version: link:../../packages/anilist
+      '@animeshadow/animethemes':
+        specifier: workspace:*
+        version: link:../../packages/animethemes
       '@animeshadow/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -237,6 +240,12 @@ importers:
         version: 5.9.3
 
   packages/anilist:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/animethemes:
     devDependencies:
       typescript:
         specifier: ^5.7.3
