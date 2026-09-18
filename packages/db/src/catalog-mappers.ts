@@ -96,6 +96,27 @@ export function toAnimeListRow(dto: AnimeSummary): AnimeRow {
   };
 }
 
+/**
+ * How much of a synopsis a *card* is allowed to carry.
+ *
+ * Nothing that renders an AnimeSummary shows more than a few lines of it: the
+ * grid card shows none at all, the hover preview clamps to four lines and a
+ * search row to one. Sending the whole thing anyway made synopsis text 54% of
+ * the homepage payload — 129KB of 237KB — most of it for cards on a phone,
+ * where there is no hover and it is never read. The detail page has its own
+ * full copy on AnimeDetail and is unaffected.
+ */
+const SUMMARY_SYNOPSIS_CHARS = 300;
+
+function cardSynopsis(text: string | null): string | null {
+  if (!text) return null;
+  if (text.length <= SUMMARY_SYNOPSIS_CHARS) return text;
+  // Cut on a word boundary so the clamp does not end mid-word.
+  const cut = text.slice(0, SUMMARY_SYNOPSIS_CHARS);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 200 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
 export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
   return {
     id: row.id,
@@ -115,7 +136,7 @@ export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
     rank: row.rank,
     members: row.members,
     genres: row.genres.map((link) => link.genre.name),
-    synopsis: row.synopsis,
+    synopsis: cardSynopsis(row.synopsis),
     airedFrom: row.airedFrom?.toISOString() ?? null,
     hasPlayer: row.watchAvailability?.hasPlayer ?? null,
     hasCustomPlayer: row.watchAvailability?.hasCustomPlayer ?? false,
@@ -128,6 +149,9 @@ export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
 export function toDetailDto(row: AnimeWithGenres): AnimeDetail {
   return {
     ...toSummaryDto(row),
+    // Restored in full: the spread above carries the card-sized excerpt, and
+    // the detail page is the one place that actually renders the whole thing.
+    synopsis: row.synopsis,
     background: row.background,
     source: row.source,
     duration: row.duration,

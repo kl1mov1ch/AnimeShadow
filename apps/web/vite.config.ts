@@ -63,6 +63,30 @@ export default defineConfig(({ mode }) => {
           clientsClaim: true,
           skipWaiting: true,
           runtimeCaching: [
+            // Player sources change (a mirror dies, a new dub appears) and a
+            // stale one sends the viewer to a dead embed, so this is the one
+            // catalogue read that must always go to the network. Registered
+            // before the rule below because Workbox takes the first match.
+            {
+              urlPattern: /\/api\/anime\/[^/]+\/watch/,
+              handler: "NetworkOnly",
+            },
+            // The catalogue itself: homepage rails, browse pages, title pages,
+            // genre lists, search. Stale-while-revalidate is exactly the right
+            // shape — this data changes slowly, and on a weak connection
+            // showing last visit's copy instantly while a fresh one loads
+            // behind it is the difference between a usable site and a
+            // spinner. Nothing here is account-specific, so a shared cache is
+            // safe.
+            {
+              urlPattern: /\/api\/(discover|genres|search|anime)(\/|\?|$)/,
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "catalogue",
+                expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 3 },
+                cacheableResponse: { statuses: [200] },
+              },
+            },
             // The account's own data — profile, library, progress — is
             // exactly what "offline bookmarks" means here: there's no
             // player without a network, but the list of what's tracked and
