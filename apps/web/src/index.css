@@ -496,3 +496,59 @@ html body[data-scroll-locked] {
     transform: scaleX(1);
   }
 }
+
+/* Ambient rings breathing outward behind a surface (see PulseRings). Replaces
+   a Lottie animation that cost 300KB of runtime to draw the same three
+   circles. Motion is opt-in here rather than opt-out: with reduced motion the
+   rings simply hold still at a low opacity instead of animating. */
+.pulse-ring {
+  opacity: 0;
+  transform-origin: center;
+  transform: scale(0.35);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pulse-ring {
+    animation: pulse-ring 6s ease-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  20% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}
+
+/*
+  A title page dresses itself in its key visual's dominant colour. The page
+  publishes that one value as --title-accent (from AniList); everything below
+  is derived from it, so a whole palette comes from a single number and no
+  per-title CSS is ever written.
+
+  Derived *against the theme*, deliberately. A cover's dominant colour is
+  whatever the artwork happens to be — plenty are pale cream or near-white —
+  so using it raw as text would be illegible on a light theme. --accent-ink is
+  mixed toward the theme's own foreground, which keeps the hue while
+  guaranteeing it stays readable in both themes. The raw colour is only ever
+  used where contrast cannot be at stake: washes, hairlines and fills.
+*/
+.title-themed {
+  --accent: var(--title-accent, var(--primary));
+  --accent-ink: color-mix(in oklab, var(--accent) 55%, var(--foreground));
+  --accent-line: color-mix(in srgb, var(--accent) 40%, transparent);
+  --accent-line-soft: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-surface: color-mix(in srgb, var(--accent) 7%, transparent);
+  --accent-surface-strong: color-mix(in srgb, var(--accent) 14%, transparent);
+}

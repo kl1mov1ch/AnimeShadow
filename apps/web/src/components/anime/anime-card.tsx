@@ -95,19 +95,26 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             which Tailwind v4 compiles into `@media (hover: hover)`, so a
             phone never runs any of it. */}
         {anime.imageUrl ? (
-          <img
-            // The large variant, not the small one. `imageUrl` is Shikimori's
-            // "preview" — 160x226 — and this card draws it across a full
-            // 2:3 poster, which on any 2x screen means upscaling it roughly
-            // double. That was the blur. `imageLargeUrl` is 225x318 from
-            // Shikimori or 319x450 from MAL, for about 20-35KB more.
-            src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
-            alt=""
-            loading={priority ? "eager" : "lazy"}
-            decoding="async"
-            fetchPriority={priority ? "high" : "auto"}
-            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transition-none"
-          />
+          // Two variants, picked by the browser before anything is fetched.
+          //
+          // The large one (225x318 from Shikimori, 319x450 from MAL) is what
+          // a 2:3 poster actually needs on a desktop grid — the small one is
+          // Shikimori's 160px "preview" and visibly upscales there. But large
+          // costs ~60KB against ~27KB, and a phone showing two columns of
+          // them pays that over and over on a connection that can least
+          // afford it. Below `sm` the small one is served instead: softer,
+          // less than half the bytes.
+          <picture>
+            <source media="(max-width: 639px)" srcSet={imageSrc(anime.imageUrl)} />
+            <img
+              src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
+              alt=""
+              loading={priority ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={priority ? "high" : "auto"}
+              className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transition-none"
+            />
+          </picture>
         ) : (
           <PosterFallback title={title} seed={anime.id} />
         )}

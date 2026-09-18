@@ -47,13 +47,18 @@ const MAX_PALETTE_RESULTS = 8;
  * here means one listener, and a surface with room to actually show results
  * rather than a dropdown squeezed under a header field.
  */
-export function SearchCommandDialog() {
+export function SearchCommandDialog({
+  open,
+  onOpenChange: setOpen,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const labels = useLabels();
   const { status } = useAuth();
 
-  const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const debounced = useDebouncedValue(term.trim(), 220);
@@ -66,25 +71,6 @@ export function SearchCommandDialog() {
     .filter((g): g is NonNullable<typeof g> => g != null)
     .slice(0, 4)
     .map((g) => ({ id: g.id, label: labels.genreLabel(g.name) }));
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      // `event.code`, not `event.key`: code names the physical key, so this
-      // matches whatever the active keyboard layout puts there. On a Russian
-      // layout that key reports `event.key === "л"`, so a `key === "k"` test
-      // simply never fired — and because it never fired, preventDefault never
-      // ran either and the browser's own Ctrl+K (focus the address bar) won
-      // by default. `key` stays as a fallback for anything not reporting a
-      // code at all.
-      const isK = event.code === "KeyK" || event.key.toLowerCase() === "k";
-      if (isK && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        setOpen((wasOpen) => !wasOpen);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   // A fresh query each time it opens — a palette that reopens holding the
   // last search reads as stale, and the history chips are right there.

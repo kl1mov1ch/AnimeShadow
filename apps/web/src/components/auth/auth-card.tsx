@@ -2,8 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { pulseRings } from "@/components/common/lottie-animations";
-import { LottieMono } from "@/components/common/lottie-mono";
+import { PulseRings } from "@/components/common/pulse-rings";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -48,10 +47,7 @@ function Backdrop() {
       </span>
 
       {/* Monochrome by rule, so it reads in both themes off one file. */}
-      <LottieMono
-        animation={pulseRings}
-        className="absolute left-1/2 top-1/2 size-[40rem] -translate-x-1/2 -translate-y-1/2 text-primary/25"
-      />
+      <PulseRings className="absolute left-1/2 top-1/2 size-[40rem] -translate-x-1/2 -translate-y-1/2 text-primary/25" />
 
       {/* Keeps the card legible over whatever lands behind it. */}
       <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />

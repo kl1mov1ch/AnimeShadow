@@ -16,8 +16,7 @@ import { OpeningVideo } from "@/components/anime/opening-video";
 // import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
-import { pulseRings } from "@/components/common/lottie-animations";
-import { LottieMono } from "@/components/common/lottie-mono";
+import { PulseRings } from "@/components/common/pulse-rings";
 import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,7 +146,7 @@ function AnimeDetailView({ param }: { param: string }) {
     // falling behind the body's own opaque background, where it would be
     // invisible.
     <article
-      className="relative isolate flex flex-col gap-6"
+      className="title-themed relative isolate flex flex-col gap-6"
       style={
         data.accentColor
           ? ({ "--title-accent": data.accentColor } as CSSProperties)
@@ -163,7 +162,7 @@ function AnimeDetailView({ param }: { param: string }) {
         className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[90vh] w-screen -translate-x-1/2"
         style={{
           background:
-            "radial-gradient(80% 60% at 50% 0%, color-mix(in srgb, var(--title-accent, var(--primary)) 20%, transparent), transparent 72%)",
+            "radial-gradient(80% 60% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 72%)",
         }}
       />
       <div
@@ -171,7 +170,7 @@ function AnimeDetailView({ param }: { param: string }) {
         className="pointer-events-none absolute left-1/2 top-[40vh] -z-10 h-[70vh] w-screen -translate-x-1/2"
         style={{
           background:
-            "radial-gradient(60% 50% at 20% 40%, color-mix(in srgb, var(--title-accent, var(--primary)) 9%, transparent), transparent 70%)",
+            "radial-gradient(60% 50% at 20% 40%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%)",
         }}
       />
       <TitleHeader
@@ -185,7 +184,7 @@ function AnimeDetailView({ param }: { param: string }) {
             crosses the panel's top edge, which is what stops it reading as
             a stray thumbnail parked in the bottom-left corner. */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
-          <div className="group mx-auto w-32 shrink-0 overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 transition-all duration-300 hover:-translate-y-1 hover:ring-primary/40 sm:mx-0 sm:w-40 lg:w-48">
+          <div className="group mx-auto w-32 shrink-0 overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 transition-all duration-300 hover:-translate-y-1 hover:ring-[var(--accent-line)] sm:mx-0 sm:w-40 lg:w-48">
             <PosterImage src={poster} title={title} seed={data.id} />
           </div>
 
@@ -196,7 +195,7 @@ function AnimeDetailView({ param }: { param: string }) {
                 and rating in half. */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                <span className={data.airing === "AIRING" ? "text-primary" : undefined}>
+                <span className={data.airing === "AIRING" ? "text-[var(--accent-ink)]" : undefined}>
                   {labels.airingLabel(data.airing)}
                 </span>
                 <Dot />
@@ -257,7 +256,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
                     <Badge
                       variant="secondary"
-                      className="cursor-pointer font-normal transition-colors hover:border-primary/50 hover:text-foreground"
+                      className="cursor-pointer font-normal transition-colors hover:border-[var(--accent-line)] hover:bg-[var(--accent-surface-strong)] hover:text-[var(--accent-ink)]"
                     >
                       {labels.genreLabel(genre.name)}
                     </Badge>
@@ -276,7 +275,7 @@ function AnimeDetailView({ param }: { param: string }) {
 
       {/* One continuous surface, hairline-separated sections — no more
           poster sidebar, since the header above already carries it. */}
-      <div className="relative flex flex-col divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
+      <div className="relative flex flex-col divide-y divide-[var(--accent-line-soft)] overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] backdrop-blur-sm">
         {/* Same hairline as the header above, in the same colour — it is what
             ties the two surfaces together as one page belonging to one show. */}
         <span
@@ -284,7 +283,7 @@ function AnimeDetailView({ param }: { param: string }) {
           className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px"
           style={{
             background:
-              "linear-gradient(to right, transparent, color-mix(in srgb, var(--title-accent, var(--primary)) 45%, transparent), transparent)",
+              "linear-gradient(to right, transparent, var(--accent-line-soft), transparent)",
           }}
         />
         <Block title={t("detail.sections.watch")}>
@@ -354,7 +353,7 @@ function TitleHeader({
         className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px"
         style={{
           background:
-            "linear-gradient(to right, transparent, color-mix(in srgb, var(--title-accent, var(--primary)) 60%, transparent), transparent)",
+            "linear-gradient(to right, transparent, var(--accent-line), transparent)",
         }}
       />
 
@@ -374,10 +373,7 @@ function TitleHeader({
             <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
               影
             </span>
-            <LottieMono
-              animation={pulseRings}
-              className="absolute -left-24 -bottom-24 size-[26rem] text-primary/20"
-            />
+            <PulseRings className="absolute -left-24 -bottom-24 size-[26rem] text-[var(--accent-line)]" />
           </>
         )}
 
@@ -396,7 +392,7 @@ function TitleHeader({
           className="absolute inset-0 opacity-25 mix-blend-overlay"
           style={{
             background:
-              "radial-gradient(120% 90% at 15% 0%, var(--title-accent, var(--primary)), transparent 70%)",
+              "radial-gradient(120% 90% at 15% 0%, var(--accent), transparent 70%)",
           }}
         />
       </div>
@@ -428,7 +424,7 @@ function Block({
         <span
           aria-hidden
           className="h-4 w-1 shrink-0 rounded-full"
-          style={{ background: "var(--title-accent, var(--primary))" }}
+          style={{ background: "var(--accent-ink)" }}
         />
         {title}
       </h2>
@@ -495,7 +491,7 @@ function SynopsisBody({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-sm font-medium text-primary transition-colors hover:text-primary/80"
+          className="self-start text-sm font-medium text-[var(--accent-ink)] transition-colors hover:opacity-80"
         >
           {expanded ? t("common.showLess") : t("common.showMore")}
         </button>
@@ -511,13 +507,11 @@ function SynopsisBody({
           // Frame and fill take the title's colour; the label inside keeps
           // the site's, because a pale cover would leave that text unreadable.
           style={{
-            borderColor:
-              "color-mix(in srgb, var(--title-accent, var(--primary)) 22%, transparent)",
-            background:
-              "color-mix(in srgb, var(--title-accent, var(--primary)) 5%, transparent)",
+            borderColor: "var(--accent-line-soft)",
+            background: "var(--accent-surface)",
           }}
         >
-          <span className="flex items-center gap-1.5 text-xs font-medium text-primary/90">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--accent-ink)]">
             <BookOpenIcon className="size-3.5" />
             {t("detail.background")}
           </span>
@@ -575,7 +569,7 @@ function AudienceStats({ animeId }: { animeId: number }) {
   // share-of-total bar leaves every one of them a barely visible sliver.
   const max = Math.max(...rows.map((row) => row.value), 1);
   const tint = (strength: number) =>
-    `color-mix(in srgb, var(--title-accent, var(--primary)) ${strength}%, transparent)`;
+    `color-mix(in srgb, var(--accent) ${strength}%, transparent)`;
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-4 transition-colors duration-300 hover:border-[color-mix(in_srgb,var(--title-accent,var(--primary))_35%,transparent)]">
@@ -719,7 +713,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
                 <Link
                   key={s}
                   to={`/browse?studio=${encodeURIComponent(s)}`}
-                  className="inline-flex items-center gap-1.5 hover:text-primary"
+                  className="inline-flex items-center gap-1.5 hover:text-[var(--accent-ink)]"
                 >
                   {logo && (
                     <img
@@ -756,7 +750,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   return (
     <section className="flex flex-col gap-4 p-5">
       <h2 className="flex items-center gap-1.5 font-display text-lg tracking-tight sm:text-xl">
-        <span aria-hidden className="text-primary">
+        <span aria-hidden className="text-[var(--accent-ink)]">
           影
         </span>
         {t("detail.overview")}
@@ -846,7 +840,7 @@ function TagCloud({ tags }: { tags: Array<{ name: string; rank: number }> }) {
         {tags.slice(0, TAGS_SHOWN).map((tag) => (
           <span
             key={tag.name}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-xs text-secondary-foreground transition-colors hover:border-primary/40"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-xs text-secondary-foreground transition-colors hover:border-[var(--accent-line)] hover:bg-[var(--accent-surface-strong)]"
           >
             {tag.name}
             <span className="tabular-nums text-[10px] text-muted-foreground/70">
@@ -893,7 +887,7 @@ function StreamingLinks({
             href={link.url}
             target="_blank"
             rel="noreferrer noopener"
-            className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground"
+            className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--accent-line)] hover:text-[var(--accent-ink)]"
           >
             {link.site}
             <ExternalLinkIcon className="size-3 opacity-60 transition-opacity group-hover:opacity-100" />
@@ -947,7 +941,7 @@ function FactsPanel({ facts }: { facts: Array<[string, React.ReactNode]> }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-xs font-medium text-primary transition-colors hover:text-primary/80"
+          className="self-start text-xs font-medium text-[var(--accent-ink)] transition-colors hover:opacity-80"
         >
           {expanded ? t("common.showLess") : t("common.showMore")}
         </button>
@@ -1055,7 +1049,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="self-center rounded-full border border-border/60 px-4 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="self-center rounded-full border border-border/60 px-4 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-[var(--accent-line)] hover:text-[var(--accent-ink)]"
             >
               {expanded
                 ? t("detail.collapseCharacters")

@@ -37,6 +37,34 @@ export class EmailService {
     this.from = deps.from;
     this.appUrl = deps.appUrl;
     this.logger = deps.logger;
+    this.warnIfUndeliverable();
+  }
+
+  /**
+   * Says at boot, once, when the configuration cannot actually deliver to a
+   * real user — rather than letting every send fail one at a time into a
+   * warning nobody reads.
+   *
+   * The second case is the one that bites in production: Resend's shared
+   * `onboarding@resend.dev` sender is not merely "low deliverability", it is
+   * restricted to the address that owns the Resend account. Mail to anyone
+   * else is refused outright, so signup verification silently never arrives
+   * for every real visitor while working perfectly for whoever set it up.
+   */
+  private warnIfUndeliverable(): void {
+    if (!this.client) {
+      this.logger.warn(
+        {},
+        "RESEND_API_KEY is not set — verification and reset codes will be printed to this log instead of emailed",
+      );
+      return;
+    }
+    if (/@resend\.dev>?\s*$/i.test(this.from)) {
+      this.logger.warn(
+        { from: this.from },
+        "EMAIL_FROM uses Resend's shared onboarding sender, which can only deliver to the Resend account owner's own address — every other recipient will be refused. Verify a domain in Resend and set EMAIL_FROM to an address on it.",
+      );
+    }
   }
 
   async sendVerificationCode(to: string, displayName: string, code: string): Promise<void> {
@@ -99,7 +127,20 @@ export class EmailService {
         text: opts.text,
       });
       if (result.error) {
-        this.logger.warn({ error: result.error, to: opts.to }, "resend send failed");
+        // Resend reports refusals in the body with a 200, so this is the only
+        // place a bad sender/domain/quota ever surfaces. Logged with its own
+        // name and message rather than as an opaque object, because this is
+        // the line someone will be searching for when mail "just doesn't
+        // arrive".
+        this.logger.warn(
+          {
+            to: opts.to,
+            from: this.from,
+            resendError: result.error.name,
+            reason: result.error.message,
+          },
+          `resend refused the message: ${result.error.message}`,
+        );
       }
     } catch (error) {
       // Email delivery is never allowed to block or fail the calling flow
