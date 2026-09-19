@@ -170,7 +170,7 @@ export function createServices(deps: ContainerDeps): Services {
   const profile = new ProfileService({
     prisma: deps.prisma,
     achievements,
-    uploadsDir: join(UPLOADS_DIR, "avatars"),
+    uploadsRoot: UPLOADS_DIR,
     proForAll: deps.proForAll,
   });
 

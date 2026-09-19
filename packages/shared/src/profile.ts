@@ -65,6 +65,8 @@ export const publicProfileSchema = z.object({
   displayName: z.string(),
   bio: z.string().nullable(),
   avatarUrl: z.string().nullable(),
+  /** The wide picture behind the profile header, uploaded or picked at random. */
+  bannerUrl: z.string().nullable().default(null),
   accentColor: z.string().nullable(),
   onlineStatus: onlineStatusSchema,
   rank: rankSchema,

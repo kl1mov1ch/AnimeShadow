@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { UserImageStore } from "../lib/user-images.js";
 import { Prisma, type PrismaClient, type User } from "@animeshadow/db";
 import type {
   LoginInput,
@@ -468,12 +469,11 @@ export class AuthService {
     await this.prisma.user.delete({ where: { id: userId } });
     accountsDeletedTotal.inc();
 
-    // Best-effort — an orphaned avatar file is a disk-space nit, never worth
+    // Best-effort — an orphaned avatar or background file is a disk-space nit, never worth
     // failing an already-completed deletion over.
-    if (user.avatarUrl?.startsWith("/uploads/avatars/")) {
-      const file = user.avatarUrl.split("?")[0]!.replace("/uploads/avatars/", "");
-      await unlink(join(this.uploadsDir, file)).catch(() => undefined);
-    }
+    const images = new UserImageStore(dirname(this.uploadsDir));
+    await images.removeIfLocal(user.avatarUrl);
+    await images.removeIfLocal(user.bannerUrl);
   }
 
   /**

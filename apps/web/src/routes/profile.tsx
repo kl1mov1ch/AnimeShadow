@@ -9,7 +9,7 @@ import type {
   TitleIcon,
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS, TITLE_ICONS } from "@animeshadow/shared";
-import { type CSSProperties, useRef, useState } from "react";
+import { type CSSProperties, useState } from "react";
 import {
   CalendarDaysIcon,
   CheckIcon,
@@ -18,7 +18,6 @@ import {
   CrownIcon,
   FilmIcon,
   LinkIcon,
-  Loader2Icon,
   type LucideIcon,
   MailIcon,
   MonitorSmartphoneIcon,
@@ -31,7 +30,6 @@ import {
   SettingsIcon,
   ShieldCheckIcon,
   SearchIcon,
-  ShuffleIcon,
   SparklesIcon,
   TimerIcon,
   Trash2Icon,
@@ -102,13 +100,13 @@ import {
   useReactionGif,
   useResendVerification,
   useSetGenrePreferences,
-  useSetRandomAvatar,
   useSetUsername,
   useUpdateProfile,
-  useUploadAvatar,
   useVerifyEmail,
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { ProfileBanner } from "@/components/profile/profile-banner";
+import { ProfileMediaEditor } from "@/components/profile/profile-media-editor";
 
 export function Component() {
   const t = useT();
@@ -367,9 +365,18 @@ function ProfileHero({
 
   return (
     <>
-    <header className="reveal-group flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:p-6 lg:flex-row lg:items-stretch">
+    <header className="reveal-group relative overflow-hidden rounded-2xl border border-border/60 bg-card/40">
+      <ProfileBanner
+        url={profile.bannerUrl}
+        accent={profile.accentColor}
+        editable={editable}
+        className="h-36 sm:h-48"
+      />
+      {/* The identity card rides up over the background's lower edge; the
+          stats start below it. */}
+      <div className="relative -mt-16 flex flex-col gap-5 px-5 pb-5 sm:-mt-20 sm:px-6 sm:pb-6 lg:flex-row lg:items-stretch">
       <div
-        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-border/60 bg-secondary/20 p-4 text-center transition-all duration-300 hover:border-primary/25 hover:shadow-lg hover:shadow-primary/5 lg:w-48"
+        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-border/60 bg-card/85 p-4 text-center shadow-xl shadow-black/10 backdrop-blur-md transition-all duration-300 hover:border-primary/25 hover:shadow-primary/10 lg:w-48"
         style={{ "--i": 0 } as CSSProperties}
       >
         {editable ? (
@@ -469,13 +476,14 @@ function ProfileHero({
         </p>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 lg:pt-24">
         <StatsGrid stats={stats} />
         {/* Real charts off the viewer's own list, not a genre tag cloud —
             the numbers above say "how much", these say "of what". Only on
             your own profile: the library endpoint is /library, i.e. yours,
             so there's nothing to plot on someone else's page. */}
         {editable && <LibraryCharts stats={stats} />}
+      </div>
       </div>
     </header>
     <AchievementDetailDialog
@@ -1121,13 +1129,9 @@ function SettingsRow({
 function SettingsTab({ profile }: { profile: MyProfile }) {
   const t = useT();
   const { setTheme, theme } = useTheme();
-  const { updateUser } = useAuth();
   const update = useUpdateProfile();
-  const uploadAvatar = useUploadAvatar();
-  const randomAvatar = useSetRandomAvatar();
   const setUsername = useSetUsername();
   const { data: achievements } = useAchievements();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [bio, setBio] = useState(profile.bio ?? "");
   const [statusValue, setStatusValue] = useState(profile.onlineStatus);
@@ -1164,32 +1168,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
     }
   };
 
-  const onFile = async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(t("profile.settings.fileTooLarge"));
-      return;
-    }
-    const dataUrl = await cropToSquareDataUrl(file);
-    uploadAvatar.mutate(dataUrl, {
-      onSuccess: (res) => {
-        toast.success(t("common.save"));
-        // The header's avatar comes from the lightweight auth session, not
-        // the profile query — patch it directly so it updates immediately.
-        updateUser({ avatarUrl: res.avatarUrl });
-      },
-    });
-  };
-
-  const onRandomAvatar = () => {
-    randomAvatar.mutate(undefined, {
-      onSuccess: (res) => {
-        toast.success(t("profile.settings.avatarRandomDone"));
-        updateUser({ avatarUrl: res.avatarUrl });
-      },
-      onError: () => toast.error(t("errors.genericTitle")),
-    });
-  };
-
   return (
     <div className="flex flex-col gap-5">
       <SettingsList>
@@ -1200,65 +1178,8 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
           expanded={openRow === "identity"}
           onToggle={() => toggle("identity")}
         >
-          <div className="flex items-start gap-4">
-            {/* Two ways to have an avatar, not just one: your own photo, or
-                a fresh anime reaction gif on demand (the same pool new
-                accounts get one from automatically) — a shuffle badge next
-                to the upload button instead of only offering the file
-                picker. */}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploadAvatar.isPending || randomAvatar.isPending}
-                aria-label={t("profile.settings.avatarUpload")}
-                className="group relative size-20 overflow-hidden rounded-full bg-muted disabled:opacity-60"
-              >
-                {profile.avatarUrl ? (
-                  <img
-                    src={imageSrc(profile.avatarUrl)}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full items-center justify-center font-display text-2xl">
-                    {profile.displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                {/* Pencil overlay — always visible on touch, fades in on hover for mouse users. */}
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/60 py-1.5 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                  {uploadAvatar.isPending ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : (
-                    <PencilIcon className="size-3.5" />
-                  )}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={onRandomAvatar}
-                disabled={uploadAvatar.isPending || randomAvatar.isPending}
-                aria-label={t("profile.settings.avatarRandom")}
-                title={t("profile.settings.avatarRandom")}
-                className="absolute -right-1 -top-1 flex size-7 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-transform hover:scale-105 disabled:pointer-events-none disabled:opacity-60"
-              >
-                {randomAvatar.isPending ? (
-                  <Loader2Icon className="size-3.5 animate-spin" />
-                ) : (
-                  <ShuffleIcon className="size-3.5" />
-                )}
-              </button>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void onFile(f);
-              }}
-            />
+          <ProfileMediaEditor profile={profile} />
+          <div className="mt-10 flex items-start gap-4">
 
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <SettingsLabel>{t("profile.settings.username")}</SettingsLabel>
@@ -2205,39 +2126,6 @@ function arraysMatchAsSets(a: number[], b: number[]): boolean {
   return a.every((v) => set.has(v));
 }
 
-/** Center-crop a picked image to a 512px square PNG data URL — no crop lib. */
-function cropToSquareDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read failed"));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("decode failed"));
-      img.onload = () => {
-        const size = Math.min(img.width, img.height);
-        const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("no ctx"));
-        ctx.drawImage(
-          img,
-          (img.width - size) / 2,
-          (img.height - size) / 2,
-          size,
-          size,
-          0,
-          0,
-          512,
-          512,
-        );
-        resolve(canvas.toDataURL("image/png"));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 /* ---------------- achievements ---------------- */
 

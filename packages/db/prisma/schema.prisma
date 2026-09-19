@@ -32,6 +32,9 @@ model User {
   username      String?         @unique
   bio           String?
   avatarUrl     String?
+  /// Wide picture behind the profile header. Always a file we host
+  /// (/uploads/banners/...), never an outside link - see UserImageStore.
+  bannerUrl     String?
   accentColor   String?
   /// "light" | "dark" | "system" (next-themes) — null means never set, the
   /// client falls back to its own local preference.

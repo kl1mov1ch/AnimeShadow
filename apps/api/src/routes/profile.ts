@@ -10,6 +10,7 @@ import { parse } from "../lib/validation.js";
 const usernameParams = z.object({ username: z.string().min(1) });
 const userIdParams = z.object({ id: z.string().min(1) });
 const avatarBody = z.object({ dataUrl: z.string().min(30) });
+const IMAGE_BODY_LIMIT = 9 * 1024 * 1024;
 
 export const profileRoutes: FastifyPluginAsync = async (fastify) => {
   const { profile, achievements } = fastify.services;
@@ -38,7 +39,8 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/me/avatar",
-    { preHandler: fastify.authenticate },
+    // The default 1MB is less than a cropped photo can come to in base64.
+    { preHandler: fastify.authenticate, bodyLimit: IMAGE_BODY_LIMIT },
     async (request) => {
       const { dataUrl } = parse(avatarBody, request.body);
       return profile.setAvatar(request.userId!, dataUrl);
@@ -49,6 +51,31 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
     "/me/avatar/random",
     { preHandler: fastify.authenticate },
     async (request) => profile.setRandomAvatar(request.userId!),
+  );
+
+  fastify.post(
+    "/me/banner",
+    { preHandler: fastify.authenticate, bodyLimit: IMAGE_BODY_LIMIT },
+    async (request) => {
+      const { dataUrl } = parse(avatarBody, request.body);
+      return profile.setBanner(request.userId!, dataUrl);
+    },
+  );
+
+  fastify.post(
+    "/me/banner/random",
+    { preHandler: fastify.authenticate },
+    async (request) => profile.setRandomBanner(request.userId!),
+  );
+
+  fastify.delete(
+    "/me/banner",
+    { preHandler: fastify.authenticate },
+    async (request, reply) => {
+      await profile.removeBanner(request.userId!);
+      reply.code(204);
+      return null;
+    },
   );
 
   fastify.get(

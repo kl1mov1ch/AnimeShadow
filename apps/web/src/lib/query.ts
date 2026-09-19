@@ -531,6 +531,46 @@ export function useSetRandomAvatar() {
   });
 }
 
+/** The wide picture behind the profile header — a cropped upload. */
+export function useUploadBanner() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (dataUrl: string) =>
+      apiRequest<{ bannerUrl: string }>("/me/banner", { method: "POST", body: { dataUrl } }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "profile"] });
+      void client.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+/** A random background from the catalogue's key visuals; says which title. */
+export function useSetRandomBanner() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<{ bannerUrl: string; anime: { id: number; slug: string; title: string } }>(
+        "/me/banner/random",
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "profile"] });
+      void client.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+export function useRemoveBanner() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiRequest<void>("/me/banner", { method: "DELETE" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "profile"] });
+      void client.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
 export function useLogSession() {
   return useMutation({
     mutationFn: (input: {

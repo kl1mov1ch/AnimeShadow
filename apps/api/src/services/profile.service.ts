@@ -1,5 +1,3 @@
-import { writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import type { PrismaClient } from "@animeshadow/db";
 import type {
   MyProfile,
@@ -21,12 +19,14 @@ import {
 import { isProfane } from "../lib/profanity.js";
 import { fetchReactionGif, randomReactionCategory } from "../lib/reaction-gif.js";
 import { TtlCache } from "../lib/cache.js";
+import { type ImageExt, UserImageStore, decodeImageDataUrl } from "../lib/user-images.js";
 import type { AchievementService } from "./achievement.service.js";
 
 export interface ProfileServiceDeps {
   prisma: PrismaClient;
   achievements: AchievementService;
-  uploadsDir: string;
+  /** Root of the uploads directory; avatars/ and banners/ live under it. */
+  uploadsRoot: string;
   proForAll?: boolean;
 }
 
@@ -42,10 +42,15 @@ function rankOf(hours: number): Rank {
   return "NOVICE";
 }
 
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+/** Reaction gifs run large; anything past this is not worth keeping per user. */
+const RANDOM_AVATAR_MAX_BYTES = 8 * 1024 * 1024;
+const BANNER_MAX_BYTES = 6 * 1024 * 1024;
+
 export class ProfileService {
   private readonly prisma: PrismaClient;
   private readonly achievements: AchievementService;
-  private readonly uploadsDir: string;
+  private readonly images: UserImageStore;
   private readonly proForAll: boolean;
   // Recomputing "everyone's total comment likes, ranked" is one groupBy over
   // the whole Comment table — cheap at this site's scale, but there's no
@@ -59,7 +64,7 @@ export class ProfileService {
   constructor(deps: ProfileServiceDeps) {
     this.prisma = deps.prisma;
     this.achievements = deps.achievements;
-    this.uploadsDir = deps.uploadsDir;
+    this.images = new UserImageStore(deps.uploadsRoot);
     this.proForAll = deps.proForAll ?? false;
   }
 
@@ -169,41 +174,86 @@ export class ProfileService {
     return this.getMine(userId);
   }
 
-  async setAvatar(
-    userId: string,
-    dataUrl: string,
-  ): Promise<{ avatarUrl: string }> {
-    const match = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(
-      dataUrl.trim(),
-    );
-    if (!match) throw new BadRequestError("Ожидается data:image/png|jpeg;base64,…");
-    const ext = match[1] === "jpeg" ? "jpg" : "png";
-    const buf = Buffer.from(match[2]!, "base64");
-    if (buf.byteLength > 5 * 1024 * 1024) {
-      throw new BadRequestError("Файл больше 5 МБ.");
-    }
-    await mkdir(this.uploadsDir, { recursive: true });
-    const file = `${userId}.${ext}`;
-    await writeFile(join(this.uploadsDir, file), buf);
-    const avatarUrl = `/uploads/avatars/${file}?v=${Date.now()}`;
-    await this.prisma.user.update({ where: { id: userId }, data: { avatarUrl } });
-    return { avatarUrl };
+  async setAvatar(userId: string, dataUrl: string): Promise<{ avatarUrl: string }> {
+    const { bytes, ext } = decodeImageDataUrl(dataUrl, AVATAR_MAX_BYTES);
+    return { avatarUrl: await this.replaceImage(userId, "avatarUrl", bytes, ext) };
   }
 
   /**
-   * Swap to a fresh random reaction gif — the same pool a new account's
-   * default avatar comes from, offered here as an explicit "give me a gif
-   * instead" choice rather than only something that happens once at signup.
-   * Nothing is written to disk (unlike an uploaded photo): just the URL
-   * nekos.best already hosts, same as before.
+   * A fresh random reaction gif, from the same pool a new account's default
+   * avatar comes from. Downloaded and kept here rather than linked, so the
+   * avatar outlives whatever nekos.best later does with the file.
    */
   async setRandomAvatar(userId: string): Promise<{ avatarUrl: string }> {
-    const url = await fetchReactionGif(randomReactionCategory());
-    if (!url) {
-      throw new UpstreamUnavailableError("Не получилось получить гифку, попробуйте ещё раз.");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const url = await fetchReactionGif(randomReactionCategory());
+      if (!url) continue;
+      const image = await this.images.download(url, RANDOM_AVATAR_MAX_BYTES);
+      if (!image) continue;
+      return { avatarUrl: await this.replaceImage(userId, "avatarUrl", image.bytes, image.ext) };
     }
-    await this.prisma.user.update({ where: { id: userId }, data: { avatarUrl: url } });
-    return { avatarUrl: url };
+    throw new UpstreamUnavailableError("Не получилось получить гифку, попробуйте ещё раз.");
+  }
+
+  /** The wide picture behind the profile header, already cropped by the browser. */
+  async setBanner(userId: string, dataUrl: string): Promise<{ bannerUrl: string }> {
+    const { bytes, ext } = decodeImageDataUrl(dataUrl, BANNER_MAX_BYTES);
+    return { bannerUrl: await this.replaceImage(userId, "bannerUrl", bytes, ext) };
+  }
+
+  /**
+   * A random background from the catalogue: the wide key visual of one of
+   * the better-known titles, copied to our disk. Says which title it came
+   * from, so the page can name it.
+   */
+  async setRandomBanner(
+    userId: string,
+  ): Promise<{ bannerUrl: string; anime: { id: number; slug: string; title: string } }> {
+    const pool = await this.prisma.anime.findMany({
+      where: { bannerImage: { not: null } },
+      orderBy: { members: { sort: "desc", nulls: "last" } },
+      take: 400,
+      select: { id: true, slug: true, title: true, titleLocalized: true, bannerImage: true, rating: true },
+    });
+    // Never a background from something the account might not be allowed to open.
+    const safe = pool.filter((a) => a.rating !== "Rx" && a.rating !== "R+");
+    for (let attempt = 0; attempt < 3 && safe.length > 0; attempt++) {
+      const pick = safe[Math.floor(Math.random() * safe.length)]!;
+      const image = await this.images.download(pick.bannerImage!, BANNER_MAX_BYTES);
+      if (!image) continue;
+      const bannerUrl = await this.replaceImage(userId, "bannerUrl", image.bytes, image.ext);
+      return {
+        bannerUrl,
+        anime: { id: pick.id, slug: pick.slug, title: pick.titleLocalized ?? pick.title },
+      };
+    }
+    throw new UpstreamUnavailableError("Не получилось подобрать фон, попробуйте ещё раз.");
+  }
+
+  async removeBanner(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { bannerUrl: true },
+    });
+    await this.prisma.user.update({ where: { id: userId }, data: { bannerUrl: null } });
+    await this.images.removeIfLocal(user.bannerUrl);
+  }
+
+  /** Write the new file, point the account at it, and only then drop the old one. */
+  private async replaceImage(
+    userId: string,
+    field: "avatarUrl" | "bannerUrl",
+    bytes: Buffer,
+    ext: ImageExt,
+  ): Promise<string> {
+    const before = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { avatarUrl: true, bannerUrl: true },
+    });
+    const url = await this.images.save(field === "avatarUrl" ? "avatars" : "banners", userId, bytes, ext);
+    await this.prisma.user.update({ where: { id: userId }, data: { [field]: url } });
+    await this.images.removeIfLocal(before[field]);
+    return url;
   }
 
   async progress(userId: string): Promise<ProgressDetail[]> {
@@ -312,6 +362,7 @@ export class ProfileService {
       displayName: user.displayName,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
+      bannerUrl: user.bannerUrl,
       accentColor: user.accentColor,
       onlineStatus: user.onlineStatus as PublicProfile["onlineStatus"],
       rank: rankOf(stats.hoursWatched),

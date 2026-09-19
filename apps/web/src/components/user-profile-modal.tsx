@@ -15,6 +15,7 @@ import { useLocale, useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { usePublicProfile, usePublicProfileById } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { ProfileBanner } from "@/components/profile/profile-banner";
 
 const RANK_RING: Record<Rank, string> = {
   NOVICE: "ring-muted-foreground/40",
@@ -88,10 +89,16 @@ function ProfileModalBody({ profile }: { profile: PublicProfile }) {
     .filter((a): a is EarnedAchievement => a != null);
 
   return (
-    <div className="flex flex-col items-center gap-3 pt-2 text-center">
+    <div className="flex flex-col items-center gap-3 text-center">
+      {/* The owner's background, edge to edge across the top of the card. */}
+      <ProfileBanner
+        url={profile.bannerUrl}
+        accent={profile.accentColor}
+        className="-mx-6 -mt-6 h-28 w-[calc(100%+3rem)] rounded-t-2xl"
+      />
       <div
         className={cn(
-          "flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background",
+          "relative -mt-14 flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background",
           RANK_RING[profile.rank],
         )}
       >
