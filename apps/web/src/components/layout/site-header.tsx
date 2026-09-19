@@ -18,6 +18,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Wordmark } from "@/components/brand/wordmark";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { SearchBox } from "@/components/layout/search-box";
@@ -72,20 +73,6 @@ function Shimmer() {
       aria-hidden
       className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/35 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
     />
-  );
-}
-
-function Wordmark() {
-  return (
-    <Link
-      to="/"
-      className="flex shrink-0 items-center gap-1.5 font-display text-lg tracking-tight"
-    >
-      <span aria-hidden className="text-primary">
-        影
-      </span>
-      AnimeShadow
-    </Link>
   );
 }
 

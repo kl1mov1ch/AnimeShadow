@@ -1,4 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
+import { Wordmark } from "@/components/brand/wordmark";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -34,12 +35,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-x-6 gap-y-9 px-4 py-12 lg:grid-cols-[1.6fr_1fr_1fr_1.4fr] lg:gap-x-10">
         {/* Brand */}
         <div className="col-span-2 flex flex-col gap-4 lg:col-span-1">
-          <Link to="/" className="flex items-center gap-2 font-display text-lg">
-            <span aria-hidden className="text-2xl text-primary">
-              影
-            </span>
-            AnimeShadow
-          </Link>
+          <Wordmark size="lg" className="self-start" />
           <p className="max-w-xs text-sm text-muted-foreground">
             {t("footer.tagline")}
           </p>
