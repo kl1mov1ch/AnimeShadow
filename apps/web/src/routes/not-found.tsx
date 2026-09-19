@@ -22,7 +22,7 @@ export function Component() {
         </span>
         <span
           aria-hidden
-          className="not-found-glyph font-display text-7xl text-primary motion-safe:animate-[lost-glyph-float_3.2s_ease-in-out_infinite] sm:text-8xl"
+          className="font-display text-7xl text-primary sm:text-8xl"
         >
           <SlicedGlyph />
         </span>

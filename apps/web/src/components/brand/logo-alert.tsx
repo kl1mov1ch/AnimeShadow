@@ -19,7 +19,7 @@ export function LogoAlert({
     <span
       aria-hidden
       className={cn(
-        "relative grid size-14 place-items-center rounded-2xl",
+        "sliced-glyph-host relative grid size-14 place-items-center rounded-2xl",
         destructive ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary",
         className,
       )}

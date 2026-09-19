@@ -366,7 +366,7 @@ function TitleHeader({
   }, []);
 
   return (
-    <div data-glyph-host className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
+    <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
       {/* The hairline, wearing the title's colour. */}
       <span
         aria-hidden

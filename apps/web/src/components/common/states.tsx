@@ -142,7 +142,7 @@ export function LogoMedia({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary",
+        "sliced-glyph-host grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary",
         className,
       )}
     >
@@ -160,7 +160,7 @@ export function EmptyState({
   quotes,
 }: EmptyStateProps) {
   return (
-    <Empty className="border" data-glyph-host>
+    <Empty className="border">
       <EmptyHeader>
         {/* No icon given: the site's mark, which brings its own box. */}
         <EmptyMedia variant={icon ? mediaVariant : "default"}>{icon ?? <LogoMedia />}</EmptyMedia>

@@ -8,7 +8,7 @@ function RouteFallback() {
   return (
     <div className="flex min-h-dvh items-center justify-center">
       <span aria-hidden className="text-4xl text-primary">
-        <SlicedGlyph loop />
+        <SlicedGlyph />
       </span>
       <span className="sr-only">Loading</span>
     </div>

@@ -68,7 +68,7 @@ function Backdrop() {
  */
 export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
   return (
-    <div data-glyph-host className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-10 sm:py-16">
+    <div className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-10 sm:py-16">
       <Backdrop />
 
       <div className="animate-in fade-in slide-in-from-bottom-4 w-full max-w-[400px] duration-500">

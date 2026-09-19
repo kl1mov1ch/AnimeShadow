@@ -18,21 +18,17 @@ const SLICES = [0, 25, 50, 75, 100].map((top, i) => {
 });
 
 /**
- * The 影 mark, able to come apart along diagonal cuts and join back up.
+ * The 影 mark, able to come apart along diagonal cuts and join back up —
+ * only when pointed at: its own strokes, the wordmark it is part of, or a
+ * box marked .sliced-glyph-host around it. It never plays on its own.
  *
  * Stacked copies of the glyph, each clipped to one band — invisible at rest,
- * so what shows is the plain glyph. The cut plays once when the glyph, its
- * parent or grandparent, a Tailwind `group`, or anything marked
- * `data-glyph-host` is hovered — which is what lets a watermark that takes
- * no pointer events of its own still answer to the card it sits in.
- * `loop` repeats it slowly instead, for the loading screen.
- *
- * Sized at 1em and coloured by currentColor, so it drops in wherever the
- * glyph used to be a text character.
+ * so what shows is the plain glyph. Sized at 1em and coloured by
+ * currentColor, so it drops in wherever the glyph used to be a character.
  */
-export function SlicedGlyph({ className, loop = false }: { className?: string; loop?: boolean }) {
+export function SlicedGlyph({ className }: { className?: string }) {
   return (
-    <span aria-hidden className={cn("sliced-glyph", loop && "sliced-glyph--loop", className)}>
+    <span aria-hidden className={cn("sliced-glyph", className)}>
       <LogoGlyph className="sliced-glyph-base size-[1em]" />
       {SLICES.map((s, i) => (
         <span

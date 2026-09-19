@@ -19,7 +19,7 @@ export function RootError() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
-      <div className="size-32 overflow-hidden rounded-2xl bg-muted">
+      <div className="sliced-glyph-host size-32 overflow-hidden rounded-2xl bg-muted">
         {gif.data?.url && !gifBroken ? (
           <img
             src={gif.data.url}
