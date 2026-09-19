@@ -32,10 +32,9 @@ interface EmptyStateProps {
 type QuoteSet = "load" | "empty";
 
 /**
- * Written for this site, in its own voice — deliberately not quotes from
- * any actual anime. Lines of dialogue belong to the work they come from,
- * so a page that fails to load gets AnimeShadow being sarcastic about
- * itself instead of borrowing someone else's script.
+ * Written for this site, in its own voice: jabs at our own server, many of
+ * them riffing on lines every anime fan knows — parodied, never quoted, so
+ * the joke is ours and the original stays with the work it came from.
  *
  * Same locale-keyed shape as the search box's mood chips, for the same
  * reason: `t()` returns strings, not arrays.
@@ -43,40 +42,50 @@ type QuoteSet = "load" | "empty";
 const QUIPS: Record<QuoteSet, { ru: string[]; en: string[] }> = {
   load: {
     ru: [
-      "Сервер отвернулся и делает вид, что нас тут нет.",
-      "Где-то упал один запрос. Мы уже делаем вид, что это не мы.",
-      "Данные вышли на минутку. Обещали вернуться.",
-      "Технически это не ошибка. Технически.",
-      "Мы спросили у сервера. Он многозначительно промолчал.",
-      "Перезагрузка чинит примерно всё. Проверим теорию?",
-      "Здесь должно было быть аниме. Здесь — вот это.",
+      "Сервер уже мёртв. Просто он ещё об этом не знает.",
+      "Это не баг. Это мой путь ниндзя.",
+      "Запрос использовал технику теневого клонирования и потерялся во всех копиях сразу.",
+      "Мы вложили в загрузку всю силу дружбы. Не хватило.",
+      "Сервер ушёл в свой филлерный арк. Вернётся через сорок серий.",
+      "Твой интернет — это даже не моя финальная форма. А вот наш сервер — да.",
+      "Загрузка прервалась на самом интересном. Продолжение — в следующей серии.",
+      "Бэкенд ушёл тренироваться в горы. Писем не оставил.",
+      "Технически это не ошибка. Технически это арка страданий.",
+      "Нажми «Повторить». Даже главный герой встаёт с восьмой попытки.",
     ],
     en: [
-      "The server turned away and is pretending we're not here.",
-      "A request fell over somewhere. We're pretending it wasn't us.",
-      "The data stepped out for a minute. It promised to come back.",
-      "Technically this isn't an error. Technically.",
-      "We asked the server. It stayed meaningfully silent.",
-      "Reloading fixes roughly everything. Shall we test that?",
-      "There was supposed to be anime here. Instead, there's this.",
+      "The server is already dead. It just hasn't noticed yet.",
+      "It's not a bug. It's my ninja way.",
+      "The request used shadow clone jutsu and got lost in every copy at once.",
+      "We loaded this with the full power of friendship. It wasn't enough.",
+      "The server has entered its filler arc. Back in about forty episodes.",
+      "Your connection isn't even my final form. Our server's, sadly, is.",
+      "The load cut out at the best part. To be continued next episode.",
+      "The backend went off to train in the mountains. Left no note.",
+      "Technically this isn't an error. Technically it's a suffering arc.",
+      "Hit retry. Even the protagonist gets up on the eighth attempt.",
     ],
   },
   empty: {
     ru: [
-      "Пусто. Даже эхо не отвечает.",
-      "Ничего не нашлось — зато как искали.",
-      "Фильтры сработали идеально: не выжило ничего.",
-      "Здесь мог быть ваш тайтл, но он предпочёл скрыться.",
-      "Совпадений ноль. Каталог разводит руками.",
-      "Мы перерыли всё и нашли только этот текст.",
+      "Пусто. Как обещания сиквела после открытого финала.",
+      "Ничего не нашлось. Даже гарем главного героя больше этого списка.",
+      "Фильтры сработали идеально: не выжил никто. Как во втором сезоне.",
+      "Здесь мог быть ваш тайтл, но он ушёл в исекай.",
+      "Совпадений ноль. Каталог сделал лицо «я не понимаю, что происходит».",
+      "Мы перерыли всё. Нашли только флешбэк, который никто не просил.",
+      "Этот поиск закончился раньше, чем аниме-адаптация манги.",
+      "Искали с силой девяти тысяч. Результатов — ноль.",
     ],
     en: [
-      "Empty. Even the echo declined to answer.",
-      "Nothing found — but what a search it was.",
-      "The filters worked perfectly: nothing survived them.",
-      "Your title could have been here, but it chose to hide.",
-      "Zero matches. The catalogue shrugs.",
-      "We searched everywhere. All we found was this sentence.",
+      "Empty. Like sequel promises after an open ending.",
+      "Nothing found. Even the protagonist's harem is bigger than this list.",
+      "The filters worked perfectly: nobody survived. Just like season two.",
+      "Your title could have been here, but it got isekai'd.",
+      "Zero matches. The catalogue is doing its best confused-anime face.",
+      "We searched everywhere. Found only a flashback nobody asked for.",
+      "This search ended sooner than an anime adaptation of a manga.",
+      "Searched at a power level over nine thousand. Results: zero.",
     ],
   },
 };
@@ -116,15 +125,19 @@ function QuipRotator({ set }: { set: QuoteSet }) {
     <button
       type="button"
       onClick={() => setIndex((i) => (i + 1) % lines.length)}
-      className="group mx-auto mt-1 flex max-w-sm items-start gap-2 rounded-2xl border border-border/60 bg-card/50 px-3.5 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30"
+      // A fifth of the page wide (never narrower than a phone can read
+      // comfortably), centred, and at most three lines: long enough for a
+      // line to breathe, short enough that it never becomes a paragraph.
+      className="group mx-auto flex w-[max(18rem,20vw)] max-w-full items-start gap-2.5 rounded-2xl border border-border/60 bg-card/50 px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30"
     >
       <QuoteIcon className="mt-0.5 size-3.5 shrink-0 text-primary/60" />
-      <span className="flex min-w-0 flex-col gap-1">
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
         {/* Keyed on the line itself, so React remounts it and the entry
-            animation replays on every rotation. */}
+            animation replays on every rotation. Balanced wrapping keeps the
+            lines even instead of leaving one word dangling on the last. */}
         <span
           key={line}
-          className="animate-in fade-in slide-in-from-bottom-1 text-xs leading-relaxed text-foreground/80 duration-500"
+          className="animate-in fade-in slide-in-from-bottom-1 line-clamp-3 text-[13px] leading-snug text-foreground/85 [text-wrap:balance] duration-500"
         >
           {line}
         </span>
@@ -166,8 +179,10 @@ export function EmptyState({
         <EmptyMedia variant={icon ? mediaVariant : "default"}>{icon ?? <LogoMedia />}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
-        {quotes && <QuipRotator set={quotes} />}
       </EmptyHeader>
+      {/* Outside the header, whose own narrow max-width would otherwise
+          wrap the line into a column. */}
+      {quotes && <QuipRotator set={quotes} />}
       {action && <EmptyContent>{action}</EmptyContent>}
     </Empty>
   );
