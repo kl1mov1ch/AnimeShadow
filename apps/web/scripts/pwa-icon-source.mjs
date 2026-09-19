@@ -1,12 +1,8 @@
+import { readFileSync } from "node:fs";
+
 // The site's mark: 影 — the same glyph the loading splash, the header
 // wordmark and every page watermark already use. It replaces an abstract
 // two-circle crescent that shared nothing with the interface it stood for.
-//
-// Drawn as text rather than as an outline path on purpose: the PNGs below are
-// rasterized once on a machine that has a CJK font and committed to public/,
-// so nothing at build or run time ever needs that font. The one place the
-// glyph is drawn live is favicon.svg, which browsers render with a system CJK
-// font — present on Windows, macOS, iOS and Android alike.
 //
 // Two variants:
 //
@@ -19,10 +15,12 @@
 const BG = "#0a0b10";
 const FG = "#ff4d6d";
 
-// Named explicitly, widest-support first, so whichever renderer sees this
-// picks a real CJK face instead of falling back to a box.
-const CJK_STACK =
-  "'Noto Sans CJK JP','Noto Sans JP','Source Han Sans','Yu Gothic','Hiragino Sans','Microsoft YaHei','PingFang SC','SimSun',sans-serif";
+// The mark's outline, shared with the header and favicon.svg — a path, so the
+// icons are the same bold glyph as the site no matter what fonts the machine
+// running this has. Outline from Noto Sans JP, weight 800 (SIL OFL 1.1).
+const glyph = JSON.parse(
+  readFileSync(new URL("../src/components/brand/logo-glyph.json", import.meta.url), "utf-8"),
+);
 
 /**
  * @param {{ maskable?: boolean }} options
@@ -33,13 +31,10 @@ export function markSvg({ maskable }) {
     : `<rect width="512" height="512" rx="128" fill="${BG}"/>`;
   // Smaller on the maskable variant: an OS mask can crop up to 10% off each
   // edge, and a glyph that fills the square would lose its strokes to it.
-  const size = maskable ? 300 : 340;
-  // `dominant-baseline` is honoured inconsistently by SVG rasterizers, so the
-  // baseline is placed by hand: a CJK glyph's ink sits roughly centred on its
-  // em box, which puts the visual centre at about 0.36em below the baseline.
-  const baseline = 256 + size * 0.372;
+  const size = maskable ? 300 : 350;
+  const s = size / Math.max(glyph.width, glyph.height);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   ${rect}
-  <text x="256" y="${baseline}" font-size="${size}" fill="${FG}" text-anchor="middle" font-family="${CJK_STACK}">影</text>
+  <path fill="${FG}" transform="translate(256 256) scale(${s} ${-s}) translate(${-glyph.centerX} ${-glyph.centerY})" d="${glyph.d}"/>
 </svg>`;
 }

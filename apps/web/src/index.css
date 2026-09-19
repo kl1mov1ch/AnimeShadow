@@ -756,14 +756,15 @@ html body[data-scroll-locked] {
 }
 
 /*
-  The header wordmark's "slice": five stacked copies, each clipped to one
-  horizontal strip (see Wordmark). At rest they are invisible. On hover the
-  plain mark steps aside, the strips slide apart and fade, overshoot back,
-  and settle into one piece again.
+  The header 影's "slice": five stacked copies, each clipped to one diagonal
+  band (see Wordmark). At rest they are invisible. On hover the whole glyph
+  steps aside, the pieces slide apart along their cuts and fade, overshoot
+  back, and settle into one piece again.
 */
 .wordmark-slice {
   position: absolute;
   inset: 0;
+  display: flex;
   opacity: 0;
   pointer-events: none;
 }
@@ -790,22 +791,22 @@ html body[data-scroll-locked] {
 @keyframes wordmark-slice-move {
   0% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate(0, 0);
   }
   28% {
     opacity: 0.2;
-    transform: translateX(var(--dx));
+    transform: translate(var(--dx), var(--dy));
   }
   52% {
     opacity: 0.85;
-    transform: translateX(calc(var(--dx) * -0.45));
+    transform: translate(calc(var(--dx) * -0.45), calc(var(--dy) * -0.45));
   }
   76% {
     opacity: 1;
-    transform: translateX(calc(var(--dx) * 0.15));
+    transform: translate(calc(var(--dx) * 0.15), calc(var(--dy) * 0.15));
   }
   100% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate(0, 0);
   }
 }
