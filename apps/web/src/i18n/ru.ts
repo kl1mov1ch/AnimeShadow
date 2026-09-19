@@ -365,7 +365,7 @@ export const ru: Dict = {
       prompt: "Отметьте тайтл",
       promptHint: "Один клик — и он в вашем списке",
       rate: "Ваша оценка",
-      rateHint: "Наведите на звёзды",
+      rateHint: "Оцените",
       clearScore: "Сбросить оценку",
       episode: "Серия",
       of: "из {total}",

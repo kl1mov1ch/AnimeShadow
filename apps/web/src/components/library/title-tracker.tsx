@@ -115,7 +115,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
       {/* Status: one segmented pill. The chosen one fills and names itself;
-          the rest stay icons (with their names from md up) to keep it short. */}
+          the rest are icons with their names on hover, to keep it to one line. */}
       <div
         role="radiogroup"
         aria-label={t("library.watchStatus")}
@@ -134,7 +134,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
               disabled={upsert.isPending}
               title={t(`status.${s}`)}
               className={cn(
-                "group inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-all duration-200 active:scale-95",
+                "group inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-xs font-medium transition-all duration-200 active:scale-95",
                 active ? cn("shadow-md", CHIP_ON[s]) : "text-foreground/75 hover:bg-secondary/70 hover:text-foreground",
               )}
             >
@@ -144,7 +144,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
                   active ? "animate-in zoom-in-50" : text,
                 )}
               />
-              <span className={cn(active ? "inline" : "hidden xl:inline")}>{t(`status.${s}`)}</span>
+              {active && <span>{t(`status.${s}`)}</span>}
             </button>
           );
         })}
@@ -194,7 +194,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
           })}
         </div>
         {/* Fixed width, so the row does not shift as the word changes. */}
-        <span className="w-24 truncate text-xs">
+        <span className="w-28 truncate text-xs">
           {shownScore != null ? (
             <span key={shownScore} className="animate-in fade-in font-semibold text-amber-500">
               {shownScore} · {t(`library.tracker.r${shownScore}`)}

@@ -364,7 +364,7 @@ export const en = {
       prompt: "Track this title",
       promptHint: "One click and it's in your list",
       rate: "Your score",
-      rateHint: "Hover the stars",
+      rateHint: "Rate it",
       clearScore: "Clear score",
       episode: "Episode",
       of: "of {total}",
