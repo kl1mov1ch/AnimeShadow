@@ -754,3 +754,58 @@ html body[data-scroll-locked] {
     background-position: 0% 0;
   }
 }
+
+/*
+  The header wordmark's "slice": five stacked copies, each clipped to one
+  horizontal strip (see Wordmark). At rest they are invisible. On hover the
+  plain mark steps aside, the strips slide apart and fade, overshoot back,
+  and settle into one piece again.
+*/
+.wordmark-slice {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wordmark--slice:hover .wordmark-base,
+  .wordmark--slice:focus-visible .wordmark-base {
+    animation: wordmark-slice-base 0.7s linear both;
+  }
+  .wordmark--slice:hover .wordmark-slice,
+  .wordmark--slice:focus-visible .wordmark-slice {
+    animation: wordmark-slice-move 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@keyframes wordmark-slice-base {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  6%,
+  94% {
+    opacity: 0;
+  }
+}
+@keyframes wordmark-slice-move {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  28% {
+    opacity: 0.2;
+    transform: translateX(var(--dx));
+  }
+  52% {
+    opacity: 0.85;
+    transform: translateX(calc(var(--dx) * -0.45));
+  }
+  76% {
+    opacity: 1;
+    transform: translateX(calc(var(--dx) * 0.15));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

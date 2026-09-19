@@ -128,7 +128,7 @@ export function SiteHeader() {
         </Sheet>
 
         <div className="reveal" style={{ "--i": 0 } as CSSProperties}>
-          <Wordmark />
+          <Wordmark effect="slice" />
         </div>
 
         {/* Tighter than it was: with the labels this wide, gap-5/6 pushed the
