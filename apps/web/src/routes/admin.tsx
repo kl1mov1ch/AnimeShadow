@@ -13,7 +13,6 @@ import { ENTER, LiveDot } from "@/components/admin/admin-ui";
 import { AdminUsers } from "@/components/admin/admin-users";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { useAdminOverview } from "@/lib/query";
@@ -77,12 +76,15 @@ function AdminPanel() {
       )
     : null;
 
+  const select = (next: AdminTab) =>
+    setSearchParams(next === "dashboard" ? {} : { tab: next }, { replace: true });
+
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 sm:gap-6">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
       <header
         className={cn(
           ENTER,
-          "relative overflow-hidden rounded-3xl border border-border/60 bg-card/70 p-5 shadow-sm backdrop-blur sm:p-7",
+          "relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-3xl border border-border/60 bg-card/70 px-5 py-4 shadow-sm backdrop-blur sm:px-6",
         )}
       >
         <div
@@ -90,88 +92,90 @@ function AdminPanel() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(55% 90% at 0% 0%, color-mix(in oklab, var(--chart-1) 16%, transparent), transparent 70%), radial-gradient(45% 80% at 100% 0%, color-mix(in oklab, var(--chart-2) 14%, transparent), transparent 70%)",
+              "radial-gradient(55% 120% at 0% 0%, color-mix(in oklab, var(--chart-1) 14%, transparent), transparent 70%)",
           }}
         />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -bottom-12 right-6 select-none font-display text-[9rem] leading-none text-foreground/[0.04]"
-        >
-          <SlicedGlyph />
-        </span>
-
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/25">
-              <LayoutDashboardIcon className="size-6" />
+        <div className="relative flex min-w-0 items-center gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/15 text-2xl text-primary ring-1 ring-primary/25">
+            <SlicedGlyph />
+          </span>
+          <div className="min-w-0">
+            <h1 className="font-display text-xl leading-tight sm:text-2xl">{t("admin.title")}</h1>
+            <p className="text-xs text-muted-foreground sm:text-sm">{t("admin.subtitle")}</p>
+          </div>
+        </div>
+        <div className="relative flex flex-wrap items-center gap-2">
+          {overview.data && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+              <LiveDot />
+              {t("admin.activeToday", { count: overview.data.audience.activeToday })}
             </span>
-            <div className="min-w-0">
-              <h1 className="font-display text-2xl leading-tight sm:text-3xl">{t("admin.title")}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{t("admin.subtitle")}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {updatedAt && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-3 py-1.5 text-xs text-muted-foreground">
-                <LiveDot />
-                {t("admin.updated")}
-                <span className="tabular-nums text-foreground">{updatedAt}</span>
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full"
-              disabled={refreshing}
-              onClick={() => void client.invalidateQueries({ queryKey: ["admin"] })}
-            >
-              <RefreshCwIcon className={cn(refreshing && "animate-spin")} />
-              {t("admin.refresh")}
-            </Button>
-          </div>
+          )}
+          {updatedAt && (
+            <span className="hidden items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-1.5 text-xs text-muted-foreground sm:inline-flex">
+              {t("admin.updated")}
+              <span className="tabular-nums text-foreground">{updatedAt}</span>
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            disabled={refreshing}
+            onClick={() => void client.invalidateQueries({ queryKey: ["admin"] })}
+          >
+            <RefreshCwIcon className={cn(refreshing && "animate-spin")} />
+            <span className="hidden sm:inline">{t("admin.refresh")}</span>
+          </Button>
         </div>
       </header>
 
-      <Tabs
-        value={tab}
-        onValueChange={(next) =>
-          setSearchParams(next === "dashboard" ? {} : { tab: next }, { replace: true })
-        }
-        className="gap-5"
-      >
-        <TabsList className="h-auto! w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card/60 p-1.5 backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Sections: a sidebar on wide screens, a scrolling strip on phones. */}
+      <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+        <nav
+          aria-label={t("admin.title")}
+          className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 lg:sticky lg:top-20 lg:mx-0 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-border/60 lg:bg-card/60 lg:p-2 lg:backdrop-blur"
+        >
           {TABS.map((value) => {
             const Icon = TAB_ICONS[value];
             const count = counts[value];
+            const active = tab === value;
             return (
-              <TabsTrigger
+              <button
                 key={value}
-                value={value}
-                className="h-auto flex-none gap-2 rounded-xl border-transparent px-3.5 py-2 sm:px-4 data-[state=active]:border-primary/30 data-[state=active]:bg-primary/15 data-[state=active]:text-primary dark:data-[state=active]:border-primary/30 dark:data-[state=active]:bg-primary/15 dark:data-[state=active]:text-primary"
+                type="button"
+                onClick={() => select(value)}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "group flex shrink-0 items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-all lg:py-2.5",
+                  active
+                    ? "border-primary/30 bg-primary/15 text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                )}
               >
-                <Icon className="size-4" />
-                {t(`admin.tabs.${value}`)}
+                <Icon className="size-4 shrink-0" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-medium">{t(`admin.tabs.${value}`)}</span>
+                  <span className="hidden text-[11px] leading-tight text-muted-foreground lg:block">
+                    {t(`admin.tabHints.${value}`)}
+                  </span>
+                </span>
                 {count != null && (
-                  <span className="rounded-full bg-foreground/10 px-1.5 py-px text-[10px] tabular-nums">
+                  <span className="ml-auto rounded-full bg-foreground/10 px-1.5 py-px text-[10px] tabular-nums">
                     {count.toLocaleString()}
                   </span>
                 )}
-              </TabsTrigger>
+              </button>
             );
           })}
-        </TabsList>
+        </nav>
 
-        <TabsContent value="dashboard">
-          <AdminDashboard />
-        </TabsContent>
-        <TabsContent value="users">
-          <AdminUsers />
-        </TabsContent>
-        <TabsContent value="comments">
-          <AdminComments />
-        </TabsContent>
-      </Tabs>
+        <main className="min-w-0">
+          {tab === "dashboard" && <AdminDashboard />}
+          {tab === "users" && <AdminUsers />}
+          {tab === "comments" && <AdminComments />}
+        </main>
+      </div>
     </div>
   );
 }

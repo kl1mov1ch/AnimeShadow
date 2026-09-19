@@ -4,6 +4,7 @@ import type {
   AdminOverview,
   AdminUpdateUserInput,
   AdminUserQuery,
+  AdminUserDetail,
   AdminUserSummary,
   AnimeDetail,
   AnimeStats,
@@ -855,8 +856,29 @@ export function useAdminSetUser() {
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["admin", "users"] });
+      void client.invalidateQueries({ queryKey: ["admin", "user"] });
       void client.invalidateQueries({ queryKey: ["admin", "overview"] });
     },
+  });
+}
+
+/** Everything about one account, for the admin user panel. */
+export function useAdminUser(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "user", id],
+    enabled: Boolean(id),
+    queryFn: ({ signal }) => apiRequest<AdminUserDetail>(`/admin/users/${id}`, { signal }),
+  });
+}
+
+/** Sets a new password the user can sign in with right away. */
+export function useAdminSetPassword() {
+  return useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      apiRequest<{ loginEmail: string }>(`/admin/users/${id}/password`, {
+        method: "POST",
+        body: { password },
+      }),
   });
 }
 
@@ -877,6 +899,7 @@ export function useAdminDeleteComment() {
       apiRequest<void>(`/admin/comments/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["admin", "comments"] });
+      void client.invalidateQueries({ queryKey: ["admin", "user"] });
     },
   });
 }

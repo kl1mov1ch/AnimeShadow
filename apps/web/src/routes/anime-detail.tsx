@@ -307,14 +307,13 @@ function AnimeDetailView({ param }: { param: string }) {
               player, where watching actually happens. */}
           {/* The bar is only as wide as what it holds; the rest of the line
               goes to facts about the title rather than empty space. */}
-          {/* Exactly as wide as the player below it, so the two read as one
-              column. The facts take what the bar leaves; what does not fit
-              goes into the cheat-sheet popover. */}
-          <div className="mx-auto flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-[88%] md:flex-nowrap">
-            <div className="w-fit min-w-0 max-w-full rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
+          {/* Lined up with the player below it. The time calculator rides
+              inside the bar, an icon on phones, so it never takes a line. */}
+          <div className="mx-auto w-full min-w-0 sm:w-[88%]">
+            <div className="flex w-fit max-w-full items-center gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
               <TitleTracker anime={data} title={title} />
+              <TitleFacts anime={data} className="self-start sm:self-center" />
             </div>
-            <TitleFacts anime={data} className="ml-auto md:flex-1" />
           </div>
           <WatchSection
             anime={data}

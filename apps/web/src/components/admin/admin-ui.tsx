@@ -92,6 +92,13 @@ export function timeAgo(iso: string, locale: string): string {
   return rtf.format(Math.round(seconds / (86_400 * 365)), "year");
 }
 
+/** Seen within this long counts as online right now. */
+const ONLINE_WINDOW_MS = 5 * 60_000;
+
+export function isOnline(lastSeenAt: string | null): boolean {
+  return lastSeenAt != null && Date.now() - Date.parse(lastSeenAt) < ONLINE_WINDOW_MS;
+}
+
 export function useFormatDuration(): (seconds: number) => string {
   const t = useT();
   return (seconds) => {

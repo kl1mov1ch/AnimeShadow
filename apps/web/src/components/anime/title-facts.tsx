@@ -5,12 +5,12 @@ import {
   FilmIcon,
   FlagIcon,
   HeartIcon,
-  ScrollTextIcon,
+  CalculatorIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLocale, useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
@@ -71,85 +71,27 @@ function useFacts(anime: AnimeDetail) {
 }
 
 /**
- * Facts about the title beside the tracking bar. As many as fit whole stay
- * on the line; the rest — and a small marathon calculator — live in the
- * "Otaku cheat sheet" popover, whose button says how many are tucked away.
- * Nothing wraps, nothing is cut mid-word.
+ * The "time calculator" button that sits at the end of the tracking bar —
+ * an icon on phones, labelled from sm up — opening a popover with how long
+ * the title takes, a marathon calculator and the rest of its numbers.
  */
 export function TitleFacts({ anime, className }: { anime: AnimeDetail; className?: string }) {
   const t = useT();
   const { facts, perEp, episodes } = useFacts(anime);
-  const row = useRef<HTMLDivElement>(null);
-  const [hidden, setHidden] = useState(0);
-
-  // How many chips the single-line row had to push onto its (invisible)
-  // second line — or all of them while the row itself is hidden (phones).
-  const measure = useCallback(() => {
-    const el = row.current;
-    if (!el) return;
-    const kids = [...el.children] as HTMLElement[];
-    if (el.offsetParent === null) {
-      setHidden(kids.length);
-      return;
-    }
-    const top = kids[0]?.offsetTop ?? 0;
-    setHidden(kids.filter((k) => k.offsetTop > top).length);
-  }, []);
-
-  useEffect(() => {
-    const el = row.current;
-    if (!el) return;
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [measure, facts.length]);
-
   if (facts.length === 0) return null;
-
   return (
-    <div className={cn("flex min-w-0 items-center gap-2", className)}>
-      <div
-        ref={row}
-        className="hidden h-8 min-w-0 flex-1 flex-wrap items-center justify-end gap-2 overflow-hidden md:flex"
-      >
-        {facts.map((f) => (
-          <FactChip key={f.key} fact={f} />
-        ))}
-      </div>
-      <CheatSheet
-        facts={facts}
-        perEp={perEp}
-        episodes={episodes}
-        tucked={hidden}
-        label={t("detail.quickFacts.sheet")}
-      />
-    </div>
-  );
-}
-
-function FactChip({ fact }: { fact: Fact }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs [&_svg]:size-3.5 [&_svg]:text-[var(--accent-ink)]",
-        fact.accent
-          ? "border-[var(--accent-line)] bg-[var(--accent-surface-strong)] font-medium text-foreground"
-          : "border-border/50 bg-card/40 text-muted-foreground",
-      )}
-    >
-      {fact.icon}
-      {fact.text}
-    </span>
+    <CheatSheet
+      className={className}
+      facts={facts}
+      perEp={perEp}
+      episodes={episodes}
+      label={t("detail.quickFacts.sheet")}
+    />
   );
 }
 
 /**
- * The popover: every fact as a list, then the marathon calculator — drag
+ * The popover: the title's numbers as a list, then the marathon calculator — drag
  * the episodes-a-day slider and the finish date and the row of days answer.
  * Nothing animates on its own; everything moves only in reply to the slider.
  */
@@ -157,14 +99,14 @@ function CheatSheet({
   facts,
   perEp,
   episodes,
-  tucked,
   label,
+  className,
 }: {
   facts: Fact[];
   perEp: number | null;
   episodes: number;
-  tucked: number;
   label: string;
+  className?: string;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -182,20 +124,20 @@ function CheatSheet({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--accent-line)] bg-[var(--accent-surface)] px-3 text-xs font-medium transition-colors hover:bg-[var(--accent-surface-strong)] data-[state=open]:bg-[var(--accent-surface-strong)]"
-        >
-          <ScrollTextIcon className="size-3.5 text-[var(--accent-ink)] transition-transform duration-300 group-hover:-rotate-12 group-data-[state=open]:rotate-6" />
-          {label}
-          {tucked > 0 && (
-            <span className="grid min-w-5 place-items-center rounded-full bg-[var(--accent-ink)] px-1 text-[10px] font-semibold text-background">
-              +{tucked}
-            </span>
+          aria-label={label}
+          title={label}
+          className={cn(
+            "group inline-flex size-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--accent-line)] bg-[var(--accent-surface)] text-xs font-medium transition-colors hover:bg-[var(--accent-surface-strong)] data-[state=open]:bg-[var(--accent-surface-strong)] sm:w-auto sm:px-3",
+            className,
           )}
+        >
+          <CalculatorIcon className="size-4 text-[var(--accent-ink)] transition-transform duration-300 group-hover:-rotate-12 group-data-[state=open]:rotate-6 sm:size-3.5" />
+          <span className="hidden sm:inline">{label}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 p-3">
         <p className="flex items-center gap-2 font-display text-sm">
-          <ScrollTextIcon className="size-4 text-[var(--accent-ink)]" />
+          <CalculatorIcon className="size-4 text-[var(--accent-ink)]" />
           {label}
         </p>
         <ul className="flex flex-col gap-0.5">
