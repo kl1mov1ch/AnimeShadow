@@ -13,8 +13,12 @@ export interface AnimeThemesClientOptions {
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
   minIntervalMs?: number;
-  /** Overridable, but see the note on DEFAULTS.userAgent before removing it. */
-  userAgent?: string;
+  /**
+   * Overridable, but see the note on DEFAULTS.userAgent before removing it.
+   * `null` sends none — for browsers, which set their own, and where a custom
+   * one costs a CORS preflight on every request.
+   */
+  userAgent?: string | null;
 }
 
 export interface AnimeOpening {
@@ -104,7 +108,7 @@ export class AnimeThemesClient {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly minIntervalMs: number;
-  private readonly userAgent: string;
+  private readonly userAgent: string | null;
 
   private queue: Promise<unknown> = Promise.resolve();
   private lastRequestAt = 0;
@@ -114,7 +118,7 @@ export class AnimeThemesClient {
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.minIntervalMs = options.minIntervalMs ?? DEFAULTS.minIntervalMs;
-    this.userAgent = options.userAgent ?? DEFAULTS.userAgent;
+    this.userAgent = options.userAgent === undefined ? DEFAULTS.userAgent : options.userAgent;
   }
 
   /** Every theme the title has, openings then endings — one request. */
@@ -172,7 +176,7 @@ export class AnimeThemesClient {
         const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
           headers: {
             accept: "application/json",
-            "user-agent": this.userAgent,
+            ...(this.userAgent ? { "user-agent": this.userAgent } : {}),
           },
           signal: AbortSignal.timeout(this.timeoutMs),
         });

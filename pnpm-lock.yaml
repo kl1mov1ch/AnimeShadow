@@ -138,6 +138,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@animeshadow/animethemes':
+        specifier: workspace:*
+        version: link:../../packages/animethemes
       '@animeshadow/shared':
         specifier: workspace:*
         version: link:../../packages/shared

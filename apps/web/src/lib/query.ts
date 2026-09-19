@@ -6,7 +6,6 @@ import type {
   AdminUserQuery,
   AdminUserSummary,
   AnimeDetail,
-  AnimeOpening,
   AnimeStats,
   AnimeThemes,
   AnimeSummary,
@@ -28,6 +27,7 @@ import type {
   UpsertLibraryInput,
   WatchResponse,
 } from "@animeshadow/shared";
+import { AnimeThemesClient } from "@animeshadow/animethemes";
 import {
   QueryClient,
   useMutation,
@@ -251,30 +251,53 @@ export function useFranchise(id: number, enabled = true) {
  * remembering just as much as a hit.
  */
 export function useAnimeOpening(id: number, enabled = true) {
+  // The themes query, narrowed: the same cached request as the soundtrack
+  // player, and — unlike /opening — it says when the lookup failed rather
+  // than when the archive simply has nothing, which is what decides whether
+  // the browser should try the archive itself.
   return useQuery({
-    queryKey: ["anime", "opening", id],
+    ...animeThemesQuery(id),
     enabled: enabled && id > 0,
-    queryFn: ({ signal }) =>
-      apiRequest<{ opening: AnimeOpening | null }>(`/anime/${id}/opening`, {
-        signal,
-      }).then((r) => r.opening),
+    select: (themes: AnimeThemes) => themes.opening,
+  });
+}
+
+let browserThemes: AnimeThemesClient | null = null;
+
+/**
+ * The same AnimeThemes lookup the server does, run from the browser instead.
+ * One shared client, so its request spacing applies across the whole page.
+ * No User-Agent: the browser sends its own, and a custom one would cost a
+ * CORS preflight per request.
+ */
+function themesFromBrowser(malId: number): Promise<AnimeThemes> {
+  browserThemes ??= new AnimeThemesClient({ userAgent: null });
+  return browserThemes.getThemes(malId);
+}
+
+function animeThemesQuery(id: number) {
+  return {
+    queryKey: ["anime", "themes", id] as const,
+    queryFn: async ({ signal }: { signal: AbortSignal }): Promise<AnimeThemes> => {
+      const viaServer = await apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }).catch(
+        (error: unknown) => ({ tracks: [], opening: null, error: String(error) }) as AnimeThemes,
+      );
+      if (!viaServer.error) return viaServer;
+      // The server could not reach the archive. The visitor's browser very
+      // likely can: the archive sends CORS headers for this site, and an
+      // edge that turns away a datacenter IP lets an ordinary visitor through.
+      const direct = await themesFromBrowser(id);
+      return direct.error ? viaServer : direct;
+    },
     staleTime: Infinity,
     gcTime: 60 * 60_000,
     retry: false,
-  });
+  };
 }
 
 /** A title's opening and ending — song titles, artists and audio tracks. */
 export function useAnimeThemes(id: number, enabled = true) {
-  return useQuery({
-    queryKey: ["anime", "themes", id],
-    enabled: enabled && id > 0,
-    queryFn: ({ signal }) =>
-      apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }),
-    staleTime: Infinity,
-    gcTime: 60 * 60_000,
-    retry: false,
-  });
+  return useQuery({ ...animeThemesQuery(id), enabled: enabled && id > 0 });
 }
 
 /**

@@ -5,6 +5,20 @@ import { audioSrc } from "@/lib/format";
 import { useAnimeThemes } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
+/**
+ * How long a proxied track may take to start before the player gives up on
+ * the proxy. The proxy's own upstream timeout is 20s — far too long to sit
+ * in silence after pressing play.
+ */
+const PROXY_STALL_MS = 7_000;
+
+/**
+ * Set once the proxy has failed on this page load. On a server that cannot
+ * reach the archive it will fail for every track, so the rest go straight to
+ * the direct file instead of each waiting to fail first.
+ */
+let proxyFailed = false;
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const total = Math.floor(seconds);
@@ -100,17 +114,17 @@ function useVisualiser(audioRef: React.RefObject<HTMLAudioElement | null>, activ
     return () => cancelAnimationFrame(frameRef.current);
   }, [active]);
 
-  // Tearing down the context on unmount, or a page full of visits leaks one
-  // AudioContext each — browsers cap how many may exist at once.
-  useEffect(() => {
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-      void graphRef.current?.ctx.close().catch(() => undefined);
-      graphRef.current = null;
-    };
+  const stop = useCallback(() => {
+    cancelAnimationFrame(frameRef.current);
+    void graphRef.current?.ctx.close().catch(() => undefined);
+    graphRef.current = null;
   }, []);
 
-  return { canvasRef, start };
+  // Tearing down the context on unmount, or a page full of visits leaks one
+  // AudioContext each — browsers cap how many may exist at once.
+  useEffect(() => stop, [stop]);
+
+  return { canvasRef, start, stop };
 }
 
 /**
@@ -133,7 +147,52 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
   // otherwise every timeupdate yanks it back out from under you.
   const [scrubbing, setScrubbing] = useState<number | null>(null);
 
-  const { canvasRef, start: startVisualiser } = useVisualiser(audioRef, playing);
+  // Direct: the file straight from the archive rather than through our proxy.
+  // It always plays — media loads without CORS — but Web Audio cannot read
+  // it, so the bars fall back to a plain animation.
+  const [direct, setDirect] = useState(proxyFailed);
+  const wantPlay = useRef(false);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { canvasRef, start: startVisualiser, stop: stopVisualiser } = useVisualiser(
+    audioRef,
+    playing && !direct,
+  );
+
+  const fallBackToDirect = useCallback(() => {
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    proxyFailed = true;
+    // The old element is wired into the audio graph; a no-CORS stream through
+    // it would play as silence. The graph goes, and a fresh element (keyed on
+    // `direct` below) takes over.
+    stopVisualiser();
+    setDirect(true);
+  }, [stopVisualiser]);
+
+  // The fresh element picks up where the failed one was asked to be.
+  useEffect(() => {
+    if (direct && wantPlay.current) {
+      void audioRef.current?.play().catch(() => undefined);
+    }
+  }, [direct]);
+
+  useEffect(
+    () => () => {
+      if (stallTimer.current) clearTimeout(stallTimer.current);
+    },
+    [],
+  );
+
+  const watchForStall = () => {
+    if (direct) return;
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = setTimeout(() => {
+      const audio = audioRef.current;
+      // HAVE_FUTURE_DATA: enough to be playing. Anything less after this
+      // long means the proxy is not delivering.
+      if (wantPlay.current && audio && audio.readyState < 3) fallBackToDirect();
+    }, PROXY_STALL_MS);
+  };
 
   // Only the ones with an actual audio track: the video exists far more often
   // than the separate .ogg does, and a row that cannot play is worse than no
@@ -155,14 +214,22 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
   const playAt = (next: number) => {
     // Wraps both ways, so skipping never dead-ends on the last one.
     const wrapped = (next + tracks.length) % tracks.length;
-    startVisualiser();
+    if (!direct) startVisualiser();
     if (wrapped === index) {
       const audio = audioRef.current;
       if (!audio) return;
-      if (audio.paused) void audio.play().catch(() => undefined);
-      else audio.pause();
+      if (audio.paused) {
+        wantPlay.current = true;
+        watchForStall();
+        void audio.play().catch(() => undefined);
+      } else {
+        wantPlay.current = false;
+        audio.pause();
+      }
       return;
     }
+    wantPlay.current = true;
+    watchForStall();
     setIndex(wrapped);
     setPosition(0);
     setDuration(0);
@@ -192,8 +259,25 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
           <canvas
             ref={canvasRef}
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 w-full text-[var(--accent-ink)] opacity-70"
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 h-16 w-full text-[var(--accent-ink)] opacity-70",
+              direct && "hidden",
+            )}
           />
+          {direct && playing && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-3 bottom-0 flex h-12 items-end gap-[3px] opacity-25"
+            >
+              {Array.from({ length: 28 }, (_, bar) => (
+                <span
+                  key={bar}
+                  className="equaliser-bar flex-1 rounded-t-sm bg-[var(--accent-ink)]"
+                  style={{ animationDelay: `${(bar * 97) % 900}ms` }}
+                />
+              ))}
+            </span>
+          )}
 
           <div className="relative flex flex-col gap-3">
             <div className="flex min-w-0 flex-col">
@@ -332,11 +416,20 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
       </div>
 
       <audio
+        key={direct ? "direct" : "proxy"}
         ref={audioRef}
-        src={audioSrc(current.audioUrl)}
-        // Required for Web Audio to read it — see the note in audioSrc.
-        crossOrigin="anonymous"
+        src={direct ? (current.audioUrl ?? undefined) : audioSrc(current.audioUrl)}
+        // Required for Web Audio to read the proxied stream — see the note in
+        // audioSrc. Left off the direct file, which has no CORS headers and
+        // would refuse to load at all with it.
+        crossOrigin={direct ? undefined : "anonymous"}
         preload="none"
+        onError={() => {
+          if (!direct) fallBackToDirect();
+        }}
+        onPlaying={() => {
+          if (stallTimer.current) clearTimeout(stallTimer.current);
+        }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
