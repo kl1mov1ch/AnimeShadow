@@ -9,7 +9,7 @@ import { CharacterModal } from "@/components/anime/character-modal";
 import { FranchiseRail } from "@/components/anime/franchise-section";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
-import { LibraryControls } from "@/components/anime/library-controls";
+import { TitleTracker } from "@/components/library/title-tracker";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 import { OpeningVideo } from "@/components/anime/opening-video";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
@@ -275,8 +275,8 @@ function AnimeDetailView({ param }: { param: string }) {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <LibraryControls animeId={data.id} title={title} />
+            <div className="flex flex-col items-start gap-3 pt-1">
+              <TitleTracker anime={data} title={title} />
               <TrailerButton url={data.trailerEmbedUrl} title={title} />
             </div>
           </div>
