@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AnimeSummary } from "./anime.js";
-import { roleSchema } from "./auth.js";
+import { passwordSchema, roleSchema } from "./auth.js";
 
 const count = z.number().int().nonnegative();
 const page = z.coerce.number().int().positive().default(1);
@@ -92,7 +92,7 @@ export const adminUserQuerySchema = z.object({
   query: z.string().trim().max(200).optional(),
   role: z.enum(["all", "USER", "ADMIN"]).default("all"),
   status: z.enum(["all", "active", "banned"]).default("all"),
-  sort: z.enum(["newest", "oldest", "name"]).default("newest"),
+  sort: z.enum(["newest", "oldest", "lastSeen", "name", "comments", "library"]).default("newest"),
   page,
   perPage,
 });
@@ -106,8 +106,14 @@ export const adminUserSummarySchema = z.object({
   role: roleSchema,
   isBanned: z.boolean(),
   hasTelegram: z.boolean(),
+  username: z.string().nullable(),
+  isPro: z.boolean(),
   commentCount: count,
   libraryCount: count,
+  /** Seconds watched in the player, all time. */
+  watchSeconds: count,
+  /** Last page opened while signed in; null if never seen since tracking began. */
+  lastSeenAt: z.string().nullable(),
   createdAt: z.string(),
 });
 export type AdminUserSummary = z.infer<typeof adminUserSummarySchema>;
@@ -153,3 +159,82 @@ export const adminCommentSummarySchema = z.object({
   createdAt: z.string(),
 });
 export type AdminCommentSummary = z.infer<typeof adminCommentSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// One user, everything — /admin/users/:id
+// ---------------------------------------------------------------------------
+
+export const adminUserDetailSchema = z.object({
+  user: adminUserSummarySchema.extend({
+    /** What to type on the login form: the account's email. For a Telegram
+     * account this is the placeholder address it was created with. */
+    loginEmail: z.string(),
+    bannerUrl: z.string().nullable(),
+    bio: z.string().nullable(),
+    onlineStatus: z.string(),
+    emailVerified: z.boolean(),
+    proSince: z.string().nullable(),
+    /** Only whether it is set and the resulting age gate — never the date. */
+    ageVerified: z.boolean(),
+    referrer: z.string().nullable(),
+    achievements: count,
+  }),
+  activity: z.object({
+    pageviews: count,
+    pageviews30d: count,
+    activeDays30d: count,
+    /** One entry per UTC day, oldest first, always 30 of them. */
+    daily: z.array(z.object({ date: z.string(), pageviews: count, watchMinutes: count })),
+    recentPages: z.array(z.object({ path: z.string(), createdAt: z.string() })),
+  }),
+  watch: z.object({
+    seconds: count,
+    sessions: count,
+    topAnime: z.array(
+      z.object({
+        animeId: z.number().int(),
+        slug: z.string(),
+        title: z.string(),
+        imageUrl: z.string().nullable(),
+        seconds: count,
+      }),
+    ),
+  }),
+  library: z.object({
+    byStatus: z.array(z.object({ status: z.enum(ADMIN_LIBRARY_STATUSES), count })),
+    recent: z.array(
+      z.object({
+        animeId: z.number().int(),
+        slug: z.string(),
+        title: z.string(),
+        imageUrl: z.string().nullable(),
+        status: z.enum(ADMIN_LIBRARY_STATUSES),
+        score: z.number().int().nullable(),
+        progress: count,
+        episodes: z.number().int().nullable(),
+        updatedAt: z.string(),
+      }),
+    ),
+  }),
+  comments: z.object({
+    total: count,
+    deleted: count,
+    likesReceived: count,
+    recent: z.array(
+      z.object({
+        id: z.string(),
+        animeSlug: z.string(),
+        animeTitle: z.string(),
+        body: z.string(),
+        likeCount: count,
+        deleted: z.boolean(),
+        createdAt: z.string(),
+      }),
+    ),
+  }),
+});
+export type AdminUserDetail = z.infer<typeof adminUserDetailSchema>;
+
+/** A new password chosen by an admin; same rules as signing up. */
+export const adminSetPasswordInputSchema = z.object({ password: passwordSchema });
+export type AdminSetPasswordInput = z.infer<typeof adminSetPasswordInputSchema>;

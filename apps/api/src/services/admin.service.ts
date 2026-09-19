@@ -11,16 +11,23 @@ import {
   type AdminKpi,
   type AdminOverview,
   type AdminUpdateUserInput,
+  type AdminUserDetail,
   type AdminUserQuery,
   type AdminUserSummary,
   paginated,
   type Paginated,
 } from "@animeshadow/shared";
+import bcrypt from "bcryptjs";
 import { BadRequestError, NotFoundError } from "../lib/errors.js";
 
 export interface AdminServiceDeps {
   prisma: PrismaClient;
+  logger?: { info: (obj: unknown, msg?: string) => void };
 }
+
+/** Same cost as AuthService uses at signup, so an admin-set password is
+ * exactly as strong at rest as one the user chose. */
+const BCRYPT_ROUNDS = 12;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TIMELINE_DAYS = 30;
@@ -48,13 +55,16 @@ const USER_SUMMARY_SELECT = {
   role: true,
   isBanned: true,
   telegramId: true,
+  username: true,
+  proSince: true,
+  lastSeenAt: true,
   createdAt: true,
   _count: { select: { comments: true, library: true } },
 } satisfies Prisma.UserSelect;
 
 type UserSummaryRow = Prisma.UserGetPayload<{ select: typeof USER_SUMMARY_SELECT }>;
 
-function toUserSummary(u: UserSummaryRow): AdminUserSummary {
+function toUserSummary(u: UserSummaryRow, watchSeconds = 0): AdminUserSummary {
   return {
     id: u.id,
     email: u.email,
@@ -63,8 +73,12 @@ function toUserSummary(u: UserSummaryRow): AdminUserSummary {
     role: u.role === "ADMIN" ? "ADMIN" : "USER",
     isBanned: u.isBanned,
     hasTelegram: u.telegramId != null,
+    username: u.username,
+    isPro: u.proSince != null,
     commentCount: u._count.comments,
     libraryCount: u._count.library,
+    watchSeconds,
+    lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -92,10 +106,12 @@ interface Windows {
 }
 
 export class AdminService {
+  private readonly logger: AdminServiceDeps["logger"];
   private readonly prisma: PrismaClient;
 
   constructor(deps: AdminServiceDeps) {
     this.prisma = deps.prisma;
+    this.logger = deps.logger;
   }
 
   async overview(): Promise<AdminOverview> {
@@ -415,6 +431,8 @@ export class AdminService {
             OR: [
               { email: { contains: query.query, mode: "insensitive" } },
               { displayName: { contains: query.query, mode: "insensitive" } },
+              { username: { contains: query.query, mode: "insensitive" } },
+              { id: query.query },
             ],
           }
         : {}),
@@ -425,12 +443,18 @@ export class AdminService {
           ? { isBanned: false }
           : {}),
     };
-    const orderBy: Prisma.UserOrderByWithRelationInput =
+    const orderBy: Prisma.UserOrderByWithRelationInput[] =
       query.sort === "oldest"
-        ? { createdAt: "asc" }
+        ? [{ createdAt: "asc" }]
         : query.sort === "name"
-          ? { displayName: "asc" }
-          : { createdAt: "desc" };
+          ? [{ displayName: "asc" }]
+          : query.sort === "lastSeen"
+            ? [{ lastSeenAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }]
+            : query.sort === "comments"
+              ? [{ comments: { _count: "desc" } }, { createdAt: "desc" }]
+              : query.sort === "library"
+                ? [{ library: { _count: "desc" } }, { createdAt: "desc" }]
+                : [{ createdAt: "desc" }];
     const skip = (query.page - 1) * query.perPage;
 
     const [rows, total] = await Promise.all([
@@ -444,7 +468,8 @@ export class AdminService {
       this.prisma.user.count({ where }),
     ]);
 
-    return paginated(rows.map(toUserSummary), {
+    const watched = await this.watchSecondsFor(rows.map((r) => r.id));
+    return paginated(rows.map((r) => toUserSummary(r, watched.get(r.id) ?? 0)), {
       page: query.page,
       perPage: query.perPage,
       total,
@@ -475,7 +500,205 @@ export class AdminService {
       })
       .catch(() => null);
     if (!user) throw new NotFoundError("User not found.");
-    return toUserSummary(user);
+    const watched = await this.watchSecondsFor([user.id]);
+    return toUserSummary(user, watched.get(user.id) ?? 0);
+  }
+
+  /**
+   * Sets a new password for someone else's account — they can sign in with
+   * it straight away, with their email. Hashed exactly as at signup; the
+   * plain text is never stored or logged. The change itself is logged,
+   * with who made it.
+   */
+  async setPassword(callerId: string, targetId: string, password: string): Promise<{ loginEmail: string }> {
+    const target = await this.prisma.user.findUnique({ where: { id: targetId }, select: { email: true } });
+    if (!target) throw new NotFoundError("User not found.");
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    await this.prisma.user.update({ where: { id: targetId }, data: { passwordHash } });
+    this.logger?.info({ adminId: callerId, userId: targetId }, "admin set a user's password");
+    return { loginEmail: target.email };
+  }
+
+  private async watchSecondsFor(userIds: string[]): Promise<Map<string, number>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.prisma.watchSession.groupBy({
+      by: ["userId"],
+      where: { userId: { in: userIds } },
+      _sum: { seconds: true },
+    });
+    return new Map(rows.map((r) => [r.userId, r._sum.seconds ?? 0]));
+  }
+
+  /** Everything about one account, for the admin user view. */
+  async userDetail(id: string): Promise<AdminUserDetail> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        ...USER_SUMMARY_SELECT,
+        bannerUrl: true,
+        bio: true,
+        onlineStatus: true,
+        emailVerifiedAt: true,
+        birthDate: true,
+        referrer: true,
+        _count: { select: { comments: true, library: true, achievements: true } },
+      },
+    });
+    if (!user) throw new NotFoundError("User not found.");
+
+    const now = new Date();
+    const since = new Date(startOfUtcDay(now).getTime() - (TIMELINE_DAYS - 1) * DAY_MS);
+
+    const [
+      pageviews,
+      views30,
+      recentPages,
+      watchTotals,
+      sessions30,
+      topWatched,
+      byStatus,
+      recentLibrary,
+      commentStats,
+      deletedComments,
+      recentComments,
+    ] = await Promise.all([
+      this.prisma.pageView.count({ where: { userId: id } }),
+      this.prisma.pageView.findMany({
+        where: { userId: id, createdAt: { gte: since } },
+        select: { createdAt: true },
+      }),
+      this.prisma.pageView.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: "desc" },
+        take: 15,
+        select: { path: true, createdAt: true },
+      }),
+      this.prisma.watchSession.aggregate({ where: { userId: id }, _sum: { seconds: true }, _count: true }),
+      this.prisma.watchSession.findMany({
+        where: { userId: id, startedAt: { gte: since } },
+        select: { startedAt: true, seconds: true },
+      }),
+      this.prisma.watchSession.groupBy({
+        by: ["animeId"],
+        where: { userId: id },
+        _sum: { seconds: true },
+        orderBy: { _sum: { seconds: "desc" } },
+        take: 5,
+      }),
+      this.prisma.libraryEntry.groupBy({ by: ["status"], where: { userId: id }, _count: true }),
+      this.prisma.libraryEntry.findMany({
+        where: { userId: id },
+        orderBy: { updatedAt: "desc" },
+        take: 12,
+        include: { anime: { select: { slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true } } },
+      }),
+      this.prisma.comment.aggregate({ where: { userId: id }, _sum: { likeCount: true } }),
+      this.prisma.comment.count({ where: { userId: id, deletedAt: { not: null } } }),
+      this.prisma.comment.findMany({
+        where: { userId: id },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        include: { anime: { select: { slug: true, title: true, titleLocalized: true } } },
+      }),
+    ]);
+
+    const topIds = topWatched.map((w) => w.animeId);
+    const topRows = topIds.length
+      ? await this.prisma.anime.findMany({
+          where: { id: { in: topIds } },
+          select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true },
+        })
+      : [];
+    const topById = new Map(topRows.map((a) => [a.id, a]));
+
+    // 30 zero-filled days of pageviews and watch minutes.
+    const dayKey = (d: Date) => startOfUtcDay(d).toISOString().slice(0, 10);
+    const days = new Map<string, { pageviews: number; watchSeconds: number }>();
+    for (let i = 0; i < TIMELINE_DAYS; i++) {
+      days.set(dayKey(new Date(since.getTime() + i * DAY_MS)), { pageviews: 0, watchSeconds: 0 });
+    }
+    for (const v of views30) {
+      const d = days.get(dayKey(v.createdAt));
+      if (d) d.pageviews += 1;
+    }
+    for (const w of sessions30) {
+      const d = days.get(dayKey(w.startedAt));
+      if (d) d.watchSeconds += w.seconds;
+    }
+    const daily = [...days.entries()].map(([date, d]) => ({
+      date,
+      pageviews: d.pageviews,
+      watchMinutes: Math.round(d.watchSeconds / 60),
+    }));
+
+    const statusCounts = new Map(byStatus.map((r) => [r.status, r._count]));
+    const watchSeconds = watchTotals._sum.seconds ?? 0;
+
+    return {
+      user: {
+        ...toUserSummary(user, watchSeconds),
+        loginEmail: user.email,
+        bannerUrl: user.bannerUrl,
+        bio: user.bio,
+        onlineStatus: user.onlineStatus,
+        emailVerified: user.emailVerifiedAt != null,
+        proSince: user.proSince?.toISOString() ?? null,
+        ageVerified: user.birthDate != null,
+        referrer: user.referrer,
+        achievements: user._count.achievements,
+      },
+      activity: {
+        pageviews,
+        pageviews30d: views30.length,
+        activeDays30d: daily.filter((d) => d.pageviews > 0 || d.watchMinutes > 0).length,
+        daily,
+        recentPages: recentPages.map((p) => ({ path: p.path, createdAt: p.createdAt.toISOString() })),
+      },
+      watch: {
+        seconds: watchSeconds,
+        sessions: watchTotals._count,
+        topAnime: topWatched.flatMap((w) => {
+          const a = topById.get(w.animeId);
+          return a
+            ? [{
+                animeId: a.id,
+                slug: a.slug,
+                title: a.titleLocalized ?? a.title,
+                imageUrl: a.imageUrl,
+                seconds: w._sum.seconds ?? 0,
+              }]
+            : [];
+        }),
+      },
+      library: {
+        byStatus: ADMIN_LIBRARY_STATUSES.map((status) => ({ status, count: statusCounts.get(status) ?? 0 })),
+        recent: recentLibrary.map((e) => ({
+          animeId: e.animeId,
+          slug: e.anime.slug,
+          title: e.anime.titleLocalized ?? e.anime.title,
+          imageUrl: e.anime.imageUrl,
+          status: e.status,
+          score: e.score,
+          progress: e.progress,
+          episodes: e.anime.episodes,
+          updatedAt: e.updatedAt.toISOString(),
+        })),
+      },
+      comments: {
+        total: user._count.comments,
+        deleted: deletedComments,
+        likesReceived: commentStats._sum.likeCount ?? 0,
+        recent: recentComments.map((c) => ({
+          id: c.id,
+          animeSlug: c.anime.slug,
+          animeTitle: c.anime.titleLocalized ?? c.anime.title,
+          body: c.body,
+          likeCount: c.likeCount,
+          deleted: c.deletedAt != null,
+          createdAt: c.createdAt.toISOString(),
+        })),
+      },
+    };
   }
 
   // -- comments ------------------------------------------------------------

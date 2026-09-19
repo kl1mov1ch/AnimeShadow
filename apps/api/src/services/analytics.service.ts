@@ -21,5 +21,16 @@ export class AnalyticsService {
         userId: userId ?? null,
       },
     });
+    if (userId) {
+      // At most one write a minute per user: "last seen" needs minutes of
+      // precision, not a row update on every click.
+      await this.prisma.user.updateMany({
+        where: {
+          id: userId,
+          OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: new Date(Date.now() - 60_000) } }],
+        },
+        data: { lastSeenAt: new Date() },
+      });
+    }
   }
 }

@@ -176,7 +176,7 @@ export function createServices(deps: ContainerDeps): Services {
 
   const recommendations = new RecommendationService({ prisma: deps.prisma });
   const analytics = new AnalyticsService({ prisma: deps.prisma });
-  const admin = new AdminService({ prisma: deps.prisma });
+  const admin = new AdminService({ prisma: deps.prisma, logger: deps.logger });
 
   return {
     catalog,
