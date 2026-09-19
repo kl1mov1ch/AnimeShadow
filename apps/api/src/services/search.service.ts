@@ -16,6 +16,7 @@ import type {
   SmartSearchResponse,
 } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
+import { FuzzyTitleIndex, queryVariants, titleKey } from "../lib/fuzzy-title.js";
 import { withTimeout } from "../lib/timeout.js";
 import { detectMood } from "./mood-keywords.js";
 import { isAdultRating, isHentaiRating } from "../lib/content-guard.js";
@@ -37,6 +38,21 @@ interface Candidate {
   rank: number;
 }
 
+interface TitleMatch {
+  summary: AnimeSummary;
+  /** From FuzzyTitleIndex: 1000 exact … 600 contained, under 500 a typo. */
+  score: number;
+}
+
+/** How long the in-memory title index is trusted before it is rebuilt. */
+const INDEX_TTL_MS = 10 * 60_000;
+
+/**
+ * A local match this good means the person typed the name correctly; below
+ * it, the local catalogue only guessed at a typo and upstream deserves a look.
+ */
+const STRONG_MATCH = 600;
+
 const REASON_PRIORITY: Record<SearchReason, number> = {
   title: 0,
   character: 1,
@@ -54,6 +70,9 @@ export class SearchService {
   private readonly shikimori: ShikimoriClient;
   private readonly logger: SearchLogger;
   private readonly cache = new TtlCache<SmartSearchResponse>(5 * 60_000, 128);
+  private index: FuzzyTitleIndex | null = null;
+  private indexBuiltAt = 0;
+  private indexBuild: Promise<FuzzyTitleIndex> | null = null;
 
   constructor(deps: SearchServiceDeps) {
     this.prisma = deps.prisma;
@@ -86,15 +105,23 @@ export class SearchService {
     // Instant typeahead: the local index first (sub-50ms), and only wait on one
     // upstream title call — with a hard timeout — when the cache is thin.
     if (fast) {
-      const byTitle = (await this.titleFromCache(query)).filter((s) => allowed(s.rating));
+      const byTitle = (await this.titleFromCache(query)).filter((m) => allowed(m.summary.rating));
+      // Typo guesses do not count towards "enough": if all we have is a
+      // guess, the upstream search may well know the real spelling.
+      const strong = byTitle.filter((m) => m.score >= STRONG_MATCH).length;
       const upstream = (
-        byTitle.length >= 8
+        strong >= 8
           ? []
           : await withTimeout(this.titleFromShikimori(query), 1400, [])
       ).filter((s) => allowed(s.rating));
       const byId = new Map<number, Candidate>();
-      for (const s of byTitle) {
-        byId.set(s.id, { summary: s, reason: "title", label: null, rank: titleRank(s, query) });
+      for (const m of byTitle) {
+        byId.set(m.summary.id, {
+          summary: m.summary,
+          reason: "title",
+          label: null,
+          rank: m.score + (m.summary.members ?? 0) / 1e6,
+        });
       }
       for (const s of upstream) {
         if (!byId.has(s.id)) {
@@ -149,7 +176,7 @@ export class SearchService {
       }
     };
 
-    for (const s of byTitle) consider(s, "title", titleRank(s, query));
+    for (const m of byTitle) consider(m.summary, "title", m.score + (m.summary.members ?? 0) / 1e6);
     for (const s of byTitleUpstream) consider(s, "title", titleRank(s, query) - 5);
     for (const { anime, character } of byCharacter) {
       consider(anime, "character", 300 + (anime.members ?? 0) / 1e6, character);
@@ -178,20 +205,71 @@ export class SearchService {
 
   // -- lenses --------------------------------------------------------
 
-  private async titleFromCache(query: string): Promise<AnimeSummary[]> {
+  /**
+   * Title search over the local catalogue that forgives the way people
+   * actually type: Latin for a Russian title or the other way round, the
+   * wrong keyboard layout, words run together, a letter or two wrong. See
+   * FuzzyTitleIndex — a plain SQL `contains` found none of those.
+   */
+  private async titleFromCache(query: string): Promise<TitleMatch[]> {
+    const index = await this.titleIndex().catch((error) => {
+      this.logger.warn({ error }, "title index build failed");
+      return null;
+    });
+    if (!index) return [];
+    const hits = index.search(query, 20);
+    if (hits.length === 0) return [];
     const rows = await this.prisma.anime.findMany({
-      where: {
-        OR: [
-          { title: { contains: query, mode: "insensitive" } },
-          { titleEnglish: { contains: query, mode: "insensitive" } },
-          { titleJapanese: { contains: query, mode: "insensitive" } },
-        ],
-      },
-      orderBy: { members: { sort: "desc", nulls: "last" } },
-      take: 20,
+      where: { id: { in: hits.map((h) => h.id) } },
       include: ANIME_WITH_GENRES_INCLUDE,
     });
-    return rows.map(toSummaryDto);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const out: TitleMatch[] = [];
+    for (const hit of hits) {
+      const row = byId.get(hit.id);
+      if (row) out.push({ summary: toSummaryDto(row), score: hit.score });
+    }
+    return out;
+  }
+
+  /**
+   * The index lives in memory: a few thousand titles are a few hundred KB and
+   * about 100ms to build. Rebuilt every ten minutes so newly cached titles
+   * become findable; a stale index keeps answering while the next one builds,
+   * and concurrent searches share one build rather than each starting their own.
+   */
+  private async titleIndex(): Promise<FuzzyTitleIndex> {
+    const fresh = Date.now() - this.indexBuiltAt < INDEX_TTL_MS;
+    if (this.index && fresh) return this.index;
+    if (!this.indexBuild) {
+      this.indexBuild = this.buildIndex().finally(() => {
+        this.indexBuild = null;
+      });
+    }
+    return this.index ?? this.indexBuild;
+  }
+
+  private async buildIndex(): Promise<FuzzyTitleIndex> {
+    const rows = await this.prisma.anime.findMany({
+      select: {
+        id: true,
+        members: true,
+        title: true,
+        titleEnglish: true,
+        titleJapanese: true,
+        titleLocalized: true,
+      },
+    });
+    const index = new FuzzyTitleIndex(
+      rows.map((r) => ({
+        id: r.id,
+        members: r.members,
+        titles: [r.title, r.titleEnglish, r.titleJapanese, r.titleLocalized],
+      })),
+    );
+    this.index = index;
+    this.indexBuiltAt = Date.now();
+    return index;
   }
 
   private async titleFromShikimori(query: string): Promise<AnimeSummary[]> {
@@ -315,16 +393,23 @@ export class SearchService {
   }
 }
 
+/**
+ * Ranks an upstream result on the same scale as the local index, comparing
+ * the same normalised keys — so "shingeki no kyojin" typed with spaces still
+ * counts as an exact hit on "Shingeki no Kyojin" from Shikimori.
+ */
 function titleRank(summary: AnimeSummary, query: string): number {
-  const q = query.toLowerCase();
-  const names = [summary.title, summary.titleEnglish, summary.titleJapanese]
+  const variants = queryVariants(query);
+  const keys = [summary.title, summary.titleEnglish, summary.titleJapanese, summary.titleLocalized]
     .filter((n): n is string => Boolean(n))
-    .map((n) => n.toLowerCase());
+    .map(titleKey);
   let best = 100;
-  for (const name of names) {
-    if (name === q) best = Math.max(best, 1000);
-    else if (name.startsWith(q)) best = Math.max(best, 600);
-    else if (name.includes(q)) best = Math.max(best, 300);
+  for (const key of keys) {
+    for (const q of variants) {
+      if (key === q) best = Math.max(best, 1000);
+      else if (key.startsWith(q)) best = Math.max(best, 800);
+      else if (key.includes(q)) best = Math.max(best, 600);
+    }
   }
   return best + (summary.members ?? 0) / 1e6;
 }
