@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 interface PosterFallbackProps {
   title: string;
@@ -55,7 +56,7 @@ export function PosterFallback({
         aria-hidden
         className="pointer-events-none absolute -right-4 -top-6 select-none font-display text-[9rem] leading-none text-white/[0.07]"
       >
-        影
+        <SlicedGlyph />
       </span>
       {/* faint diagonal texture */}
       <span

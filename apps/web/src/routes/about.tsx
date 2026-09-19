@@ -7,6 +7,7 @@ import { imageSrc } from "@/lib/format";
 import { BOOSTY_URL } from "@/lib/support-links";
 import { useReactionGif } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 /** A small, purely decorative reaction gif — falls back to nothing (not a
  * broken box) if the fetch is slow or fails, since this is pure flavour. */
@@ -62,7 +63,7 @@ export function Component() {
           aria-hidden
           className="pointer-events-none absolute -right-8 -top-12 select-none font-display text-[11rem] leading-none text-primary/[0.06]"
         >
-          影
+          <SlicedGlyph />
         </span>
         <span
           aria-hidden
@@ -71,7 +72,7 @@ export function Component() {
 
         <div className="relative flex flex-col gap-3">
           <span aria-hidden className="font-display text-5xl text-primary">
-            影
+            <SlicedGlyph />
           </span>
           <h1 className="font-display text-3xl sm:text-4xl">{t("about.title")}</h1>
           <p className="max-w-prose text-lg text-muted-foreground">{t("about.lead")}</p>

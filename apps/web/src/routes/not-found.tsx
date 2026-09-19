@@ -3,6 +3,7 @@ import { CompassIcon, HomeIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 export function Component() {
   const t = useT();
@@ -23,7 +24,7 @@ export function Component() {
           aria-hidden
           className="not-found-glyph font-display text-7xl text-primary motion-safe:animate-[lost-glyph-float_3.2s_ease-in-out_infinite] sm:text-8xl"
         >
-          影
+          <SlicedGlyph />
         </span>
         <span className="font-display text-7xl tabular-nums text-foreground/90 sm:text-8xl">
           4

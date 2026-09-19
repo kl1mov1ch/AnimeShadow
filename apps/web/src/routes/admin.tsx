@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { useAdminOverview } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 const TABS = ["dashboard", "users", "comments"] as const;
 type AdminTab = (typeof TABS)[number];
@@ -96,7 +97,7 @@ function AdminPanel() {
           aria-hidden
           className="pointer-events-none absolute -bottom-12 right-6 select-none font-display text-[9rem] leading-none text-foreground/[0.04]"
         >
-          影
+          <SlicedGlyph />
         </span>
 
         <div className="relative flex flex-wrap items-center justify-between gap-4">

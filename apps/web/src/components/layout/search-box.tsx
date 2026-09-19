@@ -30,6 +30,7 @@ import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 /**
  * The inline search in the header. ⌘K is deliberately NOT bound here: this
@@ -293,7 +294,7 @@ export function SearchBox() {
                 <CommandEmpty>
                   <span className="flex flex-col items-center gap-1.5 py-2">
                     <span aria-hidden className="font-display text-2xl text-primary/30">
-                      影
+                      <SlicedGlyph />
                     </span>
                     {isFetching ? `${t("search.searching")}…` : t("search.noMatches")}
                   </span>

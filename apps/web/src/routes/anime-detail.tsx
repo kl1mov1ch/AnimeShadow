@@ -37,6 +37,7 @@ import {
 } from "@/lib/query";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 export function Component() {
   const t = useT();
@@ -365,7 +366,7 @@ function TitleHeader({
   }, []);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
+    <div data-glyph-host className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
       {/* The hairline, wearing the title's colour. */}
       <span
         aria-hidden
@@ -390,7 +391,7 @@ function TitleHeader({
         ) : (
           <>
             <span className="absolute -right-10 -top-16 select-none font-display text-[15rem] leading-none text-foreground/[0.035]">
-              影
+              <SlicedGlyph />
             </span>
             <PulseRings className="absolute -left-24 -bottom-24 size-[26rem] text-[var(--accent-line)]" />
           </>
@@ -770,7 +771,7 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
     <section className="flex flex-col gap-4 p-5">
       <h2 className="flex items-center gap-1.5 font-display text-lg tracking-tight sm:text-xl">
         <span aria-hidden className="text-[var(--accent-ink)]">
-          影
+          <SlicedGlyph />
         </span>
         {t("detail.overview")}
       </h2>

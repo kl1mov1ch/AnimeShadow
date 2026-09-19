@@ -108,6 +108,7 @@ import { cn } from "@/lib/utils";
 import { ProfileBanner } from "@/components/profile/profile-banner";
 import { IdentityExtras, PresenceDot } from "@/components/profile/identity-extras";
 import { ProfileMediaEditor } from "@/components/profile/profile-media-editor";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 export function Component() {
   const t = useT();
@@ -598,7 +599,7 @@ function ChartPanel({
         aria-hidden
         className="pointer-events-none absolute -right-3 -top-4 select-none font-display text-7xl leading-none text-primary/[0.07]"
       >
-        影
+        <SlicedGlyph />
       </span>
       <span className="relative text-xs font-medium text-muted-foreground">{title}</span>
       <div className="relative">{children}</div>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 interface AuthCardProps {
   title: string;
@@ -37,13 +38,13 @@ function Backdrop() {
       {/* The mark, three times over at three weights — a composition rather
           than a single stamp in the corner. */}
       <span className="absolute -left-10 top-[8%] select-none font-display text-[18rem] leading-none text-foreground/[0.035]">
-        影
+        <SlicedGlyph />
       </span>
       <span className="absolute -right-6 bottom-[6%] select-none font-display text-[13rem] leading-none text-foreground/[0.03]">
-        影
+        <SlicedGlyph />
       </span>
       <span className="absolute right-[18%] top-[14%] hidden select-none font-display text-[7rem] leading-none text-primary/[0.06] lg:block">
-        影
+        <SlicedGlyph />
       </span>
 
       {/* Monochrome by rule, so it reads in both themes off one file. */}
@@ -67,7 +68,7 @@ function Backdrop() {
  */
 export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
   return (
-    <div className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-10 sm:py-16">
+    <div data-glyph-host className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-10 sm:py-16">
       <Backdrop />
 
       <div className="animate-in fade-in slide-in-from-bottom-4 w-full max-w-[400px] duration-500">
@@ -79,7 +80,7 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
             aria-hidden
             className="text-primary transition-transform duration-300 group-hover:scale-110"
           >
-            影
+            <SlicedGlyph />
           </span>
           AnimeShadow
         </Link>

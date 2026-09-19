@@ -1,4 +1,4 @@
-import { FrownIcon, QuoteIcon, SearchXIcon, TriangleAlertIcon } from "lucide-react";
+import { QuoteIcon } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,8 @@ import { useLocale, useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useReactionGif } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { LogoAlert } from "@/components/brand/logo-alert";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 interface EmptyStateProps {
   icon?: ReactNode;
@@ -126,16 +128,31 @@ function QuipRotator({ set }: { set: QuoteSet }) {
         >
           {line}
         </span>
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
-          影 AnimeShadow
+        <span className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          <SlicedGlyph className="text-primary/70" />
+          AnimeShadow
         </span>
       </span>
     </button>
   );
 }
 
+/** The site's mark in the icon box — the default picture for "nothing here". */
+export function LogoMedia({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary",
+        className,
+      )}
+    >
+      <SlicedGlyph className="text-[1.75rem]" />
+    </span>
+  );
+}
+
 export function EmptyState({
-  icon = <FrownIcon />,
+  icon,
   mediaVariant = "icon",
   title,
   description,
@@ -143,9 +160,10 @@ export function EmptyState({
   quotes,
 }: EmptyStateProps) {
   return (
-    <Empty className="border">
+    <Empty className="border" data-glyph-host>
       <EmptyHeader>
-        <EmptyMedia variant={mediaVariant}>{icon}</EmptyMedia>
+        {/* No icon given: the site's mark, which brings its own box. */}
+        <EmptyMedia variant={icon ? mediaVariant : "default"}>{icon ?? <LogoMedia />}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
         {quotes && <QuipRotator set={quotes} />}
@@ -158,8 +176,10 @@ export function EmptyState({
 /**
  * A tiny, purely decorative reaction gif — no specific anime/character is
  * being represented here (nekos.best has no way to look those up), it's just
- * a bit of life on a page that otherwise has nothing to show. Falls back to
- * the plain icon silently if the fetch fails or hasn't resolved yet.
+ * a bit of life on a page that otherwise has nothing to show.
+ *
+ * Gif first; the site's mark while it is on its way, when the lookup fails,
+ * or when the image itself will not load. Never a broken picture.
  */
 function ReactionMedia({
   category,
@@ -171,12 +191,14 @@ function ReactionMedia({
   className?: string;
 }) {
   const { data } = useReactionGif(category);
-  if (!data?.url) return <>{fallback}</>;
+  const [broken, setBroken] = useState(false);
+  if (!data?.url || broken) return <>{fallback}</>;
   return (
     <img
       src={imageSrc(data.url)}
       alt=""
       loading="lazy"
+      onError={() => setBroken(true)}
       className={cn(
         "animate-in fade-in zoom-in-95 size-20 rounded-2xl object-cover shadow-lg shadow-black/10 duration-500 sm:size-24",
         className,
@@ -192,11 +214,7 @@ export function NoResultsState({ query }: { query?: string }) {
       icon={
         <ReactionMedia
           category="shrug"
-          fallback={
-            <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
-              <SearchXIcon className="size-6" />
-            </div>
-          }
+          fallback={<LogoMedia />}
         />
       }
       mediaVariant="default"
@@ -222,17 +240,9 @@ export function ErrorState({ title, message, onRetry }: ErrorStateProps) {
   return (
     <EmptyState
       icon={
-        // A failure is the one place a bare warning triangle was doing the
-        // least good — it says "something is broken" to someone who already
-        // knows that. The gif at least has the decency to look sorry.
-        <ReactionMedia
-          category="cry"
-          fallback={
-            <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
-              <TriangleAlertIcon className="size-6" />
-            </div>
-          }
-        />
+        // A gif that has the decency to look sorry; failing that, the
+        // site's own mark with an exclamation badge.
+        <ReactionMedia category="cry" fallback={<LogoAlert />} />
       }
       mediaVariant="default"
       title={title ?? t("errors.genericTitle")}

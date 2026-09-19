@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 import { BOOSTY_URL } from "@/lib/support-links";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 /**
  * One-off tips and PRO both route to the same place: Boosty. We never touch
@@ -66,14 +67,14 @@ export function Component() {
           aria-hidden
           className="pointer-events-none absolute -right-6 -top-10 select-none font-display text-[10rem] leading-none text-primary/[0.06] sm:text-[14rem]"
         >
-          影
+          <SlicedGlyph />
         </span>
         <span
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
         />
 
-        <span className="relative font-display text-5xl text-primary">影</span>
+        <span className="relative font-display text-5xl text-primary"><SlicedGlyph /></span>
         <h1 className="relative font-display text-3xl sm:text-4xl">{t("support.title")}</h1>
         <p className="relative max-w-prose text-lg text-muted-foreground">
           {t("support.lead")}

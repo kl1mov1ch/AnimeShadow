@@ -1,4 +1,4 @@
-import { TriangleAlertIcon } from "lucide-react";
+import { LogoAlert } from "@/components/brand/logo-alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,15 +32,10 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         {/* A destructive action should look like one before it is taken:
-            the warning mark carries that, so the title does not have to
+            the site's mark with an exclamation badge carries that, so the title does not have to
             shout it in words. */}
         <DialogHeader className="items-center gap-3 text-center sm:text-center">
-          <span
-            aria-hidden
-            className="animate-in zoom-in-50 grid size-12 place-items-center rounded-2xl bg-destructive/10 text-destructive duration-300"
-          >
-            <TriangleAlertIcon className="size-6" />
-          </span>
+          <LogoAlert tone="destructive" className="animate-in zoom-in-50 duration-300" />
           <DialogTitle className="text-base">{title}</DialogTitle>
           {description && (
             <DialogDescription className="leading-relaxed">{description}</DialogDescription>

@@ -33,6 +33,7 @@ import { useI18n } from "@/i18n";
 import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 /** Room for eight in the palette — it's a full surface, not a dropdown
  *  hanging off a 360px field, so it can afford more than the header's six. */
@@ -230,7 +231,7 @@ export function SearchCommandDialog({
               <CommandEmpty>
                 <span className="flex flex-col items-center gap-1.5 py-6">
                   <span aria-hidden className="font-display text-3xl text-primary/30">
-                    影
+                    <SlicedGlyph />
                   </span>
                   {isFetching ? `${t("search.searching")}…` : t("search.noMatches")}
                 </span>

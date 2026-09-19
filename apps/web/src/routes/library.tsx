@@ -33,6 +33,7 @@ import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { useLibrary } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 const VIEW_KEY = "animeshadow.library.view.v1";
 const SORT_KEY = "animeshadow.library.sort.v1";
@@ -258,7 +259,7 @@ export function Component() {
           aria-hidden
           className="pointer-events-none absolute -right-2 -top-6 select-none font-display text-[7rem] leading-none text-foreground/[0.03]"
         >
-          影
+          <SlicedGlyph />
         </span>
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 text-primary">

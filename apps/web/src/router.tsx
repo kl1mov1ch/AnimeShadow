@@ -2,12 +2,13 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
 import { RootError } from "@/routes/root-error";
 import { RouteError } from "@/routes/route-error";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 function RouteFallback() {
   return (
     <div className="flex min-h-dvh items-center justify-center">
-      <span aria-hidden className="font-display text-4xl text-primary animate-pulse">
-        影
+      <span aria-hidden className="text-4xl text-primary">
+        <SlicedGlyph loop />
       </span>
       <span className="sr-only">Loading</span>
     </div>

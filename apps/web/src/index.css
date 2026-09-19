@@ -756,12 +756,20 @@ html body[data-scroll-locked] {
 }
 
 /*
-  The header 影's "slice": five stacked copies, each clipped to one diagonal
-  band (see Wordmark). At rest they are invisible. On hover the whole glyph
-  steps aside, the pieces slide apart along their cuts and fade, overshoot
-  back, and settle into one piece again.
+  SlicedGlyph: the 影 coming apart along diagonal cuts and joining back up.
+  Five stacked copies, each clipped to one band, invisible at rest. The cut
+  plays once when the glyph, its parent or grandparent, a Tailwind group, or
+  a [data-glyph-host] is hovered — hover is inherited up the tree, so a
+  background watermark answers to the card it sits in. The whole glyph
+  steps aside for the length of it; the pieces slide apart along their cuts
+  and fade, overshoot back, and settle into one piece.
 */
-.wordmark-slice {
+.sliced-glyph {
+  position: relative;
+  display: inline-flex;
+  line-height: 1;
+}
+.sliced-glyph-piece {
   position: absolute;
   inset: 0;
   display: flex;
@@ -769,16 +777,31 @@ html body[data-scroll-locked] {
   pointer-events: none;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .wordmark--slice:hover .wordmark-base,
-  .wordmark--slice:focus-visible .wordmark-base {
-    animation: wordmark-slice-base 0.7s linear both;
+  .sliced-glyph:hover .sliced-glyph-base,
+  :hover > .sliced-glyph .sliced-glyph-base,
+  :hover > * > .sliced-glyph .sliced-glyph-base,
+  .group:hover .sliced-glyph .sliced-glyph-base,
+  [data-glyph-host]:hover .sliced-glyph .sliced-glyph-base,
+  .wordmark:focus-visible .sliced-glyph .sliced-glyph-base {
+    animation: sliced-glyph-base 0.7s linear both;
   }
-  .wordmark--slice:hover .wordmark-slice,
-  .wordmark--slice:focus-visible .wordmark-slice {
-    animation: wordmark-slice-move 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  .sliced-glyph:hover .sliced-glyph-piece,
+  :hover > .sliced-glyph .sliced-glyph-piece,
+  :hover > * > .sliced-glyph .sliced-glyph-piece,
+  .group:hover .sliced-glyph .sliced-glyph-piece,
+  [data-glyph-host]:hover .sliced-glyph .sliced-glyph-piece,
+  .wordmark:focus-visible .sliced-glyph .sliced-glyph-piece {
+    animation: sliced-glyph-move 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Loading screen: the same cut, repeating, with a long rest between. */
+  .sliced-glyph--loop .sliced-glyph-base {
+    animation: sliced-glyph-base-loop 2.4s linear infinite;
+  }
+  .sliced-glyph--loop .sliced-glyph-piece {
+    animation: sliced-glyph-move-loop 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   }
 }
-@keyframes wordmark-slice-base {
+@keyframes sliced-glyph-base {
   0%,
   100% {
     opacity: 1;
@@ -788,7 +811,7 @@ html body[data-scroll-locked] {
     opacity: 0;
   }
 }
-@keyframes wordmark-slice-move {
+@keyframes sliced-glyph-move {
   0% {
     opacity: 1;
     transform: translate(0, 0);
@@ -806,6 +829,44 @@ html body[data-scroll-locked] {
     transform: translate(calc(var(--dx) * 0.15), calc(var(--dy) * 0.15));
   }
   100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+@keyframes sliced-glyph-base-loop {
+  0%,
+  30%,
+  100% {
+    opacity: 1;
+  }
+  2%,
+  28% {
+    opacity: 0;
+  }
+}
+@keyframes sliced-glyph-move-loop {
+  0%,
+  30%,
+  100% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  1% {
+    opacity: 1;
+  }
+  9% {
+    opacity: 0.2;
+    transform: translate(var(--dx), var(--dy));
+  }
+  16% {
+    opacity: 0.85;
+    transform: translate(calc(var(--dx) * -0.45), calc(var(--dy) * -0.45));
+  }
+  23% {
+    opacity: 1;
+    transform: translate(calc(var(--dx) * 0.15), calc(var(--dy) * 0.15));
+  }
+  29% {
     opacity: 1;
     transform: translate(0, 0);
   }

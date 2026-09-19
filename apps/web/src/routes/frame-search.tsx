@@ -22,6 +22,7 @@ import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useFrameSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -293,7 +294,7 @@ function Hero() {
         aria-hidden
         className="pointer-events-none absolute -right-4 -top-8 select-none font-display text-[10rem] leading-none text-foreground/[0.03]"
       >
-        影
+        <SlicedGlyph />
       </span>
       <div className="flex items-center gap-2 text-primary">
         <ScanSearchIcon className="size-5" />
