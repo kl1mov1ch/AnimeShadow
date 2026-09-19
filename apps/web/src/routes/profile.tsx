@@ -106,6 +106,7 @@ import {
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { ProfileBanner } from "@/components/profile/profile-banner";
+import { IdentityExtras, PresenceDot } from "@/components/profile/identity-extras";
 import { ProfileMediaEditor } from "@/components/profile/profile-media-editor";
 
 export function Component() {
@@ -362,6 +363,12 @@ function ProfileHero({
       )}
     </div>
   );
+  const avatarWithPresence = (
+    <div className="relative">
+      {avatar}
+      <PresenceDot status={profile.onlineStatus} className="bottom-0.5 right-0.5" />
+    </div>
+  );
 
   return (
     <>
@@ -385,13 +392,13 @@ function ProfileHero({
             className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={t("profile.settings.avatarUpload")}
           >
-            {avatar}
+            {avatarWithPresence}
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-all group-hover:bg-black/45 group-hover:opacity-100">
               <PencilIcon className="size-5 text-white" />
             </span>
           </Link>
         ) : (
-          avatar
+          avatarWithPresence
         )}
 
         <div className="flex min-w-0 flex-col items-center gap-1">
@@ -448,6 +455,8 @@ function ProfileHero({
             {t("achievements.viewAll")}
           </Link>
         )}
+
+        <IdentityExtras profile={profile} />
 
         <div className="mt-auto flex flex-wrap items-center justify-center gap-1.5 pt-1">
           <div

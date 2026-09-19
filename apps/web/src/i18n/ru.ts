@@ -896,6 +896,14 @@ export const ru: Dict = {
       reset: "Сбросить",
       apply: "Сохранить",
     },
+    card: {
+      nextRank: "До ранга «{rank}»",
+      maxRank: "Высший ранг достигнут",
+      hoursLeft: "ещё {hours} ч",
+      meanScore: "средняя оценка",
+      likes: "лайков",
+      favGenres: "Любимые жанры",
+    },
     editBanner: "Изменить фон",
     settings: {
       avatar: "Аватар",

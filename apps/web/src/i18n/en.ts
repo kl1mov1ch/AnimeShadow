@@ -895,6 +895,14 @@ export const en = {
       reset: "Reset",
       apply: "Save",
     },
+    card: {
+      nextRank: "To {rank}",
+      maxRank: "Top rank reached",
+      hoursLeft: "{hours} h to go",
+      meanScore: "average score",
+      likes: "likes",
+      favGenres: "Favourite genres",
+    },
     editBanner: "Change background",
     settings: {
       avatar: "Avatar",
