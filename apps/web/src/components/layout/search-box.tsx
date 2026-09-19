@@ -57,6 +57,16 @@ export function SearchBox() {
 
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
+  // The full hint ("title, character or a vibe") never fit a header-sized
+  // field — it was cut off mid-word. Three short ones taking turns say the
+  // same thing and each fits.
+  const hints = [t("search.hintTitle"), t("search.hintCharacter"), t("search.hintMood")];
+  const [hintIndex, setHintIndex] = useState(0);
+  useEffect(() => {
+    if (term) return;
+    const id = setInterval(() => setHintIndex((i) => (i + 1) % 3), 3_200);
+    return () => clearInterval(id);
+  }, [term]);
   const [recent, setRecent] = useState<string[]>([]);
   const debounced = useDebouncedValue(term.trim(), 220);
 
@@ -150,10 +160,25 @@ export function SearchBox() {
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            placeholder={t("search.placeholder")}
             aria-label={t("search.open")}
             className="h-10 w-full rounded-full bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
           />
+
+          {!term && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-9 right-20 overflow-hidden text-sm text-muted-foreground/80"
+            >
+              {/* Keyed on the index, so each hint mounts fresh and plays its
+                  own entrance — the swap reads as a gentle roll upward. */}
+              <span
+                key={hintIndex}
+                className="animate-in fade-in slide-in-from-bottom-2 block truncate duration-500 motion-reduce:animate-none"
+              >
+                {hints[hintIndex]}
+              </span>
+            </span>
+          )}
 
           <div className="absolute right-2 flex items-center gap-1">
             {isFetching && showResults && (

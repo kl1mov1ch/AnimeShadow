@@ -69,8 +69,8 @@ export function clearRecent(): void {
 
 /** The shortcut badge only ever claims what the platform actually uses. */
 export function shortcutLabel(): string {
-  if (typeof navigator === "undefined") return "Ctrl K";
-  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ K" : "Ctrl K";
+  if (typeof navigator === "undefined") return "Ctrl + K";
+  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ + K" : "Ctrl + K";
 }
 
 /** The same band of light the header's buttons sweep on hover, so every

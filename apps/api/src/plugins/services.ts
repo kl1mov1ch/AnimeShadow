@@ -32,6 +32,7 @@ export default fp(
         embedTemplate: env.WATCH_EMBED_TEMPLATE,
       },
       telegramBotToken: env.TELEGRAM_BOT_TOKEN,
+      traceMoeApiKey: env.TRACE_MOE_API_KEY,
       adminEmails: env.ADMIN_EMAILS,
       email: {
         apiKey: env.RESEND_API_KEY,

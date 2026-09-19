@@ -29,7 +29,8 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request) => {
       const { dataUrl } = parse(frameSearchInputSchema, request.body);
-      return fastify.services.frames.searchByFrame(dataUrl);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      return fastify.services.frames.searchByFrame(dataUrl, allowAdult);
     },
   );
 };

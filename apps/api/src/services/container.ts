@@ -45,6 +45,7 @@ export interface ContainerDeps {
     embedTemplate?: string | undefined;
   };
   telegramBotToken?: string | undefined;
+  traceMoeApiKey?: string | undefined;
   adminEmails: string[];
   email: {
     apiKey?: string | undefined;
@@ -149,8 +150,8 @@ export function createServices(deps: ContainerDeps): Services {
   });
   const frames = new FrameService({
     prisma: deps.prisma,
-    anilist,
     logger: deps.logger,
+    apiKey: deps.traceMoeApiKey,
   });
   const watch = new WatchService({
     prisma: deps.prisma,

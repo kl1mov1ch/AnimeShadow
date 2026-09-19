@@ -288,6 +288,10 @@ export function useFrameSearch() {
       apiRequest<FrameSearchResponse>("/search/frame", {
         method: "POST",
         body: { dataUrl },
+        // A hard stop rather than a spinner forever: the server gives the
+        // outside service 25s, so anything past this has gone wrong somewhere
+        // between here and there, and saying so beats waiting.
+        signal: AbortSignal.timeout(40_000),
       }),
   });
 }

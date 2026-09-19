@@ -79,6 +79,14 @@ const envSchema = z.object({
     z.string().optional(),
   ),
 
+  // ---- Search by frame (trace.moe). Optional key: without one the free tier
+  // allows 100 searches a month per IP, one at a time — and a server's single
+  // IP is shared by every visitor, so that is 100 a month for the whole site.
+  TRACE_MOE_API_KEY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().optional(),
+  ),
+
   // ---- Transactional email (Resend: https://resend.com) — signup
   // verification codes and password reset codes. Optional: with no key set,
   // codes are logged to the console instead of emailed (see EmailService).

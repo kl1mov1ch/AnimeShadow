@@ -624,3 +624,57 @@ html body[data-scroll-locked] {
 .theme-scrubber:focus-visible::-webkit-slider-thumb {
   transform: scale(1.25);
 }
+
+/* The snail in the slow-connection notice (see SlowNetworkNotice). It holds
+   perfectly still under reduced motion; otherwise it inches along, its shell
+   rocks, its eyes look about, and the trail behind it keeps moving. */
+@media (prefers-reduced-motion: no-preference) {
+  .snail-crawl {
+    animation: snail-crawl 2.6s ease-in-out infinite;
+  }
+  .snail-shell {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: snail-shell 2.6s ease-in-out infinite;
+  }
+  .snail-eye {
+    transform-box: fill-box;
+    transform-origin: bottom center;
+    animation: snail-eye 2.6s ease-in-out infinite;
+  }
+  .snail-trail {
+    animation: snail-trail 1.3s linear infinite;
+  }
+}
+@keyframes snail-crawl {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+@keyframes snail-shell {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+@keyframes snail-eye {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+@keyframes snail-trail {
+  to {
+    stroke-dashoffset: -14;
+  }
+}

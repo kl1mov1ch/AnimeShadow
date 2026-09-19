@@ -6,6 +6,24 @@ import { useT } from "@/i18n";
 const STORAGE_KEY = "animeshadow.cookie-consent.v1";
 
 /**
+ * Fired on the window once a choice is made. Other corner notices wait for
+ * it rather than stacking on top of this one: a `storage` event would not do,
+ * because it only reaches *other* tabs, never the one that wrote the value.
+ */
+export const COOKIE_CHOICE_EVENT = "animeshadow:cookie-choice";
+
+/** Whether the visitor has already answered, in this browser. */
+export function hasCookieChoice(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) != null;
+  } catch {
+    // Storage disabled: the banner will keep reappearing, so nothing should
+    // wait on it forever.
+    return true;
+  }
+}
+
+/**
  * Small, dismissible corner notice — not a full-width bar, not a blocking
  * modal. Anchored to the bottom-right so it never sits over the middle of
  * the viewport (which, on an anime page, is exactly where the player is).
@@ -41,6 +59,7 @@ export function CookieConsent() {
     } catch {
       /* ignore */
     }
+    window.dispatchEvent(new Event(COOKIE_CHOICE_EVENT));
   };
 
   if (!visible) return null;
