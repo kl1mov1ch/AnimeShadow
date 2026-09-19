@@ -139,6 +139,11 @@ export const en = {
   trailer: { open: "Trailer", title: "{title} — trailer" },
   detail: {
     quickFacts: {
+      sheet: "Otaku cheat sheet",
+      marathon: "Marathon calculator",
+      perDay: "{n} eps a day",
+      finish: "Done in {days} days — by {date}",
+      aDay: "{minutes} min a day",
       totalTime: "≈ {time} to watch it all",
       byDays: "≈ {days} days at {perDay} episodes a day",
       toggleHint: "Click to count it another way",

@@ -141,6 +141,11 @@ export const ru: Dict = {
   trailer: { open: "Трейлер", title: "{title} — трейлер" },
   detail: {
     quickFacts: {
+      sheet: "Шпаргалка отаку",
+      marathon: "Марафон-калькулятор",
+      perDay: "{n} эп. в день",
+      finish: "Досмотрите за {days} дн. — к {date}",
+      aDay: "{minutes} мин в день",
       totalTime: "≈ {time} на весь тайтл",
       byDays: "≈ {days} дн. по {perDay} серии в день",
       toggleHint: "Нажмите, чтобы посчитать иначе",

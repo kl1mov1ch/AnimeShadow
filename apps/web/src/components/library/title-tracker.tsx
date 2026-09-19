@@ -2,9 +2,7 @@ import type { AnimeSummary, LibraryStatus } from "@animeshadow/shared";
 import {
   BookmarkPlusIcon,
   LockIcon,
-  MinusIcon,
   NotebookPenIcon,
-  PlusIcon,
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -19,7 +17,6 @@ import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { EpisodeInput } from "./library-parts";
 import { STATUSES, STATUS_META } from "./library-meta";
 import { useLibraryEdit } from "./use-library-edit";
 
@@ -33,7 +30,7 @@ const CHIP_ON: Record<LibraryStatus, string> = {
 };
 
 /**
- * The title page's tracking bar: status, score, episode and note in one
+ * The title page's tracking bar: status, score and note in one
  * row. Each answers visibly when used — the chosen status fills with its
  * colour and names itself, stars light under the cursor and say what the
  * score means, the note shows its first words — without the bar growing
@@ -109,7 +106,6 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
   };
 
   const shownScore = hoverScore ?? entry?.score ?? null;
-  const total = anime.episodes ?? 0;
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
@@ -150,7 +146,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
       </div>
 
       {/* Score: ten stars, and a word for the one under the cursor. */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
         <div
           className="flex items-center"
           onPointerLeave={() => setHoverScore(null)}
@@ -173,7 +169,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
                 onClick={() => chooseScore(value)}
                 onAnimationEnd={() => value === popped && setPopped(null)}
                 className={cn(
-                  "grid size-6 place-items-center rounded transition-transform duration-150 hover:scale-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
+                  "grid size-[22px] place-items-center rounded transition-transform sm:size-6 duration-150 hover:scale-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
                   popped != null && value <= popped && "star-pop",
                 )}
                 style={popped != null ? { animationDelay: `${i * 25}ms` } : undefined}
@@ -193,7 +189,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
           })}
         </div>
         {/* Fixed width, so the row does not shift as the word changes. */}
-        <span className="w-28 truncate text-xs">
+        <span className="text-xs sm:w-28 sm:truncate">
           {shownScore != null ? (
             <span key={shownScore} className="animate-in fade-in font-semibold text-amber-500">
               {shownScore} · {t(`library.tracker.r${shownScore}`)}
@@ -203,36 +199,6 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
           )}
         </span>
       </div>
-
-      {entry && anime.type !== "MOVIE" && (
-        <div className="flex items-center gap-1 rounded-full border border-border/60 bg-card/60 p-0.5">
-          <button
-            type="button"
-            onClick={() => edit.step(entry, -1)}
-            disabled={entry.progress <= 0}
-            aria-label={t("library.minusOne")}
-            title={t("library.minusOne")}
-            className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-30"
-          >
-            <MinusIcon className="size-3.5" />
-          </button>
-          <span className="min-w-14 text-center text-xs tabular-nums text-muted-foreground">
-            {t("library.tracker.episode")}{" "}
-            <EpisodeInput entry={entry} edit={edit} />
-            {total > 0 && `/${total}`}
-          </span>
-          <button
-            type="button"
-            onClick={() => edit.step(entry, 1)}
-            disabled={total > 0 && entry.progress >= total}
-            aria-label={t("library.plusOne")}
-            title={t("library.plusOne")}
-            className="grid size-7 place-items-center rounded-full bg-[var(--accent-ink)] text-background transition-transform hover:scale-110 active:scale-90 disabled:opacity-30"
-          >
-            <PlusIcon className="size-3.5" />
-          </button>
-        </div>
-      )}
 
       {entry && <NoteButton note={entry.notes} onSave={(notes) => edit.setNotes(entry, notes)} />}
 

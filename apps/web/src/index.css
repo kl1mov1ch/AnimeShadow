@@ -812,3 +812,22 @@ html body[data-scroll-locked] {
     transform: translate(0, 0);
   }
 }
+
+/*
+  Phones: the site does not zoom. iOS zooms the page in whenever a field
+  under 16px gets focus (which is what made the screen jump when the
+  keyboard opened), and ignores user-scalable=no for pinches — so fields
+  are 16px there, and touch gestures are limited to panning.
+*/
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+html {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
