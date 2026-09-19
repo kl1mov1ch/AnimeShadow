@@ -279,15 +279,6 @@ function AnimeDetailView({ param }: { param: string }) {
 
           </div>
         </div>
-
-        {/* Tracking across the full width under poster and text, trailer at
-            the far right of the same line. */}
-        <div className="flex flex-col gap-3 border-t border-[var(--accent-line-soft)] pt-3 sm:flex-row sm:items-center">
-          <TitleTracker anime={data} title={title} />
-          <div className="shrink-0 self-end sm:ml-auto sm:self-auto">
-            <TrailerButton url={data.trailerEmbedUrl} title={title} />
-          </div>
-        </div>
       </TitleHeader>
 
       {/* One continuous surface, hairline-separated sections — no more
@@ -304,6 +295,15 @@ function AnimeDetailView({ param }: { param: string }) {
           }}
         />
         <Block title={t("detail.sections.watch")}>
+          {/* Everything you do with a title while watching it — status,
+              score, episode, note, trailer — in one bar right above the
+              player, where watching actually happens. */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2.5 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:px-3">
+            <TitleTracker anime={data} title={title} />
+            <div className="shrink-0 self-end sm:ml-auto sm:self-auto">
+              <TrailerButton url={data.trailerEmbedUrl} title={title} />
+            </div>
+          </div>
           <WatchSection
             anime={data}
             title={title}

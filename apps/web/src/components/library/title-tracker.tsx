@@ -38,7 +38,7 @@ const CHIP_ON: Record<LibraryStatus, string> = {
  * score means, the note shows its first words — without the bar growing
  * taller than one line of controls.
  *
- * The compact LibraryControls stays for tight places like the hero slider.
+ * Lives above the player on the title page, where watching happens.
  */
 export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: string }) {
   const t = useT();

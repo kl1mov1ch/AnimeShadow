@@ -16,7 +16,6 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import { LibraryControls } from "@/components/anime/library-controls";
 import { OpeningVideo } from "@/components/anime/opening-video";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 // Overall score is hidden site-wide (not deleted) — see ScoreBadge's call
@@ -352,7 +351,6 @@ function SlideContent({
             </Link>
           </Button>
           <TrailerButton url={anime.trailerEmbedUrl} title={title} />
-          <LibraryControls animeId={anime.id} title={title} />
         </div>
         {controls}
       </div>
