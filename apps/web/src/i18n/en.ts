@@ -138,6 +138,17 @@ export const en = {
   },
   trailer: { open: "Trailer", title: "{title} — trailer" },
   detail: {
+    quickFacts: {
+      totalTime: "≈ {time} to watch it all",
+      byDays: "≈ {days} days at {perDay} episodes a day",
+      toggleHint: "Click to count it another way",
+      perEpisode: "{episodes} eps × {minutes} min",
+      rank: "#{rank} ranked",
+      members: "{count} in lists",
+      favorites: "{count} favourites",
+      h: "h",
+      min: "min",
+    },
     notValid: "Not a valid title",
     notValidBody: "That link looks broken.",
     notFound: "We couldn't find that anime",

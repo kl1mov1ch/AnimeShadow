@@ -10,6 +10,7 @@ import { FranchiseRail } from "@/components/anime/franchise-section";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { TitleTracker } from "@/components/library/title-tracker";
+import { TitleFacts } from "@/components/anime/title-facts";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 import { OpeningVideo } from "@/components/anime/opening-video";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
@@ -304,8 +305,13 @@ function AnimeDetailView({ param }: { param: string }) {
           {/* Everything you do with a title while watching it — status,
               score, episode, note — in one bar right above the
               player, where watching actually happens. */}
-          <div className="rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
-            <TitleTracker anime={data} title={title} />
+          {/* The bar is only as wide as what it holds; the rest of the line
+              goes to facts about the title rather than empty space. */}
+          <div className="flex items-center gap-3">
+            <div className="w-fit min-w-0 max-w-full rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
+              <TitleTracker anime={data} title={title} />
+            </div>
+            <TitleFacts anime={data} className="hidden min-w-0 flex-1 md:flex" />
           </div>
           <WatchSection
             anime={data}

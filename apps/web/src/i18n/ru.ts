@@ -140,6 +140,17 @@ export const ru: Dict = {
   },
   trailer: { open: "Трейлер", title: "{title} — трейлер" },
   detail: {
+    quickFacts: {
+      totalTime: "≈ {time} на весь тайтл",
+      byDays: "≈ {days} дн. по {perDay} серии в день",
+      toggleHint: "Нажмите, чтобы посчитать иначе",
+      perEpisode: "{episodes} эп. × {minutes} мин",
+      rank: "#{rank} в рейтинге",
+      members: "{count} в списках",
+      favorites: "{count} в избранном",
+      h: "ч",
+      min: "мин",
+    },
     notValid: "Неверная ссылка",
     notValidBody: "Похоже, ссылка битая.",
     notFound: "Аниме не найдено",

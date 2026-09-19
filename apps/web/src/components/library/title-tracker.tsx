@@ -60,9 +60,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
     return (
       <div className="flex min-w-0 items-center gap-2.5">
         <BookmarkPlusIcon className="size-4 shrink-0 text-[var(--accent-ink)]" />
-        <span className="min-w-0 truncate text-sm text-muted-foreground">
-          {t("library.tracker.signInBody")}
-        </span>
+        <span className="text-sm text-muted-foreground">{t("library.tracker.signInBody")}</span>
         <Button asChild size="sm" className="shrink-0 rounded-full">
           <Link to="/login" state={{ from: window.location.pathname }}>
             {t("common.signIn")}
