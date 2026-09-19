@@ -333,6 +333,7 @@ export const ru: Dict = {
     continueTitle: "Продолжить",
     nextEpisode: "Дальше {n} серия",
     plusOne: "+1 серия",
+    editEpisodes: "Нажмите, чтобы ввести число серий",
     minusOne: "−1 серия",
     finished: "«{title}» досмотрено 🎉",
     startedWatching: "«{title}» — смотрю",

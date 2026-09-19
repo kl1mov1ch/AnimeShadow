@@ -7,7 +7,7 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { STATUSES, STATUS_META, progressLabel, progressPercent } from "./library-meta";
+import { STATUSES, STATUS_META, progressPercent } from "./library-meta";
 import type { LibraryEdit } from "./use-library-edit";
 
 const SCORE_OPTIONS = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
@@ -78,7 +78,7 @@ export function ProgressStepper({
         <MinusIcon className="size-3" />
       </button>
       <span className="min-w-[3.25rem] text-center text-xs tabular-nums text-muted-foreground">
-        {progressLabel(entry)}
+        <EpisodeInput entry={entry} edit={edit} />/{total > 0 ? total : "?"}
       </span>
       <button
         type="button"
@@ -91,6 +91,79 @@ export function ProgressStepper({
         <PlusIcon className="size-3" />
       </button>
     </div>
+  );
+}
+
+/**
+ * The watched-episode count, typed rather than clicked: tap the number, type
+ * any value, Enter (or tapping away) saves it, Escape backs out. For jumping
+ * a dozen episodes at once, where "+1" twelve times is a chore.
+ */
+export function EpisodeInput({
+  entry,
+  edit,
+  className,
+}: {
+  entry: LibraryEntry;
+  edit: LibraryEdit;
+  className?: string;
+}) {
+  const t = useT();
+  const total = entry.anime.episodes ?? 0;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) input.current?.select();
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const value = Number.parseInt(draft, 10);
+    if (Number.isFinite(value)) edit.setProgress(entry, value);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(String(entry.progress));
+          setEditing(true);
+        }}
+        title={t("library.editEpisodes")}
+        aria-label={t("library.editEpisodes")}
+        className={cn(
+          "rounded px-0.5 font-semibold text-foreground underline decoration-dotted decoration-muted-foreground/50 underline-offset-2 transition-colors hover:bg-secondary hover:decoration-foreground",
+          className,
+        )}
+      >
+        {entry.progress}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={input}
+      type="number"
+      inputMode="numeric"
+      min={0}
+      max={total > 0 ? total : undefined}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") setEditing(false);
+      }}
+      aria-label={t("library.editEpisodes")}
+      className={cn(
+        "w-[4.5ch] rounded border border-primary/60 bg-background px-0.5 text-center font-semibold text-foreground outline-none ring-2 ring-primary/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        className,
+      )}
+    />
   );
 }
 

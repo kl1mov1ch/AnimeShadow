@@ -19,6 +19,7 @@ import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { EpisodeInput } from "./library-parts";
 import { STATUSES, STATUS_META } from "./library-meta";
 import { useLibraryEdit } from "./use-library-edit";
 
@@ -219,7 +220,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
           </button>
           <span className="min-w-14 text-center text-xs tabular-nums text-muted-foreground">
             {t("library.tracker.episode")}{" "}
-            <span className="font-semibold text-foreground">{entry.progress}</span>
+            <EpisodeInput entry={entry} edit={edit} />
             {total > 0 && `/${total}`}
           </span>
           <button

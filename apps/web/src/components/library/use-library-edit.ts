@@ -125,31 +125,40 @@ export function useLibraryEdit() {
   );
 
   /**
-   * One episode forward or back, with the status following along: the first
-   * episode of something planned means it is being watched, and the last one
-   * means it is finished.
+   * Sets how many episodes are watched, with the status following along:
+   * moving forward on something not being watched means it now is, and
+   * reaching the last episode means it is finished.
    */
-  const step = useCallback(
-    (entry: LibraryEntry, delta: 1 | -1) => {
+  const setProgress = useCallback(
+    (entry: LibraryEntry, value: number) => {
       const latest = current(entry.anime.id) ?? entry;
       const total = latest.anime.episodes ?? 0;
       const ceiling = total > 0 ? total : 10_000;
-      const progress = Math.min(ceiling, Math.max(0, latest.progress + delta));
-      if (progress === latest.progress) return;
+      const progress = Math.min(ceiling, Math.max(0, Math.round(value)));
+      if (!Number.isFinite(progress) || progress === latest.progress) return;
 
+      const forward = progress > latest.progress;
       const title = labels.title(latest.anime);
       let status = latest.status;
-      if (delta > 0 && status !== "WATCHING" && status !== "COMPLETED") {
-        status = "WATCHING";
-        toast(t("library.startedWatching", { title }));
-      }
-      if (delta > 0 && total > 0 && progress === total && status !== "COMPLETED") {
+      if (forward && total > 0 && progress === total && status !== "COMPLETED") {
         status = "COMPLETED";
         toast.success(t("library.finished", { title }));
+      } else if (forward && status !== "WATCHING" && status !== "COMPLETED") {
+        status = "WATCHING";
+        toast(t("library.startedWatching", { title }));
       }
       update(latest, { progress, status });
     },
     [current, labels, t, update],
+  );
+
+  /** One episode forward or back. */
+  const step = useCallback(
+    (entry: LibraryEntry, delta: 1 | -1) => {
+      const latest = current(entry.anime.id) ?? entry;
+      setProgress(latest, latest.progress + delta);
+    },
+    [current, setProgress],
   );
 
   const setStatus = useCallback(
@@ -181,6 +190,7 @@ export function useLibraryEdit() {
 
   return {
     step,
+    setProgress,
     setStatus,
     setScore: (entry: LibraryEntry, score: number | null) => update(entry, { score }),
     setNotes: (entry: LibraryEntry, notes: string | null) => {

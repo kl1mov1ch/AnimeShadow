@@ -332,6 +332,7 @@ export const en = {
     continueTitle: "Continue",
     nextEpisode: "Next: episode {n}",
     plusOne: "+1 episode",
+    editEpisodes: "Click to type the number of episodes",
     minusOne: "−1 episode",
     finished: "Finished {title} 🎉",
     startedWatching: "{title} — watching",
