@@ -13,11 +13,31 @@ import { cn } from "@/lib/utils";
 const PROXY_STALL_MS = 7_000;
 
 /**
- * Set once the proxy has failed on this page load. On a server that cannot
- * reach the archive it will fail for every track, so the rest go straight to
- * the direct file instead of each waiting to fail first.
+ * Remembered once the proxy has failed, for the rest of this tab's life
+ * (reloads included). On a server that cannot reach the archive it fails
+ * for every track, so the rest go straight to the direct file instead of
+ * each waiting out the stall timer first.
  */
-let proxyFailed = false;
+const PROXY_FAILED_KEY = "animeshadow.audio-proxy-failed.v1";
+
+function readProxyFailed(): boolean {
+  try {
+    return sessionStorage.getItem(PROXY_FAILED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+let proxyFailed = readProxyFailed();
+
+function markProxyFailed() {
+  proxyFailed = true;
+  try {
+    sessionStorage.setItem(PROXY_FAILED_KEY, "1");
+  } catch {
+    /* private mode: remembered for this page load only */
+  }
+}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -161,7 +181,7 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
 
   const fallBackToDirect = useCallback(() => {
     if (stallTimer.current) clearTimeout(stallTimer.current);
-    proxyFailed = true;
+    markProxyFailed();
     // The old element is wired into the audio graph; a no-CORS stream through
     // it would play as silence. The graph goes, and a fresh element (keyed on
     // `direct` below) takes over.
