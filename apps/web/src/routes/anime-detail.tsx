@@ -193,12 +193,12 @@ function AnimeDetailView({ param }: { param: string }) {
             It sits a little higher than the text column from sm up and
             crosses the panel's top edge, which is what stops it reading as
             a stray thumbnail parked in the bottom-left corner. */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <div className="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-5">
           <div className="group mx-auto w-32 shrink-0 overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 transition-all duration-300 hover:-translate-y-1 hover:ring-[var(--accent-line)] sm:mx-0 sm:w-40 lg:w-48">
             <PosterImage src={poster} title={title} seed={data.id} />
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:h-0 sm:min-h-full sm:overflow-hidden">
             {/* The meta line lives in the text column, beside the poster —
                 never above it. As a full-width row at the top of the panel
                 it ran straight under the raised poster, which cut the year
@@ -227,11 +227,11 @@ function AnimeDetailView({ param }: { param: string }) {
             </div>
 
             <div className="flex flex-col gap-1">
-              <h1 className="font-display text-2xl leading-tight text-foreground sm:text-4xl">
+              <h1 className="line-clamp-3 font-display text-2xl leading-tight text-foreground sm:line-clamp-2 sm:text-3xl lg:text-4xl">
                 {title}
               </h1>
               {(originalTitle || japaneseTitle) && (
-                <p className="text-xs text-muted-foreground">
+                <p className="line-clamp-1 text-xs text-muted-foreground">
                   {[originalTitle, japaneseTitle].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -261,7 +261,9 @@ function AnimeDetailView({ param }: { param: string }) {
             </div>
 
             {data.genresDetailed.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
+              // At most two rows of genres; the rest are one click away in
+              // the catalogue anyway.
+              <div className="flex max-h-[3.75rem] flex-wrap gap-1.5 overflow-hidden">
                 {data.genresDetailed.slice(0, 10).map((genre) => (
                   <Link key={genre.id} to={`/browse?genres=${genre.id}`}>
                     <Badge
@@ -275,10 +277,15 @@ function AnimeDetailView({ param }: { param: string }) {
               </div>
             )}
 
-            <div className="flex flex-col items-start gap-3 pt-1">
-              <TitleTracker anime={data} title={title} />
-              <TrailerButton url={data.trailerEmbedUrl} title={title} />
-            </div>
+          </div>
+        </div>
+
+        {/* Tracking across the full width under poster and text, trailer at
+            the far right of the same line. */}
+        <div className="flex flex-col gap-3 border-t border-[var(--accent-line-soft)] pt-3 sm:flex-row sm:items-center">
+          <TitleTracker anime={data} title={title} />
+          <div className="shrink-0 self-end sm:ml-auto sm:self-auto">
+            <TrailerButton url={data.trailerEmbedUrl} title={title} />
           </div>
         </div>
       </TitleHeader>

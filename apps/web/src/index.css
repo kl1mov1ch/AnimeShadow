@@ -696,3 +696,11 @@ html body[data-scroll-locked] {
     stroke-dashoffset: -14;
   }
 }
+
+/* Scrolls, but draws no bar: for rails that have their own arrow buttons. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

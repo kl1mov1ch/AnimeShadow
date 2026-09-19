@@ -28,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
@@ -382,24 +381,42 @@ export function Component() {
 
         <div className="ml-auto flex items-center gap-2">
           <RandomPick planned={planned} shown={filtered} />
-          <ToggleGroup
-            type="single"
-            value={view}
-            onValueChange={(v) => {
-              if (!v) return;
-              setView(v as ViewMode);
-              store(VIEW_KEY, v);
-            }}
-            variant="outline"
-            className="h-10 rounded-full border border-border/60 bg-card/70 p-1 [&>*]:size-8 [&>*]:rounded-full [&>*]:border-0 [&>*[data-state=on]]:bg-primary [&>*[data-state=on]]:text-primary-foreground"
+          {/* Two plain buttons in one pill rather than a ToggleGroup: its
+              outline variant drew its own borders between and around the
+              items, which fought the pill's and left the edges uneven. */}
+          <div
+            role="radiogroup"
+            aria-label={t("library.viewGrid")}
+            className="flex h-10 items-center gap-0.5 rounded-full border border-border/60 bg-card/70 p-1"
           >
-            <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
-              <LayoutGridIcon className="size-3.5" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="list" aria-label={t("library.viewList")}>
-              <ListIcon className="size-3.5" />
-            </ToggleGroupItem>
-          </ToggleGroup>
+            {(
+              [
+                ["grid", LayoutGridIcon, t("library.viewGrid")],
+                ["list", ListIcon, t("library.viewList")],
+              ] as const
+            ).map(([mode, Icon, label]) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={view === mode}
+                aria-label={label}
+                title={label}
+                onClick={() => {
+                  setView(mode);
+                  store(VIEW_KEY, mode);
+                }}
+                className={cn(
+                  "grid size-8 place-items-center rounded-full transition-all duration-200",
+                  view === mode
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                <Icon className="size-3.5" />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

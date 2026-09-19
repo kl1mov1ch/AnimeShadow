@@ -1,8 +1,8 @@
 import type { LibraryEntry } from "@animeshadow/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { NotebookPenIcon, PlusIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, NotebookPenIcon, PlusIcon } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { useLocale, useT } from "@/i18n";
@@ -263,15 +263,55 @@ export function LibraryRowHeader() {
 export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit: LibraryEdit }) {
   const t = useT();
   const labels = useLabels();
+  const rail = useRef<HTMLDivElement>(null);
+  // Which ends there is more to see past — each arrow shows only when it
+  // would actually move something.
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = rail.current;
+    if (!el) return;
+    setEdges({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = rail.current;
+    if (!el) return;
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [measure, entries.length]);
+
+  const scroll = (direction: 1 | -1) => {
+    const el = rail.current;
+    if (el) el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: "smooth" });
+  };
+
   if (entries.length === 0) return null;
   return (
     <section className="reveal flex flex-col gap-2" style={{ "--i": 2 } as CSSProperties}>
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-        {t("library.continueTitle")}
-        <span className="text-xs font-normal text-muted-foreground">{entries.length}</span>
-      </h2>
-      <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:thin] sm:mx-0 sm:px-0">
+      <div className="flex items-center gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+          {t("library.continueTitle")}
+          <span className="text-xs font-normal text-muted-foreground">{entries.length}</span>
+        </h2>
+        {(edges.left || edges.right) && (
+          <div className="ml-auto flex items-center gap-1">
+            <RailArrow direction={-1} disabled={!edges.left} onClick={() => scroll(-1)} />
+            <RailArrow direction={1} disabled={!edges.right} onClick={() => scroll(1)} />
+          </div>
+        )}
+      </div>
+      <div
+        ref={rail}
+        onScroll={measure}
+        className="no-scrollbar -mx-4 flex snap-x gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+      >
         {entries.map((entry) => (
           <div
             key={entry.anime.id}
@@ -306,5 +346,29 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
         ))}
       </div>
     </section>
+  );
+}
+
+function RailArrow({
+  direction,
+  disabled,
+  onClick,
+}: {
+  direction: 1 | -1;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const t = useT();
+  const Icon = direction < 0 ? ChevronLeftIcon : ChevronRightIcon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={direction < 0 ? t("common.previous") : t("common.next")}
+      className="grid size-8 place-items-center rounded-full border border-border/60 bg-card/70 text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-30"
+    >
+      <Icon className="size-4" />
+    </button>
   );
 }
