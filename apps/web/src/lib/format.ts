@@ -53,3 +53,17 @@ export function audioSrc(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   return `${API_BASE}/api/audio?u=${encodeURIComponent(url)}`;
 }
+
+/**
+ * The full-size version of a card-sized AniList cover.
+ *
+ * Grids store and load AniList's 230px cover, because its 460px one is up to
+ * ~500KB and twenty of them is a disaster on a phone. A title page shows
+ * exactly one poster, though, at a size where 230px looks soft — so that one
+ * image is upgraded here. AniList serves the same file at both paths. Anything
+ * that is not an AniList cover passes through untouched.
+ */
+export function fullSizeCover(url: string | null | undefined): string | null | undefined {
+  if (!url || !url.includes("anilist.co")) return url;
+  return url.replace("/media/anime/cover/medium/", "/media/anime/cover/large/");
+}

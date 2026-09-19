@@ -64,6 +64,7 @@ import type { Translator } from "./translator.js";
 interface ArtworkHealRow {
   id: number;
   title: string;
+  imageUrl?: string | null;
   bannerImage: string | null;
   accentColor: string | null;
 }
@@ -965,7 +966,7 @@ export class CatalogService {
       where: { accentColor: null },
       orderBy: [{ members: { sort: "desc", nulls: "last" } }],
       take: limit,
-      select: { id: true, title: true, bannerImage: true, accentColor: true },
+      select: { id: true, title: true, imageUrl: true, bannerImage: true, accentColor: true },
     });
     if (targets.length === 0) return;
 
@@ -999,8 +1000,13 @@ export class CatalogService {
       } = {};
       if (banner) data.bannerImage = banner;
       if (artwork?.cover) {
-        data.imageUrl = artwork.cover;
+        // The grid's large variant takes AniList's card-sized cover. The small
+        // variant is only filled when it is missing, never replaced: it is what
+        // phones load for every card, and the lighter Shikimori/MAL original
+        // already there is the right thing for that job. Overwriting it was
+        // how the most-visited titles ended up serving a 500KB PNG per card.
         data.imageLargeUrl = artwork.cover;
+        if (!row.imageUrl) data.imageUrl = artwork.cover;
       }
       // Comes free with the artwork request — AniList reports the cover's own
       // dominant colour, so the page can be tinted without the browser having

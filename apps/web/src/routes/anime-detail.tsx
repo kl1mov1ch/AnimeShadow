@@ -25,7 +25,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
-import { imageSrc } from "@/lib/format";
+import { useSlowConnection } from "@/lib/connection";
+import { fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
   useAnime,
@@ -58,6 +59,8 @@ function AnimeDetailView({ param }: { param: string }) {
   // player can jump it to any episode without threading a ref through. Must
   // sit above every early return below — hooks can't be conditional.
   const [episode, setEpisode] = useState(1);
+  // Above every early return below — hooks can't be conditional.
+  const slow = useSlowConnection();
   // The route component isn't remounted when navigating from one anime page
   // to another (same route, different :id) — reset explicitly, or the new
   // title would open on whatever episode number the last one left behind.
@@ -124,7 +127,10 @@ function AnimeDetailView({ param }: { param: string }) {
   }
 
   const title = labels.title(data);
-  const poster = imageSrc(data.imageLargeUrl ?? data.imageUrl);
+  const cardCover = data.imageLargeUrl ?? data.imageUrl;
+  // One poster, shown large: worth the full-size file on a decent connection,
+  // not on a slow one.
+  const poster = imageSrc(slow ? cardCover : fullSizeCover(cardCover));
   const originalTitle = data.title && data.title !== title ? data.title : null;
   const japaneseTitle =
     data.titleJapanese && data.titleJapanese !== title ? data.titleJapanese : null;
@@ -176,7 +182,10 @@ function AnimeDetailView({ param }: { param: string }) {
       />
       <TitleHeader
         animeId={data.id}
-        banner={data.bannerImage ? imageSrc(data.bannerImage) ?? null : null}
+        // The widescreen banner is decoration behind the header, and one of
+        // the largest images on the page. On a slow link the header keeps its
+        // tinted surface instead.
+        banner={!slow && data.bannerImage ? imageSrc(data.bannerImage) ?? null : null}
       >
         {/* Poster alongside everything else, not stacked in a separate
             sidebar below — the header is the one place all of a title's

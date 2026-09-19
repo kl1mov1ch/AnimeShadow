@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
+import { useSlowConnection } from "@/lib/connection";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -180,8 +181,13 @@ function SlideArt({
   active: boolean;
   animate: boolean;
 }) {
-  const shot = anime.bannerImage ?? anime.screenshots[0];
-  const heroImg = shot ? imageSrc(shot) : imageSrc(anime.imageLargeUrl ?? anime.imageUrl);
+  const slow = useSlowConnection();
+  // On a slow link the slide falls back to the card-sized poster rather than
+  // pulling a widescreen banner per slide.
+  const shot = slow ? undefined : anime.bannerImage ?? anime.screenshots[0];
+  const heroImg = shot
+    ? imageSrc(shot)
+    : imageSrc(slow ? anime.imageUrl ?? anime.imageLargeUrl : anime.imageLargeUrl ?? anime.imageUrl);
   const landscape = Boolean(shot);
 
   return (

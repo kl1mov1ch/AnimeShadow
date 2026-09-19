@@ -136,17 +136,27 @@ export function useBrowse(params: BrowseParams, enabled = true) {
   });
 }
 
-export function useAnime(idOrSlug: number | string) {
-  const { locale } = useLocale();
+/**
+ * The one definition of how a title page's data is fetched and keyed. Shared
+ * by useAnime and by the hover prefetch on cards: if the two ever built the
+ * key even slightly differently, a prefetch would land in a cache entry the
+ * page never reads, and cost a request for nothing.
+ */
+export function animeQueryOptions(idOrSlug: number | string, locale: string) {
   const key = String(idOrSlug);
   const numeric = typeof idOrSlug === "number" || /^\d+$/.test(key);
   const path = numeric ? `/anime/${key}` : `/anime/by-slug/${encodeURIComponent(key)}`;
-  return useQuery({
-    queryKey: ["anime", key, locale],
-    queryFn: ({ signal }) =>
+  return {
+    queryKey: ["anime", key, locale] as const,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
       apiRequest<AnimeDetail>(path, { signal, query: { lang: locale } }),
     staleTime: 10 * 60_000,
-  });
+  };
+}
+
+export function useAnime(idOrSlug: number | string) {
+  const { locale } = useLocale();
+  return useQuery(animeQueryOptions(idOrSlug, locale));
 }
 
 /**

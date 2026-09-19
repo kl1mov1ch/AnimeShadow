@@ -1,4 +1,5 @@
 import type { AnimeSummary } from "@animeshadow/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { ClockIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -14,9 +15,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { isAdultRating } from "@/hooks/use-adult-content";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
+import { useSlowConnection } from "@/lib/connection";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
+import { animeQueryOptions } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 interface AnimeCardProps {
@@ -45,15 +48,42 @@ function useReleaseCountdown(airedFrom: string | null): string | null {
  *  pass over the catalogue costs no requests and no video at all. */
 const OPENING_HOVER_INTENT_MS = 700;
 
+/** Much shorter than the opening's delay: prefetching the page is cheap (one
+ *  small JSON response and a JS chunk), and the gain — a title page that
+ *  opens instantly — is only worth anything if it lands before the click. */
+const PREFETCH_HOVER_INTENT_MS = 150;
+
 export function AnimeCard({ anime, priority = false, className }: AnimeCardProps) {
   const t = useT();
   const labels = useLabels();
   const canHover = useMediaQuery("(hover: hover)");
   const [openingWanted, setOpeningWanted] = useState(false);
   const intentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetched = useRef(false);
+  const queryClient = useQueryClient();
+  const { locale } = useLocale();
+  const slow = useSlowConnection();
+
+  /**
+   * Starts loading the title page while the cursor is still on the card, so
+   * that by the time it is clicked there is nothing left to wait for. Skipped
+   * on a slow connection, where spending bandwidth on a page that may never
+   * be opened would slow down the one that is actually on screen.
+   */
+  const prefetch = () => {
+    if (prefetched.current || slow) return;
+    prefetched.current = true;
+    // The route's code first: nothing can render until that chunk arrives.
+    void import("@/routes/anime-detail");
+    // Same key the page itself reads — see animeQueryOptions.
+    void queryClient.prefetchQuery(animeQueryOptions(anime.slug || anime.id, locale));
+  };
 
   const startIntent = () => {
     if (intentTimer.current) clearTimeout(intentTimer.current);
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = setTimeout(prefetch, PREFETCH_HOVER_INTENT_MS);
     intentTimer.current = setTimeout(
       () => setOpeningWanted(true),
       OPENING_HOVER_INTENT_MS,
@@ -61,10 +91,12 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   };
   const cancelIntent = () => {
     if (intentTimer.current) clearTimeout(intentTimer.current);
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
     setOpeningWanted(false);
   };
   useEffect(() => () => {
     if (intentTimer.current) clearTimeout(intentTimer.current);
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
   }, []);
   const title = labels.title(anime);
   const when = labels.seasonYearLabel(anime);
@@ -107,7 +139,10 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           <picture>
             <source media="(max-width: 639px)" srcSet={imageSrc(anime.imageUrl)} />
             <img
-              src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
+              // On a slow connection the small variant everywhere, not just on
+              // narrow screens: a desktop on a weak link pays for bytes the
+              // same as a phone does.
+              src={imageSrc(slow ? anime.imageUrl : anime.imageLargeUrl ?? anime.imageUrl)}
               alt=""
               loading={priority ? "eager" : "lazy"}
               decoding="async"

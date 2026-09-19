@@ -19,7 +19,15 @@ export interface AniListClientOptions {
 
 /** One cover/banner set, already stripped of AniList's placeholder art. */
 export interface AniListArtwork {
+  /**
+   * Card-sized cover (AniList's "large", ~230x326). This is the one to store
+   * and show in grids. AniList's own naming is misleading here: its
+   * "extraLarge" is 460x651 and, for many titles, a PNG of around 500KB —
+   * twenty of those is ten megabytes for one row of cards.
+   */
   cover: string | null;
+  /** Full-size cover (AniList's "extraLarge"). For a single hero poster only. */
+  coverFull: string | null;
   banner: string | null;
   /** Dominant colour of the cover, as `#rrggbb`. */
   color: string | null;
@@ -238,7 +246,8 @@ function sleep(ms: number): Promise<void> {
 function toArtwork(raw: RawMedia): AniListArtwork {
   const cover = raw.coverImage;
   return {
-    cover: realArt(cover?.extraLarge) ?? realArt(cover?.large),
+    cover: realArt(cover?.large) ?? realArt(cover?.extraLarge),
+    coverFull: realArt(cover?.extraLarge) ?? realArt(cover?.large),
     banner: realArt(raw.bannerImage),
     color: cover?.color ?? null,
   };

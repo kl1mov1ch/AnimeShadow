@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isSlowConnection } from "@/lib/connection";
 import { useAnimeOpening } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
@@ -63,14 +64,9 @@ function shouldAllowMotion(): boolean {
   // triggered by a tap that was meant to open the page.
   if (!window.matchMedia?.("(hover: hover)").matches) return false;
 
-  const connection = (
-    navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }
-  ).connection;
-  if (connection?.saveData) return false;
-  if (connection?.effectiveType && /2g|3g/.test(connection.effectiveType)) return false;
-  return true;
+  // Shared with the rest of the site now, so "too slow for extras" means the
+  // same thing everywhere instead of being decided three different ways.
+  return !isSlowConnection();
 }
 
 export function OpeningVideo({
