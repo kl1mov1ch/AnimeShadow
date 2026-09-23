@@ -6,7 +6,7 @@
 # script, not the redeploy path — use deploy/deploy.sh for updates.
 set -euo pipefail
 
-DOMAIN="fiat-legacy.xyz"
+DOMAIN="animeshadow.online"
 APP_USER="kl1mov1ch.exe"
 APP_DIR="/var/www/animeshadow"
 REPO_SSH="git@github.com:kl1mov1ch/AnimeShadow.git"
@@ -93,6 +93,8 @@ NODE_ENV=production
 JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRES_IN=7d
 CORS_ORIGINS=https://${DOMAIN}
+APP_URL=https://${DOMAIN}
+VITE_SITE_URL=https://${DOMAIN}
 SHIKIMORI_BASE_URL=https://shikimori.io
 TRANSLATE_ENABLED=true
 PRO_FOR_ALL=true

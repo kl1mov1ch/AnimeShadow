@@ -18,7 +18,7 @@ export const REACTION_CATEGORIES = [
 ] as const;
 export type ReactionCategory = (typeof REACTION_CATEGORIES)[number];
 
-const NEKOS_UA = "AnimeShadow (https://fiat-legacy.xyz)";
+const NEKOS_UA = "AnimeShadow (https://animeshadow.online)";
 
 export function isReactionCategory(value: unknown): value is ReactionCategory {
   return (

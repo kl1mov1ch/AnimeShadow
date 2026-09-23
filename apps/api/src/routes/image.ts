@@ -23,7 +23,7 @@ const ALLOWED_HOSTS = [
 // fine with a plain identifying string.
 function userAgentFor(hostname: string): string {
   return hostname === "nekos.best" || hostname.endsWith(".nekos.best")
-    ? "AnimeShadow (https://fiat-legacy.xyz)"
+    ? "AnimeShadow (https://animeshadow.online)"
     : "AnimeShadow/1.0 (image proxy)";
 }
 

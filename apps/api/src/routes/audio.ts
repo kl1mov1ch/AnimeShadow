@@ -13,7 +13,7 @@ import type { FastifyPluginAsync } from "fastify";
 // with a 200, and gives up on scrubbing entirely.
 const ALLOWED_HOSTS = ["a.animethemes.moe", "v.animethemes.moe"];
 
-const USER_AGENT = "AnimeShadow (https://fiat-legacy.xyz)";
+const USER_AGENT = "AnimeShadow (https://animeshadow.online)";
 
 export const audioRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/audio", async (request, reply) => {

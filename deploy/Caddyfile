@@ -1,4 +1,4 @@
-fiat-legacy.xyz {
+animeshadow.online {
 	encode zstd gzip
 
 	@backend path /api/* /uploads/*
@@ -12,4 +12,11 @@ fiat-legacy.xyz {
 		file_server
 		encode zstd gzip
 	}
+}
+
+# The www host exists in DNS, so it has to answer - as a redirect, not as a
+# second copy of the site: one canonical origin keeps sessions, the service
+# worker and every absolute link in one place.
+www.animeshadow.online {
+	redir https://animeshadow.online{uri} permanent
 }

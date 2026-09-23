@@ -100,7 +100,7 @@ const DEFAULTS = {
   // parses as a failure and makes every lookup return null — the feature
   // would look like "the archive has nothing for any title" rather than like
   // a blocked request.
-  userAgent: "AnimeShadow (https://fiat-legacy.xyz)",
+  userAgent: "AnimeShadow (https://animeshadow.online)",
 };
 
 export class AnimeThemesClient {
