@@ -136,6 +136,7 @@ export function SiteHeader() {
         <nav className="hidden items-center gap-3 md:flex lg:gap-4">
           {nav.map((item, i) => (
             <NavLink
+              viewTransition
               key={item.to}
               to={item.to}
               end={item.end}

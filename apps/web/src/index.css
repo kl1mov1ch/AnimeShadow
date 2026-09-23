@@ -831,3 +831,131 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/*
+  The landing page's own palette (routes/discover.tsx). Kept as tokens so the
+  page follows the site's theme switch instead of being painted dark for
+  good: the dark set below is the mock's, the light set is its daylight
+  counterpart. Nothing outside .home-theme reads these.
+*/
+.home-theme {
+  --hm-bg: #03070c;
+  --hm-bg-alt: #050a10;
+  --hm-card: #0a1018;
+  --hm-card-alt: #0c131c;
+  --hm-text: #f5f5f7;
+  --hm-muted: #8d96a3;
+  --hm-border: rgb(255 255 255 / 0.08);
+  --hm-border-strong: rgb(255 255 255 / 0.16);
+  --hm-accent: #ff174f;
+  --hm-accent-soft: rgb(255 23 79 / 0.16);
+  --hm-shadow: rgb(0 0 0 / 0.5);
+  /* Art sits on a dark page as drawn; on a light one it is lifted a little. */
+  --hm-art-brightness: 1;
+  background: var(--hm-bg);
+  color: var(--hm-text);
+  font-family: var(--font-sans);
+}
+:root[data-theme="light"] .home-theme,
+html.light .home-theme {
+  --hm-bg: #fbf7f8;
+  --hm-bg-alt: #f4eef0;
+  --hm-card: #ffffff;
+  --hm-card-alt: #fdf8f9;
+  --hm-text: #16090e;
+  --hm-muted: #6b5f66;
+  --hm-border: rgb(22 9 14 / 0.1);
+  --hm-border-strong: rgb(22 9 14 / 0.18);
+  --hm-accent: #e0113f;
+  --hm-accent-soft: rgb(224 17 63 / 0.1);
+  --hm-shadow: rgb(22 9 14 / 0.12);
+  --hm-art-brightness: 1.05;
+}
+
+/*
+  The landing's headline face: squared and a little severe, with full
+  Cyrillic, so Russian reads cleanly while the page still looks like an
+  anime poster. Only the landing uses it.
+*/
+.home-display {
+  font-family: "Russo One", "Unbounded", var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+/* A slow drift for the artwork behind the hero and the closing banner. */
+@media (prefers-reduced-motion: no-preference) {
+  .home-kenburns {
+    animation: home-kenburns 28s ease-in-out infinite alternate;
+  }
+  .home-float {
+    animation: home-float 9s ease-in-out infinite;
+  }
+}
+@keyframes home-kenburns {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.12) translate3d(-1.5%, -1.5%, 0);
+  }
+}
+@keyframes home-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* The hero dot filling up while its slide is on screen. */
+@keyframes home-slide-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/*
+  Edge to edge, inside a page whose content column is capped and padded:
+  the element takes the whole viewport width and pulls itself back out of
+  the column. Safe because the document already hides horizontal overflow
+  (see the rules near the top), so the scrollbar's width cannot start a
+  sideways scroll.
+*/
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/*
+  Moving between pages. Links that opt in (the cards, the header nav) hand
+  the navigation to the browser's view-transition machinery, so the old page
+  cross-fades into the new one instead of being swapped out under the
+  scroll. Kept short: this is a transition, not a performance.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: 140ms cubic-bezier(0.4, 0, 1, 1) both route-vt-out;
+  }
+  ::view-transition-new(root) {
+    animation: 260ms cubic-bezier(0, 0, 0.2, 1) both route-vt-in;
+  }
+}
+@keyframes route-vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes route-vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}

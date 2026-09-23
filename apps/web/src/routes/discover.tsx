@@ -1,0 +1,200 @@
+
+import type { AnimeSummary } from "@animeshadow/shared";
+import { Link } from "react-router-dom";
+import { AnimeRail } from "@/components/anime/anime-rail";
+import {
+  SpotlightHero,
+  SpotlightHeroSkeleton,
+} from "@/components/anime/spotlight-hero";
+import { GENRE_ART, HOME_GENRE_IDS } from "@/components/anime/genre-art";
+import { GenreCards } from "@/components/anime/genre-cards";
+import { HomeActions } from "@/components/anime/home-actions";
+import { PlansSection } from "@/components/anime/plans-section";
+import { ErrorState } from "@/components/common/states";
+import { useAuth } from "@/hooks/use-auth";
+import { useT } from "@/i18n";
+import { useLabels } from "@/lib/labels";
+import {
+  useContinueWatching,
+  useDiscover,
+  useGenres,
+  useHomeRecommendations,
+} from "@/lib/query";
+import { useDocumentHead } from "@/lib/seo";
+
+/**
+ * Homepage rail order is a deliberate hierarchy, not an arbitrary list:
+ * pick up where you left off, then what's hot right now (ours, then the
+ * wider community's), then this season, then sustained popularity, then a
+ * way to jump sideways (genres), then a personal pick, and finally the
+ * long-run community consensus. Nine sections total including the hero —
+ * not ten near-identical carousels.
+ */
+/**
+ * How many genre tiles the front page leads with. Which genres those may be
+ * is decided by the allow-list in `genre-art` — an allow-list rather than a
+ * block-list, so the adult and fan-service shelves can never appear here by
+ * growing large enough to outrank the everyday ones.
+ */
+const HOME_GENRE_COUNT = 10;
+
+export function Component() {
+  const t = useT();
+  const labels = useLabels();
+  const { status } = useAuth();
+  useDocumentHead({
+    title: t("seo.homeTitle"),
+    description: t("seo.homeDescription"),
+    path: "/",
+  });
+  const isAuthed = status === "authenticated";
+  const { data, isPending, isError, refetch } = useDiscover();
+  const { data: genres } = useGenres();
+  const { data: cont } = useContinueWatching(isAuthed);
+  const { data: recs, isPending: recsPending } = useHomeRecommendations();
+
+  if (isError) {
+    return (
+      <div className="py-10">
+        <ErrorState
+          title={t("discover.error")}
+          message={t("discover.errorBody")}
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
+  }
+
+  const continueItems = (cont?.items ?? []).map((i) => i.anime);
+  // The biggest genres first, and only the everyday ones — the front page
+  // does not lead with the adult shelf.
+  const topGenres = (genres ?? [])
+    .filter((g) => HOME_GENRE_IDS.has(g.id) && GENRE_ART[g.id] != null)
+    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
+    .slice(0, HOME_GENRE_COUNT);
+
+  // A face for each genre card, from lists this page already loaded.
+  const posterPool = [
+    ...(data?.trendingNow ?? []),
+    ...(data?.trendingMonth ?? []),
+    ...(data?.mostPopular ?? []),
+    ...(data?.allTimeTop ?? []),
+    ...(data?.topAiring ?? []),
+    ...(data?.thisSeason ?? []),
+  ];
+  // A few real titles per genre for the hover list, deduplicated because
+  // the six lists above overlap heavily, and taken in the order they were
+  // loaded so the best-known ones come first.
+  const topFor = (genreName: string) => {
+    const seen = new Set<number>();
+    const picks: AnimeSummary[] = [];
+    for (const anime of posterPool) {
+      if (picks.length === 5) break;
+      if (seen.has(anime.id) || !anime.genres.includes(genreName)) continue;
+      seen.add(anime.id);
+      picks.push(anime);
+    }
+    return picks;
+  };
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div className="flex flex-col gap-12 [&>section.full-bleed:first-child]:-mt-6 sm:[&>section.full-bleed:first-child]:-mt-10">
+
+      {/* Full-bleed, so it meets the header above it and the first rail
+          below without the page's gutters showing through. The negative
+          top margin cancels the shell's own top padding. */}
+      {isPending || !data ? (
+        <SpotlightHeroSkeleton />
+      ) : (data.spotlights?.length ?? 0) > 0 ? (
+        <SpotlightHero items={data.spotlights} />
+      ) : data.spotlight ? (
+        <SpotlightHero items={[data.spotlight]} />
+      ) : null}
+
+      {isAuthed && continueItems.length > 0 && (
+        <AnimeRail
+          title={t("home.continueRail")}
+          subtitle={t("home.continueRailSub")}
+          items={continueItems}
+          href="/library"
+        />
+      )}
+
+      <AnimeRail
+        title={t("home.trendingNow")}
+        subtitle={t("home.trendingNowSub")}
+        items={data?.trendingNow ?? []}
+        loading={isPending}
+        href="/browse?orderBy=popularity"
+      />
+      <AnimeRail
+        title={t("home.season", { year: currentYear })}
+        subtitle={t("home.seasonSub")}
+        items={data?.thisSeason ?? []}
+        loading={isPending}
+        href="/browse?airing=AIRING&orderBy=start_date"
+      />
+      <AnimeRail
+        title={t("home.trendingMonth")}
+        subtitle={t("home.trendingMonthSub")}
+        items={data?.trendingMonth ?? []}
+        loading={isPending}
+        href="/browse?orderBy=popularity"
+      />
+
+      <HomeActions />
+
+      <GenreCards
+        title={t("home.genresTitle")}
+        genres={topGenres}
+        label={labels.genreLabel}
+        topFor={topFor}
+        allLabel={t("home.allGenres")}
+        allNote={t("home.allGenresNote")}
+        countLabel={(count) => t("home.genreCount", { count })}
+        openLabel={t("home.genreOpen")}
+        previewLabel={t("home.genrePreview")}
+      />
+
+
+      <AnimeRail
+        title={t("home.recommended")}
+        subtitle={
+          !isAuthed ? (
+            t("home.recommendedSubAnon")
+          ) : recs?.basis === "liked" ? (
+            t("home.recommendedSubLiked")
+          ) : recs?.basis === "preferences" ? (
+            t("home.recommendedSub")
+          ) : recs?.basis === "history" ? (
+            t("home.recommendedSubHistory")
+          ) : (
+            // Signed in, but nothing to personalise from yet — this is the
+            // one case that's actually actionable, so it's the one case
+            // that gets a link instead of just describing the situation.
+            <>
+              {t("home.recommendedSubTrending")}{" "}
+              <Link to="/recommendations" className="text-primary hover:underline">
+                {t("recommendations.eyebrow")}
+              </Link>
+            </>
+          )
+        }
+        items={recs?.items ?? data?.mostPopular ?? []}
+        loading={recsPending && !recs}
+        href="/browse?orderBy=popularity"
+      />
+      <AnimeRail
+        title={t("home.topRated")}
+        subtitle={t("home.topRatedSub")}
+        items={data?.allTimeTop ?? []}
+        loading={isPending}
+        href="/browse?orderBy=score"
+      />
+      <PlansSection art={posterPool.slice(0, 3)} />
+
+    </div>
+  );
+}
+
