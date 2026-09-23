@@ -13,6 +13,8 @@ import {
   RotateCcwIcon,
   RotateCwIcon,
   ShuffleIcon,
+  SkipForwardIcon,
+  SparklesIcon,
   Volume2Icon,
   VolumeXIcon,
 } from "lucide-react";
@@ -554,6 +556,11 @@ function sourceUrlFor(source: WatchSource, episode: number): string | null {
 /** How long the control bar stays up after the last interaction once
  * playback is under way — long enough to read the time/title, short
  * enough to get out of the way of the actual video. */
+/** Below this, "where you left off" is just the opening credits again. */
+const RESUME_MIN_SECONDS = 30;
+/** And this close to the end, the viewer wants the next episode, not a seek. */
+const RESUME_TAIL_SECONDS = 60;
+
 const CONTROLS_HIDE_MS = 2600;
 const SKIP_SECONDS = 10;
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -588,6 +595,8 @@ function CustomHlsPlayer({
   onReady,
   onFailed,
   onPlayingChange,
+  resumeFrom = 0,
+  onEnded,
 }: {
   src: string;
   isWinner: boolean;
@@ -599,6 +608,14 @@ function CustomHlsPlayer({
   onFailed: () => void;
   /** Only ever fires for the winner — a deliberate pause shouldn't count as "stuck". */
   onPlayingChange: (playing: boolean) => void;
+  /**
+   * Seconds this viewer had reached in this episode, from their own saved
+   * progress. Applied once per stream, and only when it is far enough from
+   * either end to be worth restoring.
+   */
+  resumeFrom?: number;
+  /** The stream ran to its end — the page decides what happens next. */
+  onEnded?: () => void;
 }) {
   const t = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -618,6 +635,37 @@ function CustomHlsPlayer({
   useEffect(() => {
     onFailedRef.current = onFailed;
   }, [onFailed]);
+
+  const onEndedRef = useRef(onEnded);
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
+
+  // The seek is applied once per stream, not once per metadata event: a
+  // browser can fire loadedmetadata again after a stall, and dragging the
+  // viewer back to where they *were* an hour ago would be worse than never
+  // restoring anything.
+  const resumeRef = useRef(resumeFrom);
+  useEffect(() => {
+    resumeRef.current = resumeFrom;
+  }, [resumeFrom]);
+  const resumedSrcRef = useRef<string | null>(null);
+  useEffect(() => {
+    resumedSrcRef.current = null;
+  }, [src]);
+
+  const applyResume = () => {
+    onReady();
+    const video = videoRef.current;
+    const at = resumeRef.current;
+    if (!video || resumedSrcRef.current === src) return;
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    resumedSrcRef.current = src;
+    if (at >= RESUME_MIN_SECONDS && at <= duration - RESUME_TAIL_SECONDS) {
+      video.currentTime = at;
+    }
+  };
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -947,8 +995,9 @@ function CustomHlsPlayer({
         // since it never goes through hls.js at all), `canplay` is the
         // backstop if a browser skips it. handleLoad ignores everything
         // after the first call, so firing twice costs nothing.
-        onLoadedMetadata={onReady}
-        onCanPlay={onReady}
+        onLoadedMetadata={applyResume}
+        onCanPlay={applyResume}
+        onEnded={() => onEndedRef.current?.()}
         className="absolute inset-0 size-full"
         tabIndex={-1}
       />
@@ -1184,6 +1233,22 @@ function Player({
   // the hint for a completely different (and possibly genuinely stuck) one.
   const [isPaused, setIsPaused] = useState(false);
   useEffect(() => setIsPaused(false), [winnerId]);
+  // The picture as wide as the window will allow. Off by default and not
+  // remembered: it is a thing you do for one episode, like turning the
+  // lights off, not a setting.
+  const [theatre, setTheatre] = useState(false);
+  // Whether finishing an episode should load the next one. Remembered,
+  // because that *is* a preference — and defaulting to on, since the whole
+  // point of a series is that there is another one after this.
+  const [autoNext, setAutoNext] = useState(() => readAutoNext());
+  const setAutoNextPersisted = (value: boolean) => {
+    setAutoNext(value);
+    try {
+      localStorage.setItem(AUTO_NEXT_KEY, value ? "1" : "0");
+    } catch {
+      // Private browsing, blocked storage — the preference just won't stick.
+    }
+  };
 
   const winner = data.sources.find((s) => s.id === winnerId) ?? null;
   // Shown in the info row even before a winner exists, so it isn't blank
@@ -1275,6 +1340,16 @@ function Player({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [racePool, winnerId]);
+
+  // Only the last episode, or a film, has nowhere to go next.
+  const nextEpisode =
+    episodesTotal != null && episode < episodesTotal ? episode + 1 : null;
+  // An iframe never tells us it reached the end, so this only ever fires for
+  // our own player. Nothing is silently skipped: the toggle sits right above
+  // the picture, and it stops at the last episode.
+  const handleEnded = () => {
+    if (autoNext && nextEpisode != null) onEpisodeChange(nextEpisode);
+  };
 
   if (!displaySource) return null;
 
@@ -1410,6 +1485,7 @@ function Player({
           {displaySource.title}
         </span>
         <span className="hidden shrink-0 items-center gap-2 sm:inline-flex">
+          {displaySource.format === "hls" && <OwnPlayerMark />}
           <SourceKindBadge source={displaySource} />
           <StabilityMark stable={displaySource.stable} />
         </span>
@@ -1425,6 +1501,50 @@ function Player({
             hint actually has something to say, the icon picks up a gentle
             pulse — the one moment it's fair to draw the eye — and its own
             popover opens right here instead of a screen-center dialog. */}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* Both of these only mean anything for our own player: a
+              cross-origin embed brings its own everything and never tells us
+              an episode ended. Rather than show dead controls, they appear
+              only when the source in the picture is one we drive. */}
+          {displaySource.format === "hls" && nextEpisode != null && (
+            <button
+              type="button"
+              onClick={() => setAutoNextPersisted(!autoNext)}
+              aria-pressed={autoNext}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                autoNext
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
+              )}
+            >
+              <SkipForwardIcon className="size-3.5" />
+              <span className="hidden sm:inline">{t("watch.autoNext")}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setTheatre((on) => !on)}
+            aria-pressed={theatre}
+            title={theatre ? t("watch.theatreExit") : t("watch.theatre")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              theatre
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
+            )}
+          >
+            {theatre ? (
+              <Minimize2Icon className="size-3.5" />
+            ) : (
+              <Maximize2Icon className="size-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {theatre ? t("watch.theatreExit") : t("watch.theatre")}
+            </span>
+          </button>
+        </span>
+
         {alternatives.length > 0 && (
           <DropdownMenu open={showAll} onOpenChange={setShowAll}>
             <Popover open={showStuckHint} onOpenChange={setShowStuckHint}>
@@ -1439,7 +1559,7 @@ function Player({
                     type="button"
                     onClick={() => setShowStuckHint(false)}
                     className={cn(
-                      "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
+                      "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
                       showAll
                         ? "border-primary/50 bg-primary/10 text-primary"
                         : "border-border/60 bg-secondary/40 text-foreground/80 hover:border-primary/40 hover:bg-secondary/70 hover:text-primary",
@@ -1515,6 +1635,7 @@ function Player({
                   <span className="min-w-0 flex-1 truncate">
                     {sourceLabel(source, t)}
                   </span>
+                  {source.format === "hls" && <OwnPlayerMark />}
                   <StabilityMark stable={source.stable} />
                 </DropdownMenuItem>
               ))}
@@ -1541,7 +1662,21 @@ function Player({
           video is what benefits from real size on a small screen; the
           controls above/below it stay comfortably padded. Desktop keeps its
           rounded corners since there's no width to gain there anyway. */}
-      <div className="relative -mx-5 aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl">
+      <div
+        className={cn(
+          "relative aspect-video overflow-hidden border bg-black",
+          // Mutually exclusive on purpose: `full-bleed` sets both margins
+          // itself, so leaving the -mx-5 in the base would leave the two
+          // rules arguing over margin-left with only stylesheet order to
+          // settle it.
+          theatre
+            ? // Past the page gutters entirely — the same rule the homepage
+              // hero uses, safe because the document already hides
+              // horizontal overflow.
+              "full-bleed rounded-none border-x-0"
+            : "-mx-5 sm:mx-0 sm:rounded-xl",
+        )}
+      >
         {racePool.map((id) => {
           const source = data.sources.find((s) => s.id === id);
           if (!source) return null;
@@ -1558,6 +1693,8 @@ function Player({
                 onReady={() => handleLoad(id)}
                 onFailed={() => handleFailed(id)}
                 onPlayingChange={(playing) => setIsPaused(!playing)}
+                resumeFrom={episodeRecord?.positionSeconds ?? 0}
+                onEnded={handleEnded}
               />
             );
           }
@@ -1591,6 +1728,32 @@ function Player({
         )}
       </div>
     </div>
+  );
+}
+
+const AUTO_NEXT_KEY = "as:auto-next";
+
+function readAutoNext(): boolean {
+  try {
+    return localStorage.getItem(AUTO_NEXT_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Which sources we actually drive. A direct stream plays in our own picture
+ * — with seeking, speed, volume and keyboard — while an embed brings its own
+ * player and its own everything. That is a real difference to a viewer
+ * choosing between two dubs, and it used to be invisible.
+ */
+function OwnPlayerMark() {
+  const t = useT();
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+      <SparklesIcon className="size-2.5" />
+      {t("watch.ourPlayer")}
+    </span>
   );
 }
 
