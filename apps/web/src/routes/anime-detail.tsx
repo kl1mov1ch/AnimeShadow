@@ -1,16 +1,8 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import {
-  BookOpenIcon,
-  FileTextIcon,
-  LayersIcon,
-  MessageSquareIcon,
-  PlayCircleIcon,
-  SearchIcon,
-  UsersIcon,
-} from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { BookOpenIcon, SearchIcon } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
 import { AnimeCard } from "@/components/anime/anime-card";
 import { CharacterCard } from "@/components/anime/character-card";
 import { CharacterModal } from "@/components/anime/character-modal";
@@ -31,7 +23,6 @@ import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
@@ -70,10 +61,6 @@ function AnimeDetailView({ param }: { param: string }) {
   // player can jump it to any episode without threading a ref through. Must
   // sit above every early return below — hooks can't be conditional.
   const [episode, setEpisode] = useState(1);
-  // Whether the player has actually been started. Lives here rather than
-  // inside WatchSection because the panels beside it need to know: an
-  // episode that is playing must stay one click away after tabbing off it.
-  const [playerOpen, setPlayerOpen] = useState(false);
   // Above every early return below — hooks can't be conditional.
   const slow = useSlowConnection();
   // The route component isn't remounted when navigating from one anime page
@@ -81,7 +68,6 @@ function AnimeDetailView({ param }: { param: string }) {
   // title would open on whatever episode number the last one left behind.
   useEffect(() => {
     setEpisode(1);
-    setPlayerOpen(false);
   }, [data?.id]);
 
   const seoTitle = data ? labels.title(data) : "AnimeShadow";
@@ -169,33 +155,13 @@ function AnimeDetailView({ param }: { param: string }) {
     // falling behind the body's own opaque background, where it would be
     // invisible.
     <article
-      className="title-themed relative isolate flex flex-col gap-6"
+      className="title-themed relative isolate flex flex-col gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10"
       style={
         data.accentColor
           ? ({ "--title-accent": data.accentColor } as CSSProperties)
           : undefined
       }
     >
-      {/* The page wearing the title's colour. Full-bleed past the layout's
-          own gutters (the shell caps content at 1400px), strongest behind the
-          header and gone well before the comments — a wash, not a tint over
-          everything, so text contrast is never at its mercy. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[90vh] w-screen -translate-x-1/2"
-        style={{
-          background:
-            "radial-gradient(80% 60% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 72%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[40vh] -z-10 h-[70vh] w-screen -translate-x-1/2"
-        style={{
-          background:
-            "radial-gradient(60% 50% at 20% 40%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%)",
-        }}
-      />
       <TitleHeader
         animeId={data.id}
         // The widescreen banner is decoration behind the header, and one of
@@ -302,261 +268,66 @@ function AnimeDetailView({ param }: { param: string }) {
         </div>
       </TitleHeader>
 
-      <DetailTabs
-        anime={data}
-        title={title}
-        oneLiner={oneLiner}
-        episode={episode}
-        onEpisodeChange={setEpisode}
-        playerOpen={playerOpen}
-        onPlayerOpen={() => setPlayerOpen(true)}
-      />
-    </article>
-  );
-}
-
-/* ---------------- panels ---------------- */
-
-const DETAIL_TABS = ["watch", "about", "characters", "comments", "related"] as const;
-type DetailTab = (typeof DETAIL_TABS)[number];
-
-/**
- * The title page used to be one scroll: player, then the whole synopsis and
- * every fact, then the cast, then the comments, then recommendations. Each
- * of those is a thing someone comes for on purpose, and reaching any of them
- * meant scrolling past all the others.
- *
- * They are panels now. Which one is open lives in the URL, like the profile
- * page, so a link to a title's cast or its discussion is a link that can be
- * sent. A panel with nothing in it gets no tab at all, rather than a tab
- * that opens onto an empty page.
- *
- * The player panel is the one that stays mounted: tabbing off it while an
- * episode is running must not tear the player down and start the source race
- * over. The cost of that is an episode that keeps playing out of sight,
- * which is why every other panel carries a way back to it.
- */
-function DetailTabs({
-  anime,
-  title,
-  oneLiner,
-  episode,
-  onEpisodeChange,
-  playerOpen,
-  onPlayerOpen,
-}: {
-  anime: AnimeDetail;
-  title: string;
-  oneLiner: string;
-  episode: number;
-  onEpisodeChange: (episode: number) => void;
-  playerOpen: boolean;
-  onPlayerOpen: () => void;
-}) {
-  const t = useT();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requested = searchParams.get("tab");
-  const tab: DetailTab = DETAIL_TABS.includes(requested as DetailTab)
-    ? (requested as DetailTab)
-    : "watch";
-
-  // The panels fetch these themselves; react-query dedupes the identical
-  // query, so asking here costs nothing and decides only whether a tab is
-  // worth offering.
-  const { data: characters } = useCharacters(anime.id);
-  const { data: franchise } = useFranchise(anime.id);
-  const { data: similar } = useSimilarAnime(anime.id);
-  const hasCharacters = (characters ?? []).some((c) => c.imageUrl != null);
-  const hasFranchise = (franchise ?? []).some((entry) => !entry.current);
-  const hasRelated = hasFranchise || (similar?.items.length ?? 0) > 0;
-
-  const openTab = (value: string) =>
-    setSearchParams(value === "watch" ? {} : { tab: value }, { replace: true });
-
-  return (
-    <Tabs value={tab} onValueChange={openTab} className="gap-4">
-      {/* Sticky under the site header, so the way to another panel never
-          scrolls away mid-synopsis. Scrolls sideways on a phone rather than
-          wrapping to a second row and pushing the content down. */}
-      <TabsList
-        variant="line"
-        className="sticky top-16 z-30 h-auto! w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-1.5 backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <DetailTabTrigger
-          value="watch"
-          icon={PlayCircleIcon}
-          label={t("detail.sections.watch")}
+      {/* One continuous surface, hairline-separated sections — no more
+          poster sidebar, since the header above already carries it. */}
+      <div className="relative flex flex-col divide-y divide-[var(--accent-line-soft)] overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] backdrop-blur-sm">
+        {/* Same hairline as the header above, in the same colour — it is what
+            ties the two surfaces together as one page belonging to one show. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px"
+          style={{
+            background:
+              "linear-gradient(to right, transparent, var(--accent-line-soft), transparent)",
+          }}
         />
-        <DetailTabTrigger
-          value="about"
-          icon={FileTextIcon}
-          label={t("detail.sections.synopsis")}
-        />
-        {hasCharacters && (
-          <DetailTabTrigger
-            value="characters"
-            icon={UsersIcon}
-            label={t("detail.sections.characters")}
-          />
-        )}
-        <DetailTabTrigger
-          value="comments"
-          icon={MessageSquareIcon}
-          label={t("comments.heading")}
-        />
-        {hasRelated && (
-          <DetailTabTrigger
-            value="related"
-            icon={LayersIcon}
-            label={t("detail.sections.recommendations")}
-          />
-        )}
-      </TabsList>
-
-      {/* An episode is playing on a panel nobody can see — say so, and make
-          the way back one click rather than a hunt for the right tab. */}
-      {playerOpen && tab !== "watch" && (
-        <button
-          type="button"
-          onClick={() => openTab("watch")}
-          className="group flex items-center gap-2 self-start rounded-full border border-[var(--accent-line)] bg-card/70 py-1.5 pl-3 pr-4 text-xs font-medium text-foreground/80 backdrop-blur-sm transition-colors hover:border-primary/60 hover:text-primary"
-        >
-          <span aria-hidden className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/70" />
-            <span className="relative inline-flex size-2 rounded-full bg-primary" />
-          </span>
-          {t("detail.backToPlayer")}
-        </button>
-      )}
-
-      <div className="min-w-0">
-        {/* forceMount, and only here: the player keeps running while another
-            panel is read. Everything else unmounts on the way out, which is
-            what lets each panel replay its own entrance. */}
-        <TabsContent
-          value="watch"
-          forceMount
-          className="flex flex-col gap-4 data-[state=inactive]:hidden"
-        >
-          <Panel>
-            {/* Everything you do with a title while watching it — status,
-                score, episode, note — in one bar right above the player,
-                where watching actually happens. The bar is only as wide as
-                what it holds; the rest of the line goes to facts about the
-                title rather than empty space. */}
-            <div className="mx-auto w-full min-w-0 sm:w-[88%]">
-              <div className="flex w-fit max-w-full items-center gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
-                <TitleTracker anime={anime} title={title} />
-                <TitleFacts anime={anime} className="self-start sm:self-center" />
-              </div>
+        <Block title={t("detail.sections.watch")}>
+          {/* Everything you do with a title while watching it — status,
+              score, episode, note — in one bar right above the
+              player, where watching actually happens. */}
+          {/* The bar is only as wide as what it holds; the rest of the line
+              goes to facts about the title rather than empty space. */}
+          {/* Lined up with the player below it. The time calculator rides
+              inside the bar, an icon on phones, so it never takes a line. */}
+          <div className="mx-auto w-full min-w-0 sm:w-[88%]">
+            <div className="flex w-fit max-w-full items-center gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
+              <TitleTracker anime={data} title={title} />
+              <TitleFacts anime={data} className="self-start sm:self-center" />
             </div>
-            <WatchSection
-              anime={anime}
-              title={title}
-              active
-              episode={episode}
-              onEpisodeChange={onEpisodeChange}
-              onActivate={onPlayerOpen}
-            />
-          </Panel>
-        </TabsContent>
+          </div>
+          <WatchSection
+            anime={data}
+            title={title}
+            active
+            episode={episode}
+            onEpisodeChange={setEpisode}
+          />
+        </Block>
 
-        <TabsContent value="about" className={PANEL_IN}>
-          <Panel>
-            <OverviewBlock anime={anime} oneLiner={oneLiner} />
-          </Panel>
-        </TabsContent>
+        <OverviewBlock anime={data} oneLiner={oneLiner} />
 
-        <TabsContent value="characters" className={PANEL_IN}>
-          <Panel>
-            <CharactersBlock animeId={anime.id} />
-          </Panel>
-        </TabsContent>
-
-        <TabsContent value="comments" className={PANEL_IN}>
-          <Panel>
-            <CommentsSection animeId={anime.id} />
-          </Panel>
-        </TabsContent>
-
-        <TabsContent value="related" className={PANEL_IN}>
-          <Panel>
-            {hasFranchise && <FranchiseRail animeId={anime.id} />}
-            <RelatedSection anime={anime} />
-          </Panel>
-        </TabsContent>
+        <div className="p-5">
+          <CommentsSection animeId={data.id} />
+        </div>
       </div>
-    </Tabs>
-  );
-}
 
-const PANEL_IN = "animate-in fade-in slide-in-from-bottom-2 duration-300";
-
-/** The surface every panel sits on — the same one the page used to be. */
-function Panel({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5 backdrop-blur-sm">
-      {/* The same hairline the header above wears, in the same colour — it
-          is what ties the two surfaces together as one page belonging to
-          one show. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{
-          background:
-            "linear-gradient(to right, transparent, var(--accent-line-soft), transparent)",
-        }}
-      />
-      {children}
-    </section>
-  );
-}
-
-function DetailTabTrigger({
-  value,
-  icon: Icon,
-  label,
-}: {
-  value: DetailTab;
-  icon: typeof PlayCircleIcon;
-  label: string;
-}) {
-  return (
-    <TabsTrigger
-      value={value}
-      className={cn(
-        "group relative h-auto flex-none justify-start gap-2 overflow-hidden rounded-full border-transparent px-3.5 py-2 text-foreground/70 transition-colors duration-200 sm:px-4",
-        "hover:bg-secondary/60 hover:text-foreground",
-        "data-[state=active]:bg-[color-mix(in_srgb,var(--title-accent,var(--primary))_16%,transparent)] data-[state=active]:text-[var(--accent-ink)] data-[state=active]:shadow-none",
-      )}
-    >
-      <Icon className="relative z-10 size-4 shrink-0" />
-      <span className="relative z-10">{label}</span>
-      {/* The band of light the rest of the site sweeps, right to left. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 w-1/3 translate-x-[420%] -skew-x-12 bg-gradient-to-r from-transparent via-foreground/15 to-transparent transition-transform duration-700 ease-out group-hover:-translate-x-[220%] motion-reduce:hidden"
-      />
-    </TabsTrigger>
+      <RelatedSection anime={data} />
+    </article>
   );
 }
 
 /* ---------------- pieces ---------------- */
 
 /**
- * The title header, with no key visual behind it.
+ * The title header, built the same way the homepage hero is: full-bleed key
+ * art behind it, fading into the page's own background rather than into a
+ * card colour, with the show's own opening playing over the still once it
+ * has settled. Same gradients, same full-bleed edge-to-edge treatment, same
+ * idea — this page and the homepage are one visual language, not two.
  *
- * It used to run the show's own banner across the full width, dimmed under a
- * gradient so the text on top stayed readable. Three things were wrong with
- * that: the composition changed with every title (a wide key visual and a
- * blurred upscaled poster are not the same picture), the contrast of the text
- * panel depended on whichever frame we happened to have, and the poster —
- * the one image genuinely worth looking at — ended up competing with a
- * blurred copy of itself.
- *
- * This is a plain surface in the site's own colours: the poster is the only
- * artwork on it, every title page is laid out identically, and the decoration
- * is monochrome, so it reads the same in either theme.
+ * When a title has no widescreen art of its own, the site mark and a slow
+ * pulse stand in for it — never a stretched poster, which is a different
+ * picture, not a smaller version of the same one.
  */
 function TitleHeader({
   animeId,
@@ -579,18 +350,8 @@ function TitleHeader({
   }, []);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card">
-      {/* The hairline, wearing the title's colour. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px"
-        style={{
-          background:
-            "linear-gradient(to right, transparent, var(--accent-line), transparent)",
-        }}
-      />
-
-      <div aria-hidden className="pointer-events-none absolute inset-0">
+    <div className="full-bleed relative isolate overflow-hidden border-b border-border/60 bg-card">
+      <div aria-hidden className="absolute inset-0 -z-10">
         {banner ? (
           // A real landscape key visual, framed as one — not a portrait
           // poster stretched across a 16:5 box, which is what made the old
@@ -614,13 +375,13 @@ function TitleHeader({
             fades in only once there are real frames and refuses outright on
             a touch device or a metered connection, so this is either an
             upgrade on the banner or nothing at all. */}
-        <div className="absolute inset-0">
-          <OpeningVideo animeId={animeId} active={wantsOpening} />
-        </div>
+        <OpeningVideo animeId={animeId} active={wantsOpening} className="absolute inset-0" />
 
-        {/* Legibility first — every layer above sits under these. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/85 to-card/45" />
-        <div className="absolute inset-0 hidden bg-gradient-to-r from-card via-card/70 to-transparent sm:block" />
+        {/* The same fade the homepage hero uses — the page's own background
+            colour, not the card's, so the header dissolves into the page
+            around it instead of sitting on top of it as a separate slab. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30 sm:via-background/45" />
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-background via-background/75 to-transparent sm:block" />
         <div
           className="absolute inset-0 opacity-25 mix-blend-overlay"
           style={{
@@ -630,15 +391,43 @@ function TitleHeader({
         />
       </div>
 
-      {/* No forced minimum height: the content decides how tall this is, so a
-          short title never sits above a band of empty artwork. */}
-      <div className="relative flex flex-col gap-3 p-4 sm:p-6 lg:p-8">{children}</div>
+      {/* Contained to the same width as everything below it, even though
+          the art behind it runs edge to edge — the text column lines up
+          with the page, only the picture is wider than it. */}
+      <div className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-3 px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
+        {children}
+      </div>
     </div>
   );
 }
 
 function Dot() {
   return <span className="size-1 rounded-full bg-muted-foreground/40" />;
+}
+
+function Block({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3 p-5">
+      <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
+        {/* A short bar in the title's own colour. The colour never touches
+            the text itself — a pale cover would make the heading unreadable
+            — only a mark beside it. */}
+        <span
+          aria-hidden
+          className="h-4 w-1 shrink-0 rounded-full"
+          style={{ background: "var(--accent-ink)" }}
+        />
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
 }
 
 function PosterImage({
@@ -889,6 +678,17 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
   const labels = useLabels();
   const hasSynopsis = Boolean(anime.synopsis || anime.background);
   const hasThemes = anime.themes.length > 0 || anime.demographics.length > 0;
+  // Fetched here too (not just inside FranchiseRail) purely to decide the
+  // layout — react-query dedupes the identical query, so this costs nothing
+  // extra. Reserving the desktop two-column split for a title with nothing
+  // else in its franchise (or no *other* title, once the one being viewed
+  // is excluded — see FranchiseRail) would leave an empty gap on the page.
+  const { data: franchise } = useFranchise(anime.id);
+  const hasFranchise = (franchise ?? []).some((entry) => !entry.current);
+  // Same deduping logic, so the empty-everything guard below doesn't hide
+  // a title that has nothing else *but* a cast worth showing.
+  const { data: characters } = useCharacters(anime.id);
+  const hasCharacters = (characters ?? []).some((c) => c.imageUrl != null);
 
   const facts = (
     [
@@ -932,7 +732,8 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
     ] as Array<[string, React.ReactNode]>
   ).filter(([, value]) => value && value !== "—");
 
-  if (!hasSynopsis && !hasThemes && facts.length === 0) return null;
+  if (!hasSynopsis && !hasThemes && facts.length === 0 && !hasFranchise && !hasCharacters)
+    return null;
 
   const chips = (items: string[]) =>
     items.map((v) => (
@@ -941,10 +742,17 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
       </Badge>
     ));
 
-  const hasRail = facts.length > 0;
+  const hasRail = facts.length > 0 || hasFranchise;
 
   return (
-    <div className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4 p-5">
+      <h2 className="flex items-center gap-1.5 font-display text-lg tracking-tight sm:text-xl">
+        <span aria-hidden className="text-[var(--accent-ink)]">
+          <SlicedGlyph />
+        </span>
+        {t("detail.overview")}
+      </h2>
+
       <div
         className={cn(
           "flex flex-col gap-5",
@@ -995,11 +803,14 @@ function OverviewBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: stri
               hasSynopsis && "border-t border-border/60 pt-4 lg:border-t-0 lg:pt-0",
             )}
           >
-            <FactsPanel facts={facts} />
+            {facts.length > 0 && <FactsPanel facts={facts} />}
+            {hasFranchise && <FranchiseRail animeId={anime.id} />}
           </aside>
         )}
       </div>
-    </div>
+
+      <CharactersBlock animeId={anime.id} />
+    </section>
   );
 }
 
@@ -1237,10 +1048,24 @@ function AdultContentGate() {
   );
 }
 
+/** The same full-bleed shape the homepage hero's own skeleton uses, so the
+ *  page doesn't jump from one silhouette to a completely different one the
+ *  moment the title's data actually arrives. */
 function DetailSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
-      <Skeleton className="h-[260px] w-full rounded-2xl sm:h-[300px]" />
+    <div className="flex flex-col gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10">
+      <div className="full-bleed border-b border-border/60 bg-card">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
+          <div className="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-5">
+            <Skeleton className="mx-auto size-32 shrink-0 rounded-2xl sm:mx-0 sm:size-40 lg:size-48" />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-9 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          </div>
+        </div>
+      </div>
       <div className="flex flex-col gap-6 rounded-2xl border border-border/60 p-5">
         <Skeleton className="h-72 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
