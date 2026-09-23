@@ -123,6 +123,13 @@ const TYPE_TO_SHIKI_KIND: Partial<Record<NonNullable<AnimeQuery["type"]>, string
  * row it fetches upstream, persists, and returns; if upstream is down it serves
  * whatever is cached so the product degrades gracefully.
  */
+/** How long a themes lookup may take before the route answers without it. */
+const GENRE_LIST_TTL_MS = 5 * 60_000;
+const THEMES_DEADLINE_MS = 4_000;
+/** Failures in a row before the service stops asking the archive for a while. */
+const THEMES_FAILURES_BEFORE_BREAK = 3;
+const THEMES_BREAK_MS = 5 * 60_000;
+
 export class CatalogService {
   private readonly prisma: PrismaClient;
   private readonly shikimori: ShikimoriClient;
@@ -136,6 +143,10 @@ export class CatalogService {
   private readonly translator: Translator;
 
   private readonly discoverCache = new TtlCache<DiscoverResponse>(10 * 60_000, 4);
+  /** Consecutive failed archive lookups, and until when to stop trying. */
+  private themesFailures = 0;
+  private themesBreakerUntil = 0;
+
   private readonly auxCache = new TtlCache<unknown>(60 * 60_000, 256);
   // Per (filters + page) browse results — one upstream call per unique page / 10 min.
   private readonly browseCache = new TtlCache<Paginated<AnimeSummary>>(
@@ -143,6 +154,9 @@ export class CatalogService {
     200,
   );
   private seeded = false;
+  /** Genre counts only move when the catalogue is re-seeded — no reason to
+   *  run the aggregate once per visitor. */
+  private genreListCache: { at: number; items: Genre[] } | null = null;
   // Ids currently being healed across providers — dedupes concurrent requests
   // for the same poster-less row instead of piling on the same external calls.
   private readonly healingIds = new Set<number>();
@@ -831,7 +845,40 @@ export class CatalogService {
     const cached = this.auxCache.get(key) as AnimeThemes | undefined;
     if (cached) return cached;
 
-    const result = await this.animethemes.getThemes(malId);
+    // The archive is out of our hands, and when it stops answering it stops
+    // answering for everything. Two guards, both about never leaving the
+    // browser waiting on us:
+    //
+    //  - a hard deadline, so this route always answers;
+    //  - a breaker, so once the archive has failed a few times in a row we
+    //    stop queueing behind it and say so immediately.
+    //
+    // Either way the answer carries `error`, which is what tells the browser
+    // to go and ask the archive itself (see the web app's themes query).
+    if (this.themesBreakerUntil > Date.now()) {
+      return { tracks: [], opening: null, error: "animethemes unreachable, retrying later" };
+    }
+
+    const result = await withTimeout(this.animethemes.getThemes(malId), THEMES_DEADLINE_MS, {
+      tracks: [],
+      opening: null,
+      error: `timed out after ${THEMES_DEADLINE_MS}ms`,
+    } satisfies AnimeThemes);
+
+    if (result.error) {
+      this.themesFailures += 1;
+      if (this.themesFailures >= THEMES_FAILURES_BEFORE_BREAK) {
+        this.themesBreakerUntil = Date.now() + THEMES_BREAK_MS;
+        this.themesFailures = 0;
+        this.logger.warn(
+          { minutes: THEMES_BREAK_MS / 60_000 },
+          "animethemes keeps failing — pausing lookups, the browser will ask it directly",
+        );
+      }
+    } else {
+      this.themesFailures = 0;
+    }
+
     if (result.error) {
       // Not cached, deliberately. A failed lookup used to be stored for the
       // full hour exactly like a real "this title has no music" answer, so
@@ -1206,9 +1253,28 @@ export class CatalogService {
   // -- Genres -----------------------------------------------------
 
   async listGenres(): Promise<Genre[]> {
+    const memo = this.genreListCache;
+    if (memo && Date.now() - memo.at < GENRE_LIST_TTL_MS) return memo.items;
+
     const cached = await this.prisma.genre.findMany({ orderBy: { name: "asc" } });
     if (cached.length > 0) {
-      return cached.map((g) => ({ id: g.id, name: g.name, count: g.animeCount }));
+      // The number that matters is how many titles *we* hold, not how many
+      // Shikimori says exist: a genre card promises a figure and the
+      // filtered catalogue behind the click has to show that many. The
+      // stored animeCount is only a fallback for genres we have never
+      // imported anything for.
+      const owned = await this.prisma.genreOnAnime.groupBy({
+        by: ["genreId"],
+        _count: { animeId: true },
+      });
+      const local = new Map(owned.map((row) => [row.genreId, row._count.animeId]));
+      const items = cached.map((g) => ({
+        id: g.id,
+        name: g.name,
+        count: local.get(g.id) ?? g.animeCount,
+      }));
+      this.genreListCache = { at: Date.now(), items };
+      return items;
     }
     try {
       const genres = shikiToGenres(await this.shikimori.getGenres());
