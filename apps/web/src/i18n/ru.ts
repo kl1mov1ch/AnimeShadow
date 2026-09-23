@@ -203,6 +203,7 @@ export const ru: Dict = {
     related: "Вам может понравиться",
     relatedEmpty: "Пока нечего посоветовать.",
     overview: "Обзор",
+    backToPlayer: "Вернуться к плееру",
     background: "История",
     audienceTitle: "Как смотрят этот тайтл",
     audienceTotal: "всего в списках: {count}",

@@ -53,6 +53,12 @@ interface WatchSectionProps {
   /** Which episode is loaded — lifted up so a separate Episodes section can jump the player. */
   episode: number;
   onEpisodeChange: (episode: number) => void;
+  /**
+   * Told when the viewer actually starts the player. The page uses it to
+   * keep a way back to the player in view once it is running, since the
+   * panel it lives on can be tabbed away from while an episode plays.
+   */
+  onActivate?: () => void;
 }
 
 export function WatchSection({
@@ -61,6 +67,7 @@ export function WatchSection({
   active,
   episode,
   onEpisodeChange,
+  onActivate,
 }: WatchSectionProps) {
   const t = useT();
   // The embeds are not mounted until someone asks for them. Mounting them on
@@ -102,7 +109,10 @@ export function WatchSection({
         <PlayerFacade
           poster={imageSrc(anime.bannerImage ?? anime.imageLargeUrl ?? anime.imageUrl)}
           label={t("watch.loadPlayer")}
-          onActivate={() => setActivated(true)}
+          onActivate={() => {
+            setActivated(true);
+            onActivate?.();
+          }}
         />
       );
     }

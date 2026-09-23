@@ -201,6 +201,7 @@ export const en = {
     related: "You might like",
     relatedEmpty: "Nothing close enough to suggest yet.",
     overview: "Overview",
+    backToPlayer: "Back to the player",
     background: "History",
     audienceTitle: "How people watch this",
     audienceTotal: "{count} have it on a list",
