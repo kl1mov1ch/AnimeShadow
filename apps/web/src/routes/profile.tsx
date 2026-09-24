@@ -117,7 +117,9 @@ import {
 } from "@/components/profile/profile-cosmetics";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { ContinueStrip } from "@/components/library/library-views";
-import { ProfileOverview } from "@/components/profile/profile-overview";
+import { ProfileBlocks } from "@/components/profile/profile-blocks";
+import { ProfileSettingsExtras, SettingsSearchProvider, SettingsSearchBox, useSettingsMatch } from "@/components/profile/profile-settings-extras";
+import { useImagePalette } from "@/hooks/use-image-palette";
 import { ProfileRail } from "@/components/profile/profile-rail";
 import { useLibraryEdit } from "@/components/library/use-library-edit";
 
@@ -151,9 +153,34 @@ export function Component() {
  * One page container for every profile view — public and own alike — so both
  * read as the same surface at the same width and vertical rhythm.
  */
-function ProfileShell({ children }: { children: React.ReactNode }) {
+function ProfileShell({
+  children,
+  profile,
+}: {
+  children: React.ReactNode;
+  profile?: { accentColor: string | null; avatarUrl: string | null; layout: { autoAccent: boolean } };
+}) {
+  const palette = useImagePalette(
+    profile?.layout.autoAccent && profile.avatarUrl ? imageSrc(profile.avatarUrl) : undefined,
+  );
+  // The owner's colour, scoped to their profile: every accent-derived token
+  // is re-declared here, because the derived ones were resolved at :root
+  // and would otherwise keep the site's colour inside this subtree.
+  const accent = profile?.layout.autoAccent && palette ? `rgb(${palette.rgb})` : profile?.accentColor ?? null;
+  const style = accent
+    ? ({
+        "--primary": accent,
+        "--accent": accent,
+        "--ring": accent,
+        "--accent-ink": accent,
+        "--accent-line": `color-mix(in srgb, ${accent} 45%, transparent)`,
+        "--accent-line-soft": `color-mix(in srgb, ${accent} 20%, transparent)`,
+        "--accent-surface": `color-mix(in srgb, ${accent} 7%, transparent)`,
+        "--accent-surface-strong": `color-mix(in srgb, ${accent} 14%, transparent)`,
+      } as CSSProperties)
+    : undefined;
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 sm:gap-8">
+    <div style={style} className="mx-auto flex w-full max-w-6xl flex-col gap-6 sm:gap-8">
       {children}
     </div>
   );
@@ -166,7 +193,7 @@ function PublicView({ username }: { username: string }) {
   if (isError || !data)
     return <ErrorState title={t("errors.notFoundTitle")} message={t("errors.notFoundBody")} />;
   return (
-    <ProfileShell>
+    <ProfileShell profile={data}>
       <ProfileHero profile={data} stats={data.stats} />
       <StatsBar
         stats={data.stats}
@@ -180,6 +207,7 @@ function PublicView({ username }: { username: string }) {
           <TopRatedList titles={data.stats.topRated} className="max-w-xs" />
         </section>
       )}
+      <ProfileBlocks profile={data} own={false} />
       <AchievementsGrid achievements={data.achievements} />
     </ProfileShell>
   );
@@ -193,7 +221,6 @@ type ProfileTab = (typeof PROFILE_TABS)[number];
 function OwnView() {
   const t = useT();
   const { data: profile, isPending } = useMyProfile();
-  const { data: entries } = useLibrary(undefined, true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get("tab");
@@ -204,7 +231,7 @@ function OwnView() {
   if (isPending || !profile) return <ProfileSkeleton />;
 
   return (
-    <ProfileShell>
+    <ProfileShell profile={profile}>
       <ProfileHero
         profile={profile}
         stats={profile.stats}
@@ -246,7 +273,7 @@ function OwnView() {
               value="profile"
               className="animate-in fade-in slide-in-from-bottom-2 duration-300"
             >
-              <ProfileOverview profile={profile} entries={entries ?? []} />
+              <ProfileBlocks profile={profile} own />
             </TabsContent>
             <TabsContent
               value="progress"
@@ -279,10 +306,14 @@ function OwnView() {
           you were looking at. */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t("profile.tabs.settings")}</DialogTitle>
-          </DialogHeader>
-          <SettingsTab profile={profile} />
+          <SettingsSearchProvider>
+            <DialogHeader>
+              <DialogTitle>{t("profile.tabs.settings")}</DialogTitle>
+            </DialogHeader>
+            <SettingsSearchBox />
+            <SettingsTab profile={profile} />
+            <ProfileSettingsExtras profile={profile} />
+          </SettingsSearchProvider>
         </DialogContent>
       </Dialog>
     </ProfileShell>
@@ -1241,6 +1272,8 @@ function SettingsRow({
   onToggle?: () => void;
   children?: React.ReactNode;
 }) {
+  const matches = useSettingsMatch(label);
+  if (!matches) return null;
   const header = (
     <div
       className={cn(

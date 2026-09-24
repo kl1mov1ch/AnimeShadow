@@ -13,7 +13,7 @@ import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { Link } from "react-router-dom";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
-import { useUpdateProfile } from "@/lib/query";
+import { useAchievements, useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FramePreview } from "./profile-cosmetics";
@@ -267,14 +267,19 @@ function CosmeticChoice({
   children: React.ReactNode;
 }) {
   const t = useT();
+  const { data: achievements } = useAchievements();
   const unlocked = cosmeticUnlocked([cosmetic], cosmetic.id, earnedIds);
+  // How far the viewer is toward the achievement that opens this one — an
+  // inventory should say what's missing, not only that something is.
+  const goal = !unlocked ? achievements?.find((a) => a.id === cosmetic.requires)?.progress ?? null : null;
+  const percent = goal && goal.target > 0 ? Math.min(100, Math.round((goal.current / goal.target) * 100)) : null;
   const hint = unlocked
     ? label
-    : t("profile.cosmetics.locked", {
+    : `${t("profile.cosmetics.locked", {
         achievement: t(
           `achievements.items.${cosmetic.requires}.title` as "achievements.items.critic.title",
         ),
-      });
+      })}${goal ? ` · ${goal.current}/${goal.target}` : ""}`;
 
   const button = (
     <button
@@ -298,6 +303,11 @@ function CosmeticChoice({
       {!unlocked && (
         <span className="absolute -right-0.5 -top-0.5 grid size-3.5 place-items-center rounded-full bg-card text-muted-foreground">
           <LockIcon className="size-2.5" />
+        </span>
+      )}
+      {percent != null && (
+        <span aria-hidden className="absolute inset-x-0.5 -bottom-1.5 h-0.5 overflow-hidden rounded-full bg-primary/15">
+          <span className="block h-full bg-primary" style={{ width: `${percent}%` }} />
         </span>
       )}
     </button>

@@ -914,3 +914,92 @@ export function useAdminDeleteComment() {
     },
   });
 }
+
+/* ---------------- profile history & list portability ---------------- */
+
+import type {
+  FeedEvent,
+  LibraryImportInput,
+  TasteCompare,
+  YearRecap,
+} from "@animeshadow/shared";
+
+export interface PublicListEntry {
+  anime: AnimeSummary;
+  status: LibraryStatus;
+  score: number | null;
+  progress: number;
+  updatedAt: string;
+}
+
+export interface WatchingNow {
+  anime: AnimeSummary;
+  episode: number;
+  positionSeconds: number;
+  completed: boolean;
+  at: string;
+}
+
+export function useUserYear(userId: string | undefined, year: number, enabled = true) {
+  return useQuery({
+    queryKey: ["user", userId, "year", year],
+    enabled: Boolean(userId) && enabled,
+    queryFn: ({ signal }) => apiRequest<YearRecap>(`/users/${userId}/year`, { signal, query: { year } }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useUserFeed(userId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["user", userId, "feed"],
+    enabled: Boolean(userId) && enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: FeedEvent[] }>(`/users/${userId}/feed`, { signal }).then((r) => r.items),
+    staleTime: 60_000,
+  });
+}
+
+export function useUserList(userId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["user", userId, "list"],
+    enabled: Boolean(userId) && enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: PublicListEntry[] }>(`/users/${userId}/list`, { signal }).then((r) => r.items),
+    staleTime: 60_000,
+  });
+}
+
+export function useUserWatching(userId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["user", userId, "watching"],
+    enabled: Boolean(userId) && enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: WatchingNow[] }>(`/users/${userId}/watching`, { signal }).then((r) => r.items),
+    staleTime: 60_000,
+  });
+}
+
+export function useTasteCompare(userId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["user", userId, "compare"],
+    enabled: Boolean(userId) && enabled,
+    queryFn: ({ signal }) => apiRequest<TasteCompare>(`/users/${userId}/compare`, { signal }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useImportLibrary() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: LibraryImportInput) =>
+      apiRequest<{ total: number; imported: number; skipped: number }>("/me/library/import", {
+        method: "POST",
+        body: input,
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["library"] });
+      void client.invalidateQueries({ queryKey: ["me"] });
+      void client.invalidateQueries({ queryKey: ["user"] });
+    },
+  });
+}

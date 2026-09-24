@@ -86,3 +86,25 @@ export async function apiRequest<T>(
 
   return payload as T;
 }
+
+/**
+ * A file from the API, saved to disk under `filename` — for downloads that
+ * need the signed-in user's token, which a plain link can't carry.
+ */
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const url = new URL(`${API_BASE}/api${path}`, window.location.origin);
+  const response = await fetch(url, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    credentials: "include",
+  });
+  if (!response.ok) throw new ApiRequestError(response.status, "INTERNAL_ERROR" as ApiError["error"]["code"], "download failed");
+  const blob = await response.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
