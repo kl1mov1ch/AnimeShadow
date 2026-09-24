@@ -101,6 +101,11 @@ export function EpisodesPanel({
     return Array.from({ length: Math.min(size, total - from) }, (_, i) => from + i + 1);
   }, [total, query, range, size]);
 
+  // One grid, one shape: if any episode on this page has a frame, every
+  // tile on it is frame-shaped. A grid where half the tiles are wide and
+  // half are small reads as broken rather than as partial data.
+  const hasStills = numbers.some((n) => stills.has(n));
+
   if (total <= 0) return null;
 
   return (
@@ -159,7 +164,16 @@ export function EpisodesPanel({
           {t("detail.episodeNone")}
         </p>
       ) : (
-        <div className="reveal-group grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+        <div
+          className={cn(
+            "reveal-group grid gap-2",
+            // Frames are 16:9, so a grid showing them wants fewer, wider
+            // tiles; a grid of bare numbers stays as tight as it was.
+            hasStills
+              ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+              : "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8",
+          )}
+        >
           {numbers.map((n, i) => {
             const state = watched.get(n);
             const current = n === episode;
@@ -174,7 +188,8 @@ export function EpisodesPanel({
                 title={t("detail.episodeNumber", { n })}
                 style={{ "--i": i % 24 } as CSSProperties}
                 className={cn(
-                  "reveal group relative flex aspect-[4/3] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl border transition-all duration-200 hover:-translate-y-0.5",
+                  "reveal group relative flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl border transition-all duration-200 hover:-translate-y-0.5",
+                  hasStills ? "aspect-video" : "aspect-[4/3]",
                   current
                     ? "border-primary bg-primary/10 shadow-md shadow-primary/20"
                     : done
@@ -182,10 +197,11 @@ export function EpisodesPanel({
                       : "border-border/60 bg-card/50 hover:border-primary/40",
                 )}
               >
-                {/* The provider's own still for this episode, dimmed so the
-                    number stays the thing you read. It fades itself in, and
-                    removes itself outright if the URL is dead — a broken
-                    image icon behind the number would be worse than none. */}
+                {/* The frame the provider publishes for this very episode.
+                    It removes itself outright if the URL is dead — a broken
+                    image icon would be worse than the plain tile it falls
+                    back to — and the layout below reads correctly either
+                    way, because most titles have no frames at all. */}
                 {still && (
                   <img
                     src={still}
@@ -195,28 +211,68 @@ export function EpisodesPanel({
                     onError={(e) => {
                       e.currentTarget.style.display = "none";
                     }}
-                    className="absolute inset-0 size-full object-cover opacity-45 transition-opacity duration-300 group-hover:opacity-70"
-                  />
-                )}
-                {still && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/45 to-background/10"
+                    className="absolute inset-0 size-full scale-100 object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 )}
 
-                <span
-                  className={cn(
-                    "relative font-display text-base leading-none tabular-nums drop-shadow-sm sm:text-lg",
-                    current ? "text-primary" : done ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
-                  )}
-                >
-                  {n}
-                </span>
-                {anime.duration && (
-                  <span className="relative truncate px-1 text-[10px] leading-none text-muted-foreground">
-                    {anime.duration}
-                  </span>
+                {still ? (
+                  <>
+                    {/* Dark at the bottom only: the number and the runtime
+                        live down there, the picture keeps the rest. */}
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent"
+                    />
+                    {/* The one thing that has to be readable on any frame,
+                        bright or dark — so it sits in the corner on its own
+                        plate rather than floating over the picture. */}
+                    <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 px-2 pb-1.5">
+                      <span
+                        className={cn(
+                          "font-display text-sm leading-none tabular-nums sm:text-base",
+                          current
+                            ? "text-primary"
+                            : done
+                              ? "text-emerald-400"
+                              : "text-white",
+                        )}
+                      >
+                        {n}
+                      </span>
+                      {anime.duration && (
+                        <span className="truncate text-[10px] leading-none text-white/70">
+                          {anime.duration}
+                        </span>
+                      )}
+                    </span>
+                    {/* Hover says what the click does — on a picture that
+                        isn't obvious the way a bare number is. */}
+                    <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                      <span className="grid size-9 place-items-center rounded-full bg-primary/90 text-primary-foreground shadow-lg">
+                        <PlayIcon className="size-4 fill-current" />
+                      </span>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className={cn(
+                        "font-display text-base leading-none tabular-nums sm:text-lg",
+                        current
+                          ? "text-primary"
+                          : done
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-foreground",
+                      )}
+                    >
+                      {n}
+                    </span>
+                    {anime.duration && (
+                      <span className="truncate px-1 text-[10px] leading-none text-muted-foreground">
+                        {anime.duration}
+                      </span>
+                    )}
+                  </>
                 )}
 
                 {/* One mark per state, never two. */}

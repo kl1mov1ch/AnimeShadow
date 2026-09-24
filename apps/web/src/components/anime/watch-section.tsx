@@ -92,16 +92,27 @@ export function WatchSection({
     releaseDate.getTime() > Date.now();
 
   const { data: rawData, isPending } = useWatchSources(anime.id, active && !notYetOut);
-  // Our own HLS player (`CustomHlsPlayer`, below) is switched off for now —
-  // it was rendering invisibly on desktop and only actually showing up on
-  // phones, and shipping a picture nobody can see is worse than not
-  // offering it. Rather than delete the player, the source that would have
-  // fed it is filtered out here, so the race never picks it and everyone
-  // lands on an iframe source instead, exactly as if AniLibria's direct
-  // stream had never been added. Delete this filter to bring it back once
-  // the rendering bug is found.
+
+  // Two players, and the viewer picks. Our own one (`CustomHlsPlayer`)
+  // needs a direct stream, which only a source of format "hls" has;
+  // everything else is the provider's own page in an iframe, with its
+  // interface inside it. They can't be mixed into one race — a race picks
+  // whatever answers first, which is exactly the decision being handed back
+  // to the viewer here — so the sources are split and only one side is
+  // handed to `Player` at a time.
+  //
+  // Our own player leads when it's available at all, because it's the one
+  // that looks like the rest of the site, remembers the position and rolls
+  // into the next episode. When there's no direct stream (most titles —
+  // only AniLibria releases carry one) there is nothing to switch between,
+  // and the switch doesn't appear.
+  const ownSources = rawData?.sources.filter((s) => s.format === "hls") ?? [];
+  const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
+  const canUseOwn = ownSources.length > 0;
+  const [preferOwn, setPreferOwn] = useState(true);
+  const useOwn = canUseOwn && preferOwn;
   const data = rawData
-    ? { ...rawData, sources: rawData.sources.filter((s) => s.format !== "hls") }
+    ? { ...rawData, sources: useOwn ? ownSources : providerSources }
     : rawData;
   // Warm the TCP/TLS handshake for the top few candidate embeds the moment
   // we know them — that connection setup is otherwise dead time that only
@@ -131,12 +142,21 @@ export function WatchSection({
     }
     return (
       <Player
+        // Remounting on the switch is the point: the race, the winner and
+        // every player-local bit of state belong to one side or the other,
+        // and carrying them across would mean showing the old picture while
+        // the new one loads.
+        key={useOwn ? "own" : "provider"}
         data={data}
         title={title}
         animeId={anime.id}
         episodesTotal={anime.episodes}
         episode={episode}
         onEpisodeChange={onEpisodeChange}
+        useOwn={useOwn}
+        canUseOwn={canUseOwn}
+        hasProvider={providerSources.length > 0}
+        onUseOwnChange={setPreferOwn}
       />
     );
   }
@@ -1225,6 +1245,10 @@ function Player({
   episodesTotal,
   episode,
   onEpisodeChange,
+  useOwn,
+  canUseOwn,
+  hasProvider,
+  onUseOwnChange,
 }: {
   data: WatchResponse;
   title: string;
@@ -1232,6 +1256,12 @@ function Player({
   episodesTotal: number | null;
   episode: number;
   onEpisodeChange: (episode: number) => void;
+  /** Which of the two players is on screen — see WatchSection for the split. */
+  useOwn: boolean;
+  /** Is there a direct stream at all? Without one, our own player has nothing to play. */
+  canUseOwn: boolean;
+  hasProvider: boolean;
+  onUseOwnChange: (useOwn: boolean) => void;
 }) {
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead). Rather
@@ -1373,6 +1403,35 @@ function Player({
     if (autoNext && nextEpisode != null) onEpisodeChange(nextEpisode);
   };
 
+  // Everything this component has left to compute needs a source in the
+  // picture, so the bail-out comes after the last hook, not before it —
+  // React requires every hook to run on every render, and the two below
+  // used to sit past this line.
+  const alternativeCount = displaySource
+    ? data.sources.filter((s) => s.id !== displaySource.id).length
+    : 0;
+
+  // A stuck third-party embed gives us no signal to detect automatically —
+  // no access to its internal player state. What we *can* do is offer the
+  // fix after a source has had a fair amount of time to misbehave, and make
+  // taking it a single click rather than a raw list of source names the
+  // viewer has to make sense of themselves. Resets whenever the winner
+  // itself changes (a fresh pick deserves a fresh chance before nagging) —
+  // and, for the HLS player, whenever it's genuinely paused: someone who hit
+  // pause to read the synopsis isn't "stuck", so the hint has no business
+  // interrupting them.
+  const [showStuckHint, setShowStuckHint] = useState(false);
+  useEffect(() => {
+    // Also skipped while the manual picker is already open — nagging with
+    // one nudge while the viewer is busy looking at another is just noise.
+    if (winnerId == null || alternativeCount === 0 || isPaused || showAll) {
+      setShowStuckHint(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowStuckHint(true), 45_000);
+    return () => clearTimeout(timer);
+  }, [winnerId, alternativeCount, isPaused, showAll]);
+
   if (!displaySource) return null;
 
   const alternatives = data.sources.filter((s) => s.id !== displaySource.id);
@@ -1423,28 +1482,6 @@ function Player({
     });
   };
 
-  // A stuck third-party embed gives us no signal to detect automatically —
-  // no access to its internal player state. What we *can* do is offer the
-  // fix after a source has had a fair amount of time to misbehave, and make
-  // taking it a single click rather than a raw list of source names the
-  // viewer has to make sense of themselves. Resets whenever the winner
-  // itself changes (a fresh pick deserves a fresh chance before nagging) —
-  // and, for the HLS player, whenever it's genuinely paused: someone who hit
-  // pause to read the synopsis isn't "stuck", so the hint has no business
-  // interrupting them.
-  const [showStuckHint, setShowStuckHint] = useState(false);
-  useEffect(() => {
-    // Also skipped while the manual picker is already open — nagging with
-    // one nudge while the viewer is busy looking at another is just noise.
-    if (winnerId == null || alternatives.length === 0 || isPaused || showAll) {
-      setShowStuckHint(false);
-      return;
-    }
-    const timer = setTimeout(() => setShowStuckHint(true), 45_000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [winnerId, data.sources.length, isPaused, showAll]);
-
   /** Retries from the very top, as if the page had just been opened. */
   const retryAll = () => {
     setTriedIds([]);
@@ -1491,6 +1528,11 @@ function Player({
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm">
+        {/* Only where there is a genuine choice: a title with no direct
+            stream would get a switch whose other half does nothing. */}
+        {canUseOwn && hasProvider && (
+          <PlayerSwitch useOwn={useOwn} onChange={onUseOwnChange} />
+        )}
         {authed && (
           <EpisodeStepper
             episode={episode}
@@ -1765,6 +1807,49 @@ function readAutoNext(): boolean {
  * player and its own everything. That is a real difference to a viewer
  * choosing between two dubs, and it used to be invisible.
  */
+/**
+ * Ours or theirs, as one segmented control above the picture.
+ *
+ * Deliberately not a dropdown: there are exactly two, the difference is
+ * something a viewer feels immediately (our interface versus the
+ * provider's), and switching back after trying one should cost a single
+ * click in a place the eye already is.
+ */
+function PlayerSwitch({
+  useOwn,
+  onChange,
+}: {
+  useOwn: boolean;
+  onChange: (useOwn: boolean) => void;
+}) {
+  const t = useT();
+  const options: Array<{ own: boolean; label: string }> = [
+    { own: true, label: t("watch.playerOwn") },
+    { own: false, label: t("watch.playerProvider") },
+  ];
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
+      {options.map((option) => (
+        <button
+          key={String(option.own)}
+          type="button"
+          onClick={() => onChange(option.own)}
+          aria-pressed={useOwn === option.own}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+            useOwn === option.own
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option.own && <SparklesIcon className="size-3" />}
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function OwnPlayerMark() {
   const t = useT();
   return (

@@ -35,6 +35,20 @@ const RECHECK_MS = 3 * 24 * 60 * 60_000;
 // pick) for up to 3 days, which is exactly what produces a long stuck load.
 const SOURCE_RECHECK_MS = 6 * 60 * 60_000;
 const MAX_ALLOHA_DUBS = 6;
+/**
+ * Rows written before per-episode embed URLs and stills existed.
+ *
+ * A stored source is a cache of what a provider told us, so widening what
+ * we ask the provider for has to invalidate it — otherwise the new fields
+ * only appear on titles that happen to fall out of the 3-day re-resolve
+ * window, which for a popular title could be never. This is a date rather
+ * than a "is the field empty" test on purpose: plenty of sources genuinely
+ * have no per-episode data (Alloha never does, films often don't), and
+ * re-resolving those forever would be a refresh loop, not a cache.
+ *
+ * Bump this whenever a provider fetch starts asking for something new.
+ */
+const SOURCE_SCHEMA_SINCE = Date.parse("2026-09-24T00:00:00Z");
 const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_CONCURRENCY = 4;
 
@@ -251,6 +265,20 @@ export class WatchService {
       )
     ) {
       void this.probeAndPersist(malId, sources).catch(() => undefined);
+    }
+
+    // Written before we knew to ask for per-episode data — re-resolve once,
+    // in the background, so the *next* open has episode stills. Guarded by
+    // the same in-flight set as the age-based refresh above so the two can
+    // never run at each other.
+    if (
+      rows.some((r) => r.updatedAt.getTime() < SOURCE_SCHEMA_SINCE) &&
+      !this.refreshingIds.has(malId)
+    ) {
+      this.refreshingIds.add(malId);
+      void this.resolveAndPersist(malId, true)
+        .catch(() => undefined)
+        .finally(() => this.refreshingIds.delete(malId));
     }
 
     return {
