@@ -1,0 +1,3 @@
+ALTER TABLE "User" ADD COLUMN "profileLayout" JSONB;
+ALTER TABLE "User" ADD COLUMN "favoriteAnimeIds" INTEGER[] DEFAULT ARRAY[]::INTEGER[];
+ALTER TABLE "User" ADD COLUMN "profilePrivacy" JSONB;

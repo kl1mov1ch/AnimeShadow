@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { earnedAchievementSchema } from "./achievements.js";
+import { animeSummarySchema } from "./anime.js";
 import { libraryStatusSchema } from "./enums.js";
 
 /** Max earned achievements a user can pin to their name at once. */
@@ -134,7 +135,58 @@ export const profileStatsSchema = z.object({
 });
 export type ProfileStats = z.infer<typeof profileStatsSchema>;
 
+/**
+ * The profile's movable blocks. The header, the stats line and the
+ * achievements stay put; these are what a viewer arranges.
+ */
+export const PROFILE_BLOCKS = [
+  "showcase",
+  "watching",
+  "year",
+  "activity",
+  "library",
+  "compare",
+] as const;
+export const profileBlockSchema = z.enum(PROFILE_BLOCKS);
+export type ProfileBlock = z.infer<typeof profileBlockSchema>;
+
+export const profileLayoutSchema = z.object({
+  order: z.array(profileBlockSchema),
+  hidden: z.array(profileBlockSchema),
+  /** Take the accent from the avatar instead of a picked colour. */
+  autoAccent: z.boolean().default(false),
+});
+export type ProfileLayout = z.infer<typeof profileLayoutSchema>;
+
+export const DEFAULT_PROFILE_LAYOUT: ProfileLayout = {
+  order: [...PROFILE_BLOCKS],
+  hidden: [],
+  autoAccent: false,
+};
+
+/** Who may see one part of a profile. "users" means signed-in accounts. */
+export const visibilitySchema = z.enum(["public", "users", "private"]);
+export type Visibility = z.infer<typeof visibilitySchema>;
+
+export const profilePrivacySchema = z.object({
+  list: visibilitySchema,
+  stats: visibilitySchema,
+  activity: visibilitySchema,
+  watching: visibilitySchema,
+});
+export type ProfilePrivacy = z.infer<typeof profilePrivacySchema>;
+
+export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacy = {
+  list: "public",
+  stats: "public",
+  activity: "public",
+  watching: "public",
+};
+
 export const publicProfileSchema = z.object({
+  /** The account's id — what the profile's own sub-resources are keyed by,
+   *  since a username is optional. */
+  id: z.string(),
   username: z.string().nullable(),
   displayName: z.string(),
   bio: z.string().nullable(),
@@ -165,6 +217,16 @@ export const publicProfileSchema = z.object({
   commenterRank: z.number().int().nullable(),
   /** How many accounts are in that ranking at all — the "of N" in "#4 of N". */
   totalRankedCommenters: z.number().int(),
+  layout: profileLayoutSchema,
+  /** The "my five" showcase, in the owner's order. */
+  favorites: z.array(animeSummarySchema),
+  /** What this viewer may not see — the blocks for these simply don't render. */
+  hidden: z.object({
+    list: z.boolean(),
+    stats: z.boolean(),
+    activity: z.boolean(),
+    watching: z.boolean(),
+  }),
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 
@@ -182,6 +244,7 @@ export const myProfileSchema = publicProfileSchema.extend({
   /** Computed server-side from `birthDate` on every read — unlocks R+-rated
    * titles. Hentai stays excluded either way. */
   isAdult: z.boolean(),
+  privacy: profilePrivacySchema,
 });
 export type MyProfile = z.infer<typeof myProfileSchema>;
 
@@ -205,6 +268,9 @@ export const updateProfileInputSchema = z.object({
   titleIcon: titleIconSchema.nullable().optional(),
   avatarFrame: avatarFrameSchema.nullable().optional(),
   profileTitle: profileTitleSchema.nullable().optional(),
+  layout: profileLayoutSchema.optional(),
+  favoriteAnimeIds: z.array(z.number().int().positive()).max(5).optional(),
+  privacy: profilePrivacySchema.optional(),
   /** YYYY-MM-DD. Accepted once — profile.service.ts rejects a second change. */
   birthDate: z
     .string()
@@ -245,3 +311,49 @@ export const logSessionInputSchema = z.object({
   startedAt: z.string(),
 });
 export type LogSessionInput = z.infer<typeof logSessionInputSchema>;
+
+/** One day on the year heatmap. */
+export const yearDaySchema = z.object({ day: z.string(), episodes: z.number().int() });
+
+export const yearRecapSchema = z.object({
+  year: z.number().int(),
+  days: z.array(yearDaySchema),
+  episodes: z.number().int(),
+  hours: z.number(),
+  titlesCompleted: z.number().int(),
+  activeDays: z.number().int(),
+  longestStreak: z.number().int(),
+  busiestDay: yearDaySchema.nullable(),
+  topGenre: z.string().nullable(),
+});
+export type YearRecap = z.infer<typeof yearRecapSchema>;
+
+export const feedEventSchema = z.object({
+  kind: z.enum(["completed", "episode", "rated", "added", "achievement"]),
+  at: z.string(),
+  anime: animeSummarySchema.nullable(),
+  /** Episode number, score, or achievement id, depending on `kind`. */
+  value: z.union([z.number(), z.string()]).nullable(),
+});
+export type FeedEvent = z.infer<typeof feedEventSchema>;
+
+export const tasteCompareSchema = z.object({
+  /** 0–100: how alike two lists are, from shared titles and their scores. */
+  percent: z.number().int(),
+  sharedCount: z.number().int(),
+  common: z.array(
+    z.object({
+      anime: animeSummarySchema,
+      mine: z.number().int().nullable(),
+      theirs: z.number().int().nullable(),
+    }),
+  ),
+  sharedGenres: z.array(z.string()),
+});
+export type TasteCompare = z.infer<typeof tasteCompareSchema>;
+
+export const libraryImportInputSchema = z.object({
+  format: z.enum(["mal", "shikimori", "animeshadow"]),
+  content: z.string().min(1).max(5_000_000),
+});
+export type LibraryImportInput = z.infer<typeof libraryImportInputSchema>;

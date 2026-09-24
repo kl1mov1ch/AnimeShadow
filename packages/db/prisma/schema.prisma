@@ -59,6 +59,12 @@ model User {
   /// every write, so a key here is never trusted on its own.
   avatarFrame           String?
   guessScore            GuessScore?
+  /// Which profile blocks show, in what order: { order: string[], hidden: string[], autoAccent?: boolean }.
+  profileLayout         Json?
+  /// Up to five anime ids, in order — the "my five" showcase on the profile.
+  favoriteAnimeIds      Int[]           @default([])
+  /// Who sees each part of the profile: { list, stats, activity, watching } → "public" | "users" | "private".
+  profilePrivacy        Json?
   profileTitle          String?
   /// How many times UserGenrePreference has been written via
   /// RecommendationService.setPreferences — capped at GENRE_PREFERENCE_MAX_SETS

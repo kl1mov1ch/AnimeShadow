@@ -1,4 +1,6 @@
 import {
+  libraryImportInputSchema,
+  libraryStatusSchema,
   logSessionInputSchema,
   setUsernameInputSchema,
   updateProfileInputSchema,
@@ -103,14 +105,64 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Public profile by username.
-  fastify.get("/profile/:username", async (request) => {
+  fastify.get("/profile/:username", { preHandler: fastify.optionalAuth }, async (request) => {
     const { username } = parse(usernameParams, request.params);
-    return profile.getByUsername(username.replace(/^@/, ""));
+    return profile.getByUsername(username.replace(/^@/, ""), request.userId);
   });
 
   // Same thing by id — for a comment author who hasn't claimed a username.
-  fastify.get("/users/:id/public-profile", async (request) => {
+  fastify.get("/users/:id/public-profile", { preHandler: fastify.optionalAuth }, async (request) => {
     const { id } = parse(userIdParams, request.params);
-    return profile.getById(id);
+    return profile.getById(id, request.userId);
   });
+
+  // --- the profile's history: year, feed, list, now watching, comparison ---
+  const { insights } = fastify.services;
+  const yearQuery = z.object({ year: z.coerce.number().int().min(2000).max(2100).optional() });
+  const listQuery = z.object({ status: libraryStatusSchema.optional() });
+
+  fastify.get("/users/:id/year", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    const { year } = parse(yearQuery, request.query);
+    return insights.year(id, request.userId ?? null, year ?? new Date().getUTCFullYear());
+  });
+
+  fastify.get("/users/:id/feed", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    return { items: await insights.feed(id, request.userId ?? null) };
+  });
+
+  fastify.get("/users/:id/list", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    const { status } = parse(listQuery, request.query);
+    return { items: await insights.publicList(id, request.userId ?? null, status) };
+  });
+
+  fastify.get("/users/:id/watching", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    return { items: await insights.watching(id, request.userId ?? null) };
+  });
+
+  fastify.get("/users/:id/compare", { preHandler: fastify.authenticate }, async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    return insights.compare(id, request.userId!);
+  });
+
+  // --- moving a list in and out ---
+  fastify.get("/me/library/export", { preHandler: fastify.authenticate }, async (request, reply) => {
+    const { format } = parse(z.object({ format: z.enum(["json", "mal"]).default("json") }), request.query);
+    const file = await insights.exportList(request.userId!, format);
+    reply.header("content-type", `${file.type}; charset=utf-8`);
+    reply.header("content-disposition", `attachment; filename="${file.name}"`);
+    return file.body;
+  });
+
+  fastify.post(
+    "/me/library/import",
+    { preHandler: fastify.authenticate, bodyLimit: 6 * 1024 * 1024 },
+    async (request) => {
+      const input = parse(libraryImportInputSchema, request.body);
+      return insights.importList(request.userId!, input);
+    },
+  );
 };

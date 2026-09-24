@@ -1,6 +1,9 @@
-import type { PrismaClient } from "@animeshadow/db";
+import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@animeshadow/db";
 import type {
   MyProfile,
+  ProfileLayout,
+  ProfilePrivacy,
+  Visibility,
   ProfileStats,
   ProgressDetail,
   PublicProfile,
@@ -9,7 +12,12 @@ import type {
 } from "@animeshadow/shared";
 import {
   AVATAR_FRAMES,
+  DEFAULT_PROFILE_LAYOUT,
+  DEFAULT_PROFILE_PRIVACY,
   MAX_SHOWCASE_ACHIEVEMENTS,
+  PROFILE_BLOCKS,
+  profileLayoutSchema,
+  profilePrivacySchema,
   PROFILE_TITLES,
   cosmeticUnlocked,
 } from "@animeshadow/shared";
@@ -73,26 +81,44 @@ export class ProfileService {
     this.proForAll = deps.proForAll ?? false;
   }
 
-  async getByUsername(username: string): Promise<PublicProfile> {
+  async getByUsername(username: string, viewerId?: string): Promise<PublicProfile> {
     const user = await this.prisma.user.findUnique({ where: { username } });
     if (!user) throw new NotFoundError("Профиль не найден.");
-    return this.build(user.id);
+    return this.build(user.id, viewerId ?? null);
   }
 
   /** By id rather than username — comment authors don't all have one set,
    * but every one of them should still be clickable through to a profile. */
-  async getById(userId: string): Promise<PublicProfile> {
+  async getById(userId: string, viewerId?: string): Promise<PublicProfile> {
     const exists = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true },
     });
     if (!exists) throw new NotFoundError("Профиль не найден.");
-    return this.build(userId);
+    return this.build(userId, viewerId ?? null);
+  }
+
+  /**
+   * Whether `viewerId` may see one part of `ownerId`'s profile. The owner
+   * always may; "users" means any signed-in account.
+   */
+  async canSee(
+    ownerId: string,
+    viewerId: string | null,
+    part: keyof ProfilePrivacy,
+  ): Promise<boolean> {
+    if (viewerId === ownerId) return true;
+    const owner = await this.prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { profilePrivacy: true },
+    });
+    if (!owner) throw new NotFoundError("Профиль не найден.");
+    return allowed(readPrivacy(owner.profilePrivacy)[part], viewerId);
   }
 
   async getMine(userId: string): Promise<MyProfile> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    const base = await this.build(userId);
+    const base = await this.build(userId, userId);
     const theme =
       user.theme === "light" || user.theme === "dark" || user.theme === "system"
         ? user.theme
@@ -103,6 +129,7 @@ export class ProfileService {
       theme,
       birthDate: user.birthDate ? user.birthDate.toISOString().slice(0, 10) : null,
       isAdult: computeIsAdult(user.birthDate),
+      privacy: readPrivacy(user.profilePrivacy),
     };
   }
 
@@ -179,6 +206,18 @@ export class ProfileService {
       birthDate = parsed;
     }
 
+    // Only titles that exist, each once, in the order given.
+    let favorites: number[] | undefined;
+    if (input.favoriteAnimeIds !== undefined) {
+      const wanted = [...new Set(input.favoriteAnimeIds)].slice(0, 5);
+      const found = await this.prisma.anime.findMany({
+        where: { id: { in: wanted } },
+        select: { id: true },
+      });
+      const ok = new Set(found.map((a) => a.id));
+      favorites = wanted.filter((id) => ok.has(id));
+    }
+
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -196,6 +235,9 @@ export class ProfileService {
         ...(input.avatarFrame !== undefined ? { avatarFrame: input.avatarFrame } : {}),
         ...(input.profileTitle !== undefined ? { profileTitle: input.profileTitle } : {}),
         ...(birthDate !== undefined ? { birthDate } : {}),
+        ...(input.layout !== undefined ? { profileLayout: normalizeLayout(input.layout) } : {}),
+        ...(input.privacy !== undefined ? { profilePrivacy: input.privacy } : {}),
+        ...(favorites !== undefined ? { favoriteAnimeIds: favorites } : {}),
       },
     });
     return this.getMine(userId);
@@ -385,7 +427,7 @@ export class ProfileService {
 
   // ---- internals ----
 
-  private async build(userId: string): Promise<PublicProfile> {
+  private async build(userId: string, viewerId: string | null): Promise<PublicProfile> {
     const [user, stats, achievements, standing] = await Promise.all([
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
       this.computeStats(userId),
@@ -393,7 +435,34 @@ export class ProfileService {
       this.getCommenterStanding(userId),
     ]);
 
+    // Privacy is decided here, once, and every block downstream only has to
+    // honour a boolean.
+    const privacy = readPrivacy(user.profilePrivacy);
+    const own = viewerId === userId;
+    const hidden = {
+      list: !own && !allowed(privacy.list, viewerId),
+      stats: !own && !allowed(privacy.stats, viewerId),
+      activity: !own && !allowed(privacy.activity, viewerId),
+      watching: !own && !allowed(privacy.watching, viewerId),
+    };
+
+    const favoriteRows =
+      user.favoriteAnimeIds.length > 0
+        ? await this.prisma.anime.findMany({
+            where: { id: { in: user.favoriteAnimeIds } },
+            include: ANIME_WITH_GENRES_INCLUDE,
+          })
+        : [];
+    const favorites = user.favoriteAnimeIds
+      .map((id) => favoriteRows.find((row) => row.id === id))
+      .filter((row): row is (typeof favoriteRows)[number] => row != null)
+      .map(toSummaryDto);
+
     return {
+      id: user.id,
+      layout: readLayout(user.profileLayout),
+      favorites,
+      hidden,
       username: user.username,
       displayName: user.displayName,
       bio: user.bio,
@@ -404,7 +473,7 @@ export class ProfileService {
       rank: rankOf(stats.hoursWatched),
       isPro: user.proSince != null,
       memberSince: user.createdAt.toISOString(),
-      stats,
+      stats: hidden.stats ? EMPTY_STATS : stats,
       achievements,
       // Re-checked against currently-earned achievements on every read, not
       // just at save time — an achievement removed/renamed server-side can't
@@ -605,4 +674,46 @@ export class ProfileService {
       topRated,
     };
   }
+}
+
+const EMPTY_STATS: ProfileStats = {
+  episodesWatched: 0,
+  hoursWatched: 0,
+  titlesCompleted: 0,
+  meanScore: null,
+  topGenres: [],
+  mostProductiveDay: null,
+  avgSessionMinutes: null,
+  dailyActivity: [],
+  topRated: [],
+};
+
+function allowed(visibility: Visibility, viewerId: string | null): boolean {
+  if (visibility === "public") return true;
+  if (visibility === "users") return viewerId != null;
+  return false;
+}
+
+export function readPrivacy(raw: unknown): ProfilePrivacy {
+  const parsed = profilePrivacySchema.safeParse(raw);
+  return parsed.success ? parsed.data : DEFAULT_PROFILE_PRIVACY;
+}
+
+/**
+ * A stored layout, made whole: blocks added since it was saved join at the
+ * end rather than silently never appearing for everyone who saved one.
+ */
+export function readLayout(raw: unknown): ProfileLayout {
+  const parsed = profileLayoutSchema.safeParse(raw);
+  return normalizeLayout(parsed.success ? parsed.data : DEFAULT_PROFILE_LAYOUT);
+}
+
+function normalizeLayout(layout: ProfileLayout): ProfileLayout {
+  const order = [...new Set(layout.order)].filter((b) => PROFILE_BLOCKS.includes(b));
+  for (const block of PROFILE_BLOCKS) if (!order.includes(block)) order.push(block);
+  return {
+    order,
+    hidden: [...new Set(layout.hidden)].filter((b) => PROFILE_BLOCKS.includes(b)),
+    autoAccent: layout.autoAccent ?? false,
+  };
 }

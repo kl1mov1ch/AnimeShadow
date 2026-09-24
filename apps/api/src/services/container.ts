@@ -23,6 +23,7 @@ import { RecommendationService } from "./recommendation.service.js";
 import { SearchService } from "./search.service.js";
 import { TranslationService } from "./translation.service.js";
 import { EpisodeInfoService } from "./episode-info.service.js";
+import { ProfileInsightsService } from "./profile-insights.service.js";
 import {
   chainTranslators,
   GoogleTranslator,
@@ -71,6 +72,7 @@ export interface Services {
   analytics: AnalyticsService;
   admin: AdminService;
   episodeInfo: EpisodeInfoService;
+  insights: ProfileInsightsService;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -184,6 +186,12 @@ export function createServices(deps: ContainerDeps): Services {
     uploadsRoot: UPLOADS_DIR,
     proForAll: deps.proForAll,
   });
+  const insights = new ProfileInsightsService({
+    prisma: deps.prisma,
+    profile,
+    achievements,
+    catalog,
+  });
 
   const recommendations = new RecommendationService({ prisma: deps.prisma });
   const analytics = new AnalyticsService({ prisma: deps.prisma });
@@ -204,5 +212,6 @@ export function createServices(deps: ContainerDeps): Services {
     analytics,
     admin,
     episodeInfo,
+    insights,
   };
 }
