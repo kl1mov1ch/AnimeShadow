@@ -50,6 +50,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLocale, useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { useAdminOverview } from "@/lib/query";
+import { useCountUp } from "@/lib/use-count-up";
 import { cn } from "@/lib/utils";
 import {
   BarRow,
@@ -59,7 +60,6 @@ import {
   LiveDot,
   Panel,
   timeAgo,
-  useCountUp,
   useFormatDuration,
   UserAvatar,
   useSafeId,
@@ -247,7 +247,7 @@ function TrafficPanel({
               type="button"
               onClick={() => setMode(option)}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "rounded-lg border px-3 py-1 text-xs font-medium transition-colors",
                 mode === option
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground",

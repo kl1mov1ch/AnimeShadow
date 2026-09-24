@@ -6,7 +6,7 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -20,13 +20,24 @@ import { cn } from "@/lib/utils";
 import { STATUSES, STATUS_META } from "./library-meta";
 import { useLibraryEdit } from "./use-library-edit";
 
-/** The chosen status, painted in its own colour. */
+/** The chosen status's text/icon colour — the fill itself now lives on the
+ *  one sliding highlight behind the buttons, not on each button. */
 const CHIP_ON: Record<LibraryStatus, string> = {
-  WATCHING: "bg-emerald-500 text-white shadow-emerald-500/30",
-  PLANNED: "bg-sky-500 text-white shadow-sky-500/30",
-  COMPLETED: "bg-primary text-primary-foreground shadow-primary/30",
-  ON_HOLD: "bg-amber-500 text-white shadow-amber-500/30",
-  DROPPED: "bg-rose-500 text-white shadow-rose-500/30",
+  WATCHING: "text-white",
+  PLANNED: "text-white",
+  COMPLETED: "text-primary-foreground",
+  ON_HOLD: "text-white",
+  DROPPED: "text-white",
+};
+
+/** Real colour values, not Tailwind classes — the highlight below animates
+ *  `background-color` directly, and a class swap never transitions that. */
+const STATUS_COLOR: Record<LibraryStatus, string> = {
+  WATCHING: "#10b981",
+  PLANNED: "#0ea5e9",
+  COMPLETED: "var(--primary)",
+  ON_HOLD: "#f59e0b",
+  DROPPED: "#f43f5e",
 };
 
 /**
@@ -48,6 +59,38 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
   const [hoverScore, setHoverScore] = useState<number | null>(null);
   const [popped, setPopped] = useState<number | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const entry = entries?.find((e) => e.anime.id === anime.id);
+  const activeStatus = entry?.status ?? null;
+
+  // The fill used to be a class swapped straight onto whichever button was
+  // active — correct the instant you clicked, but a jump cut, not a change
+  // you could see happen. It is one element now, absolutely positioned
+  // behind the row, that slides to the new button's spot and crosses to its
+  // colour while it travels; the buttons themselves only ever swap a text
+  // colour, which *does* transition on its own.
+  //
+  // Declared above every early return below — hooks can't be conditional —
+  // even though the row it measures only exists once someone is signed in.
+  const statusRowRef = useRef<HTMLDivElement>(null);
+  const [highlight, setHighlight] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const row = statusRowRef.current;
+    if (!row || !activeStatus) {
+      setHighlight(null);
+      return;
+    }
+    const measure = () => {
+      const btn = row.querySelector<HTMLButtonElement>(`[data-status="${activeStatus}"]`);
+      if (btn) setHighlight({ left: btn.offsetLeft, width: btn.offsetWidth });
+    };
+    measure();
+    // The active button grows a text label that isn't there on any other
+    // button, so its width can change with the viewport (icon sizes, font)
+    // even though `activeStatus` itself hasn't.
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [activeStatus]);
 
   if (authStatus === "loading") {
     return <div className="h-9 w-full max-w-md animate-pulse rounded-full bg-muted/60" />;
@@ -58,7 +101,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
       <div className="flex min-w-0 items-center gap-2.5">
         <BookmarkPlusIcon className="size-4 shrink-0 text-[var(--accent-ink)]" />
         <span className="text-sm text-muted-foreground">{t("library.tracker.signInBody")}</span>
-        <Button asChild size="sm" className="shrink-0 rounded-full">
+        <Button asChild size="sm" className="shrink-0">
           <Link to="/login" state={{ from: window.location.pathname }}>
             {t("common.signIn")}
           </Link>
@@ -67,7 +110,6 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
     );
   }
 
-  const entry = entries?.find((e) => e.anime.id === anime.id);
   const fail = (error: unknown) =>
     toast.error(error instanceof ApiRequestError ? error.message : t("library.saveError"));
 
@@ -112,10 +154,22 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
       {/* Status: one segmented pill. The chosen one fills and names itself;
           the rest are icons with their names on hover, to keep it to one line. */}
       <div
+        ref={statusRowRef}
         role="radiogroup"
         aria-label={t("library.watchStatus")}
-        className="flex items-center gap-0.5 rounded-full border border-border/60 bg-card/60 p-0.5 backdrop-blur-sm"
+        className="relative flex items-center gap-0.5 rounded-full border border-border/60 bg-card/60 p-0.5 backdrop-blur-sm"
       >
+        {highlight && (
+          <span
+            aria-hidden
+            className="absolute inset-y-0.5 rounded-full shadow-md transition-[left,width,background-color] duration-300 ease-out"
+            style={{
+              left: highlight.left,
+              width: highlight.width,
+              backgroundColor: activeStatus ? STATUS_COLOR[activeStatus] : undefined,
+            }}
+          />
+        )}
         {STATUSES.map((s) => {
           const { Icon, text } = STATUS_META[s];
           const active = entry?.status === s;
@@ -125,12 +179,13 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
               type="button"
               role="radio"
               aria-checked={active}
+              data-status={s}
               onClick={() => chooseStatus(s)}
               disabled={upsert.isPending}
               title={t(`status.${s}`)}
               className={cn(
-                "group inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-xs font-medium transition-all duration-200 active:scale-95",
-                active ? cn("shadow-md", CHIP_ON[s]) : "text-foreground/75 hover:bg-secondary/70 hover:text-foreground",
+                "group relative z-10 inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors duration-200 active:scale-95",
+                active ? CHIP_ON[s] : "text-foreground/75 hover:bg-secondary/70 hover:text-foreground",
               )}
             >
               <Icon
@@ -188,14 +243,22 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
             );
           })}
         </div>
-        {/* Fixed width, so the row does not shift as the word changes. */}
-        <span className="text-xs sm:w-28 sm:truncate">
+        {/* Fixed width from sm up, so the row does not shift as the word
+            changes. Below sm there's no room to spare — the word
+            ("отлично", "шедевр"…) is exactly what was running past the
+            edge of the bar, so a phone gets the number alone, and a
+            `max-w`/`truncate` safety net in case even that doesn't fit
+            next to a long status label. */}
+        <span className="max-w-[11ch] truncate text-xs sm:max-w-none sm:w-28">
           {shownScore != null ? (
             <span key={shownScore} className="animate-in fade-in font-semibold text-amber-500">
-              {shownScore} · {t(`library.tracker.r${shownScore}`)}
+              {shownScore}
+              <span className="hidden sm:inline"> · {t(`library.tracker.r${shownScore}`)}</span>
             </span>
           ) : (
-            <span className="text-muted-foreground/60">{t("library.tracker.rateHint")}</span>
+            <span className="hidden text-muted-foreground/60 sm:inline">
+              {t("library.tracker.rateHint")}
+            </span>
           )}
         </span>
       </div>
@@ -208,7 +271,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
           onClick={() => setConfirmRemove(true)}
           aria-label={t("library.removeFromLibrary", { title })}
           title={t("library.removeShort")}
-          className="grid size-8 place-items-center rounded-full text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
+          className="grid size-8 place-items-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
         >
           <Trash2Icon className="size-3.5" />
         </button>
@@ -255,7 +318,7 @@ function NoteButton({ note, onSave }: { note: string | null; onSave: (notes: str
         <button
           type="button"
           className={cn(
-            "group inline-flex h-9 max-w-52 items-center gap-1.5 rounded-full border px-3 text-xs transition-all duration-200 hover:-translate-y-0.5",
+            "group inline-flex h-9 max-w-52 items-center gap-1.5 rounded-lg border px-3 text-xs transition-all duration-200 hover:-translate-y-0.5",
             note
               ? "border-[var(--accent-line)] bg-[var(--accent-surface-strong)] text-foreground"
               : "border-dashed border-border/80 text-muted-foreground hover:border-[var(--accent-line)] hover:text-foreground",

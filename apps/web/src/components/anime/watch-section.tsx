@@ -91,7 +91,18 @@ export function WatchSection({
     releaseDate != null &&
     releaseDate.getTime() > Date.now();
 
-  const { data, isPending } = useWatchSources(anime.id, active && !notYetOut);
+  const { data: rawData, isPending } = useWatchSources(anime.id, active && !notYetOut);
+  // Our own HLS player (`CustomHlsPlayer`, below) is switched off for now —
+  // it was rendering invisibly on desktop and only actually showing up on
+  // phones, and shipping a picture nobody can see is worse than not
+  // offering it. Rather than delete the player, the source that would have
+  // fed it is filtered out here, so the race never picks it and everyone
+  // lands on an iframe source instead, exactly as if AniLibria's direct
+  // stream had never been added. Delete this filter to bring it back once
+  // the rendering bug is found.
+  const data = rawData
+    ? { ...rawData, sources: rawData.sources.filter((s) => s.format !== "hls") }
+    : rawData;
   // Warm the TCP/TLS handshake for the top few candidate embeds the moment
   // we know them — that connection setup is otherwise dead time that only
   // starts once the iframe itself is in the DOM.
@@ -540,17 +551,28 @@ function initialRacePool(sources: WatchSource[]): string[] {
   return viable.slice(0, trustAlone ? 1 : RACE_SIZE).map((s) => s.id);
 }
 
-/** The URL to actually load right now — for an "hls" source this genuinely
- * depends on which episode is selected (unlike an iframe, which never
- * changes per episode); falls back to whatever episode it does have if the
- * exact one is missing rather than showing nothing. */
+/**
+ * The URL to actually load right now.
+ *
+ * Both formats are per-episode, for different reasons. An HLS source has a
+ * manifest per episode outright. An iframe source has one embed page for
+ * the whole series *plus*, when the provider publishes them, a page per
+ * episode — using those is what lets our own episode buttons drive the
+ * player instead of the provider's controls inside the frame, entirely
+ * through URLs the provider hands out for that purpose.
+ *
+ * Either way, an episode we have no URL for falls back to one we do rather
+ * than showing nothing.
+ */
 function sourceUrlFor(source: WatchSource, episode: number): string | null {
-  if (source.format !== "hls") return source.embedUrl;
-  return (
-    source.hlsEpisodes?.[String(episode)] ??
-    Object.values(source.hlsEpisodes ?? {})[0] ??
-    null
-  );
+  if (source.format === "hls") {
+    return (
+      source.hlsEpisodes?.[String(episode)] ??
+      Object.values(source.hlsEpisodes ?? {})[0] ??
+      null
+    );
+  }
+  return source.iframeEpisodes?.[String(episode)]?.url ?? source.embedUrl;
 }
 
 /** How long the control bar stays up after the last interaction once
@@ -1064,7 +1086,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={togglePlay}
                 aria-label={playing ? t("watch.pause") : t("watch.play")}
-                className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
               >
                 {playing ? (
                   <PauseIcon className="size-4 fill-current" />
@@ -1076,7 +1098,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={() => skip(-SKIP_SECONDS)}
                 aria-label={t("watch.skipBack")}
-                className="hidden size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:flex"
+                className="hidden size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:flex"
               >
                 <RotateCcwIcon className="size-4" />
               </button>
@@ -1084,7 +1106,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={() => skip(SKIP_SECONDS)}
                 aria-label={t("watch.skipForward")}
-                className="hidden size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:flex"
+                className="hidden size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:flex"
               >
                 <RotateCwIcon className="size-4" />
               </button>
@@ -1097,7 +1119,7 @@ function CustomHlsPlayer({
                   type="button"
                   onClick={toggleMute}
                   aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                  className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                  className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
                 >
                   {muted || volume === 0 ? (
                     <VolumeXIcon className="size-4" />
@@ -1120,7 +1142,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={toggleMute}
                 aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:hidden"
+                className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:hidden"
               >
                 {muted || volume === 0 ? (
                   <VolumeXIcon className="size-4" />
@@ -1139,7 +1161,7 @@ function CustomHlsPlayer({
                     <button
                       type="button"
                       aria-label={t("watch.speed")}
-                      className="flex h-8 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/15"
+                      className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors hover:bg-white/15"
                     >
                       <GaugeIcon className="size-3.5" />
                       {speed}x
@@ -1169,7 +1191,7 @@ function CustomHlsPlayer({
                     type="button"
                     onClick={togglePip}
                     aria-label={t("watch.pip")}
-                    className="hidden size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15 sm:flex"
+                    className="hidden size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:flex"
                   >
                     <PictureInPicture2Icon className="size-4" />
                   </button>
@@ -1179,7 +1201,7 @@ function CustomHlsPlayer({
                   type="button"
                   onClick={toggleFullscreen}
                   aria-label={isFullscreen ? t("watch.exitFullscreen") : t("watch.fullscreen")}
-                  className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-white/15"
+                  className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
                 >
                   {isFullscreen ? (
                     <Minimize2Icon className="size-4" />
@@ -1512,7 +1534,7 @@ function Player({
               onClick={() => setAutoNextPersisted(!autoNext)}
               aria-pressed={autoNext}
               className={cn(
-                "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
                 autoNext
                   ? "border-primary/50 bg-primary/10 text-primary"
                   : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
@@ -1528,7 +1550,7 @@ function Player({
             aria-pressed={theatre}
             title={theatre ? t("watch.theatreExit") : t("watch.theatre")}
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
               theatre
                 ? "border-primary/50 bg-primary/10 text-primary"
                 : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
@@ -1559,7 +1581,7 @@ function Player({
                     type="button"
                     onClick={() => setShowStuckHint(false)}
                     className={cn(
-                      "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
+                      "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
                       showAll
                         ? "border-primary/50 bg-primary/10 text-primary"
                         : "border-border/60 bg-secondary/40 text-foreground/80 hover:border-primary/40 hover:bg-secondary/70 hover:text-primary",
@@ -1665,16 +1687,12 @@ function Player({
       <div
         className={cn(
           "relative aspect-video overflow-hidden border bg-black",
-          // Mutually exclusive on purpose: `full-bleed` sets both margins
-          // itself, so leaving the -mx-5 in the base would leave the two
-          // rules arguing over margin-left with only stylesheet order to
-          // settle it.
-          theatre
-            ? // Past the page gutters entirely — the same rule the homepage
-              // hero uses, safe because the document already hides
-              // horizontal overflow.
-              "full-bleed rounded-none border-x-0"
-            : "-mx-5 sm:mx-0 sm:rounded-xl",
+          // Wide mode fills the card it sits in — the same -mx-5 the mobile
+          // bleed already uses, just kept on every breakpoint instead of
+          // only below sm — rather than the page's full width. A viewer
+          // asked for a bigger picture, not for the panel around it (title
+          // bar, tabs, everything else on the page) to disappear.
+          theatre ? "-mx-5 rounded-none border-x-0" : "-mx-5 sm:mx-0 sm:rounded-xl",
         )}
       >
         {racePool.map((id) => {
@@ -1702,7 +1720,7 @@ function Player({
           return (
             <iframe
               key={source.id}
-              src={source.embedUrl}
+              src={sourceUrlFor(source, episode) ?? source.embedUrl}
               title={`${title} — ${source.title}`}
               // Autoplay permission only ever goes to the confirmed winner —
               // a racer that's still invisible has no business making sound

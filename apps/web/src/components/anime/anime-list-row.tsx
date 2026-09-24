@@ -161,7 +161,7 @@ function ListRowTrailer({ url, title }: { url: string; title: string }) {
           type="button"
           onClick={(e) => e.stopPropagation()}
           aria-label={t("trailer.open")}
-          className="absolute bottom-2 right-2 z-20 flex items-center gap-1 rounded-full border border-primary/25 bg-background/85 px-2 py-1 text-[11px] font-medium text-primary backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-background sm:bottom-3 sm:right-3"
+          className="absolute bottom-2 right-2 z-20 flex items-center gap-1 rounded-lg border border-primary/25 bg-background/85 px-2 py-1 text-[11px] font-medium text-primary backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-background sm:bottom-3 sm:right-3"
         >
           <PlayCircleIcon className="size-3.5" />
           <span className="hidden sm:inline">{t("trailer.open")}</span>

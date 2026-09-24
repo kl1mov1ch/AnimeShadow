@@ -214,7 +214,7 @@ export function ImageCropper({
             type="button"
             onClick={() => applyZoom(zoom / 1.2)}
             aria-label={t("profile.crop.zoomOut")}
-            className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <ZoomOutIcon className="size-4" />
           </button>
@@ -233,7 +233,7 @@ export function ImageCropper({
             type="button"
             onClick={() => applyZoom(zoom * 1.2)}
             aria-label={t("profile.crop.zoomIn")}
-            className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <ZoomInIcon className="size-4" />
           </button>
@@ -245,7 +245,7 @@ export function ImageCropper({
             }}
             aria-label={t("profile.crop.reset")}
             title={t("profile.crop.reset")}
-            className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <RotateCcwIcon className="size-4" />
           </button>

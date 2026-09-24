@@ -1,7 +1,9 @@
 import { Prisma, type PrismaClient } from "@animeshadow/db";
 import {
   type KodikClient,
+  resolveDirectSources as kodikDirectSources,
   toWatchSources as kodikToSources,
+  withDirectSources,
 } from "@animeshadow/kodik";
 import type { AllohaClient, AllohaResult } from "@animeshadow/alloha";
 import { type AniLibriaClient, bestEpisodeUrl } from "@animeshadow/anilibria";
@@ -20,6 +22,8 @@ export interface WatchServiceDeps {
   alloha: AllohaClient;
   anilibria: AniLibriaClient;
   embedTemplate?: string | undefined;
+  /** Passed straight to the direct-source adapter; absent on every ordinary deployment. */
+  kodikDirectToken?: string | undefined;
   logger: WatchLogger;
 }
 
@@ -131,6 +135,7 @@ export class WatchService {
   private readonly alloha: AllohaClient;
   private readonly anilibria: AniLibriaClient;
   private readonly embedTemplate?: string;
+  private readonly kodikDirectToken?: string;
   private readonly logger: WatchLogger;
   private readonly cache = new TtlCache<WatchResponse>(30 * 60_000, 512);
   // Anime ids currently being refreshed in the background — so a stale
@@ -144,6 +149,7 @@ export class WatchService {
     this.alloha = deps.alloha;
     this.anilibria = deps.anilibria;
     this.embedTemplate = deps.embedTemplate;
+    this.kodikDirectToken = deps.kodikDirectToken;
     this.logger = deps.logger;
   }
 
@@ -223,6 +229,10 @@ export class WatchService {
         r.hlsEpisodes != null
           ? (r.hlsEpisodes as Record<string, string>)
           : undefined,
+      iframeEpisodes:
+        r.iframeEpisodes != null
+          ? (r.iframeEpisodes as WatchSource["iframeEpisodes"])
+          : undefined,
       quality: r.quality,
       episodesCount: r.episodesCount,
       stable: r.stable,
@@ -281,6 +291,27 @@ export class WatchService {
     await Promise.all(
       Array.from({ length: Math.min(PROBE_CONCURRENCY, sources.length) }, worker),
     );
+  }
+
+  /**
+   * The direct-source adapter, asked politely and never allowed to break a
+   * resolve. Without a licensed credential it answers immediately with
+   * nothing, so this costs one function call per source in the normal case.
+   */
+  private async kodikDirect(
+    kodikId: string,
+    translationId: string,
+    quiet: boolean,
+  ): Promise<Awaited<ReturnType<typeof kodikDirectSources>>> {
+    try {
+      return await kodikDirectSources(
+        { kodikId, translationId, episode: 1 },
+        { accessToken: this.kodikDirectToken },
+      );
+    } catch (error) {
+      if (!quiet) this.logger.warn({ error, kodikId }, "kodik direct source failed");
+      return [];
+    }
   }
 
   /** Alloha's payload turned into our source rows — shared by both call sites below. */
@@ -400,7 +431,12 @@ export class WatchService {
         const kp = Number(group.primary.kinopoisk_id);
         if (Number.isInteger(kp) && kp > 0) kinopoiskId = kp;
         for (const s of kodikToSources(group)) {
-          sources.push({ ...s, id: s.id });
+          // Prefer a direct stream over the embed whenever the provider
+          // grants us one; today it never does (see the adapter's own
+          // notes) and the iframe source passes through unchanged, which is
+          // the intended fallback rather than a failure.
+          const direct = await this.kodikDirect(group.primary.id, s.id, quiet);
+          sources.push(withDirectSources(s, direct));
         }
         if (sources.length > 0) provider = "kodik";
       }
@@ -520,6 +556,7 @@ export class WatchService {
             format: s.format,
             embedUrl: s.embedUrl,
             hlsEpisodes: s.hlsEpisodes ?? Prisma.JsonNull,
+            iframeEpisodes: s.iframeEpisodes ?? Prisma.JsonNull,
             quality: s.quality,
             episodesCount: s.episodesCount,
             position: index,

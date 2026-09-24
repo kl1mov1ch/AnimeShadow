@@ -43,6 +43,18 @@ function HoverPreview({
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent side="top" className="max-w-60 text-left">
         <p className="font-medium">{character.name}</p>
+        {/* The role and who voices them — the two things worth knowing
+            before deciding whether to open the full bio at all. */}
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {[
+            character.role.toLowerCase() === "main"
+              ? t("detail.mainRole")
+              : character.role,
+            character.voiceActor?.name,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
         {isPending ? (
           <Skeleton className="mt-1 h-3 w-32 bg-foreground/20" />
         ) : data?.description ? (
@@ -112,6 +124,14 @@ export function CharacterCard({
           <p className="line-clamp-2 w-full text-[11px] font-medium leading-tight sm:text-xs">
             {character.name}
           </p>
+          {/* Who plays them, when we know it — the reason "who voices this
+              character" doesn't require opening the modal on every single
+              one of a dozen names. */}
+          {character.voiceActor?.name && (
+            <p className="line-clamp-1 w-full text-[10px] text-muted-foreground">
+              {character.voiceActor.name}
+            </p>
+          )}
         </button>
       </HoverPreview>
     );

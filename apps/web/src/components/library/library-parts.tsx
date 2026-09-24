@@ -86,7 +86,7 @@ export function ProgressStepper({
         disabled={done}
         aria-label={t("library.plusOne")}
         title={t("library.plusOne")}
-        className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-30"
+        className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-30"
       >
         <PlusIcon className="size-3" />
       </button>
@@ -205,7 +205,7 @@ export function EntryMenu({
             type="button"
             aria-label={t("library.actions")}
             className={cn(
-              "flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground",
+              "flex size-6 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground",
               className,
             )}
           >

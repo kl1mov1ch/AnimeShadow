@@ -198,14 +198,14 @@ function UserView({ detail }: { detail: AdminUserDetail }) {
 
         {/* Actions — the only place in the panel that changes anything. */}
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setPasswordOpen(true)} className="rounded-full">
+          <Button size="sm" onClick={() => setPasswordOpen(true)} className="rounded-lg">
             <KeyRoundIcon />
             {t("admin.user.setPassword")}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full"
+            
             disabled={isSelf || setUser.isPending}
             onClick={() =>
               update(
@@ -221,7 +221,7 @@ function UserView({ detail }: { detail: AdminUserDetail }) {
           <Button
             size="sm"
             variant="outline"
-            className={cn("rounded-full", !u.isBanned && "text-destructive hover:text-destructive")}
+            className={cn("rounded-lg", !u.isBanned && "text-destructive hover:text-destructive")}
             disabled={isSelf || setUser.isPending}
             onClick={() =>
               update(
@@ -235,7 +235,7 @@ function UserView({ detail }: { detail: AdminUserDetail }) {
             {u.isBanned ? t("admin.user.unban") : t("admin.user.ban")}
           </Button>
           {u.username && (
-            <Button asChild size="sm" variant="ghost" className="rounded-full">
+            <Button asChild size="sm" variant="ghost" >
               <Link to={`/profile/@${u.username}`} target="_blank">
                 <ExternalLinkIcon />
                 {t("admin.user.openProfile")}

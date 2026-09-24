@@ -40,6 +40,21 @@ export interface KodikMaterialData {
   episodes_aired?: number | null;
 }
 
+/** `seasons[n].episodes[m]` when the search is made with
+ *  `with_episodes_data=true`. Verified against the live API: an episode
+ *  carries exactly these two fields and nothing else. */
+export interface KodikEpisodeData {
+  link?: string;
+  screenshots?: string[];
+}
+
+export interface KodikSeason {
+  link?: string;
+  /** Episode number (as a string key) → the episode itself. With plain
+   *  `with_episodes=true` the value is the bare link string instead. */
+  episodes?: Record<string, KodikEpisodeData | string>;
+}
+
 export interface KodikResult {
   id: string; // e.g. "serial-7963"
   type: string; // anime, anime-serial, ...
@@ -61,6 +76,7 @@ export interface KodikResult {
   created_at?: string;
   updated_at?: string;
   material_data?: KodikMaterialData | null;
+  seasons?: Record<string, KodikSeason>;
 }
 
 export interface KodikResponse<T> {

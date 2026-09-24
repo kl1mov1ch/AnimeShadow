@@ -62,6 +62,11 @@ const envSchema = z.object({
   KODIK_API_BASE: z.string().url().default("https://kodik-api.com"),
   ALLOHA_TOKEN: z.string().default("45e20a5f584becf7a64dffb7174ddf"),
   WATCH_EMBED_TEMPLATE: z.string().optional(),
+  // A licensed Kodik direct-source credential, if this deployment has been
+  // granted one. Server-only, never forwarded to the browser; unset (the
+  // normal case) means Kodik plays in its own embed, which is the only way
+  // its public API permits. See packages/kodik/src/direct.ts.
+  KODIK_DIRECT_TOKEN: z.string().optional(),
   // Warm the watch-availability cache for the N most popular cached titles on boot.
   WATCH_WARM_LIMIT: z.coerce.number().int().nonnegative().default(120),
   /** How often the warm pass repeats. 0 disables the repeat (boot pass only),

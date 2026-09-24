@@ -114,7 +114,7 @@ function Pill({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200",
+        "group relative overflow-hidden rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-200",
         active
           ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
           : "border-border/60 bg-card/40 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
@@ -206,7 +206,7 @@ export function BrowseFilters({
             onClick={() => onChange(patch(!active))}
             style={{ animationDelay: `${i * 40}ms`, animationFillMode: "backwards" }}
             className={cn(
-              "group animate-in fade-in zoom-in-95 relative flex items-center justify-center gap-1.5 overflow-hidden rounded-full border px-3 py-2 text-xs font-medium duration-300 transition-all",
+              "group animate-in fade-in zoom-in-95 relative flex items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-3 py-2 text-xs font-medium duration-300 transition-all",
               active
                 ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
                 : "border-border/60 bg-card/40 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
@@ -243,7 +243,7 @@ export function BrowseFilters({
             type="button"
             onClick={() => setTerm("")}
             aria-label={t("common.clear")}
-            className="animate-in zoom-in-75 absolute right-2 flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="animate-in zoom-in-75 absolute right-2 flex size-6 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -257,7 +257,7 @@ export function BrowseFilters({
           value={params.orderBy ?? "popularity"}
           onValueChange={(value) => onChange({ orderBy: value })}
         >
-          <SelectTrigger id="browse-sort" className="h-10 w-full rounded-full">
+          <SelectTrigger id="browse-sort" className="h-10 w-full rounded-lg">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -363,7 +363,7 @@ export function BrowseFilters({
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              className="h-10 w-full justify-between rounded-full border-border/60 bg-card/70 font-normal hover:border-primary/40"
+              className="h-10 w-full justify-between rounded-lg border-border/60 bg-card/70 font-normal hover:border-primary/40"
             >
               {selectedGenres.size > 0
                 ? t("browse.genresSelected", { count: selectedGenres.size })
@@ -416,7 +416,7 @@ export function BrowseFilters({
                   key={id}
                   type="button"
                   onClick={() => toggleGenre(id)}
-                  className="group inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 py-1 pl-2.5 pr-1.5 text-xs text-primary transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  className="group inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 py-1 pl-2.5 pr-1.5 text-xs text-primary transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                 >
                   {labels.genreLabel(genre.name)}
                   <XIcon className="size-3" />
@@ -446,7 +446,7 @@ export function BrowseFilters({
         <button
           type="button"
           onClick={onReset}
-          className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-full border border-border/60 py-2 text-xs font-medium text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/40 hover:text-destructive"
+          className="group relative flex items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-border/60 py-2 text-xs font-medium text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-destructive/40 hover:text-destructive"
         >
           <RotateCcwIcon className="relative z-10 size-3.5" />
           <span className="relative z-10">{t("browse.clearAll")}</span>

@@ -222,7 +222,7 @@ function FilterToggle({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs transition-all duration-200",
+        "rounded-lg border px-2.5 py-1 text-xs transition-all duration-200",
         active
           ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
           : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
@@ -281,7 +281,7 @@ function Composer({
             type="button"
             onClick={() => setQuoting(false)}
             aria-label={t("common.cancel")}
-            className="absolute right-1.5 top-1.5 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+            className="absolute right-1.5 top-1.5 rounded-lg p-0.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
           >
             <XIcon className="size-3.5" />
           </button>
@@ -305,7 +305,7 @@ function Composer({
               aria-pressed={mode === m}
               title={t(`comments.mode.${modeHintKey(m)}`)}
               className={cn(
-                "rounded-full px-2.5 py-1 text-xs transition-all duration-200",
+                "rounded-lg px-2.5 py-1 text-xs transition-all duration-200",
                 mode === m
                   ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
                   : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
@@ -319,7 +319,7 @@ function Composer({
           size="sm"
           onClick={submit}
           disabled={create.isPending || !body.trim()}
-          className="rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
+          className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
         >
           {t("comments.submit")}
         </Button>
@@ -388,7 +388,7 @@ function CommentItem({
           type="button"
           onClick={() => onOpenProfile({ id: comment.author.id!, username: comment.author.username })}
           aria-label={t("comments.viewProfile")}
-          className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="shrink-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Avatar className="size-8 ring-2 ring-border/60 transition-all duration-200 hover:ring-primary/40">
             {comment.author.avatarUrl && (
@@ -479,7 +479,7 @@ function CommentItem({
                   );
                 }}
                 disabled={edit.isPending || !draft.trim()}
-                className="rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
+                className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
               >
                 {t("common.save")}
               </Button>
@@ -487,7 +487,7 @@ function CommentItem({
                 size="sm"
                 variant="ghost"
                 onClick={() => setEditing(false)}
-                className="rounded-full"
+                className="rounded-lg"
               >
                 {t("common.cancel")}
               </Button>
@@ -508,7 +508,7 @@ function CommentItem({
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                className="rounded-full px-2 py-0.5 text-xs font-medium text-primary/80 transition-all duration-200 hover:bg-primary/10 hover:text-primary"
+                className="rounded-lg px-2 py-0.5 text-xs font-medium text-primary/80 transition-all duration-200 hover:bg-primary/10 hover:text-primary"
               >
                 {expanded ? t("common.showLess") : t("common.showMore")}
               </button>

@@ -152,6 +152,41 @@ export function toGenreList(kodikGenres: { title: string; count: number }[]): Ge
     .map((g) => ({ id: genreId(g.title), name: g.title, count: g.count }));
 }
 
+/** `//host/path` → `https://host/path`; anything already absolute is left be. */
+function absolute(url: string): string {
+  return url.startsWith("//") ? `https:${url}` : url;
+}
+
+/**
+ * Every episode Kodik lists for a row, flattened across its seasons.
+ *
+ * The API nests episodes under seasons, but this project addresses a title
+ * by a single running episode number, so seasons are walked in numeric
+ * order and the numbering carries across them. A row that came back without
+ * `with_episodes_data` simply yields nothing, and the caller falls back to
+ * the one series-wide embed URL.
+ */
+export function toEpisodeMap(
+  row: KodikResult,
+): Record<string, { url: string; thumbs: string[] }> {
+  const out: Record<string, { url: string; thumbs: string[] }> = {};
+  const seasons = Object.entries(row.seasons ?? {}).sort(
+    ([a], [b]) => Number(a) - Number(b),
+  );
+  for (const [, season] of seasons) {
+    const episodes = Object.entries(season.episodes ?? {}).sort(
+      ([a], [b]) => Number(a) - Number(b),
+    );
+    for (const [number, episode] of episodes) {
+      const link = typeof episode === "string" ? episode : episode.link;
+      if (!link) continue;
+      const thumbs = typeof episode === "string" ? [] : (episode.screenshots ?? []);
+      out[number] = { url: absolute(link), thumbs };
+    }
+  }
+  return out;
+}
+
 export function toWatchSources(group: KodikGroup): WatchSource[] {
   const best = new Map<string, KodikResult>();
   for (const row of group.translations) {
@@ -178,7 +213,8 @@ export function toWatchSources(group: KodikGroup): WatchSource[] {
             ? "subtitles"
             : "unknown",
       format: "iframe",
-      embedUrl: row.link.startsWith("//") ? `https:${row.link}` : row.link,
+      embedUrl: absolute(row.link),
+      iframeEpisodes: toEpisodeMap(row),
       quality: row.quality ?? null,
       episodesCount: row.episodes_count ?? row.last_episode ?? null,
       stable: null,

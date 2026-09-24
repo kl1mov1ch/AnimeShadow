@@ -32,7 +32,7 @@ export function InfoTooltip({
           aria-label={t("common.moreInfo")}
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-foreground",
+            "flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:text-foreground",
             className,
           )}
         >

@@ -959,3 +959,170 @@ html.light .home-theme {
     transform: translateY(10px);
   }
 }
+
+/*
+  The rank bar.
+
+  Two things happen and neither is a loop: the fill grows to its real width
+  once, on first paint, and a band of light crosses it afterwards — the same
+  sweep the buttons and cards elsewhere already use. The width itself comes
+  from --fill, so the number on screen is always the real one; the animation
+  only decides how it gets there.
+*/
+.rank-bar {
+  width: var(--fill, 0%);
+  overflow: hidden;
+  animation: rank-fill 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rank-bar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 40%;
+  translate: -120% 0;
+  skew: -12deg;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.55),
+    transparent
+  );
+  animation: rank-sheen 3.2s ease-in-out 1.1s infinite;
+}
+
+@keyframes rank-fill {
+  from {
+    width: 0%;
+  }
+}
+
+@keyframes rank-sheen {
+  0% {
+    translate: -120% 0;
+  }
+  /* Most of the cycle is the pause between passes, not the pass itself. */
+  35%,
+  100% {
+    translate: 320% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rank-bar {
+    animation: none;
+  }
+  .rank-bar::after {
+    display: none;
+  }
+}
+
+/* The whole ring turns as one. The noise inside it boils on its own clock,
+   so these two together are what stop a frame from looking like a loop. */
+.plasma-spin {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation-name: plasma-spin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes plasma-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plasma-spin {
+    animation: none;
+  }
+}
+
+/*
+  What sits on the ring: the site's mark at the top, a number at the bottom.
+
+  Both are pinned to the avatar's own edge, which is exactly where the ring
+  is, so they read as part of the frame rather than as two badges floating
+  near it. The motion is small on purpose — the ring is already moving, and
+  two things competing for the eye is one too many.
+*/
+.frame-cap-mark {
+  animation: frame-cap-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes frame-cap-breathe {
+  0%,
+  100% {
+    scale: 1;
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+  50% {
+    scale: 1.08;
+    filter: drop-shadow(0 0 7px currentColor);
+  }
+}
+
+/* The runner bobs the way a step does: up quickly, down slowly. */
+.frame-cap-icon {
+  animation: frame-cap-step 1.1s cubic-bezier(0.3, 0, 0.5, 1) infinite;
+}
+
+@keyframes frame-cap-step {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  35% {
+    translate: 0 -1.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame-cap-mark,
+  .frame-cap-icon {
+    animation: none;
+  }
+}
+
+/*
+  The band of light a button answers a pointer with.
+
+  It is a pseudo-element rather than markup so every button on the site gets
+  it from the variant string alone — there is no wrapper to remember and no
+  call site to change. `overflow: hidden` clips the band to the button; it
+  does not clip the focus ring, which is a box-shadow and draws outside the
+  box either way.
+
+  The text-only variants opt out: a white band sweeping across a bare link
+  is a band sweeping across the page.
+*/
+.btn-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-sheen::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 35%;
+  translate: -160% 0;
+  skew: -12deg;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.22), transparent);
+  transition: translate 0.55s ease-out;
+}
+
+.btn-sheen:hover::after,
+.btn-sheen:focus-visible::after {
+  translate: 360% 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-sheen::after {
+    display: none;
+  }
+}

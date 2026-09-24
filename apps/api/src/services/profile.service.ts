@@ -7,7 +7,12 @@ import type {
   Rank,
   UpdateProfileInput,
 } from "@animeshadow/shared";
-import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
+import {
+  AVATAR_FRAMES,
+  MAX_SHOWCASE_ACHIEVEMENTS,
+  PROFILE_TITLES,
+  cosmeticUnlocked,
+} from "@animeshadow/shared";
 import { computeIsAdult } from "../lib/content-guard.js";
 import { watchSecondsTotal, watchSessionsTotal } from "../lib/metrics.js";
 import {
@@ -112,6 +117,26 @@ export class ProfileService {
       if (!allOwned) throw new BadRequestError("Эта ачивка вам недоступна.");
     }
 
+    // A frame or a title is only wearable once its achievement is earned.
+    // Checked here rather than trusted from the client: the ids are public,
+    // so the request is the one place this can actually be enforced.
+    if (input.avatarFrame !== undefined || input.profileTitle !== undefined) {
+      const earned = await this.achievements.list(userId);
+      const earnedIds = earned.filter((a) => a.earned).map((a) => a.id);
+      if (
+        input.avatarFrame != null &&
+        !cosmeticUnlocked(AVATAR_FRAMES, input.avatarFrame, earnedIds)
+      ) {
+        throw new BadRequestError("Эта рамка ещё не открыта.");
+      }
+      if (
+        input.profileTitle != null &&
+        !cosmeticUnlocked(PROFILE_TITLES, input.profileTitle, earnedIds)
+      ) {
+        throw new BadRequestError("Эта приписка ещё не открыта.");
+      }
+    }
+
     if (input.titlePrefix !== undefined || input.titleIcon !== undefined) {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: userId },
@@ -159,6 +184,8 @@ export class ProfileService {
           : {}),
         ...(input.titlePrefix !== undefined ? { titlePrefix: input.titlePrefix } : {}),
         ...(input.titleIcon !== undefined ? { titleIcon: input.titleIcon } : {}),
+        ...(input.avatarFrame !== undefined ? { avatarFrame: input.avatarFrame } : {}),
+        ...(input.profileTitle !== undefined ? { profileTitle: input.profileTitle } : {}),
         ...(birthDate !== undefined ? { birthDate } : {}),
       },
     });
@@ -378,6 +405,10 @@ export class ProfileService {
       ),
       // PRO-only — re-checked on every read, not just at save time, so a
       // lapsed subscription can't leave a stale title on display.
+      // Cosmetics are earned, so they do not depend on PRO the way the
+      // free-text title does.
+      avatarFrame: user.avatarFrame as PublicProfile["avatarFrame"],
+      profileTitle: user.profileTitle as PublicProfile["profileTitle"],
       titlePrefix: user.proSince != null ? user.titlePrefix : null,
       titleIcon:
         user.proSince != null ? (user.titleIcon as PublicProfile["titleIcon"]) : null,

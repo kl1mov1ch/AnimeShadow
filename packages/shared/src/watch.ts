@@ -20,6 +20,22 @@ export const watchSourceSchema = z.object({
   embedUrl: z.string(),
   /** format "hls" only: episode number (as a string key) → HLS manifest URL. */
   hlsEpisodes: z.record(z.string(), z.string()).optional(),
+  /**
+   * format "iframe": episode number → that episode's own embed page, plus
+   * the stills the provider publishes for it.
+   *
+   * Kodik's documented API returns one embed URL per episode under
+   * `seasons[n].episodes[m]`, not just one for the series. That is what
+   * lets our own episode buttons actually drive the player: switching an
+   * episode swaps the iframe's src for that episode's official URL. It is
+   * the provider's own addressing, not a parameter we guessed at.
+   */
+  iframeEpisodes: z
+    .record(
+      z.string(),
+      z.object({ url: z.string(), thumbs: z.array(z.string()).default([]) }),
+    )
+    .optional(),
   quality: z.string().nullable(),
   episodesCount: z.number().int().nullable(),
   /** Reachability probe: true = verified playable, false = failed, null = not checked yet. */

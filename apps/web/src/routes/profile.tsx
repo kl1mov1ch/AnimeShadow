@@ -6,17 +6,17 @@ import type {
   ProgressDetail,
   PublicProfile,
   Rank,
-  TitleIcon,
 } from "@animeshadow/shared";
-import { MAX_SHOWCASE_ACHIEVEMENTS, TITLE_ICONS } from "@animeshadow/shared";
+import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import { type CSSProperties, useState } from "react";
 import {
-  CalendarDaysIcon,
+  BarChart3Icon,
+  CheckCircle2Icon,
   CheckIcon,
   ChevronRightIcon,
   ClockIcon,
-  CrownIcon,
   FilmIcon,
+  FootprintsIcon,
   LinkIcon,
   type LucideIcon,
   MailIcon,
@@ -31,7 +31,6 @@ import {
   ShieldCheckIcon,
   SearchIcon,
   SparklesIcon,
-  TimerIcon,
   Trash2Icon,
   TrophyIcon,
   UserIcon,
@@ -50,7 +49,7 @@ import {
   ProgressEmpty,
   ProgressRow,
 } from "@/components/anime/progress-row";
-import { TITLE_ICON_COMPONENT, UserTitleBadge } from "@/components/user-title-badge";
+import { UserTitleBadge } from "@/components/user-title-badge";
 import { PasswordInput, TextInput } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
@@ -106,9 +105,21 @@ import {
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { ProfileBanner } from "@/components/profile/profile-banner";
-import { IdentityExtras, PresenceDot } from "@/components/profile/identity-extras";
-import { ProfileMediaEditor } from "@/components/profile/profile-media-editor";
+import { PresenceDot } from "@/components/profile/identity-extras";
+import {
+  AvatarEditOverlay,
+  BannerEditButtons,
+} from "@/components/profile/profile-media-editor";
+import { useProfileMedia } from "@/components/profile/use-profile-media";
+import {
+  AvatarFrameRing,
+  ProfileTitleBadge,
+} from "@/components/profile/profile-cosmetics";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
+import { ContinueStrip } from "@/components/library/library-views";
+import { ProfileOverview } from "@/components/profile/profile-overview";
+import { ProfileRail } from "@/components/profile/profile-rail";
+import { useLibraryEdit } from "@/components/library/use-library-edit";
 
 export function Component() {
   const t = useT();
@@ -157,6 +168,10 @@ function PublicView({ username }: { username: string }) {
   return (
     <ProfileShell>
       <ProfileHero profile={data} stats={data.stats} />
+      <StatsBar
+        stats={data.stats}
+        achievementsEarned={data.achievements.filter((a) => a.earned).length}
+      />
       {data.stats.topRated.length > 0 && (
         <section className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
@@ -170,83 +185,208 @@ function PublicView({ username }: { username: string }) {
   );
 }
 
-const PROFILE_TABS = ["progress", "settings", "achievements"] as const;
+// Settings is a dialog now, not a destination: a profile is one page,
+// and "edit what you are looking at" should not navigate away from it.
+const PROFILE_TABS = ["profile", "progress", "achievements", "stats"] as const;
 type ProfileTab = (typeof PROFILE_TABS)[number];
 
 function OwnView() {
   const t = useT();
   const { data: profile, isPending } = useMyProfile();
+  const { data: entries } = useLibrary(undefined, true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get("tab");
   const tab: ProfileTab = PROFILE_TABS.includes(requested as ProfileTab)
     ? (requested as ProfileTab)
-    : "progress";
+    : "profile";
 
   if (isPending || !profile) return <ProfileSkeleton />;
 
   return (
     <ProfileShell>
-      <ProfileHero profile={profile} stats={profile.stats} editable />
+      <ProfileHero
+        profile={profile}
+        stats={profile.stats}
+        editable
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <StatsBar
+        stats={profile.stats}
+        achievementsEarned={profile.achievements.filter((a) => a.earned).length}
+      />
 
+      {/* The rail used to be the page's navigation, which cost a whole
+          column to three links. The tabs are a row now — the column goes to
+          content instead, and on desktop the page finally has the shape it
+          should: what you did, next to what you have. */}
       <Tabs
         value={tab}
-        onValueChange={(v) =>
-          setSearchParams(v === "progress" ? {} : { tab: v }, { replace: true })
-        }
-        className="gap-5 lg:grid lg:grid-cols-[13rem_1fr] lg:items-start lg:gap-6"
+        onValueChange={(v) => setSearchParams(v === "profile" ? {} : { tab: v }, { replace: true })}
+        className="gap-4"
       >
-        {/* The page's primary navigation — a sidebar from desktop up (the
-            same shape as a Telegram settings screen: one rail, three
-            destinations, always in view instead of scrolled past), a
-            compact pill row on a phone where there's no side to spare. Each
-            tab gets its own colour instead of the one shared shade every
-            active state used to switch to and from — the flat monochrome
-            row was itself part of what read as "grey" and made switching
-            tabs feel like nothing had actually changed. */}
-        <TabsList className="h-auto! w-full flex-row justify-start gap-1 overflow-x-auto rounded-xl border border-border/60 bg-card/40 p-1.5 [scrollbar-width:none] lg:sticky lg:top-20 lg:flex-col lg:items-stretch lg:gap-1.5 lg:overflow-visible lg:p-2 [&::-webkit-scrollbar]:hidden">
+        <TabsList className="h-auto! w-full flex-row justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card/40 p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <ProfileTabTrigger value="profile" icon={UserIcon} label={t("profile.tabs.profile")} />
           <ProfileTabTrigger
             value="progress"
             icon={PlayCircleIcon}
             label={t("profile.tabs.progress")}
           />
           <ProfileTabTrigger
-            value="settings"
-            icon={SettingsIcon}
-            label={t("profile.tabs.settings")}
-          />
-          <ProfileTabTrigger
             value="achievements"
             icon={TrophyIcon}
             label={t("profile.tabs.achievements")}
           />
+          <ProfileTabTrigger value="stats" icon={BarChart3Icon} label={t("profile.tabs.stats")} />
         </TabsList>
 
-        {/* Switching tabs used to swap content instantly, which read as a
-            jump rather than a move. Each panel now fades and rises the
-            moment it mounts — Radix unmounts the inactive ones, so the
-            animation replays on every switch without any state of its own. */}
-        <div className="min-w-0">
-          <TabsContent
-            value="progress"
-            className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-          >
-            <ProgressTab profile={profile} />
-          </TabsContent>
-          <TabsContent
-            value="settings"
-            className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-          >
-            <SettingsTab profile={profile} />
-          </TabsContent>
-          <TabsContent
-            value="achievements"
-            className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-          >
-            <AchievementsTab />
-          </TabsContent>
+        <div className="gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-5">
+          <div className="min-w-0">
+            <TabsContent
+              value="profile"
+              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
+              <ProfileOverview profile={profile} entries={entries ?? []} />
+            </TabsContent>
+            <TabsContent
+              value="progress"
+              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
+              <ProgressTab profile={profile} />
+            </TabsContent>
+            <TabsContent
+              value="achievements"
+              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
+              <AchievementsTab />
+            </TabsContent>
+            <TabsContent
+              value="stats"
+              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
+              <StatsTab profile={profile} />
+            </TabsContent>
+          </div>
+
+          <div className="mt-4 lg:sticky lg:top-20 lg:mt-0">
+            <ProfileRail profile={profile} onOpenSettings={() => setSettingsOpen(true)} />
+          </div>
         </div>
       </Tabs>
+
+      {/* Everything that used to be a fifth tab. Same component, same
+          rows, same mutations — it just no longer costs leaving the page
+          you were looking at. */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t("profile.tabs.settings")}</DialogTitle>
+          </DialogHeader>
+          <SettingsTab profile={profile} />
+        </DialogContent>
+      </Dialog>
     </ProfileShell>
+  );
+}
+
+/**
+ * Everything the profile counts, on one line: the five numbers a visitor
+ * actually scans for, hairline-separated rather than five separate floating
+ * cards. Every one of them is a number the server really keeps — there is
+ * no "followers" here because there is no following.
+ */
+function StatsBar({
+  stats,
+  achievementsEarned,
+}: {
+  stats: ProfileStats;
+  achievementsEarned: number;
+}) {
+  const t = useT();
+  const cells: Array<{ icon: LucideIcon; value: string; label: string }> = [
+    { icon: FilmIcon, value: String(stats.episodesWatched), label: t("profile.summary.totalEpisodes") },
+    {
+      icon: CheckCircle2Icon,
+      value: String(stats.titlesCompleted),
+      label: t("profile.summary.completedTitles"),
+    },
+    { icon: TrophyIcon, value: String(achievementsEarned), label: t("profile.tabs.achievements") },
+    {
+      icon: ClockIcon,
+      value: fmtDuration(t, stats.hoursWatched * 3600),
+      label: t("profile.summary.totalTime"),
+    },
+    {
+      icon: StarIcon,
+      value: stats.meanScore != null ? stats.meanScore.toFixed(1) : "—",
+      label: t("profile.summary.meanScore"),
+    },
+  ];
+
+  return (
+    // gap-px over the border colour draws the hairlines between cells at
+    // every breakpoint on its own — no per-cell border rules that have to
+    // know which column they landed in.
+    <div className="reveal-group grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/60 bg-border/60 sm:grid-cols-3 lg:grid-cols-5">
+      {cells.map(({ icon: Icon, value, label }, i) => (
+        <div
+          key={label}
+          style={{ "--i": i } as CSSProperties}
+          className="reveal group flex items-center gap-3 bg-card/60 px-4 py-3.5 transition-colors hover:bg-card"
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+            <Icon className="size-4" />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-display text-lg leading-none tabular-nums">{value}</span>
+            <span className="truncate text-[11px] text-muted-foreground">{label}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The charts panel, on a tab of its own now rather than wedged under the
+ *  identity card where it never had the width to be read. */
+function StatsTab({ profile }: { profile: MyProfile }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const stats = profile.stats;
+  const day = stats.mostProductiveDay
+    ? new Date(stats.mostProductiveDay).toLocaleDateString(locale, { day: "numeric", month: "long" })
+    : "—";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-4">
+          <span className="text-[11px] text-muted-foreground">
+            {t("profile.summary.mostProductiveDay")}
+          </span>
+          <span className="font-display text-lg">{day}</span>
+        </div>
+        <div className="flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-4">
+          <span className="text-[11px] text-muted-foreground">
+            {t("profile.summary.avgPerSession")}
+          </span>
+          <span className="font-display text-lg">
+            {stats.avgSessionMinutes != null
+              ? t("profile.summary.minutesShort", { minutes: stats.avgSessionMinutes })
+              : "—"}
+          </span>
+        </div>
+      </div>
+      <LibraryCharts stats={stats} />
+      {stats.topRated.length > 0 && (
+        <section className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/40 p-4">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t("profile.summary.topRated")}
+          </span>
+          <TopRatedList titles={stats.topRated} />
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -270,7 +410,7 @@ function ProfileTabTrigger({
     <TabsTrigger
       value={value}
       className={cn(
-        "group relative h-auto flex-none justify-start gap-2 overflow-hidden rounded-full border-transparent px-3.5 py-2 text-foreground/70 transition-all duration-200 sm:px-4 lg:w-full",
+        "group relative h-auto flex-none justify-center gap-2 overflow-hidden rounded-lg border-transparent px-3.5 py-2 text-foreground/70 transition-all duration-200 sm:px-4",
         "hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
         "data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:via-primary/85 data-[state=active]:to-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:hover:translate-y-0",
       )}
@@ -329,14 +469,20 @@ function ProfileHero({
   profile,
   stats,
   editable = false,
+  onOpenSettings,
 }: {
   profile: PublicProfile;
   stats: ProfileStats;
   /** Only the account's own page gets the hover-to-edit affordance — a
    * visitor on someone else's profile has nothing to edit here. */
   editable?: boolean;
+  /** Opens the settings dialog. Absent on someone else's profile. */
+  onOpenSettings?: () => void;
 }) {
   const t = useT();
+  // Unconditional, as hooks must be: on a profile that is not yours it
+  // simply never gets a button wired to it.
+  const media = useProfileMedia(profile);
   const { locale } = useLocale();
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
   const memberSince = new Date(profile.memberSince).toLocaleDateString(locale, {
@@ -350,159 +496,240 @@ function ProfileHero({
     .filter((a): a is EarnedAchievement => a != null);
   const [opened, setOpened] = useState<EarnedAchievement | null>(null);
 
+  // The same thresholds the server ranks by, so the bar is a real position
+  // between two real numbers rather than a decorative fill. No invented
+  // "XP": the only thing that moves this is hours actually watched.
+  const rankIndex = RANK_STEPS.findIndex((step) => step.rank === profile.rank);
+  const current = RANK_STEPS[rankIndex] ?? RANK_STEPS[0]!;
+  const next = RANK_STEPS[rankIndex + 1];
+  const hours = stats.hoursWatched;
+  const percent = next
+    ? Math.min(100, Math.max(2, ((hours - current.from) / (next.from - current.from)) * 100))
+    : 100;
+
   const avatar = (
-    <div
-      className={cn(
-        "flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-display text-2xl ring-2 ring-offset-4 ring-offset-background",
-        RANK_RING[profile.rank],
-      )}
-    >
-      {profile.avatarUrl ? (
-        <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
-      ) : (
-        initial
-      )}
-    </div>
-  );
-  const avatarWithPresence = (
-    <div className="relative">
-      {avatar}
-      <PresenceDot status={profile.onlineStatus} className="bottom-0.5 right-0.5" />
+    <div className="relative shrink-0">
+      {/* The rank ring is the fallback, so an account that never opens the
+          picker looks exactly as it did before frames existed. The badge on
+          the ring's foot is the real episode count — the same number the
+          stats bar below shows, not a decoration. */}
+      <AvatarFrameRing
+        frame={profile.avatarFrame}
+        fallback={RANK_RING[profile.rank]}
+        badge={{
+          icon: FootprintsIcon,
+          value: stats.episodesWatched,
+          label: t("profile.summary.totalEpisodes"),
+        }}
+      >
+        <div className="flex size-24 items-center justify-center overflow-hidden rounded-full bg-card font-display text-3xl sm:size-28">
+          {profile.avatarUrl ? (
+            <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
+          ) : (
+            initial
+          )}
+        </div>
+      </AvatarFrameRing>
+      <PresenceDot status={profile.onlineStatus} className="bottom-1.5 right-1.5" />
     </div>
   );
 
   return (
     <>
-    <header className="reveal-group relative overflow-hidden rounded-2xl border border-border/60 bg-card/40">
-      <ProfileBanner
-        url={profile.bannerUrl}
-        accent={profile.accentColor}
-        editable={editable}
-        className="h-36 sm:h-48"
-      />
-      {/* The identity card rides up over the background's lower edge; the
-          stats start below it. */}
-      <div className="relative -mt-16 flex flex-col gap-5 px-5 pb-5 sm:-mt-20 sm:px-6 sm:pb-6 lg:flex-row lg:items-stretch">
-      <div
-        className="reveal flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-border/60 bg-card/85 p-4 text-center shadow-xl shadow-black/10 backdrop-blur-md transition-all duration-300 hover:border-primary/25 hover:shadow-primary/10 lg:w-48"
-        style={{ "--i": 0 } as CSSProperties}
-      >
-        {editable ? (
-          <Link
-            to="/profile?tab=settings"
-            className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={t("profile.settings.avatarUpload")}
-          >
-            {avatarWithPresence}
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-all group-hover:bg-black/45 group-hover:opacity-100">
-              <PencilIcon className="size-5 text-white" />
-            </span>
-          </Link>
-        ) : (
-          avatarWithPresence
-        )}
+      <header className="reveal-group relative overflow-hidden rounded-2xl border border-border/60 bg-card/40">
+        <div className="relative">
+          {/* Half what it was: a 224px band of artwork pushed everything
+              that matters below the fold for no information gained. */}
+          <ProfileBanner
+            url={profile.bannerUrl}
+            accent={profile.accentColor}
+            editable={false}
+            className="h-20 sm:h-28"
+          />
+          {/* Sized to the band, not to the band it used to be: at 13rem
+              over an 7rem strip the mark was twice the height of the thing
+              it sat on, so all anyone saw was a cropped blob. */}
+          <SlicedGlyph className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[3.5rem] leading-none text-white/[0.06] sm:text-[4.5rem]" />
+          {/* Legibility for whatever the banner happens to be, and the seam
+              between picture and card in one gradient. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/45 to-transparent"
+          />
 
-        <div className="flex min-w-0 flex-col items-center gap-1">
-          <div className="flex flex-wrap items-center justify-center gap-1.5">
-            <h1 className="font-display text-xl leading-tight [overflow-wrap:anywhere]">
-              {profile.displayName}
-            </h1>
-            <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} />
-          </div>
-          {profile.username && (
-            <p className="truncate text-xs text-muted-foreground">
-              {t("profile.handle", { username: profile.username })}
-            </p>
+          {/* On the real background, not on a preview of it inside a
+              settings form — change it, roll one, or take it off. */}
+          {editable && (
+            <div className="absolute right-2 top-2 sm:right-3 sm:top-3">
+              <BannerEditButtons media={media} />
+            </div>
           )}
         </div>
 
-        {profile.bio && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-foreground/85">{profile.bio}</p>
-        )}
+        {/* The identity rides up over the banner's lower edge, the way the
+            reference has it — one row, not a card parked in a column. */}
+        <div className="relative -mt-14 flex flex-col gap-4 px-4 pb-4 sm:-mt-16 sm:px-6 sm:pb-6">
+          <div className="flex flex-wrap items-end gap-4">
+            {editable ? <AvatarEditOverlay media={media}>{avatar}</AvatarEditOverlay> : avatar}
 
-        {pinned.length > 0 && (
-          // One row of bare circles, not a caption grid — the name only
-          // costs a hover now (a tooltip), which is what let the whole
-          // identity column below get narrower.
-          <div className="flex flex-nowrap items-center justify-center gap-2">
-            {pinned.map((a) => (
-              <Tooltip key={a.id}>
-                <TooltipTrigger asChild>
-                  <button type="button" onClick={() => setOpened(a)} className="outline-none">
-                    <HoloAchievementBadge
-                      id={a.id}
-                      rarity={a.rarity}
-                      earned
-                      earnedAt={a.earnedAt}
-                      variant="circle"
-                      className="size-8"
-                    />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        )}
+            {/* basis-60 rather than a bare flex-1: when the row runs out of
+                width it is the actions that drop to their own line, instead
+                of the name being squeezed to a few characters. */}
+            <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1 pb-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl leading-tight [overflow-wrap:anywhere] sm:text-3xl">
+                  {profile.displayName}
+                </h1>
+                <ProfileTitleBadge title={profile.profileTitle} />
+                {profile.isPro && (
+                  <span className="flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-primary">
+                    <SparklesIcon className="size-3" />
+                    PRO
+                  </span>
+                )}
+              </div>
+              {profile.username && (
+                <p className="truncate text-sm text-muted-foreground">
+                  {t("profile.handle", { username: profile.username })}
+                </p>
+              )}
+              {profile.bio && (
+                <p className="line-clamp-2 max-w-2xl text-sm leading-relaxed text-foreground/85">
+                  {profile.bio}
+                </p>
+              )}
+            </div>
 
-        {profile.achievements.some((a) => a.earned) && (
-          <Link
-            to="/profile?tab=achievements"
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary/80 transition-colors hover:text-primary"
-          >
-            <TrophyIcon className="size-3" />
-            {t("achievements.viewAll")}
-          </Link>
-        )}
-
-        <IdentityExtras profile={profile} />
-
-        <div className="mt-auto flex flex-wrap items-center justify-center gap-1.5 pt-1">
-          <div
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2 py-1",
-              RANK_CHIP[profile.rank],
+            {/* In the flow, not pinned over the banner — on a wide screen
+                they sit at the right end of the identity row, on a narrow
+                one they wrap under it on their own line. */}
+            {editable && (
+              <div className="flex shrink-0 items-center gap-2 pb-1">
+                <Button size="sm"  onClick={onOpenSettings}>
+                  <PencilIcon />
+                  {t("profile.editProfile")}
+                </Button>
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  aria-label={t("profile.tabs.settings")}
+                  className="grid size-9 place-items-center rounded-lg border border-border/60 bg-card/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  <SettingsIcon className="size-4" />
+                </button>
+              </div>
             )}
-          >
-            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", RANK_DOT[profile.rank])} />
-            <span className="text-[11px] font-medium">
-              {t(`profile.rank.${profile.rank.toLowerCase()}`)}
-            </span>
-            <InfoTooltip side="bottom" className="size-3.5 opacity-70 hover:opacity-100">
-              {t("profile.rank.hint")}
-            </InfoTooltip>
           </div>
-          {profile.isPro && (
-            <span className="flex items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] font-semibold tracking-wide text-primary">
-              <SparklesIcon className="size-3" />
-              PRO
-            </span>
+
+          {/* Rank, as a real position between two real numbers. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1",
+                RANK_CHIP[profile.rank],
+              )}
+            >
+              <span aria-hidden className={cn("size-1.5 rounded-full", RANK_DOT[profile.rank])} />
+              <span className="text-[11px] font-medium">
+                {t(`profile.rank.${profile.rank.toLowerCase()}` as "profile.rank.novice")}
+              </span>
+              <InfoTooltip side="bottom" className="size-3.5 opacity-70 hover:opacity-100">
+                {t("profile.rank.hint")}
+              </InfoTooltip>
+            </div>
+
+            <div className="flex min-w-[12rem] flex-1 flex-col gap-1">
+              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span className="truncate">
+                  {next
+                    ? t("profile.card.nextRank", {
+                        rank: t(`profile.rank.${next.rank.toLowerCase()}` as "profile.rank.novice"),
+                      })
+                    : t("profile.card.maxRank")}
+                </span>
+                {next && (
+                  <span className="shrink-0 tabular-nums">
+                    {t("profile.card.hoursLeft", {
+                      hours: Math.max(1, Math.ceil(next.from - hours)),
+                    })}
+                  </span>
+                )}
+              </div>
+              {/* The fill grows into place on first paint, and a band of
+                  light crosses it afterwards — the same sweep the buttons
+                  and cards elsewhere on the site use, not a new effect. */}
+              <div className="h-2.5 overflow-hidden rounded-full bg-foreground/10">
+                <div
+                  className={cn(
+                    "rank-bar relative h-full rounded-full bg-gradient-to-r",
+                    RANK_BAR[profile.rank],
+                  )}
+                  style={{ "--fill": `${percent}%` } as CSSProperties}
+                />
+              </div>
+            </div>
+
+            <p className="shrink-0 text-[11px] text-muted-foreground/70">
+              {t("profile.memberSince", { date: memberSince })}
+            </p>
+          </div>
+
+          {pinned.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {pinned.map((a) => (
+                <Tooltip key={a.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setOpened(a)}
+                      className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 py-1 pl-1 pr-3 text-xs transition-colors hover:border-primary/40 hover:text-primary"
+                    >
+                      <HoloAchievementBadge
+                        id={a.id}
+                        rarity={a.rarity}
+                        earned
+                        earnedAt={a.earnedAt}
+                        variant="circle"
+                        className="size-6"
+                      />
+                      <span className="max-w-32 truncate">
+                        {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground/70">
-          {t("profile.memberSince", { date: memberSince })}
-        </p>
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-3 lg:pt-24">
-        <StatsGrid stats={stats} />
-        {/* Real charts off the viewer's own list, not a genre tag cloud —
-            the numbers above say "how much", these say "of what". Only on
-            your own profile: the library endpoint is /library, i.e. yours,
-            so there's nothing to plot on someone else's page. */}
-        {editable && <LibraryCharts stats={stats} />}
-      </div>
-      </div>
-    </header>
-    <AchievementDetailDialog
-      achievement={opened}
-      onOpenChange={(open) => !open && setOpened(null)}
-    />
+      </header>
+      <AchievementDetailDialog
+        achievement={opened}
+        onOpenChange={(open) => !open && setOpened(null)}
+      />
+      {editable && media.elements}
     </>
   );
 }
+
+/** Hours of watching each rank starts at — the same thresholds the server
+ *  uses in `rankOf`, mirrored here so the bar can show a real position. */
+const RANK_STEPS: Array<{ rank: Rank; from: number }> = [
+  { rank: "NOVICE", from: 0 },
+  { rank: "ADVANCED", from: 10 },
+  { rank: "EXPERT", from: 100 },
+  { rank: "LEGEND", from: 500 },
+];
+
+const RANK_BAR: Record<Rank, string> = {
+  NOVICE: "from-muted-foreground/60 to-emerald-500",
+  ADVANCED: "from-emerald-500 to-sky-500",
+  EXPERT: "from-sky-500 to-amber-400",
+  LEGEND: "from-amber-400 to-amber-300",
+};
 
 /** Top 3 titles by the viewer's own score, as a compact list — a rank
  * number, a small thumb, the title, the score, nothing else on the row
@@ -738,74 +965,6 @@ function LibraryCharts({ stats }: { stats: ProfileStats }) {
   );
 }
 
-function StatsGrid({ stats }: { stats: ProfileStats }) {
-  const t = useT();
-  const { locale } = useLocale();
-  const day = stats.mostProductiveDay
-    ? new Date(stats.mostProductiveDay).toLocaleDateString(locale, {
-        day: "numeric",
-        month: "short",
-      })
-    : "—";
-
-  const cards: Array<{
-    icon: typeof ClockIcon;
-    label: string;
-    value: string;
-  }> = [
-    {
-      icon: FilmIcon,
-      label: t("profile.summary.totalEpisodes"),
-      value: String(stats.episodesWatched),
-    },
-    {
-      icon: ClockIcon,
-      label: t("profile.summary.totalTime"),
-      value: fmtDuration(t, stats.hoursWatched * 3600),
-    },
-    {
-      icon: CalendarDaysIcon,
-      label: t("profile.summary.mostProductiveDay"),
-      value: day,
-    },
-    {
-      icon: TimerIcon,
-      label: t("profile.summary.avgPerSession"),
-      value:
-        stats.avgSessionMinutes != null
-          ? t("profile.summary.minutesShort", { minutes: stats.avgSessionMinutes })
-          : "—",
-    },
-  ];
-
-  return (
-    // One colour family (the site's own primary, just a touch of gradient
-    // between the four cards) instead of a different hue per card — four
-    // unrelated colours in a row read as noisy, not lively.
-    <div className="reveal-group grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(({ icon: Icon, label, value }, i) => (
-        <div
-          key={label}
-          className="reveal group relative flex h-full flex-col justify-between gap-2.5 overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] to-transparent p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10"
-          style={{ "--i": i } as CSSProperties}
-        >
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-          />
-          <span className="relative z-10 flex w-fit items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs text-primary/90">
-            <Icon className="size-3.5 shrink-0" />
-            <span className="truncate">{label}</span>
-          </span>
-          <span className="relative z-10 min-w-0 truncate font-display text-lg leading-tight tabular-nums sm:text-xl">
-            {value}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ---------------- shared bits ---------------- */
 
 function SectionHeading({ title, hint }: { title: string; hint?: string }) {
@@ -836,6 +995,17 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
   const deleteProgress = useDeleteProgress();
   const rows = data ?? [];
 
+  // The same "pick up where you left off" strip the library page opens
+  // with — real posters, real per-episode progress, one tap to log the
+  // next one — reused here rather than rebuilt, so a change to how it
+  // behaves only ever has to be made once.
+  const { data: libraryEntries } = useLibrary(undefined, true);
+  const libraryEdit = useLibraryEdit();
+  const continuing = (libraryEntries ?? [])
+    .filter((e) => e.status === "WATCHING" && (!e.anime.episodes || e.progress < e.anime.episodes))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .slice(0, 8);
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "watching" | "completed">("all");
   const [page, setPage] = useState(1);
@@ -862,6 +1032,8 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {continuing.length > 0 && <ContinueStrip entries={continuing} edit={libraryEdit} />}
+
       {/* One line, not a sidebar box — "Прогресс" restated four different
           ways used to live next to the list in its own card; here it's a
           running header for the exact same list, no numbers duplicated. */}
@@ -980,7 +1152,7 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
+                className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
                 disabled={safePage <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
@@ -994,7 +1166,7 @@ function ProgressTab({ profile }: { profile: MyProfile }) {
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
+                className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
                 disabled={safePage >= pageCount}
                 onClick={() => setPage((p) => p + 1)}
               >
@@ -1188,8 +1360,10 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
           expanded={openRow === "identity"}
           onToggle={() => toggle("identity")}
         >
-          <ProfileMediaEditor profile={profile} />
-          <div className="mt-10 flex items-start gap-4">
+          {/* The avatar and the background are edited on the real ones,
+              in the header — this form used to carry a second, smaller
+              copy of the profile to edit instead. */}
+          <div className="flex items-start gap-4">
 
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <SettingsLabel>{t("profile.settings.username")}</SettingsLabel>
@@ -1386,18 +1560,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
               {t("profile.settings.showcaseHint")}
             </p>
             <ShowcaseChips profile={profile} update={update} earned={earned} />
-          </SettingsRow>
-        )}
-
-        {profile.isPro && (
-          <SettingsRow
-            icon={CrownIcon}
-            label={t("profile.settings.titlePro")}
-            value={profile.titlePrefix ?? undefined}
-            expanded={openRow === "title"}
-            onToggle={() => toggle("title")}
-          >
-            <TitleEditor profile={profile} update={update} />
           </SettingsRow>
         )}
 
@@ -1841,94 +2003,6 @@ function ShowcaseChips({
   );
 }
 
-/** PRO-only: a custom tag + icon shown next to your name in your profile and comments. */
-function TitleEditor({
-  profile,
-  update,
-}: {
-  profile: MyProfile;
-  update: ReturnType<typeof useUpdateProfile>;
-}) {
-  const t = useT();
-  const [prefix, setPrefix] = useState(profile.titlePrefix ?? "");
-  const [icon, setIcon] = useState<TitleIcon>(profile.titleIcon ?? "star");
-  const savedPrefix = profile.titlePrefix ?? "";
-  const savedIcon = profile.titleIcon ?? "star";
-
-  // Autosaves — an icon pick or leaving the text field, no separate button.
-  // It's two short strings; the cost of saving on every real change is
-  // trivial next to the cost of one more button to click.
-  const commit = (nextPrefix: string, nextIcon: TitleIcon) => {
-    const value = nextPrefix.trim();
-    if (value === savedPrefix && nextIcon === savedIcon) return;
-    update.mutate(
-      { titlePrefix: value || null, titleIcon: value ? nextIcon : null },
-      { onError: (e) => toast.error(e instanceof Error ? e.message : t("errors.genericTitle")) },
-    );
-  };
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="flex flex-col gap-0.5">
-        <SettingsLabel>{t("profile.settings.titlePro")}</SettingsLabel>
-        <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-          {t("profile.settings.titleProHint")}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {TITLE_ICONS.map((key) => {
-          const Icon = TITLE_ICON_COMPONENT[key];
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                setIcon(key);
-                commit(prefix, key);
-              }}
-              aria-label={key}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-full border transition-all duration-200",
-                icon === key
-                  ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
-                  : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-            </button>
-          );
-        })}
-      </div>
-
-      <input
-        value={prefix}
-        onChange={(e) => setPrefix(e.target.value.slice(0, 20))}
-        onBlur={() => commit(prefix, icon)}
-        maxLength={20}
-        placeholder={t("profile.settings.titlePlaceholder")}
-        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>{t("common.preview")}</span>
-        <UserTitleBadge prefix={prefix.trim() || null} icon={icon} />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Favourite-genre picker — feeds the home rail and every title's "similar
- * to". Deliberately set-once-plus-one-edit (see RecommendationService):
- * clicking a chip only ever changes a local draft, never saves by itself —
- * one "save" click commits the whole draft as a single edit, so picking
- * five genres costs one edit, not five. Liked titles on /recommendations
- * have no such limit; only this explicit genre list does.
- */
-/** Mirrors `setGenrePreferencesInputSchema`'s own `.max(30)` in shared. The
- *  server stays the authority; this only stops us sending a request that is
- *  guaranteed to come back 400 — which is what used to happen, silently. */
 const MAX_FAVOURITE_GENRES = 30;
 
 /** How much of the full list is shown before "show all". Rendering every
@@ -2043,7 +2117,7 @@ function GenrePreferencesSection() {
                   genre: labels.genreLabel(g.name),
                 })}
                 className={cn(
-                  "group inline-flex items-center gap-1 rounded-full border border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-2.5 py-1 text-xs text-primary-foreground shadow-sm shadow-primary/25 transition-all duration-200",
+                  "group inline-flex items-center gap-1 rounded-lg border border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-2.5 py-1 text-xs text-primary-foreground shadow-sm shadow-primary/25 transition-all duration-200",
                   locked ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5",
                 )}
               >
@@ -2083,7 +2157,7 @@ function GenrePreferencesSection() {
                   disabled={atCap}
                   onClick={() => toggle(g.id)}
                   className={cn(
-                    "rounded-full border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200",
+                    "rounded-lg border border-border/60 px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200",
                     atCap
                       ? "cursor-not-allowed opacity-40"
                       : "hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
@@ -2194,7 +2268,7 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
               aria-pressed={filter === f}
               onClick={() => setFilter(f)}
               className={cn(
-                "group relative overflow-hidden rounded-full border px-3 py-1 text-xs transition-all duration-200",
+                "group relative overflow-hidden rounded-lg border px-3 py-1 text-xs transition-all duration-200",
                 filter === f
                   ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
                   : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
@@ -2247,21 +2321,46 @@ function ProfileSkeleton() {
       {/* Shapes match what actually loads — rounded to the same radius as
           the real hero and stat cards, so the page does not visibly change
           geometry the moment data arrives. */}
-      <div className="flex flex-col gap-5 rounded-2xl border border-border/60 bg-card/40 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
-        <Skeleton className="size-20 shrink-0 rounded-full sm:size-24" />
-        <div className="flex flex-1 flex-col gap-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-4 w-64" />
+      {/* Hero: banner, then the identity row riding up over it, then the
+          rank bar — the same three bands the real header has, at the same
+          heights, so nothing shifts when the data lands. */}
+      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40">
+        <Skeleton className="h-40 w-full rounded-none sm:h-56" />
+        <div className="-mt-14 flex flex-col gap-4 px-4 pb-4 sm:-mt-16 sm:px-6 sm:pb-6">
+          <div className="flex flex-wrap items-end gap-4">
+            <Skeleton className="size-24 shrink-0 rounded-full sm:size-28" />
+            <div className="flex flex-1 basis-60 flex-col gap-2 pb-1">
+              <Skeleton className="h-7 w-48" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <Skeleton className="h-9 w-44 shrink-0 rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-full rounded-full" />
         </div>
-        <Skeleton className="h-12 w-28 rounded-xl" />
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-20 rounded-2xl" />
+
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/60 bg-border/60 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-[4.25rem] rounded-none" />
         ))}
       </div>
-      <Skeleton className="h-12 rounded-full" />
+
+      <Skeleton className="h-14 rounded-2xl" />
+
+      <div className="gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-5">
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+            <Skeleton className="h-80 rounded-2xl" />
+            <Skeleton className="h-80 rounded-2xl" />
+          </div>
+          <Skeleton className="h-48 rounded-2xl" />
+        </div>
+        <div className="mt-4 flex flex-col gap-4 lg:mt-0">
+          <Skeleton className="h-44 rounded-2xl" />
+          <Skeleton className="h-56 rounded-2xl" />
+        </div>
+      </div>
     </ProfileShell>
   );
 }

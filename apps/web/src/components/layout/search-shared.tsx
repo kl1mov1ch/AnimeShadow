@@ -136,7 +136,7 @@ export function Chip({
       onClick={onClick}
       style={{ animationDelay: `${index * 25}ms`, animationFillMode: "backwards" }}
       className={cn(
-        "group animate-in fade-in zoom-in-95 relative inline-flex items-center gap-1 overflow-hidden rounded-full border px-2.5 py-1 text-xs transition-all duration-200 hover:-translate-y-0.5",
+        "group animate-in fade-in zoom-in-95 relative inline-flex items-center gap-1 overflow-hidden rounded-lg border px-2.5 py-1 text-xs transition-all duration-200 hover:-translate-y-0.5",
         accent
           ? "border-primary/30 bg-primary/10 text-primary hover:border-primary/50 hover:bg-primary/15"
           : "border-border/60 bg-secondary/50 text-secondary-foreground hover:border-primary/40 hover:text-foreground",

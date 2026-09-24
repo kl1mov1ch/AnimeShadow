@@ -52,7 +52,7 @@ export function SiteFooter() {
                 rel="noreferrer noopener"
                 aria-label={label}
                 className={cn(
-                  "flex size-9 items-center justify-center rounded-full border transition-colors",
+                  "flex size-9 items-center justify-center rounded-lg border transition-colors",
                   // Telegram is the actual community home for this
                   // audience — worth its own brand colour instead of
                   // reading as one interchangeable grey circle among four.

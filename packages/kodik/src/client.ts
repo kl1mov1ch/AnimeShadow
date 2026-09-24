@@ -69,7 +69,12 @@ export class KodikClient {
     const { results } = await this.post<KodikResponse<KodikResult>>("/search", {
       shikimori_id: shikimoriId,
       with_material_data: true,
-      with_episodes: true,
+      // `with_episodes_data`, not `with_episodes`: the plain flag returns a
+      // bare link per episode, this one returns the link *and* the stills
+      // the provider publishes for that episode. Both are wanted — the link
+      // is what our own episode buttons load, the stills are what the
+      // episode cards show.
+      with_episodes_data: true,
       limit: 100,
     });
     const groups = groupByShikimori(results);

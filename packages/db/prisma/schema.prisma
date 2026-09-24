@@ -54,6 +54,11 @@ model User {
   titlePrefix           String?
   /// Icon key for the title above — one of a fixed curated set, not a URL.
   titleIcon             String?
+  /// Earned cosmetics, both keys from the catalogues in @animeshadow/shared.
+  /// The achievement each one needs is re-checked in profile.service.ts on
+  /// every write, so a key here is never trusted on its own.
+  avatarFrame           String?
+  profileTitle          String?
   /// How many times UserGenrePreference has been written via
   /// RecommendationService.setPreferences — capped at GENRE_PREFERENCE_MAX_SETS
   /// (initial pick + one edit), then locked. Liked titles (UserLikedAnime)
@@ -445,6 +450,11 @@ model PlayerSource {
   embedUrl      String
   /// format "hls" only: JSON object, episode number string -> HLS manifest URL.
   hlsEpisodes   Json?
+  /// format "iframe" only: JSON object, episode number string ->
+  /// { url, thumbs } — the provider's own embed page for that one episode
+  /// and the stills it publishes for it. Absent for providers that only
+  /// hand out a single series-wide embed.
+  iframeEpisodes Json?
   quality       String?
   episodesCount Int?
   position      Int      @default(0)

@@ -259,7 +259,7 @@ function SearchField({
               type="button"
               onClick={() => onChange("")}
               aria-label={t("common.clear")}
-              className="animate-in zoom-in-75 flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="animate-in zoom-in-75 flex size-6 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <XIcon className="size-3.5" />
             </button>
@@ -302,7 +302,7 @@ function Trail({
               onClick={() => onPick(anime)}
               aria-current={last ? "step" : undefined}
               className={cn(
-                "group relative max-w-[14rem] overflow-hidden rounded-full border px-3 py-1 text-xs transition-all duration-200 hover:-translate-y-0.5",
+                "group relative max-w-[14rem] overflow-hidden rounded-lg border px-3 py-1 text-xs transition-all duration-200 hover:-translate-y-0.5",
                 last
                   ? "border-primary/40 bg-primary/15 font-medium text-primary"
                   : "border-border/60 bg-secondary/50 text-secondary-foreground hover:border-primary/40 hover:text-foreground",
@@ -320,7 +320,7 @@ function Trail({
       <button
         type="button"
         onClick={onReset}
-        className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200 hover:bg-secondary/60 hover:text-foreground"
+        className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-muted-foreground transition-all duration-200 hover:bg-secondary/60 hover:text-foreground"
       >
         <RotateCcwIcon className="size-3" />
         {t("recommendations.restart")}
@@ -500,7 +500,7 @@ function Tile({
               : t("recommendations.like", { title })
           }
           className={cn(
-            "absolute right-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-full backdrop-blur transition-all duration-200 hover:scale-110",
+            "absolute right-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-lg backdrop-blur transition-all duration-200 hover:scale-110",
             liked
               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
               : "bg-background/70 text-foreground/80 hover:text-primary",
@@ -512,7 +512,7 @@ function Tile({
         <Link
           to={animeHref(anime)}
           aria-label={t("recommendations.openPage", { title })}
-          className="absolute left-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-background/70 text-foreground/70 opacity-0 backdrop-blur transition-all duration-200 hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
+          className="absolute left-1.5 top-1.5 z-10 flex size-7 items-center justify-center rounded-lg bg-background/70 text-foreground/70 opacity-0 backdrop-blur transition-all duration-200 hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
         >
           <ExternalLinkIcon className="size-3" />
         </Link>

@@ -313,7 +313,7 @@ function SlideContent({
             <Link
               key={genre.id}
               to={`/browse?genres=${genre.id}`}
-              className="rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary"
+              className="rounded-lg border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary"
             >
               {labels.genreLabel(genre.name)}
             </Link>
@@ -386,7 +386,7 @@ function SlideControls({
               aria-current={active}
               onClick={() => onSelect(i)}
               className={cn(
-                "relative h-1.5 overflow-hidden rounded-full transition-all duration-500 ease-out",
+                "relative h-1.5 overflow-hidden rounded-lg transition-all duration-500 ease-out",
                 active
                   ? "w-10 bg-foreground/20"
                   : "w-1.5 bg-foreground/35 hover:w-4 hover:bg-foreground/70",
@@ -421,7 +421,7 @@ function NavButton({ side, onClick }: { side: "left" | "right"; onClick: () => v
       type="button"
       onClick={onClick}
       aria-label={side === "left" ? t("common.previous") : t("common.next")}
-      className="group relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-full text-foreground/80 transition-[background-color,color,transform] hover:bg-foreground/10 hover:text-foreground active:scale-90"
+      className="group relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg text-foreground/80 transition-[background-color,color,transform] hover:bg-foreground/10 hover:text-foreground active:scale-90"
     >
       {/* The arrow leans the way it's about to take you — the same nudge the
           pagination arrows use, so stepping through slides and stepping

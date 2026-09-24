@@ -5,6 +5,80 @@ import { libraryStatusSchema } from "./enums.js";
 /** Max earned achievements a user can pin to their name at once. */
 export const MAX_SHOWCASE_ACHIEVEMENTS = 3;
 
+
+/**
+ * Cosmetics are earned, never bought and never typed in.
+ *
+ * Both lists below name an achievement that unlocks the entry. `null` means
+ * everyone has it from the start — there is always one of those in each
+ * list, so a fresh account has something to pick rather than an empty grid.
+ * The server re-checks the requirement on every save, so a key sent by hand
+ * is worth no more than one clicked in the UI.
+ */
+export interface Cosmetic {
+  id: string;
+  /** Achievement id from ACHIEVEMENTS, or null for "everyone has this". */
+  requires: string | null;
+}
+
+/** Rings drawn around the avatar. Ten, plus the bare one. */
+export const AVATAR_FRAMES = [
+  { id: "none", requires: null },
+  { id: "sakura", requires: "first-episode" },
+  { id: "ember", requires: "hot-start" },
+  { id: "midnight", requires: "night-owl" },
+  { id: "tide", requires: "fifty-episodes" },
+  { id: "marathon", requires: "marathoner" },
+  { id: "inkwell", requires: "critic" },
+  { id: "archive", requires: "bibliophile" },
+  { id: "spectrum", requires: "genre-expert" },
+  { id: "eclipse", requires: "completionist" },
+  { id: "aurum", requires: "veteran" },
+] as const satisfies readonly Cosmetic[];
+
+export const AVATAR_FRAME_IDS = AVATAR_FRAMES.map((f) => f.id);
+export const avatarFrameSchema = z.enum(
+  AVATAR_FRAME_IDS as [string, ...string[]],
+);
+export type AvatarFrame = (typeof AVATAR_FRAMES)[number]["id"];
+
+/**
+ * The line under the name. It used to be free text for PRO accounts, which
+ * meant the one thing on a profile nobody had earned was also the only one
+ * anybody could write anything in. These are fixed, and each is a thing
+ * that actually happened.
+ */
+export const PROFILE_TITLES = [
+  { id: "newcomer", requires: null },
+  { id: "first-steps", requires: "first-episode" },
+  { id: "night-watch", requires: "night-owl" },
+  { id: "serial-viewer", requires: "hundred-episodes" },
+  { id: "marathoner", requires: "marathoner" },
+  { id: "sharp-tongue", requires: "critic" },
+  { id: "archivist", requires: "bibliophile" },
+  { id: "genre-sage", requires: "genre-expert" },
+  { id: "completionist", requires: "completionist" },
+  { id: "old-guard", requires: "veteran" },
+  { id: "patron", requires: "patron" },
+] as const satisfies readonly Cosmetic[];
+
+export const PROFILE_TITLE_IDS = PROFILE_TITLES.map((t) => t.id);
+export const profileTitleSchema = z.enum(
+  PROFILE_TITLE_IDS as [string, ...string[]],
+);
+export type ProfileTitle = (typeof PROFILE_TITLES)[number]["id"];
+
+/** Whether an account that earned `earnedIds` may wear `id`. */
+export function cosmeticUnlocked(
+  catalog: readonly Cosmetic[],
+  id: string,
+  earnedIds: readonly string[],
+): boolean {
+  const entry = catalog.find((c) => c.id === id);
+  if (!entry) return false;
+  return entry.requires == null || earnedIds.includes(entry.requires);
+}
+
 export const rankSchema = z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]);
 export type Rank = z.infer<typeof rankSchema>;
 
@@ -79,6 +153,10 @@ export const publicProfileSchema = z.object({
   /** PRO-only custom title next to the name. Both null unless the account is PRO. */
   titlePrefix: z.string().nullable(),
   titleIcon: titleIconSchema.nullable(),
+  /** Earned cosmetics. Null on both means "wearing nothing", which is a
+   *  real choice and not the same as never having picked. */
+  avatarFrame: avatarFrameSchema.nullable().default(null),
+  profileTitle: profileTitleSchema.nullable().default(null),
   /** Likes received across every comment that's still visible (not deleted). */
   totalCommentLikes: z.number().int(),
   /** 1-based standing among everyone who's ever posted a comment, by total
@@ -125,6 +203,8 @@ export const updateProfileInputSchema = z.object({
     .nullable()
     .optional(),
   titleIcon: titleIconSchema.nullable().optional(),
+  avatarFrame: avatarFrameSchema.nullable().optional(),
+  profileTitle: profileTitleSchema.nullable().optional(),
   /** YYYY-MM-DD. Accepted once — profile.service.ts rejects a second change. */
   birthDate: z
     .string()

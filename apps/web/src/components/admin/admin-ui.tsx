@@ -45,29 +45,13 @@ function prefersReducedMotion(): boolean {
 }
 
 /** `useId()` output is not a valid SVG `url(#…)` reference in React 19. */
+// The count-up now lives in lib, so the profile can use it without
+// pulling this file in; re-exported here so nothing that already
+// imports it from the dashboard has to move.
+import { useCountUp } from "@/lib/use-count-up";
+
 export function useSafeId(): string {
   return useId().replace(/[^a-zA-Z0-9_-]/g, "");
-}
-
-/** Eases a number up from 0 to `target` — skipped under reduced motion. */
-export function useCountUp(target: number, durationMs = 900): number {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (prefersReducedMotion()) {
-      setValue(target);
-      return;
-    }
-    let frame = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - start) / durationMs);
-      setValue(Math.round(target * (1 - (1 - progress) ** 3)));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [target, durationMs]);
-  return value;
 }
 
 /** 0 on the first paint, `target` on the next — lets a CSS transition run on mount. */

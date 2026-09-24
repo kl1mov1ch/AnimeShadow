@@ -82,7 +82,7 @@ export function Component() {
 
         <Button
           size="lg"
-          className="group relative mt-1 overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary px-6 font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
+          className="group relative mt-1 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary px-6 font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
           asChild
         >
           <a href={BOOSTY_URL} target="_blank" rel="noopener noreferrer">
@@ -140,7 +140,7 @@ export function Component() {
             tagline={t("support.free.tagline")}
             features={freeFeatures}
             cta={
-              <Button variant="outline" className="w-full rounded-full" disabled>
+              <Button variant="outline" className="w-full" disabled>
                 {t("support.currentPlan")}
               </Button>
             }
@@ -155,7 +155,7 @@ export function Component() {
             features={proFeatures}
             cta={
               <Button
-                className="group relative w-full overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-md shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40"
+                className="group relative w-full overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-md shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40"
                 asChild
               >
                 <a href={BOOSTY_URL} target="_blank" rel="noopener noreferrer">

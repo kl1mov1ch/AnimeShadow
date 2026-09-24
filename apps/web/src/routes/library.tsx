@@ -327,7 +327,7 @@ export function Component() {
               type="button"
               onClick={() => setQuery("")}
               aria-label={t("common.clear")}
-              className="animate-in zoom-in-75 absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="animate-in zoom-in-75 absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <XIcon className="size-3.5" />
             </button>
@@ -342,7 +342,7 @@ export function Component() {
           <Select value={genre} onValueChange={setGenre}>
             <SelectTrigger
               className={cn(
-                "h-10! w-[150px] rounded-full bg-card/70 text-sm",
+                "h-10! w-[150px] rounded-lg bg-card/70 text-sm",
                 genre !== ALL_GENRES && "border-primary/50 text-primary",
               )}
               aria-label={t("library.allGenres")}
@@ -368,7 +368,7 @@ export function Component() {
             store(SORT_KEY, v);
           }}
         >
-          <SelectTrigger className="h-10! w-[160px] rounded-full bg-card/70 text-sm" aria-label={t("library.sortBy")}>
+          <SelectTrigger className="h-10! w-[160px] rounded-lg bg-card/70 text-sm" aria-label={t("library.sortBy")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -408,7 +408,7 @@ export function Component() {
                   store(VIEW_KEY, mode);
                 }}
                 className={cn(
-                  "grid size-8 place-items-center rounded-full transition-all duration-200",
+                  "grid size-8 place-items-center rounded-lg transition-all duration-200",
                   view === mode
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -507,7 +507,7 @@ function StatusTab({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm transition-all duration-200",
+        "flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3.5 text-sm transition-all duration-200",
         active
           ? "border-transparent bg-primary text-primary-foreground shadow-md shadow-primary/25"
           : "border-border/60 bg-card/40 text-muted-foreground hover:border-primary/30 hover:text-foreground",

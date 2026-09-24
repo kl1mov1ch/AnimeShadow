@@ -79,7 +79,7 @@ export function RandomPick({ planned, shown }: { planned: LibraryEntry[]; shown:
     <>
       <Button
         variant="outline"
-        className="h-10 rounded-full bg-card/70"
+        className="h-10 rounded-lg bg-card/70"
         onClick={() => {
           setOpen(true);
           spin();

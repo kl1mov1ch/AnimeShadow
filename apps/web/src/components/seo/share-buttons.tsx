@@ -31,7 +31,7 @@ export function ShareButtons({ path, className }: ShareButtonsProps) {
         // something to click. A quiet primary tint at rest (same idea as
         // the rank chip / PRO badge elsewhere) makes it read as "live" even
         // before a pointer gets near it.
-        className="flex size-8 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary/90 transition-colors hover:border-primary/50 hover:bg-primary/15 hover:text-primary"
+        className="flex size-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary/90 transition-colors hover:border-primary/50 hover:bg-primary/15 hover:text-primary"
       >
         <LinkIcon className="size-4" />
       </button>

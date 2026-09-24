@@ -124,7 +124,7 @@ function CharacterGallery({
               type="button"
               onClick={() => step(-1)}
               aria-label={t("common.previous")}
-              className="group absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border/50 bg-background/70 text-foreground shadow-md backdrop-blur transition-all duration-200 hover:border-primary/40 hover:bg-background hover:text-primary"
+              className="group absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg border border-border/50 bg-background/70 text-foreground shadow-md backdrop-blur transition-all duration-200 hover:border-primary/40 hover:bg-background hover:text-primary"
             >
               <ChevronLeftIcon className="size-5 transition-transform duration-200 group-hover:-translate-x-0.5" />
             </button>
@@ -132,7 +132,7 @@ function CharacterGallery({
               type="button"
               onClick={() => step(1)}
               aria-label={t("common.next")}
-              className="group absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border/50 bg-background/70 text-foreground shadow-md backdrop-blur transition-all duration-200 hover:border-primary/40 hover:bg-background hover:text-primary"
+              className="group absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg border border-border/50 bg-background/70 text-foreground shadow-md backdrop-blur transition-all duration-200 hover:border-primary/40 hover:bg-background hover:text-primary"
             >
               <ChevronRightIcon className="size-5 transition-transform duration-200 group-hover:translate-x-0.5" />
             </button>
@@ -497,7 +497,7 @@ function CharacterInfo({
                     <button
                       type="button"
                       onClick={() => setRevealed(true)}
-                      className="pointer-events-auto inline-flex -translate-y-1/2 items-center gap-2 rounded-full border border-border/60 bg-background/90 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur transition-colors hover:border-primary/50 hover:text-primary"
+                      className="pointer-events-auto inline-flex -translate-y-1/2 items-center gap-2 rounded-lg border border-border/60 bg-background/90 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur transition-colors hover:border-primary/50 hover:text-primary"
                     >
                       <EyeIcon className="size-4" />
                       {t("detail.characterModal.spoilers")} · {t("detail.characterModal.revealSpoilers")}

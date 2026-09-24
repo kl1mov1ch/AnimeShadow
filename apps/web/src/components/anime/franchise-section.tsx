@@ -1,9 +1,7 @@
 import type { FranchiseEntry } from "@animeshadow/shared";
 import {
-  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronUpIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -22,16 +20,15 @@ import { useFranchise } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 /**
- * A quiet list of links to this title's other seasons/movies — folded into
- * the overview rather than a section of its own. Only titles this site can
- * actually play show up here (the API already filtered out anything with no
- * working player or no artwork), so every link is one the viewer can act on.
+ * Links to this title's other seasons and films. Only titles this site can
+ * actually play show up (the API filtered out anything with no working
+ * player or no artwork), so every link is one the viewer can act on.
  *
- * Below the desktop breakpoint there's no room to spare next to the facts
- * list, so it's the homepage's own horizontally-swipeable rail (arrow-nudge,
- * no visible scrollbar, ~3 per view). From lg up, alongside the facts list,
- * it switches to a vertical stack in a narrow left column — same arrow-nudge
- * idea, just scrolling up/down inside a capped height instead of sideways.
+ * It is one horizontal rail at every width — the same shelf the homepage
+ * uses. It used to switch to a vertical stack from lg up, which was right
+ * while it lived in a narrow column beside the facts list; now that it is a
+ * section of its own, that stack stretched every row across the full page
+ * and the hover card aimed itself off the right edge of the screen.
  */
 export function FranchiseRail({ animeId, className }: { animeId: number; className?: string }) {
   const t = useT();
@@ -53,18 +50,13 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
   const updateEdges = () => {
     const el = trackRef.current;
     if (!el) return;
-    setAtStart(el.scrollLeft <= 4 && el.scrollTop <= 4);
-    setAtEnd(
-      el.scrollLeft + el.clientWidth >= el.scrollWidth - 4 &&
-        el.scrollTop + el.clientHeight >= el.scrollHeight - 4,
-    );
+    setAtStart(el.scrollLeft <= 4);
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
   };
 
-  const nudge = (dir: 1 | -1, axis: "x" | "y") => {
+  const nudge = (dir: 1 | -1) => {
     const el = trackRef.current;
-    if (!el) return;
-    if (axis === "x") el.scrollBy({ left: dir * el.clientWidth * 0.92, behavior: "smooth" });
-    else el.scrollBy({ top: dir * el.clientHeight * 0.92, behavior: "smooth" });
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.92, behavior: "smooth" });
   };
 
   return (
@@ -75,47 +67,25 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
         </span>
         {others.length > 3 && (
           <div className="flex shrink-0 gap-1">
-            {/* Horizontal pager — the rail below lg. */}
             <Button
               variant="outline"
               size="icon"
-              className="size-6 lg:hidden"
+              className="size-7"
               aria-label={t("common.previous")}
               disabled={atStart}
-              onClick={() => nudge(-1, "x")}
+              onClick={() => nudge(-1)}
             >
               <ChevronLeftIcon className="size-3.5" />
             </Button>
             <Button
               variant="outline"
               size="icon"
-              className="size-6 lg:hidden"
+              className="size-7"
               aria-label={t("common.next")}
               disabled={atEnd}
-              onClick={() => nudge(1, "x")}
+              onClick={() => nudge(1)}
             >
               <ChevronRightIcon className="size-3.5" />
-            </Button>
-            {/* Vertical pager — the desktop column, hidden below lg. */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="hidden size-6 lg:inline-flex"
-              aria-label={t("common.previous")}
-              disabled={atStart}
-              onClick={() => nudge(-1, "y")}
-            >
-              <ChevronUpIcon className="size-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="hidden size-6 lg:inline-flex"
-              aria-label={t("common.next")}
-              disabled={atEnd}
-              onClick={() => nudge(1, "y")}
-            >
-              <ChevronDownIcon className="size-3.5" />
             </Button>
           </div>
         )}
@@ -124,7 +94,7 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
       <div
         ref={trackRef}
         onScroll={updateEdges}
-        className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:max-h-56 lg:snap-y lg:flex-col lg:overflow-y-auto"
+        className="flex snap-x gap-2.5 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {others.map((entry) => (
           <FranchiseLink key={entry.id} entry={entry} />
@@ -140,15 +110,13 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
   const canHover = useMediaQuery("(hover: hover)");
   const metaLine = [labels.typeLabel(entry.kind), entry.year].filter(Boolean).join(" · ");
 
-  // A slight peek of the next entry on a phone (88% rather than the full
-  // width) hints there's more to swipe to; from sm up there's room for a
-  // clean three-per-view — and from lg, the list itself has gone vertical
-  // (see FranchiseRail), so each row is simply the full width of that
-  // narrow column, height replacing width as the thing that varies.
+  // One compact width at every breakpoint. The rail is a section of its own
+  // now, so a card that grows with the viewport just becomes a very wide row
+  // holding a thumbnail and two short lines.
   const card = (
     <Link
       to={`/anime/${entry.id}`}
-      className="group w-[88%] shrink-0 snap-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-[calc((100%-2*0.625rem)/3)] lg:w-full"
+      className="group w-52 shrink-0 snap-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-xl border border-border/60 bg-card/40 p-2 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:bg-primary/[0.06] group-hover:shadow-md group-hover:shadow-primary/10">
         {/* The same band of light the rest of the site sweeps on hover —
@@ -188,12 +156,11 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       <HoverCardTrigger asChild>{card}</HoverCardTrigger>
-      {/* Right of the row, not above it — the list itself sits at the left
-          edge of the page on desktop, so there's open space to its right for
-          a bigger card to land in without covering neighboring rows. The
-          title is never clamped here (unlike the row itself): the tooltip
-          is exactly the place with room to show it in full. */}
-      <HoverCardContent side="right" align="start" sideOffset={14} className="w-80">
+      {/* Above the row. Aiming it right made sense while the list was a
+          column at the left edge; in a full-width rail the cards near the
+          right of the screen had nowhere to put it. The title is never
+          clamped here, unlike in the row: this is the place with room. */}
+      <HoverCardContent side="top" align="start" sideOffset={10} className="w-80">
         <div className="flex gap-3">
           <div className="h-28 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
             {entry.imageUrl ? (

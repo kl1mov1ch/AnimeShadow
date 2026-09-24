@@ -120,7 +120,7 @@ function AdminPanel() {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-full"
+            className="rounded-lg"
             disabled={refreshing}
             onClick={() => void client.invalidateQueries({ queryKey: ["admin"] })}
           >

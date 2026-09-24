@@ -152,7 +152,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
           )}
 
           <div className="mt-6 flex flex-wrap items-center gap-2.5">
-            <Button asChild size="lg" className="group/btn relative overflow-hidden rounded-full">
+            <Button asChild size="lg" className="group/btn relative overflow-hidden">
               <Link to={animeHref(current)}>
                 <PlayIcon className="fill-current" />
                 {t("discover.viewDetails")}
@@ -213,7 +213,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                   key={genre.id}
                   to={`/browse?genres=${genre.id}`}
                   viewTransition
-                  className="rounded-full border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                  className="rounded-lg border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   {labels.genreLabel(genre.name)}
                 </Link>
@@ -221,7 +221,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
             </div>
           )}
 
-          <Button asChild variant="outline" size="sm" className="mt-1 rounded-full">
+          <Button asChild variant="outline" size="sm" className="mt-1">
             <Link to={animeHref(current)} viewTransition>
               <ClapperboardIcon />
               {t("discover.viewDetails")}
@@ -250,7 +250,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                 onClick={() => setIndex(i)}
                 aria-label={labels.title(slide)}
                 aria-current={i === index}
-                className="group/dot h-1.5 rounded-full transition-all duration-500"
+                className="group/dot h-1.5 rounded-lg transition-all duration-500"
                 style={{ width: i === index ? 44 : 10 }}
               >
                 <span className="block h-full w-full overflow-hidden rounded-full bg-foreground/20 transition-colors group-hover/dot:bg-foreground/40">
@@ -304,7 +304,7 @@ function StepButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="group/btn relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-border/60 bg-background/70 text-muted-foreground backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-foreground active:scale-95"
+      className="group/btn relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-border/60 bg-background/70 text-muted-foreground backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-foreground active:scale-95"
     >
       <span className="relative z-10">{children}</span>
       <Shine />

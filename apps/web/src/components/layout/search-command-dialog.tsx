@@ -151,7 +151,7 @@ export function SearchCommandDialog({
                   type="button"
                   onClick={() => setTerm("")}
                   aria-label={t("common.clear")}
-                  className="animate-in zoom-in-75 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  className="animate-in zoom-in-75 flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 >
                   <XIcon className="size-4" />
                 </button>

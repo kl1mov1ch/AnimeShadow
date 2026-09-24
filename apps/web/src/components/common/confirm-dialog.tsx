@@ -44,7 +44,7 @@ export function ConfirmDialog({
         <DialogFooter className="sm:justify-center">
           <Button
             variant="outline"
-            className="rounded-full sm:min-w-28"
+            className="rounded-lg sm:min-w-28"
             disabled={pending}
             onClick={() => onOpenChange(false)}
           >
@@ -54,7 +54,7 @@ export function ConfirmDialog({
               broken rather than busy — it now says so. */}
           <Button
             variant="destructive"
-            className="rounded-full sm:min-w-28"
+            className="rounded-lg sm:min-w-28"
             disabled={pending}
             onClick={() => {
               onConfirm();

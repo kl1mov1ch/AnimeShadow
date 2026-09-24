@@ -119,7 +119,7 @@ export function ActiveFilterChips({
           type="button"
           onClick={chip.onRemove}
           style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
-          className="group animate-in fade-in zoom-in-95 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 py-1 pl-3 pr-2 text-xs text-foreground duration-300 transition-all hover:-translate-y-0.5 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+          className="group animate-in fade-in zoom-in-95 inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 py-1 pl-3 pr-2 text-xs text-foreground duration-300 transition-all hover:-translate-y-0.5 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
         >
           {chip.label}
           <XIcon className="size-3 text-muted-foreground transition-colors group-hover:text-destructive" />
@@ -132,7 +132,7 @@ export function ActiveFilterChips({
         <button
           type="button"
           onClick={clearAll}
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
         >
           <RotateCcwIcon className="size-3" />
           {t("browse.clearAll")}

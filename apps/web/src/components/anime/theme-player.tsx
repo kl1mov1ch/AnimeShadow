@@ -319,7 +319,7 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
                 type="button"
                 onClick={() => playAt(index - 1)}
                 aria-label={t("common.previous")}
-                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
               >
                 <SkipBackIcon className="size-4 fill-current" />
               </button>
@@ -329,7 +329,7 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
                 aria-label={
                   playing ? t("detail.soundtrack.pause") : t("detail.soundtrack.play")
                 }
-                className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--accent-ink)] text-background shadow-lg transition-transform duration-200 hover:scale-105"
+                className="grid size-11 shrink-0 place-items-center rounded-lg bg-[var(--accent-ink)] text-background shadow-lg transition-transform duration-200 hover:scale-105"
               >
                 {playing ? (
                   <PauseIcon className="size-5 fill-current" />
@@ -341,7 +341,7 @@ export function ThemePlayer({ animeId }: { animeId: number }) {
                 type="button"
                 onClick={() => playAt(index + 1)}
                 aria-label={t("common.next")}
-                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
               >
                 <SkipForwardIcon className="size-4 fill-current" />
               </button>

@@ -141,7 +141,7 @@ export function SearchBox() {
             for the clear button once there's something to clear. */}
         <div
           className={cn(
-            "group relative flex items-center rounded-full border bg-card/70 transition-all duration-200",
+            "group relative flex items-center rounded-lg border bg-card/70 transition-all duration-200",
             "focus-within:border-primary/50 focus-within:bg-card focus-within:shadow-lg focus-within:shadow-primary/10 focus-within:ring-4 focus-within:ring-primary/15",
             open ? "border-primary/30" : "border-border/60 hover:border-border",
           )}
@@ -162,7 +162,7 @@ export function SearchBox() {
             }}
             onFocus={() => setOpen(true)}
             aria-label={t("search.open")}
-            className="h-10 w-full rounded-full bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
+            className="h-10 w-full rounded-lg bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
           />
 
           {!term && (
@@ -193,7 +193,7 @@ export function SearchBox() {
                   inputRef.current?.focus();
                 }}
                 aria-label={t("common.clear")}
-                className="animate-in zoom-in-75 flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 hover:bg-secondary hover:text-foreground"
+                className="animate-in zoom-in-75 flex size-6 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-secondary hover:text-foreground"
               >
                 <XIcon className="size-3.5" />
               </button>
@@ -275,7 +275,7 @@ export function SearchBox() {
                           <CommandItem
                             value="see-all"
                             onSelect={() => submit(term)}
-                            className="group relative justify-center overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg data-[selected=true]:shadow-primary/40"
+                            className="group relative justify-center overflow-hidden rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg data-[selected=true]:shadow-primary/40"
                           >
                             <SearchIcon className="relative z-10 text-primary-foreground!" />
                             <span className="relative z-10 truncate">

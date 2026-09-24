@@ -120,10 +120,18 @@ export function LibraryTile({
         </div>
 
         <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-2 pb-2.5">
+          {/* A quiet dot rather than a permanent "AIRING" tag — that label
+              was the same on every airing title all the time and never
+              actually said anything a viewer didn't already know from
+              having the title in their library. The real next-episode date,
+              where the catalogue has it, is on the title page and the
+              discover/browse cards' own hover preview instead. */}
           {entry.anime.airing === "AIRING" && (
-            <span className="inline-flex w-fit items-center gap-1 rounded-full bg-emerald-500/90 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
-              <span className="size-1 animate-pulse rounded-full bg-white" />
-              {t("airing.airingShort")}
+            <span
+              aria-hidden
+              className="inline-flex size-2.5 w-fit items-center rounded-full bg-emerald-500/90"
+            >
+              <span className="size-full animate-pulse rounded-full bg-white/40" />
             </span>
           )}
           <p className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">{title}</p>
@@ -338,7 +346,7 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
               onClick={() => edit.step(entry, 1)}
               aria-label={t("library.plusOne")}
               title={t("library.plusOne")}
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500 transition-all hover:bg-emerald-500 hover:text-white active:scale-90"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500 transition-all hover:bg-emerald-500 hover:text-white active:scale-90"
             >
               <PlusIcon className="size-4" />
             </button>

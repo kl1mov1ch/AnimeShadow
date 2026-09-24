@@ -154,7 +154,7 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
             className="animate-in fade-in slide-in-from-right-4 hidden justify-self-end duration-500 lg:block"
           >
             <div className="home-float max-w-sm rounded-2xl border border-[var(--hm-border)] bg-[var(--hm-card)]/70 p-4 backdrop-blur-md">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--hm-accent)]">Сейчас в эфире</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--hm-accent)]">Выходит сейчас</p>
               <h2 className="home-display mt-2 line-clamp-2 text-xl text-[var(--hm-text)]">
                 {current.titleLocalized ?? current.title}
               </h2>
@@ -204,7 +204,7 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
               onClick={() => setIndex(i)}
               aria-label={i === 0 ? "AnimeShadow" : `Слайд ${i + 1}`}
               aria-current={i === index}
-              className="group/dot h-1.5 rounded-full transition-all duration-500"
+              className="group/dot h-1.5 rounded-lg transition-all duration-500"
               style={{ width: i === index ? 44 : 10 }}
             >
               <span className="block h-full w-full overflow-hidden rounded-full bg-[var(--hm-text)]/20 transition-colors group-hover/dot:bg-[var(--hm-text)]/40">

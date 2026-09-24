@@ -56,7 +56,7 @@ import { cn } from "@/lib/utils";
 // now the header's own nav gets it too.
 function navClass({ isActive }: { isActive: boolean }): string {
   return cn(
-    "group relative flex items-center gap-1.5 overflow-hidden rounded-full px-3.5 py-1.5 text-sm font-semibold transition-all duration-200",
+    "group relative flex items-center gap-1.5 overflow-hidden rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-all duration-200",
     isActive
       ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
       : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/70 hover:text-foreground",

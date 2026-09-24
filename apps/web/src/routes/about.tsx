@@ -135,7 +135,7 @@ export function Component() {
         <Button
           asChild
           size="lg"
-          className="group relative shrink-0 overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
+          className="group relative shrink-0 overflow-hidden rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
         >
           <a href={BOOSTY_URL} target="_blank" rel="noreferrer">
             <HeartIcon className="relative z-10 fill-current" />
@@ -157,7 +157,7 @@ export function Component() {
           asChild
           size="lg"
           variant="outline"
-          className="group relative shrink-0 overflow-hidden rounded-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
+          className="group relative shrink-0 overflow-hidden rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
         >
           <Link to="/browse">
             <span className="relative z-10">{t("about.ctaButton")}</span>

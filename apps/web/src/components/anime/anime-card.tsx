@@ -4,7 +4,7 @@ import { BookmarkCheckIcon, BookmarkPlusIcon, ClockIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { PosterFallback } from "@/components/anime/poster-fallback";
+import { AnimePoster } from "@/components/anime/anime-poster";
 import { ScoreBadge } from "@/components/anime/score-badge";
 import {
   HoverCard,
@@ -16,7 +16,7 @@ import { isAdultRating } from "@/hooks/use-adult-content";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useLocale, useT } from "@/i18n";
 import { useSlowConnection } from "@/lib/connection";
-import { animeHref, imageSrc } from "@/lib/format";
+import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
@@ -148,33 +148,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             a repaint on scroll — and all of it sits behind `group-hover:`,
             which Tailwind v4 compiles into `@media (hover: hover)`, so a
             phone never runs any of it. */}
-        {anime.imageUrl ? (
-          // Two variants, picked by the browser before anything is fetched.
-          //
-          // The large one (225x318 from Shikimori, 319x450 from MAL) is what
-          // a 2:3 poster actually needs on a desktop grid — the small one is
-          // Shikimori's 160px "preview" and visibly upscales there. But large
-          // costs ~60KB against ~27KB, and a phone showing two columns of
-          // them pays that over and over on a connection that can least
-          // afford it. Below `sm` the small one is served instead: softer,
-          // less than half the bytes.
-          <picture>
-            <source media="(max-width: 639px)" srcSet={imageSrc(anime.imageUrl)} />
-            <img
-              // On a slow connection the small variant everywhere, not just on
-              // narrow screens: a desktop on a weak link pays for bytes the
-              // same as a phone does.
-              src={imageSrc(slow ? anime.imageUrl : anime.imageLargeUrl ?? anime.imageUrl)}
-              alt=""
-              loading={priority ? "eager" : "lazy"}
-              decoding="async"
-              fetchPriority={priority ? "high" : "auto"}
-              className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transition-none"
-            />
-          </picture>
-        ) : (
-          <PosterFallback title={title} seed={anime.id} />
-        )}
+        <AnimePoster anime={anime} title={title} small={slow} priority={priority} />
 
         {/* The poster itself is the link. It is stretched under the buttons
             rather than wrapped around them, because a button inside a link
@@ -216,7 +190,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
               disabled={addToLibrary.isPending}
               aria-label={inLibrary ? t("card.inList") : t("card.addToList")}
               className={cn(
-                "absolute right-2 z-20 grid size-9 place-items-center rounded-full border border-white/15 backdrop-blur transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
+                "absolute right-2 z-20 grid size-9 place-items-center rounded-lg border border-white/15 backdrop-blur transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
                 isAdult ? "top-10" : "top-2",
                 inLibrary ? "bg-primary/90 text-primary-foreground" : "bg-black/60 text-white",
                 canHover
@@ -270,13 +244,16 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           </Link>
         </h3>
         <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+          {/* A permanent "AIRING" tag here used to say the same thing on
+              every card of every currently-airing title, all the time, and
+              told you nothing about *when* the next episode actually lands.
+              That answer now lives in the hover preview instead — a plain
+              dot still marks an airing title at a glance, without a label
+              claiming a fact the card can't actually back up with a date. */}
           <span className="min-w-0 truncate">
             {metaLine}
             {airing && (
-              <span className="ml-1.5 inline-flex items-center gap-1 text-primary">
-                <span aria-hidden className="size-1.5 rounded-full bg-primary" />
-                {t("airing.airingShort")}
-              </span>
+              <span aria-hidden className="ml-1.5 inline-block size-1.5 rounded-full bg-primary" />
             )}
           </span>
           {when && <span className="shrink-0 tabular-nums">{when}</span>}

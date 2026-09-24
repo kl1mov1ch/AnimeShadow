@@ -43,6 +43,7 @@ export interface ContainerDeps {
     kodikBase: string;
     allohaToken: string;
     embedTemplate?: string | undefined;
+    kodikDirectToken?: string | undefined;
   };
   telegramBotToken?: string | undefined;
   traceMoeApiKey?: string | undefined;
@@ -159,6 +160,7 @@ export function createServices(deps: ContainerDeps): Services {
     alloha,
     anilibria,
     embedTemplate: deps.watch.embedTemplate,
+    kodikDirectToken: deps.watch.kodikDirectToken,
     logger: deps.logger,
   });
 

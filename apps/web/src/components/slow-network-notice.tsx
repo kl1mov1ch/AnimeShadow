@@ -132,7 +132,7 @@ export function SlowNetworkNotice() {
         type="button"
         onClick={dismiss}
         aria-label={t("slowNet.close")}
-        className="absolute right-2 top-2 grid size-6 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        className="absolute right-2 top-2 grid size-6 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
         <XIcon className="size-3.5" />
       </button>
@@ -161,7 +161,7 @@ export function SlowNetworkNotice() {
         <button
           type="button"
           onClick={dismiss}
-          className="shrink-0 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground transition-transform duration-200 hover:scale-105"
+          className="shrink-0 rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground transition-transform duration-200 hover:scale-105"
         >
           {t("slowNet.gotIt")}
         </button>

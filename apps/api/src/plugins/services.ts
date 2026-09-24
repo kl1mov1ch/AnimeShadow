@@ -30,6 +30,7 @@ export default fp(
         kodikBase: env.KODIK_API_BASE,
         allohaToken: env.ALLOHA_TOKEN,
         embedTemplate: env.WATCH_EMBED_TEMPLATE,
+        kodikDirectToken: env.KODIK_DIRECT_TOKEN,
       },
       telegramBotToken: env.TELEGRAM_BOT_TOKEN,
       traceMoeApiKey: env.TRACE_MOE_API_KEY,
