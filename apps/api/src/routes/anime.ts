@@ -9,7 +9,7 @@ const idParams = z.object({ id: z.coerce.number().int().positive() });
 const slugParams = z.object({ slug: z.string().min(1).max(120) });
 
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
-  const { catalog, watch } = fastify.services;
+  const { catalog, watch, episodeInfo } = fastify.services;
 
   fastify.get(
     "/anime",
@@ -38,6 +38,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       return { id: pick.id, slug: pick.slug };
     },
   );
+
+  // What each episode is called and what happens in it — see EpisodeInfoService.
+  fastify.get("/anime/:id/episodes-info", async (request, reply) => {
+    const { id } = parse(idParams, request.params);
+    const { lang } = parse(localeQuerySchema, request.query);
+    reply.header("cache-control", "public, max-age=600");
+    return { episodes: await episodeInfo.get(id, lang) };
+  });
 
   fastify.get(
     "/anime/:id",

@@ -22,6 +22,7 @@ import { ProgressService } from "./progress.service.js";
 import { RecommendationService } from "./recommendation.service.js";
 import { SearchService } from "./search.service.js";
 import { TranslationService } from "./translation.service.js";
+import { EpisodeInfoService } from "./episode-info.service.js";
 import {
   chainTranslators,
   GoogleTranslator,
@@ -69,6 +70,7 @@ export interface Services {
   recommendations: RecommendationService;
   analytics: AnalyticsService;
   admin: AdminService;
+  episodeInfo: EpisodeInfoService;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -108,6 +110,13 @@ export function createServices(deps: ContainerDeps): Services {
     prisma: deps.prisma,
     enabled: deps.translate.enabled,
     translator,
+  });
+
+  const episodeInfo = new EpisodeInfoService({
+    prisma: deps.prisma,
+    translator,
+    translateEnabled: deps.translate.enabled,
+    logger: deps.logger,
   });
 
   const catalog = new CatalogService({
@@ -194,5 +203,6 @@ export function createServices(deps: ContainerDeps): Services {
     recommendations,
     analytics,
     admin,
+    episodeInfo,
   };
 }

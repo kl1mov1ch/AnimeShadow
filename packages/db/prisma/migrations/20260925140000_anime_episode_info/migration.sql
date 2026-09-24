@@ -1,0 +1,2 @@
+ALTER TABLE "Anime" ADD COLUMN "episodeInfo" JSONB;
+ALTER TABLE "Anime" ADD COLUMN "episodeInfoAt" TIMESTAMP(3);

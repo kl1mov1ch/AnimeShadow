@@ -1,5 +1,6 @@
 import type { WatchSource } from "@animeshadow/shared";
 import {
+  CalendarIcon,
   CheckIcon,
   ClockIcon,
   InfoIcon,
@@ -381,12 +382,18 @@ function EpisodeRow({
                   : "text-foreground",
             )}
           >
-            {info?.title ?? numberLabel}
+            {info?.title ? (
+              <>
+                <span className="tabular-nums text-muted-foreground">{n}.</span> {info.title}
+              </>
+            ) : (
+              numberLabel
+            )}
           </span>
           <span className="flex items-center gap-1 truncate text-[10px] leading-tight text-muted-foreground">
-            {info?.title && <span className="tabular-nums">{numberLabel}</span>}
-            {info?.title && length && <span aria-hidden>·</span>}
             {length && <span className="tabular-nums">{length}</span>}
+            {info?.synopsis && length && <span aria-hidden>·</span>}
+            {info?.synopsis && <span className="truncate">{info.synopsis}</span>}
           </span>
         </span>
       </button>
@@ -455,7 +462,7 @@ function EpisodeInfoButton({
           <MorphIcon on={open} off={InfoIcon} onIcon={XIcon} className="size-3.5" />
         </button>
       </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-64 text-left">
+      <TooltipContent side="left" className="max-w-72 text-left">
         <div className="flex flex-col gap-1.5">
           <span className="font-display text-[11px] uppercase tracking-wide text-primary">
             {t("detail.episodeNumber", { n })}
@@ -464,9 +471,23 @@ function EpisodeInfoButton({
           {info?.titleEn && (
             <span className="text-[11px] italic leading-snug text-muted-foreground">{info.titleEn}</span>
           )}
+          {info?.synopsis && (
+            <span className="line-clamp-6 text-[11px] font-normal leading-relaxed text-foreground/80">
+              {info.synopsis}
+            </span>
+          )}
           <span className="mt-0.5 flex flex-col gap-1 text-[11px] font-normal text-muted-foreground">
             {length && (
               <InfoLine icon={ClockIcon}>{length}</InfoLine>
+            )}
+            {info?.airdate && (
+              <InfoLine icon={CalendarIcon}>
+                {new Date(info.airdate).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </InfoLine>
             )}
             {info?.opening && (
               <InfoLine icon={MusicIcon}>

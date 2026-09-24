@@ -1805,6 +1805,16 @@ function Player({
           canUseProvider={canUseProvider}
           onChange={onUseOwnChange}
         />
+        {/* What is on screen, by number and — where anyone has published
+            one — by name. */}
+        <span className="flex min-w-0 items-center gap-1.5 text-xs">
+          <span className="shrink-0 rounded-md bg-primary/15 px-1.5 py-0.5 font-display tabular-nums text-primary">
+            {episode}
+          </span>
+          <span className="hidden min-w-0 truncate font-medium sm:inline">
+            {catalog.info.get(episode)?.title ?? t("detail.episodeNumber", { n: episode })}
+          </span>
+        </span>
         {searching && (
           <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
             <Loader2Icon className="size-3 animate-spin" />

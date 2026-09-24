@@ -398,6 +398,10 @@ model Anime {
   // admin "most viewed" report; comment counts are already fully queryable
   // via the `comments` relation, so no separate counter is needed there.
   viewCount Int @default(0)
+  /// Per-episode titles, synopses, stills and air dates (Kitsu), as a JSON
+  /// array; refreshed by `episodeInfoAt`. See EpisodeInfoService.
+  episodeInfo   Json?
+  episodeInfoAt DateTime?
 
   // Cache bookkeeping — `syncedAt` drives freshness (see ANIME_CACHE_TTL_SECONDS).
   detailSyncedAt DateTime?
