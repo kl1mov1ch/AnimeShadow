@@ -9,7 +9,7 @@ import { CharacterModal } from "@/components/anime/character-modal";
 import { FranchiseRail } from "@/components/anime/franchise-section";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
-import { EpisodesPanel, InfoSidebar } from "@/components/anime/episodes-panel";
+import { InfoSidebar } from "@/components/anime/episodes-panel";
 import { TitleTracker } from "@/components/library/title-tracker";
 import { TitleFacts } from "@/components/anime/title-facts";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
@@ -315,12 +315,13 @@ function AnimeDetailView({ param }: { param: string }) {
         />
       </Panel>
 
+      {/* Episodes live beside the player now, where you reach for them, so
+          this row pairs the synopsis with the facts about the title
+          instead of repeating a list that is already on screen. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <EpisodesPanel anime={data} episode={episode} onEpisodeChange={setEpisode} />
+        <AboutBlock anime={data} oneLiner={oneLiner} />
         <InfoSidebar anime={data} />
       </div>
-
-      <AboutBlock anime={data} oneLiner={oneLiner} />
 
       <CharactersPanel animeId={data.id} />
 

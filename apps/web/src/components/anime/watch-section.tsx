@@ -12,27 +12,22 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   RotateCwIcon,
-  ShuffleIcon,
   SkipForwardIcon,
   CheckIcon,
+  PaletteIcon,
+  StarIcon,
   SparklesIcon,
   Volume2Icon,
   VolumeXIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   Popover,
-  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -43,6 +38,8 @@ import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
+import { useEpisodeStills } from "@/components/anime/episodes-panel";
+import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -649,8 +646,15 @@ function dedupeSources(sources: WatchSource[]): WatchSource[] {
  * of rank. Only a genuinely uncertain top pick (a third-party iframe, never
  * probed or its last probe failed) still races two at once as a hedge.
  */
-function initialRacePool(sources: WatchSource[]): string[] {
+function initialRacePool(sources: WatchSource[], favourite?: string | null): string[] {
   const viable = viableSources(sources);
+  // A dub someone went out of their way to mark is worth more than our
+  // ranking: they told us what they want, and loading it alone is both
+  // what they asked for and cheaper than racing anything against it.
+  if (favourite) {
+    const chosen = viable.find((s) => s.title === favourite);
+    if (chosen) return [chosen.id];
+  }
   const top = viable[0];
   const trustAlone = top != null && (top.stable === true || top.format === "hls");
   return viable.slice(0, trustAlone ? 1 : RACE_SIZE).map((s) => s.id);
@@ -689,13 +693,13 @@ const RESUME_MIN_SECONDS = 30;
 const RESUME_TAIL_SECONDS = 60;
 
 /**
- * Every square button in the control bar. Hover picks up the site accent
- * rather than a neutral wash: over a video, colour is the only thing that
- * says this player belongs to AnimeShadow and not to whoever hosts the
- * stream. `group` is here so an icon inside can react to the hover too.
+ * The shape of every square button in the control bar. Only what all three
+ * skins agree on — the colour half comes from the skin, because over a
+ * video colour is the whole of what says this player is ours and not the
+ * provider's. `group` is here so an icon inside can react to the hover.
  */
 const CONTROL_BUTTON =
-  "group flex size-8 items-center justify-center rounded-lg text-white/90 transition-all duration-200 hover:bg-primary/25 hover:text-white active:scale-90";
+  "group flex size-8 items-center justify-center rounded-lg transition-all duration-200 active:scale-90";
 
 const CONTROLS_HIDE_MS = 2600;
 const SKIP_SECONDS = 10;
@@ -727,14 +731,16 @@ function formatTime(seconds: number): string {
  */
 function CustomHlsPlayer({
   src,
+  skin,
   isWinner,
   onReady,
   onFailed,
-  onPlayingChange,
   resumeFrom = 0,
   onEnded,
 }: {
   src: string;
+  /** Which of the site's three looks the control bar wears. */
+  skin: PlayerSkin;
   isWinner: boolean;
   onReady: () => void;
   /** This stream cannot play here — hls.js itself failed to load, or gave up
@@ -742,8 +748,6 @@ function CustomHlsPlayer({
    * sitting out the full stall timeout waiting for a signal that is never
    * coming. */
   onFailed: () => void;
-  /** Only ever fires for the winner — a deliberate pause shouldn't count as "stuck". */
-  onPlayingChange: (playing: boolean) => void;
   /**
    * Seconds this viewer had reached in this episode, from their own saved
    * progress. Applied once per stream, and only when it is far enough from
@@ -754,6 +758,7 @@ function CustomHlsPlayer({
   onEnded?: () => void;
 }) {
   const t = useT();
+  const tone = SKINS[skin];
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -921,14 +926,8 @@ function CustomHlsPlayer({
       const ranges = video.buffered;
       setBuffered(ranges.length > 0 ? ranges.end(ranges.length - 1) : 0);
     };
-    const onPlay = () => {
-      setPlaying(true);
-      if (isWinner) onPlayingChange(true);
-    };
-    const onPause = () => {
-      setPlaying(false);
-      if (isWinner) onPlayingChange(false);
-    };
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
     const onWaiting = () => setBuffering(true);
     const onPlaying = () => setBuffering(false);
     const onVolumeChange = () => {
@@ -957,7 +956,7 @@ function CustomHlsPlayer({
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("ratechange", onRateChange);
     };
-  }, [isWinner, onPlayingChange]);
+  }, [isWinner]);
 
   useEffect(() => {
     const onFsChange = () =>
@@ -1184,7 +1183,8 @@ function CustomHlsPlayer({
               // Slides down with the fade rather than only fading: the bar
               // belongs to the bottom edge, so leaving is a movement toward
               // it, the way every other panel on the site leaves.
-              "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3 pb-2 pt-10 backdrop-blur-[2px] transition-all duration-300 ease-out",
+              "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 px-3 pb-2 pt-10 transition-all duration-300 ease-out",
+              tone.bar,
               controlsVisible
                 ? "translate-y-0 opacity-100"
                 : "pointer-events-none translate-y-2 opacity-0",
@@ -1212,7 +1212,10 @@ function CustomHlsPlayer({
                 // The track thickens under the pointer: the one place an
                 // extra pixel of height earns itself, since this is the
                 // control people actually aim at.
-                className="relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:shadow-primary/40 [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all [&_[data-slot=slider-range]]:bg-primary group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5"
+                className={cn(
+                  "relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:shadow-primary/40 [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5",
+                  tone.range,
+                )}
               />
             </div>
 
@@ -1221,7 +1224,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={togglePlay}
                 aria-label={playing ? t("watch.pause") : t("watch.play")}
-                className={CONTROL_BUTTON}
+                className={cn(CONTROL_BUTTON, tone.button)}
               >
                 <MorphIcon
                   on={playing}
@@ -1234,7 +1237,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={() => skip(-SKIP_SECONDS)}
                 aria-label={t("watch.skipBack")}
-                className={cn(CONTROL_BUTTON, "hidden sm:flex")}
+                className={cn(CONTROL_BUTTON, tone.button, "hidden sm:flex")}
               >
                 <RotateCcwIcon className="size-4 transition-transform duration-300 group-hover:-rotate-45" />
               </button>
@@ -1242,7 +1245,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={() => skip(SKIP_SECONDS)}
                 aria-label={t("watch.skipForward")}
-                className={cn(CONTROL_BUTTON, "hidden sm:flex")}
+                className={cn(CONTROL_BUTTON, tone.button, "hidden sm:flex")}
               >
                 <RotateCwIcon className="size-4 transition-transform duration-300 group-hover:rotate-45" />
               </button>
@@ -1255,7 +1258,7 @@ function CustomHlsPlayer({
                   type="button"
                   onClick={toggleMute}
                   aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                  className={CONTROL_BUTTON}
+                  className={cn(CONTROL_BUTTON, tone.button)}
                 >
                   <MorphIcon
                     on={muted || volume === 0}
@@ -1280,7 +1283,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={toggleMute}
                 aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                className={cn(CONTROL_BUTTON, "sm:hidden")}
+                className={cn(CONTROL_BUTTON, tone.button, "sm:hidden")}
               >
                 <MorphIcon
                   on={muted || volume === 0}
@@ -1303,10 +1306,9 @@ function CustomHlsPlayer({
                       type="button"
                       aria-label={t("watch.speed")}
                       className={cn(
-                        "flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-white/90 transition-colors",
-                        speedMenuOpen
-                          ? "bg-primary/25 text-white"
-                          : "hover:bg-primary/25 hover:text-white",
+                        "flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors",
+                        tone.button,
+                        speedMenuOpen && "bg-primary/25 text-white",
                       )}
                     >
                       <GaugeIcon
@@ -1345,7 +1347,7 @@ function CustomHlsPlayer({
                     type="button"
                     onClick={togglePip}
                     aria-label={t("watch.pip")}
-                    className={cn(CONTROL_BUTTON, "hidden sm:flex")}
+                    className={cn(CONTROL_BUTTON, tone.button, "hidden sm:flex")}
                   >
                     <PictureInPicture2Icon className="size-4" />
                   </button>
@@ -1355,7 +1357,7 @@ function CustomHlsPlayer({
                   type="button"
                   onClick={toggleFullscreen}
                   aria-label={isFullscreen ? t("watch.exitFullscreen") : t("watch.fullscreen")}
-                  className={CONTROL_BUTTON}
+                  className={cn(CONTROL_BUTTON, tone.button)}
                 >
                   <MorphIcon
                     on={isFullscreen}
@@ -1411,25 +1413,30 @@ function Player({
   // a stall timer count down on a source that was going to fail anyway.
   // Except when the top pick is already confirmed reachable (see
   // initialRacePool) — then it's shown alone, trusted outright.
-  const [racePool, setRacePool] = useState<string[]>(() => initialRacePool(data.sources));
+  const [favouriteDub, setFavouriteDub] = useState<string | null>(() =>
+    readFavouriteDub(animeId),
+  );
+  const [racePool, setRacePool] = useState<string[]>(() =>
+    initialRacePool(data.sources, readFavouriteDub(animeId)),
+  );
   const [winnerId, setWinnerId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
   // Every source this session has already raced and lost — so a handful of
   // dead mirrors don't leave the user staring at a spinner for minutes: we
   // keep pulling in fresh batches automatically and only ask them to pick
   // once nothing is left to try.
   const [triedIds, setTriedIds] = useState<string[]>([]);
-  // Real signal for the HLS player only — a cross-origin iframe embed gives
-  // us no way to tell "paused" from "stuck", so this just stays false (never
-  // suppresses the hint) for those, same as before. Reset on every new
-  // winner so a pause on a since-abandoned source can't linger and suppress
-  // the hint for a completely different (and possibly genuinely stuck) one.
-  const [isPaused, setIsPaused] = useState(false);
-  useEffect(() => setIsPaused(false), [winnerId]);
-  // The picture as wide as the window will allow. Off by default and not
-  // remembered: it is a thing you do for one episode, like turning the
-  // lights off, not a setting.
-  const [theatre, setTheatre] = useState(false);
+  // How our own player is dressed. A real preference — someone who wants
+  // the glass bar wants it on every episode — so unlike the old theatre
+  // toggle this one is remembered.
+  const [skin, setSkin] = useState<PlayerSkin>(() => readSkin());
+  const setSkinPersisted = (next: PlayerSkin) => {
+    setSkin(next);
+    try {
+      localStorage.setItem(SKIN_KEY, next);
+    } catch {
+      // Private browsing, blocked storage — it just won't stick.
+    }
+  };
   // Whether finishing an episode should load the next one. Remembered,
   // because that *is* a preference — and defaulting to on, since the whole
   // point of a series is that there is another one after this.
@@ -1460,6 +1467,14 @@ function Player({
   // persists for an anonymous visit), so the control itself only shows for
   // them — no point offering a stepper that quietly does nothing.
   const { data: progress } = useAnimeProgress(animeId, authed);
+  const stills = useEpisodeStills(animeId);
+  const watchedEpisodes = useMemo(() => {
+    const map = new Map<number, { completed: boolean; position: number }>();
+    for (const row of progress?.episodes ?? []) {
+      map.set(row.episode, { completed: row.completed, position: row.positionSeconds });
+    }
+    return map;
+  }, [progress]);
   const resumeAppliedRef = useRef(false);
   useEffect(() => {
     if (resumeAppliedRef.current) return;
@@ -1562,34 +1577,8 @@ function Player({
   // picture, so the bail-out comes after the last hook, not before it —
   // React requires every hook to run on every render, and the two below
   // used to sit past this line.
-  const alternativeCount = displaySource
-    ? data.sources.filter((s) => s.id !== displaySource.id).length
-    : 0;
-
-  // A stuck third-party embed gives us no signal to detect automatically —
-  // no access to its internal player state. What we *can* do is offer the
-  // fix after a source has had a fair amount of time to misbehave, and make
-  // taking it a single click rather than a raw list of source names the
-  // viewer has to make sense of themselves. Resets whenever the winner
-  // itself changes (a fresh pick deserves a fresh chance before nagging) —
-  // and, for the HLS player, whenever it's genuinely paused: someone who hit
-  // pause to read the synopsis isn't "stuck", so the hint has no business
-  // interrupting them.
-  const [showStuckHint, setShowStuckHint] = useState(false);
-  useEffect(() => {
-    // Also skipped while the manual picker is already open — nagging with
-    // one nudge while the viewer is busy looking at another is just noise.
-    if (winnerId == null || alternativeCount === 0 || isPaused || showAll) {
-      setShowStuckHint(false);
-      return;
-    }
-    const timer = setTimeout(() => setShowStuckHint(true), 45_000);
-    return () => clearTimeout(timer);
-  }, [winnerId, alternativeCount, isPaused, showAll]);
-
   if (!displaySource) return null;
 
-  const alternatives = data.sources.filter((s) => s.id !== displaySource.id);
   const searching = winnerId == null && racePool.length > 0;
   const exhausted = winnerId == null && racePool.length === 0;
   // Auto-retry is the offered fix when everything's failed — the raw list is
@@ -1607,7 +1596,28 @@ function Player({
   const pick = (id: string) => {
     setWinnerId(null);
     setRacePool([id]);
-    setShowAll(false);
+  };
+
+  /** Ticking an episode by hand — the counterpart to the automatic mark. */
+  const toggleWatched = (n: number) => {
+    const state = watchedEpisodes.get(n);
+    update.mutate({
+      episode: n,
+      positionSeconds: state?.position ?? 0,
+      completed: !(state?.completed ?? false),
+    });
+  };
+
+  /** Star a dub, or un-star it — the same button both ways. */
+  const toggleFavourite = (title: string) => {
+    const next = favouriteDub === title ? null : title;
+    setFavouriteDub(next);
+    try {
+      if (next) localStorage.setItem(dubKey(animeId), next);
+      else localStorage.removeItem(dubKey(animeId));
+    } catch {
+      // Private browsing, blocked storage — it just won't stick.
+    }
   };
 
   const handleLoad = (id: string) => {
@@ -1641,21 +1651,7 @@ function Player({
   const retryAll = () => {
     setTriedIds([]);
     setWinnerId(null);
-    setRacePool(initialRacePool(data.sources));
-  };
-
-  /** One click, no source names to make sense of — moves straight to the next best untried pick. */
-  const switchNow = () => {
-    setShowStuckHint(false);
-    const exclude = new Set(winnerId ? [...triedIds, winnerId] : triedIds);
-    const remaining = viableSources(data.sources).filter((s) => !exclude.has(s.id));
-    if (remaining.length === 0) {
-      retryAll();
-      return;
-    }
-    setTriedIds((tried) => (winnerId ? [...tried, winnerId] : tried));
-    setWinnerId(null);
-    setRacePool(remaining.slice(0, RACE_SIZE).map((s) => s.id));
+    setRacePool(initialRacePool(data.sources, favouriteDub));
   };
 
   const goToEpisode = (next: number, markCurrentDone: boolean) => {
@@ -1674,7 +1670,7 @@ function Player({
   return (
     <div
       ref={containerRef}
-      className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[88%]"
+      className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[92%]"
     >
       {/* Current pick, one line — the episode control lives right in it
           (only for signed-in viewers: nothing persists otherwise, so a
@@ -1698,17 +1694,6 @@ function Player({
             onRetreatClick={() => goToEpisode(episode - 1, false)}
           />
         )}
-        {/* On a phone the bar has room for the episode control and the escape
-            hatch, and nothing else — the source name and its two badges are
-            reference detail, not something you act on mid-episode. */}
-        <span className="hidden min-w-0 truncate font-medium sm:inline">
-          {displaySource.title}
-        </span>
-        <span className="hidden shrink-0 items-center gap-2 sm:inline-flex">
-          {displaySource.format === "hls" && <OwnPlayerMark />}
-          <SourceKindBadge source={displaySource} />
-          <StabilityMark stable={displaySource.stable} />
-        </span>
         {searching && (
           <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
             <Loader2Icon className="size-3 animate-spin" />
@@ -1747,127 +1732,11 @@ function Player({
               <span className="hidden sm:inline">{t("watch.autoNext")}</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setTheatre((on) => !on)}
-            aria-pressed={theatre}
-            title={theatre ? t("watch.theatreExit") : t("watch.theatre")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-              theatre
-                ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
-            )}
-          >
-            <MorphIcon
-              on={theatre}
-              off={Maximize2Icon}
-              onIcon={Minimize2Icon}
-              className="size-3.5"
-            />
-            <span className="hidden sm:inline">
-              {theatre ? t("watch.theatreExit") : t("watch.theatre")}
-            </span>
-          </button>
+          {displaySource.format === "hls" && (
+            <SkinPicker skin={skin} onChange={setSkinPersisted} />
+          )}
         </span>
 
-        {alternatives.length > 0 && (
-          <DropdownMenu open={showAll} onOpenChange={setShowAll}>
-            <Popover open={showStuckHint} onOpenChange={setShowStuckHint}>
-              {/* Anchor (not Trigger) for the stuck-hint popover — its open
-                  state is driven by the 45s timer above, not by a click on
-                  this button. The button's actual click is spoken for by
-                  DropdownMenuTrigger just inside; both wrap the same node,
-                  which Radix's asChild composes onto cleanly. */}
-              <PopoverAnchor asChild>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => setShowStuckHint(false)}
-                    className={cn(
-                      "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors sm:px-2.5 sm:py-1",
-                      showAll
-                        ? "border-primary/50 bg-primary/10 text-primary"
-                        : "border-border/60 bg-secondary/40 text-foreground/80 hover:border-primary/40 hover:bg-secondary/70 hover:text-primary",
-                    )}
-                  >
-                    <ShuffleIcon
-                      className={cn(
-                        "size-3.5",
-                        showStuckHint && !showAll && "animate-pulse text-primary",
-                      )}
-                    />
-                    {showAll ? t("common.cancel") : t("watch.notWorking")}
-                  </button>
-                </DropdownMenuTrigger>
-              </PopoverAnchor>
-              <PopoverContent
-                side="bottom"
-                align="end"
-                sideOffset={8}
-                className="w-72 p-3.5 text-sm"
-                onOpenAutoFocus={(e) => e.preventDefault()}
-              >
-                <p className="font-medium">{t("watch.stuckModalTitle")}</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {t("watch.stuckModalBody")}
-                </p>
-                {/* Stacked, not side-by-side — two buttons with real labels
-                    ("Переключить источник" plus an icon, next to "Всё
-                    хорошо") never actually fit next to each other in a
-                    popover this narrow; they just overflowed its edge. A
-                    full-width primary action with the dismiss as a plain
-                    link below it fits regardless of label length. */}
-                <div className="mt-3 flex flex-col gap-2">
-                  <Button size="sm" onClick={switchNow} className="w-full">
-                    <ShuffleIcon />
-                    {t("watch.stuckModalSwitch")}
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => setShowStuckHint(false)}
-                    className="self-center text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {t("watch.stuckModalDismiss")}
-                  </button>
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* A real dropdown, not an inline block pushing the player down
-                — narrow (a handful of sources at most, so it never needs to
-                be wide) and positioned by Radix itself, which flips above
-                the trigger on its own when there isn't room below. Only
-                sources the server hasn't already confirmed dead show up
-                here at all (see `pickable`), deduplicated by dub name — a
-                pick from this list is one that should actually work. */}
-            <DropdownMenuContent align="end" className="w-56">
-              {pickable.map((source) => (
-                <DropdownMenuItem
-                  key={source.id}
-                  onSelect={() => pick(source.id)}
-                  className={cn(
-                    "gap-2 text-xs",
-                    source.id === displaySource.id && "bg-primary/10 font-medium text-primary",
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full",
-                      source.id === displaySource.id ? "bg-primary" : "bg-border",
-                    )}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {sourceLabel(source, t)}
-                  </span>
-                  {source.format === "hls" && <OwnPlayerMark />}
-                  <StabilityMark stable={source.stable} />
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
 
       {/* Nothing worked automatically — offer the fix as one button, not a
@@ -1884,19 +1753,15 @@ function Player({
         </div>
       )}
 
-      {/* Bleeds past the page's own side padding on mobile — the actual
-          video is what benefits from real size on a small screen; the
-          controls above/below it stay comfortably padded. Desktop keeps its
-          rounded corners since there's no width to gain there anyway. */}
+      {/* The picture and the two lists you actually reach for while it is
+          playing, side by side on a wide screen. Below `lg` the column
+          drops under the video with a height of its own — stacking it full
+          height would push the next section off the screen entirely. */}
+      <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-stretch">
       <div
         className={cn(
           "relative aspect-video overflow-hidden border bg-black",
-          // Wide mode fills the card it sits in — the same -mx-5 the mobile
-          // bleed already uses, just kept on every breakpoint instead of
-          // only below sm — rather than the page's full width. A viewer
-          // asked for a bigger picture, not for the panel around it (title
-          // bar, tabs, everything else on the page) to disappear.
-          theatre ? "-mx-5 rounded-none border-x-0" : "-mx-5 sm:mx-0 sm:rounded-xl",
+          "-mx-5 sm:mx-0 sm:rounded-xl",
         )}
       >
         {racePool.map((id) => {
@@ -1911,10 +1776,10 @@ function Player({
               <CustomHlsPlayer
                 key={source.id}
                 src={url}
+                skin={skin}
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
                 onFailed={() => handleFailed(id)}
-                onPlayingChange={(playing) => setIsPaused(!playing)}
                 resumeFrom={episodeRecord?.positionSeconds ?? 0}
                 onEnded={handleEnded}
               />
@@ -1948,12 +1813,101 @@ function Player({
             <p className="text-xs">{t("watch.findingSource")}</p>
           </div>
         )}
+        </div>
+
+        <PlayerSidePanel
+          episodesTotal={episodesTotal}
+          episode={episode}
+          onEpisodeChange={onEpisodeChange}
+          stills={stills}
+          duration={runtime}
+          watched={watchedEpisodes}
+          canMark={authed}
+          onToggleWatched={toggleWatched}
+          sources={pickable}
+          currentSourceId={displaySource.id}
+          favouriteDub={favouriteDub}
+          onPickSource={pick}
+          onToggleFavourite={toggleFavourite}
+          sourceLabel={(source) => sourceLabel(source, t)}
+          // Capped rather than free: the aside is a flex column whose list
+          // scrolls, but its *intrinsic* height is still the whole list, so
+          // without a ceiling a 1200-episode show would set the row height
+          // and leave the video floating in the middle of it. 34rem is
+          // about where a 16:9 picture lands at this column split.
+          className="max-h-80 lg:h-full lg:max-h-[34rem]"
+        />
       </div>
     </div>
   );
 }
 
 const AUTO_NEXT_KEY = "as:auto-next";
+const SKIN_KEY = "as:player-skin";
+
+/**
+ * How our own player is dressed.
+ *
+ * Three takes on the same site, not three unrelated themes: the shadow is
+ * the plain dark gradient every video player uses, the glass is the
+ * translucent blurred surface the rest of the site is built from, and the
+ * accent one carries the site colour into the bar itself. What they never
+ * do is look like the provider's player — that was the point of writing
+ * our own.
+ */
+export type PlayerSkin = "shadow" | "glass" | "accent";
+
+const SKINS: Record<
+  PlayerSkin,
+  { bar: string; button: string; range: string }
+> = {
+  shadow: {
+    bar: "bg-gradient-to-t from-black/90 via-black/45 to-transparent backdrop-blur-[2px]",
+    button: "text-white/90 hover:bg-primary/25 hover:text-white",
+    range: "[&_[data-slot=slider-range]]:bg-primary",
+  },
+  glass: {
+    bar: "bg-black/25 backdrop-blur-xl border-t border-white/15",
+    button: "text-white/90 hover:bg-white/20 hover:text-white",
+    range: "[&_[data-slot=slider-range]]:bg-white",
+  },
+  accent: {
+    bar: "bg-gradient-to-t from-[var(--accent)]/85 via-[var(--accent)]/35 to-transparent backdrop-blur-[2px]",
+    button: "text-white hover:bg-white/25",
+    range: "[&_[data-slot=slider-range]]:bg-white",
+  },
+};
+
+function readSkin(): PlayerSkin {
+  try {
+    const stored = localStorage.getItem(SKIN_KEY);
+    if (stored === "shadow" || stored === "glass" || stored === "accent") return stored;
+  } catch {
+    // Private browsing, blocked storage — fall through to the default.
+  }
+  return "shadow";
+}
+
+/** Where this title's preferred dub is remembered. */
+function dubKey(animeId: number): string {
+  return `as:dub:${animeId}`;
+}
+
+/**
+ * The dub this viewer marked as their favourite for this title, by name.
+ *
+ * By name rather than by source id on purpose: the same studio's dub
+ * arrives under a different id from each provider and can be re-keyed
+ * between resolves, but "AniLibria" is "AniLibria" whichever route it came
+ * down. The preference is about the dub, not about the row that carried it.
+ */
+function readFavouriteDub(animeId: number): string | null {
+  try {
+    return localStorage.getItem(dubKey(animeId));
+  } catch {
+    return null;
+  }
+}
 
 function readAutoNext(): boolean {
   try {
@@ -2059,6 +2013,40 @@ function PlayerSwitch({
   );
 }
 
+/** Three site-derived looks for our own player — see `SKINS`. */
+function SkinPicker({
+  skin,
+  onChange,
+}: {
+  skin: PlayerSkin;
+  onChange: (skin: PlayerSkin) => void;
+}) {
+  const t = useT();
+  const options: PlayerSkin[] = ["shadow", "glass", "accent"];
+  return (
+    <span className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
+      <PaletteIcon className="ml-1 size-3.5 shrink-0 text-muted-foreground" />
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          aria-pressed={skin === option}
+          title={t(`watch.skin.${option}`)}
+          className={cn(
+            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+            skin === option
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t(`watch.skin.${option}`)}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 function OwnPlayerMark() {
   const t = useT();
   return (
@@ -2067,38 +2055,6 @@ function OwnPlayerMark() {
       {t("watch.ourPlayer")}
     </span>
   );
-}
-
-/** Server-side reachability verdict, so the user can tell picks apart at a glance. */
-function StabilityMark({ stable }: { stable: boolean | null }) {
-  const t = useT();
-  if (stable == null) return null;
-  return (
-    <span
-      title={stable ? t("watch.stableHint") : t("watch.unstableHint")}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
-        stable
-          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
-          : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-500",
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "size-1.5 rounded-full",
-          stable ? "bg-emerald-500" : "bg-amber-500",
-        )}
-      />
-      {stable ? t("watch.stable") : t("watch.unstable")}
-    </span>
-  );
-}
-
-function SourceKindBadge({ source }: { source: WatchSource }) {
-  if (source.kind === "voice") return <Badge variant="secondary">RU/VO</Badge>;
-  if (source.kind === "subtitles") return <Badge variant="outline">SUB</Badge>;
-  return null;
 }
 
 function sourceLabel(source: WatchSource, t: ReturnType<typeof useT>): string {
