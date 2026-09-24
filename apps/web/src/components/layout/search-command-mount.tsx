@@ -29,8 +29,10 @@ export function SearchCommandMount() {
       // simply never fired — and because it never fired, preventDefault never
       // ran either and the browser's own Ctrl+K (focus the address bar) won
       // by default. `key` stays as a fallback for anything not reporting a
-      // code at all.
-      const isK = event.code === "KeyK" || event.key.toLowerCase() === "k";
+      // code at all — and neither is guaranteed: a browser filling in a saved
+      // login fires keydown events with no `key` at all, which is exactly
+      // what used to throw here on the sign-in page.
+      const isK = event.code === "KeyK" || event.key?.toLowerCase() === "k";
       if (!isK || !(event.metaKey || event.ctrlKey)) return;
       event.preventDefault();
       setLoaded(true);

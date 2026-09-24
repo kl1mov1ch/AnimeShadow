@@ -1178,7 +1178,7 @@ function CustomHlsPlayer({
       if (target && /^(input|textarea)$/i.test(target.tagName)) return;
       const video = videoRef.current;
       if (!video) return;
-      switch (e.key.toLowerCase()) {
+      switch ((e.key ?? "").toLowerCase()) {
         case " ":
         case "k":
           e.preventDefault();
