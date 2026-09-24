@@ -1,28 +1,13 @@
-import type { AnimeSummary } from "@animeshadow/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowRightIcon,
-  BookmarkIcon,
-  CakeIcon,
-  CalendarDaysIcon,
   CheckIcon,
-  CircleHelpIcon,
   CrownIcon,
-  EyeIcon,
   FlameIcon,
-  HeartIcon,
-  LightbulbIcon,
   type LucideIcon,
   MedalIcon,
-  MessageSquareIcon,
-  PlayIcon,
-  RadioIcon,
   RotateCcwIcon,
   ShuffleIcon,
-  SparklesIcon,
-  StarIcon,
   TrophyIcon,
-  UsersIcon,
   XIcon,
 } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,8 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { apiRequest } from "@/lib/api";
-import { animeHref, imageSrc } from "@/lib/format";
-import { useLabels } from "@/lib/labels";
+import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------------ */
@@ -46,12 +30,10 @@ const PANEL =
   "relative flex flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5";
 
 function SectionHeading({
-  icon: Icon,
   title,
   subtitle,
   aside,
 }: {
-  icon: LucideIcon;
   title: string;
   subtitle?: string;
   aside?: React.ReactNode;
@@ -59,15 +41,7 @@ function SectionHeading({
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="flex flex-col gap-0.5">
-        <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
-          <span
-            aria-hidden
-            className="grid size-7 shrink-0 place-items-center rounded-lg border border-[var(--accent-line-soft)] bg-[var(--accent-surface-strong)] text-[var(--accent-ink)]"
-          >
-            <Icon className="size-4" />
-          </span>
-          {title}
-        </h2>
+        <h2 className="font-display text-lg tracking-tight sm:text-xl">{title}</h2>
         {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
       </div>
       {aside}
@@ -97,267 +71,29 @@ function PanelLabel({
   );
 }
 
-function compact(n: number, locale: string): string {
-  return new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(n);
-}
-
 /* ------------------------------------------------------------------------ */
 /* The corner                                                                */
 /* ------------------------------------------------------------------------ */
 
 /**
- * The part of the front page that isn't a shelf.
- *
- * Two halves side by side — the title of the day with everything that says
- * why it is, and the frame-guessing game with its leaderboard under it —
- * and the facts as their own strip below, rather than a third card
- * squeezed in beside two that have far more going on.
+ * The part of the front page that isn't a shelf: one small game and its
+ * leaderboard, side by side, and a strip of facts below. Kept deliberately
+ * compact — it sits between rows of posters and should read as a pause,
+ * not as a second page.
  */
 export function AnimeCorner() {
   const t = useT();
   return (
     <div className="flex flex-col gap-10">
       <section className="flex flex-col gap-3">
-        <SectionHeading
-          icon={SparklesIcon}
-          title={t("home.corner.title")}
-          subtitle={t("home.corner.subtitle")}
-        />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <AnimeOfTheDay />
-          <div className="grid gap-4">
-            <GuessGame />
-            <Leaderboard />
-          </div>
+        <SectionHeading title={t("home.corner.guess")} subtitle={t("home.corner.subtitle")} />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          <GuessGame />
+          <Leaderboard />
         </div>
       </section>
       <FactsStrip />
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------------ */
-/* Anime of the day                                                          */
-/* ------------------------------------------------------------------------ */
-
-interface DayPick {
-  anime: AnimeSummary;
-  stats: {
-    score: number | null;
-    scoredBy: number | null;
-    members: number | null;
-    rank: number | null;
-    topPercent: number | null;
-    views: number;
-    inLists: number;
-    watching: number;
-    completed: number;
-    siteScore: number | null;
-    siteVotes: number;
-    comments: number;
-  };
-  reasons: Array<{ code: string; value?: number }>;
-}
-
-const REASON_ICON: Record<string, LucideIcon> = {
-  anniversary: CakeIcon,
-  topRated: TrophyIcon,
-  beloved: HeartIcon,
-  airing: RadioIcon,
-  ourUsers: UsersIcon,
-  pick: SparklesIcon,
-};
-
-/**
- * One title for today, with the reasons it was chosen and what we know
- * about it: its score and how that compares with the rest of the
- * catalogue, how many people rated it, and how it is doing on this site —
- * views, lists, watching now, our own users' average. A figure nobody has
- * produced yet (a zero on a quiet day) is left out rather than shown as a
- * sad zero.
- */
-function AnimeOfTheDay() {
-  const t = useT();
-  const labels = useLabels();
-  const { locale } = useLocale();
-  const { data, isPending } = useQuery({
-    queryKey: ["games", "anime-of-the-day"],
-    queryFn: ({ signal }) => apiRequest<DayPick>("/games/anime-of-the-day", { signal }),
-    staleTime: 60 * 60_000,
-  });
-
-  if (isPending || !data) {
-    return <div className={cn(PANEL, "min-h-[30rem] animate-pulse")} />;
-  }
-
-  const { anime, stats, reasons } = data;
-  const title = labels.title(anime);
-  const art = imageSrc(anime.imageLargeUrl ?? anime.imageUrl);
-
-  const figures = (
-    [
-      stats.score != null && { icon: StarIcon, value: stats.score.toFixed(2), label: t("home.day.score"), star: true },
-      stats.scoredBy != null && stats.scoredBy > 0 && { icon: UsersIcon, value: compact(stats.scoredBy, locale), label: t("home.day.votes") },
-      stats.members != null && stats.members > 0 && { icon: BookmarkIcon, value: compact(stats.members, locale), label: t("home.day.members") },
-      stats.views > 0 && { icon: EyeIcon, value: compact(stats.views, locale), label: t("home.day.views") },
-      stats.inLists > 0 && { icon: BookmarkIcon, value: String(stats.inLists), label: t("home.day.inLists") },
-      stats.watching > 0 && { icon: PlayIcon, value: String(stats.watching), label: t("home.day.watching") },
-      stats.siteScore != null && { icon: HeartIcon, value: stats.siteScore.toFixed(1), label: t("home.day.siteScore", { n: stats.siteVotes }) },
-      stats.comments > 0 && { icon: MessageSquareIcon, value: String(stats.comments), label: t("home.day.comments") },
-    ].filter(Boolean) as Array<{ icon: LucideIcon; value: string; label: string; star?: boolean }>
-  ).slice(0, 6);
-
-  return (
-    <article className={cn(PANEL, "group gap-4 p-0 sm:p-0")}>
-      {/* The key art as a wash across the top, the card rising out of it. */}
-      <div className="relative h-36 overflow-hidden">
-        {art && (
-          <img
-            aria-hidden
-            src={art}
-            alt=""
-            className="home-kenburns absolute inset-0 size-full scale-110 object-cover opacity-50 blur-sm"
-          />
-        )}
-        <span
-          aria-hidden
-          className="absolute inset-0 bg-gradient-to-b from-primary/25 via-transparent to-[var(--card)]"
-        />
-        <div className="absolute inset-x-4 top-4 sm:inset-x-5">
-          <PanelLabel
-            icon={CalendarDaysIcon}
-            aside={
-              <span className="rounded-md border border-primary/30 bg-background/60 px-2 py-0.5 text-[11px] font-medium tabular-nums text-primary backdrop-blur-sm">
-                {new Date().toLocaleDateString(locale, { day: "numeric", month: "long" })}
-              </span>
-            }
-          >
-            {t("home.corner.pick")}
-          </PanelLabel>
-        </div>
-      </div>
-
-      <div className="relative -mt-24 flex gap-4 px-4 sm:px-5">
-        <Link
-          to={animeHref(anime)}
-          viewTransition
-          className="h-48 w-32 shrink-0 overflow-hidden rounded-xl border-2 border-primary/40 shadow-2xl shadow-primary/20 transition-transform duration-500 group-hover:-rotate-2 group-hover:scale-[1.03]"
-        >
-          {art && <img src={art} alt={title} className="size-full object-cover" />}
-        </Link>
-        <div className="flex min-w-0 flex-col justify-end pt-16">
-          <Link
-            to={animeHref(anime)}
-            viewTransition
-            className="line-clamp-3 font-display text-lg leading-tight transition-colors hover:text-primary sm:text-xl"
-          >
-            {title}
-          </Link>
-          <span className="mt-1 text-xs text-muted-foreground">
-            {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime), labels.episodeLabel(anime.episodes, anime.type)]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {anime.genres.slice(0, 3).map((g) => (
-              <span
-                key={g}
-                className="rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
-              >
-                {labels.genreLabel(g)}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-4 px-4 pb-4 sm:px-5 sm:pb-5">
-        {/* Why this one. */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("home.day.why")}
-          </span>
-          <ul className="reveal-group flex flex-col gap-1.5">
-            {reasons.map((reason, i) => {
-              const Icon = REASON_ICON[reason.code] ?? SparklesIcon;
-              return (
-                <li
-                  key={reason.code}
-                  style={{ "--i": i } as CSSProperties}
-                  className="reveal flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1.5 text-xs font-medium"
-                >
-                  <Icon className="size-4 shrink-0 text-primary" />
-                  {t(`home.day.reason.${reason.code}` as "home.day.reason.pick", {
-                    n: reason.value != null ? compact(reason.value, locale) : "",
-                  })}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {/* The figures. */}
-        {figures.length > 0 && (
-          <div className="grid grid-cols-3 gap-2">
-            {figures.map(({ icon: Icon, value, label, star }) => (
-              <div
-                key={label}
-                className="flex flex-col gap-0.5 rounded-xl border border-[var(--accent-line-soft)] bg-card/60 p-2.5"
-              >
-                <span className="flex items-center gap-1 font-display text-base tabular-nums leading-none">
-                  <Icon className={cn("size-3.5", star ? "fill-amber-400 text-amber-400" : "text-primary")} />
-                  {value}
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Score against the whole catalogue, as a bar. */}
-        {stats.score != null && (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>{t("home.day.scoreBar")}</span>
-              {stats.topPercent != null && (
-                <span className="font-medium text-primary">
-                  {t("home.day.topPercent", { n: stats.topPercent })}
-                </span>
-              )}
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-primary/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary transition-[width] duration-1000 ease-out"
-                style={{ width: `${Math.min(100, stats.score * 10)}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {anime.synopsis && (
-          <p className="line-clamp-3 text-xs leading-relaxed text-foreground/75">{anime.synopsis}</p>
-        )}
-
-        <div className="mt-auto flex gap-2">
-          <Link
-            to={`${animeHref(anime)}#watch`}
-            viewTransition
-            className="btn-sheen inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform active:scale-[0.98]"
-          >
-            <PlayIcon className="size-4 fill-current" />
-            {t("home.heroWatch")}
-          </Link>
-          <Link
-            to={animeHref(anime)}
-            viewTransition
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
-          >
-            {t("home.corner.open")}
-            <ArrowRightIcon className="size-4" />
-          </Link>
-        </div>
-      </div>
-    </article>
   );
 }
 
@@ -508,10 +244,9 @@ function GuessGame() {
   const answer = round?.options.find((o) => o.id === result?.answerId);
 
   return (
-    <article className={cn(PANEL, "gap-3")}>
-      <PanelLabel
-        icon={CircleHelpIcon}
-        aside={
+    <article className={cn(PANEL, "gap-2.5 p-3 sm:p-3")}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">{t("home.game.keys")}</p>
           <div className="flex items-center gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -540,11 +275,9 @@ function GuessGame() {
               <TooltipContent side="bottom">{t("home.game.bestNow")}</TooltipContent>
             </Tooltip>
           </div>
-        }
-      >
-        {t("home.corner.guess")}
-      </PanelLabel>
+      </div>
 
+      <div className="grid gap-2.5 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] md:items-stretch">
       <div
         className={cn(
           "relative aspect-video w-full overflow-hidden rounded-xl border-2 bg-muted transition-all duration-300",
@@ -607,7 +340,7 @@ function GuessGame() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5 md:grid-cols-1 md:grid-rows-4">
         {(round?.options ?? []).map((option, i) => {
           const isAnswer = revealed && option.id === result.answerId;
           const isPicked = option.id === picked;
@@ -655,8 +388,7 @@ function GuessGame() {
             <span key={i} className="min-h-11 animate-pulse rounded-lg border border-primary/20 bg-primary/10" />
           ))}
       </div>
-
-      <p className="text-center text-[11px] text-muted-foreground">{t("home.game.keys")}</p>
+      </div>
     </article>
   );
 }
@@ -697,10 +429,10 @@ function Leaderboard() {
     staleTime: 30_000,
   });
 
-  const mine = data?.top.some((row) => row.userId === user?.id) ?? false;
+  const mine = data?.top.slice(0, 5).some((row) => row.userId === user?.id) ?? false;
 
   return (
-    <article className={cn(PANEL, "gap-3")}>
+    <article className={cn(PANEL, "gap-2 p-3 sm:p-3")}>
       <PanelLabel icon={CrownIcon}>{t("home.game.board")}</PanelLabel>
 
       {isPending ? (
@@ -715,7 +447,7 @@ function Leaderboard() {
         </p>
       ) : (
         <ol className="reveal-group flex flex-col gap-1">
-          {data.top.map((row, i) => {
+          {data.top.slice(0, 5).map((row, i) => {
             const me = row.userId === user?.id;
             const content = (
               <>
@@ -818,7 +550,6 @@ function FactsStrip() {
   return (
     <section className="flex flex-col gap-3">
       <SectionHeading
-        icon={LightbulbIcon}
         title={t("home.corner.facts")}
         aside={
           <button
@@ -844,7 +575,7 @@ function FactsStrip() {
             style={{ "--i": i } as CSSProperties}
             className={cn(
               PANEL,
-              "reveal group min-h-44 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
+              "reveal group min-h-36 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
             )}
           >
             <span
@@ -852,9 +583,6 @@ function FactsStrip() {
               className="pointer-events-none absolute -right-3 -top-6 font-display text-8xl leading-none text-primary/10 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110"
             >
               ?
-            </span>
-            <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
-              <LightbulbIcon className="size-4" />
             </span>
             <p className="relative font-display text-sm leading-snug">
               {t(`home.facts.${key}.title` as "home.facts.sazae.title")}

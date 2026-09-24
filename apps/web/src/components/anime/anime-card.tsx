@@ -16,11 +16,6 @@ import { AnimePoster } from "@/components/anime/anime-poster";
 import { ScoreBadge } from "@/components/anime/score-badge";
 import { STATUS_META } from "@/components/library/library-meta";
 import { MorphIcon } from "@/components/ui/morph-icon";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isAdultRating } from "@/hooks/use-adult-content";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -137,7 +132,6 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const title = labels.title(anime);
   const when = labels.seasonYearLabel(anime);
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
-  const genreLine = anime.genres.slice(0, 2).map(labels.genreLabel).join(", ");
 
   // const hasScore = anime.score != null;
   const airing = anime.airing === "AIRING";
@@ -277,19 +271,59 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         {/* "Coming soon" only — the "airing" tag added noise without telling the
             user anything they don't already get from the season/year line. */}
         {unreleased && !entry ? (
-          <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur">
+          <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur transition-opacity duration-200 group-hover:opacity-0">
             {t("card.soon")}
           </span>
         ) : null}
+
+        {/* What used to be a popup beside the card now rises out of the
+            poster's own lower edge: genres, what it's about, how it's rated.
+            It takes no room on the page and covers nothing but the part of
+            the picture that was already under a shadow. Clicks go through
+            it to the poster link underneath. */}
+        {canHover && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-full bg-gradient-to-t from-black via-black/90 to-black/0 px-2.5 pb-2.5 pt-8 text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:transition-none">
+            {anime.genres.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {anime.genres.slice(0, 3).map((g) => (
+                  <span
+                    key={g}
+                    className="rounded border border-primary/50 bg-primary/25 px-1.5 py-px text-[10px] font-medium text-white"
+                  >
+                    {labels.genreLabel(g)}
+                  </span>
+                ))}
+              </div>
+            )}
+            {anime.synopsis && (
+              <p className="mt-1.5 line-clamp-3 text-[11px] leading-snug text-white/85">
+                {anime.synopsis}
+              </p>
+            )}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-white/65">
+              {shortRating(anime.rating) && <span>{shortRating(anime.rating)}</span>}
+              {anime.scoredBy != null && anime.scoredBy > 0 && (
+                <span className="tabular-nums">
+                  {t("common.ratings", { count: labels.compact(anime.scoredBy) })}
+                </span>
+              )}
+              {anime.members != null && anime.members > 0 && (
+                <span className="tabular-nums">
+                  {t("home.views", { views: labels.compact(anime.members) })}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-0.5">
-        <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground transition-colors group-hover:text-primary">
+        <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground transition-colors group-hover:text-primary">
           <Link to={animeHref(anime)} viewTransition className="outline-none">
             {title}
           </Link>
         </h3>
-        <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground">
           {/* A permanent "AIRING" tag here used to say the same thing on
               every card of every currently-airing title, all the time, and
               told you nothing about *when* the next episode actually lands.
@@ -326,74 +360,11 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             </span>
           )}
         </div>
-        {(genreLine || anime.members != null) && (
-          <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground/70">
-            <span className="min-w-0 truncate">{genreLine}</span>
-            {anime.members != null && anime.members > 0 && (
-              <span className="shrink-0 tabular-nums">
-                {t("home.views", { views: labels.compact(anime.members) })}
-              </span>
-            )}
-          </div>
-        )}
       </div>
     </article>
   );
 
-  // Touch devices have no hover to preview on — skip the extra portal/DOM
-  // entirely there rather than shipping a feature that can never trigger.
-  if (!canHover) return card;
-
-  return (
-    <HoverCard openDelay={350} closeDelay={100}>
-      <HoverCardTrigger asChild>{card}</HoverCardTrigger>
-      <HoverCardContent side="top" sideOffset={10} className="w-64 p-3">
-        <AnimeCardPreview anime={anime} />
-      </HoverCardContent>
-    </HoverCard>
-  );
-}
-
-/**
- * The extra detail a hover reveals — everything the compact card had no room
- * for (full genre list, synopsis) plus what's already visible, restated
- * larger. No new visual language: same badge, same type scale, just more of
- * it, so the preview reads as "the same card, unfolded" rather than a
- * different surface.
- */
-/**
- * The hover preview, deliberately narrow: it repeats nothing the card
- * already shows (title, score, type, year, episodes) and carries only what
- * might decide it — what the show is about, who made it, what it is rated,
- * and how many people are watching.
- */
-function AnimeCardPreview({ anime }: { anime: AnimeSummary }) {
-  const t = useT();
-  const labels = useLabels();
-  const genreLine = anime.genres.slice(0, 4).map(labels.genreLabel).join(" · ");
-  const age = shortRating(anime.rating);
-
-  return (
-    <div className="flex flex-col gap-2">
-      {genreLine && <p className="text-xs text-primary/90">{genreLine}</p>}
-      {anime.synopsis && (
-        <p className="line-clamp-5 text-xs leading-relaxed text-foreground/80">{anime.synopsis}</p>
-      )}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
-        {age && <span>{age}</span>}
-        {anime.scoredBy != null && anime.scoredBy > 0 && (
-          <span className="tabular-nums">
-            {t("common.ratings", { count: labels.compact(anime.scoredBy) })}
-          </span>
-        )}
-        {anime.members != null && anime.members > 0 && (
-          <span className="tabular-nums">
-            {t("home.views", { views: labels.compact(anime.members) })}
-          </span>
-        )}
-      </div>
-    </div>
-  );
+  return card;
 }
 
 /**
@@ -425,7 +396,7 @@ function LibraryMark({
         <TooltipTrigger asChild>
           <span
             aria-label={label}
-            className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium backdrop-blur"
+            className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium backdrop-blur transition-opacity duration-200 group-hover:opacity-0"
           >
             <Icon className={cn("size-3.5", meta.text)} />
             {percent != null && status !== "COMPLETED" && (

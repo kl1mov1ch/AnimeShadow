@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // cards. The old ladder included 3 and 6, neither of which divides 20 — which
 // is exactly where the stranded last row came from.
 const GRID_CLASS =
-  "grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-5";
+  "grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-3 sm:grid-cols-5 lg:grid-cols-6";
 const LIST_CLASS = "flex flex-col gap-2.5";
 
 export type AnimeViewMode = "grid" | "list";

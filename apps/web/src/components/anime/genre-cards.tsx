@@ -4,7 +4,6 @@ import {
   LayoutGridIcon,
   SparklesIcon,
   StarIcon,
-  UserRoundCheckIcon,
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
@@ -61,15 +60,7 @@ export function GenreCards({
     <section className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-0.5">
-          <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
-            <span
-              aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-lg border border-[var(--accent-line-soft)] bg-[var(--accent-surface-strong)] text-[var(--accent-ink)]"
-            >
-              {personal ? <UserRoundCheckIcon className="size-4" /> : <SparklesIcon className="size-4" />}
-            </span>
-            {title}
-          </h2>
+          <h2 className="font-display text-lg tracking-tight sm:text-xl">{title}</h2>
           <p className="text-xs text-muted-foreground">
             {personal ? t("home.genresPersonal") : t("home.genresDefault")}
           </p>

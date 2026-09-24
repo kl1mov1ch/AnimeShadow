@@ -115,7 +115,7 @@ export function AnimeRail({
           ? Array.from({ length: SKELETON_COUNT }, (_, i) => (
               <AnimeCardSkeleton
                 key={i}
-                className="w-[calc((100%-4*1rem)/2.4)] shrink-0 snap-start sm:w-[calc((100%-3*1rem)/4)] lg:w-[calc((100%-5*1rem)/6)]"
+                className="w-[calc((100%-4*1rem)/2.8)] shrink-0 snap-start sm:w-[calc((100%-4*1rem)/4.7)] lg:w-[calc((100%-6*1rem)/7)]"
               />
             ))
           : items.map((anime, i) => (
@@ -123,7 +123,7 @@ export function AnimeRail({
                 key={anime.id}
                 anime={anime}
                 priority={i < 6}
-                className="w-[calc((100%-4*1rem)/2.4)] shrink-0 snap-start sm:w-[calc((100%-3*1rem)/4)] lg:w-[calc((100%-5*1rem)/6)]"
+                className="w-[calc((100%-4*1rem)/2.8)] shrink-0 snap-start sm:w-[calc((100%-4*1rem)/4.7)] lg:w-[calc((100%-6*1rem)/7)]"
               />
             ))}
       </div>
