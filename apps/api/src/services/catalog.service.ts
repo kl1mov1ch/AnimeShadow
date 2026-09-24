@@ -517,8 +517,18 @@ export class CatalogService {
 
   // -- Browse / search ------------------------------------------------
 
-  async browse(query: AnimeQuery, allowAdult = false): Promise<Paginated<AnimeSummary>> {
+  async browse(
+    query: AnimeQuery,
+    allowAdult = false,
+    userId?: string,
+  ): Promise<Paginated<AnimeSummary>> {
     if (query.q) return this.search(query, query.q, allowAdult);
+    // Filters Shikimori's list endpoint can't express — ranges, exclusions,
+    // "not already in my list" — run against the local catalogue in SQL, so
+    // they are exact and every page is still exactly perPage long.
+    if (needsLocalFilters(query)) {
+      return this.browseFromCache(query, allowAdult, userId);
+    }
     // Filters Shikimori's list endpoint has no concept of: studio, and our
     // own player availability. Upstream would silently ignore them and hand
     // back the unfiltered catalogue, so these run against the local cache
@@ -530,9 +540,6 @@ export class CatalogService {
     // fetching them meant a page that asked for 20 could render 14. The
     // cache applies all of it in SQL with a real LIMIT, so every page is
     // exactly perPage until the last one.
-    if (query.studio || query.hasPlayer || query.hasCustomPlayer) {
-      return this.browseFromCache(query, allowAdult);
-    }
 
     // Read-through paginated: the whole upstream catalogue is reachable page by
     // page, but each unique (filters + page) costs one upstream call per 10 min.
@@ -621,12 +628,47 @@ export class CatalogService {
     }
   }
 
+  /**
+   * One title at random out of whatever the current filters match — the
+   * catalogue's "surprise me", but inside the viewer's own selection.
+   */
+  async randomFrom(
+    query: AnimeQuery,
+    allowAdult: boolean,
+    userId?: string,
+  ): Promise<{ id: number; slug: string } | null> {
+    await this.ensureSeeded();
+    const where = this.buildWhere(query, allowAdult, userId);
+    const total = await this.prisma.anime.count({ where });
+    if (total === 0) return null;
+    const row = await this.prisma.anime.findFirst({
+      where,
+      orderBy: { id: "asc" },
+      skip: Math.floor(Math.random() * total),
+      select: { id: true, slug: true },
+    });
+    return row;
+  }
+
+  /** Studio names containing `q`, most prolific first — the filter's typeahead. */
+  async studios(q: string): Promise<Array<{ name: string; count: number }>> {
+    const rows = await this.prisma.$queryRaw<Array<{ name: string; count: bigint }>>`
+      SELECT s AS name, COUNT(*) AS count
+      FROM "Anime", unnest("studios") AS s
+      WHERE s ILIKE ${"%" + q.replace(/[%_]/g, "") + "%"}
+      GROUP BY s
+      ORDER BY count DESC, s ASC
+      LIMIT 8`;
+    return rows.map((r) => ({ name: r.name, count: Number(r.count) }));
+  }
+
   private async browseFromCache(
     query: AnimeQuery,
     allowAdult: boolean,
+    userId?: string,
   ): Promise<Paginated<AnimeSummary>> {
     await this.ensureSeeded();
-    const where = this.buildWhere(query, allowAdult);
+    const where = this.buildWhere(query, allowAdult, userId);
     const skip = (query.page - 1) * query.perPage;
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.anime.findMany({
@@ -1445,16 +1487,49 @@ export class CatalogService {
     return params;
   }
 
-  private buildWhere(query: AnimeQuery, allowAdult: boolean): Prisma.AnimeWhereInput {
+  private buildWhere(
+    query: AnimeQuery,
+    allowAdult: boolean,
+    userId?: string,
+  ): Prisma.AnimeWhereInput {
     const where: Prisma.AnimeWhereInput = {};
+    const and: Prisma.AnimeWhereInput[] = [];
     if (query.type) where.type = query.type;
     if (query.airing) where.airing = query.airing;
-    if (query.minScore != null) where.score = { gte: query.minScore };
+    if (query.minScore != null || query.maxScore != null) {
+      where.score = {
+        ...(query.minScore != null ? { gte: query.minScore } : {}),
+        ...(query.maxScore != null ? { lte: query.maxScore } : {}),
+      };
+    }
     if (query.year != null) where.year = query.year;
+    else if (query.yearFrom != null || query.yearTo != null) {
+      where.year = {
+        ...(query.yearFrom != null ? { gte: query.yearFrom } : {}),
+        ...(query.yearTo != null ? { lte: query.yearTo } : {}),
+      };
+    }
+    if (query.episodesMin != null || query.episodesMax != null) {
+      where.episodes = {
+        ...(query.episodesMin != null ? { gte: query.episodesMin } : {}),
+        ...(query.episodesMax != null ? { lte: query.episodesMax } : {}),
+      };
+    }
     if (query.season) where.season = query.season;
     if (query.genres && query.genres.length > 0) {
-      where.genres = { some: { genreId: { in: query.genres } } };
+      // Every chosen genre, not any of them — "comedy + romance" means a
+      // romantic comedy, which is also what the upstream path does.
+      for (const genreId of query.genres) {
+        and.push({ genres: { some: { genreId } } });
+      }
     }
+    if (query.excludeGenres && query.excludeGenres.length > 0) {
+      and.push({ genres: { none: { genreId: { in: query.excludeGenres } } } });
+    }
+    if (query.hideListed && userId) {
+      and.push({ libraryEntries: { none: { userId } } });
+    }
+    if (and.length > 0) where.AND = and;
     if (query.studio) {
       where.studios = { has: query.studio };
     }
@@ -1481,6 +1556,22 @@ export class CatalogService {
       [ORDER_BY_COLUMN[orderBy]]: { sort, nulls: "last" },
     } as Prisma.AnimeOrderByWithRelationInput;
   }
+}
+
+/** Whether a query uses anything only the local catalogue can answer. */
+function needsLocalFilters(query: AnimeQuery): boolean {
+  return Boolean(
+    query.studio ||
+      query.hasPlayer ||
+      query.hasCustomPlayer ||
+      query.maxScore != null ||
+      query.yearFrom != null ||
+      query.yearTo != null ||
+      query.episodesMin != null ||
+      query.episodesMax != null ||
+      (query.excludeGenres && query.excludeGenres.length > 0) ||
+      query.hideListed,
+  );
 }
 
 /** Loose match for "is this Jikan producer title actually the studio we asked about" —

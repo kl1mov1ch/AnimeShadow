@@ -78,6 +78,13 @@ export type BrowseParams = {
   hasPlayer?: boolean;
   hasCustomPlayer?: boolean;
   studio?: string;
+  maxScore?: number;
+  excludeGenres?: number[];
+  yearFrom?: number;
+  yearTo?: number;
+  episodesMin?: number;
+  episodesMax?: number;
+  hideListed?: boolean;
 };
 
 export function useDiscover() {
@@ -131,6 +138,7 @@ export function useBrowse(params: BrowseParams, enabled = true) {
         query: {
           ...params,
           genres: params.genres?.length ? params.genres.join(",") : undefined,
+          excludeGenres: params.excludeGenres?.length ? params.excludeGenres.join(",") : undefined,
         },
       }),
     placeholderData: (previous) => previous,
@@ -458,6 +466,9 @@ export function useUpdateProgress(animeId: number) {
       client.setQueryData(["anime", animeId, "progress"], data);
       void client.invalidateQueries({ queryKey: ["me", "progress"] });
       void client.invalidateQueries({ queryKey: ["me", "continue"] });
+      // The server moves the list entry along with the episodes — progress,
+      // and "watching"/"completed" — so every view of the list refreshes.
+      void client.invalidateQueries({ queryKey: ["library"] });
     },
   });
 }

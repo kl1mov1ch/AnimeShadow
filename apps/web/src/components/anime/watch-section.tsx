@@ -38,6 +38,7 @@ import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface WatchSectionProps {
   anime: Pick<
@@ -549,6 +550,7 @@ function useEpisodeTracking({
   /** Already ticked — nothing here should re-send that. */
   alreadyDone: boolean;
 }): void {
+  const t = useT();
   const { status } = useAuth();
   const authed = status === "authenticated";
   const update = useUpdateProgress(animeId);
@@ -581,11 +583,16 @@ function useEpisodeTracking({
         completeAfter != null &&
         baseRef.current >= completeAfter;
       if (finished) doneRef.current = true;
-      update.mutate({
-        episode,
-        positionSeconds: baseRef.current,
-        ...(finished ? { completed: true } : {}),
-      });
+      update.mutate(
+        {
+          episode,
+          positionSeconds: baseRef.current,
+          ...(finished ? { completed: true } : {}),
+        },
+        finished
+          ? { onSuccess: () => toast.success(t("watch.autoMarked", { n: episode })) }
+          : undefined,
+      );
     };
 
     // Without waiting for a flush trigger: someone who watches an episode

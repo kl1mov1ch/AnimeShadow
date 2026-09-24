@@ -144,35 +144,75 @@ export class ProgressService {
     return items;
   }
 
+  /**
+   * Keeps the viewer's list in step with what they actually watched.
+   *
+   * Progress is the furthest episode marked watched — read back from the
+   * episode rows rather than nudged up by one, so un-ticking the latest
+   * episode takes the count back down with it. Watching anything moves a
+   * planned, paused or dropped title to "watching" (they came back to it),
+   * and finishing the last episode of a show that has stopped airing moves
+   * it to "completed" — the step people most often forget to take by hand.
+   */
   private async syncLibrary(
     userId: string,
     animeId: number,
     episode: number,
     completed: boolean,
   ): Promise<void> {
-    const watched = completed ? episode : Math.max(0, episode - 1);
-    const existing = await this.prisma.libraryEntry.findUnique({
-      where: { userId_animeId: { userId, animeId } },
-    });
+    const [furthest, anime, existing] = await Promise.all([
+      this.prisma.watchProgress.aggregate({
+        where: { userId, animeId, completed: true },
+        _max: { episode: true },
+      }),
+      this.prisma.anime.findUnique({
+        where: { id: animeId },
+        select: { episodes: true, airing: true },
+      }),
+      this.prisma.libraryEntry.findUnique({
+        where: { userId_animeId: { userId, animeId } },
+      }),
+    ]);
+    const watched = furthest._max.episode ?? 0;
+    const finished =
+      completed &&
+      anime?.episodes != null &&
+      anime.episodes > 0 &&
+      watched >= anime.episodes &&
+      anime.airing !== "AIRING";
 
     if (!existing) {
+      // Only a real start puts a title on the list; opening episode one and
+      // leaving is not a decision to track it.
+      if (watched === 0) return;
       await this.prisma.libraryEntry
         .create({
-          data: { userId, animeId, status: "WATCHING", progress: watched },
+          data: {
+            userId,
+            animeId,
+            status: finished ? "COMPLETED" : "WATCHING",
+            progress: watched,
+          },
         })
         .catch(() => undefined);
       return;
     }
-    if (
-      existing.progress < watched ||
-      (existing.status === "PLANNED" && watched > 0)
-    ) {
+
+    // Un-ticking can lower progress; anything else only ever raises it, so
+    // a count typed by hand on the list page is never walked backwards by
+    // an unrelated save.
+    const unticked = !completed && existing.progress >= episode;
+    const progress = unticked ? watched : Math.max(existing.progress, watched);
+    const status = finished
+      ? "COMPLETED"
+      : completed && existing.status !== "WATCHING" && existing.status !== "COMPLETED"
+        ? "WATCHING"
+        : existing.status;
+
+    if (progress !== existing.progress || status !== existing.status) {
       await this.prisma.libraryEntry.update({
         where: { id: existing.id },
-        data: {
-          progress: Math.max(existing.progress, watched),
-          ...(existing.status === "PLANNED" ? { status: "WATCHING" } : {}),
-        },
+        data: { progress, status },
       });
     }
   }

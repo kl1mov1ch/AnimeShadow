@@ -207,6 +207,26 @@ export const animeQuerySchema = z.object({
     .pipe(z.array(z.number().int()))
     .optional(),
   minScore: z.coerce.number().min(0).max(10).optional(),
+  maxScore: z.coerce.number().min(0).max(10).optional(),
+  /** Genres a title must *not* carry. */
+  excludeGenres: z
+    .union([z.string(), z.array(z.string())])
+    .transform((value) =>
+      (Array.isArray(value) ? value : value.split(","))
+        .map((entry) => Number.parseInt(entry, 10))
+        .filter((entry) => Number.isInteger(entry)),
+    )
+    .pipe(z.array(z.number().int()))
+    .optional(),
+  yearFrom: z.coerce.number().int().min(1917).max(2100).optional(),
+  yearTo: z.coerce.number().int().min(1917).max(2100).optional(),
+  episodesMin: z.coerce.number().int().min(0).max(5000).optional(),
+  episodesMax: z.coerce.number().int().min(0).max(5000).optional(),
+  /** Leave out what the signed-in viewer already has in their list. */
+  hideListed: z
+    .union([z.boolean(), z.string()])
+    .transform((value) => value === true || value === "true" || value === "1")
+    .optional(),
   /** Exact studio name — the click-through from an anime's own studio credit. */
   studio: z.string().trim().min(1).max(120).optional(),
   year: z.coerce.number().int().min(1917).max(2100).optional(),

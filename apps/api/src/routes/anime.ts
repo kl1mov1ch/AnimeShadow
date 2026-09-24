@@ -17,9 +17,27 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const query = parse(animeQuerySchema, request.query);
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      return catalog.browse(query, allowAdult);
+      return catalog.browse(query, allowAdult, request.userId);
     },
   );
+
+  // A random title out of the catalogue's current filters.
+  fastify.get(
+    "/anime/random-from",
+    { preHandler: fastify.optionalAuth },
+    async (request) => {
+      const query = parse(animeQuerySchema, request.query);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const pick = await catalog.randomFrom(query, allowAdult, request.userId);
+      if (!pick) throw new NotFoundError("По этим фильтрам ничего нет.");
+      return pick;
+    },
+  );
+
+  fastify.get("/studios", async (request) => {
+    const { q } = parse(z.object({ q: z.string().trim().min(1).max(60) }), request.query);
+    return { items: await catalog.studios(q) };
+  });
 
   // A random well-rated title — powers the "surprise me" action.
   fastify.get(

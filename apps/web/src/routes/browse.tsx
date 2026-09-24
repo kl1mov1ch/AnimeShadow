@@ -1,7 +1,22 @@
 import type { AnimeSummary, Genre, SmartSearchResponse } from "@animeshadow/shared";
-import { LayoutGridIcon, ListIcon, Loader2Icon, SlidersHorizontalIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import {
+  ArrowDownIcon,
+  ClapperboardIcon,
+  DicesIcon,
+  FlameIcon,
+  LayoutGridIcon,
+  ListIcon,
+  Loader2Icon,
+  MonitorPlayIcon,
+  RadioIcon,
+  SlidersHorizontalIcon,
+  SparklesIcon,
+  TimerIcon,
+  TrophyIcon,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
 import {
   BrowseFilters,
@@ -25,9 +40,18 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/i18n";
-import { hasActiveFilters, parseBrowseParams } from "@/lib/browse-params";
+import { hasActiveFilters, parseBrowseParams, SORT_VALUES } from "@/lib/browse-params";
 import {
   type BrowseParams,
   useBrowse,
@@ -65,7 +89,6 @@ export function Component() {
   };
 
   const { data: genres = [] } = useGenres();
-  const browse = useBrowse(params, !isSearch);
   const search = useSmartSearch(params.q ?? "", isSearch, false);
 
   const patch = useCallback(
@@ -131,7 +154,9 @@ export function Component() {
 
       <div className="flex gap-8">
         <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-20">{filters}</div>
+          <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto pb-4 [scrollbar-width:thin]">
+            {filters}
+          </div>
         </aside>
 
         <div className="min-w-0 flex-1">
@@ -143,52 +168,14 @@ export function Component() {
               view={view}
               onRetry={() => void search.refetch()}
             />
-          ) : browse.isError ? (
-            <ErrorState onRetry={() => void browse.refetch()} />
-          ) : browse.isPending ? (
-            <AnimeGridSkeleton view={view} />
-          ) : browse.data.items.length === 0 ? (
-            <NoResultsState />
           ) : (
-            <div
-              className={cn(
-                "flex flex-col gap-8 transition-opacity",
-                browse.isPlaceholderData && "opacity-60",
-              )}
-              aria-busy={browse.isPlaceholderData}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  {t("common.results", {
-                    count: browse.data.meta.total.toLocaleString(),
-                  })}
-                </p>
-                <ToggleGroup
-                  type="single"
-                  value={view}
-                  onValueChange={changeView}
-                  variant="outline"
-                  className="h-8 [&>*]:h-8 [&>*]:w-8"
-                >
-                  <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
-                    <LayoutGridIcon className="size-3.5" />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="list" aria-label={t("library.viewList")}>
-                    <ListIcon className="size-3.5" />
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-              <AnimeGrid items={browse.data.items} priorityCount={6} view={view} />
-              <PaginationBar
-                page={params.page}
-                hasNextPage={browse.data.meta.hasNextPage}
-                totalPages={Math.max(
-                  1,
-                  Math.ceil(browse.data.meta.total / browse.data.meta.perPage),
-                )}
-                buildHref={goToPage}
-              />
-            </div>
+            <CatalogResults
+              params={params}
+              view={view}
+              onView={changeView}
+              onChange={(changes) => patch(changes)}
+              buildHref={goToPage}
+            />
           )}
         </div>
       </div>
@@ -311,4 +298,246 @@ function groupTitle(
     default:
       return "";
   }
+}
+
+/* ---------- the catalogue itself ---------- */
+
+interface Preset {
+  key: string;
+  icon: typeof FlameIcon;
+  patch: FilterPatch;
+  active: (p: BrowseParams) => boolean;
+}
+
+/** One tap for the things people most often come to a catalogue for. */
+const PRESETS: Preset[] = [
+  {
+    key: "airing",
+    icon: RadioIcon,
+    patch: { airing: "AIRING", orderBy: "popularity" },
+    active: (p) => p.airing === "AIRING",
+  },
+  {
+    key: "top",
+    icon: TrophyIcon,
+    patch: { orderBy: "score" },
+    active: (p) => p.orderBy === "score",
+  },
+  {
+    key: "fresh",
+    icon: SparklesIcon,
+    patch: { orderBy: "start_date" },
+    active: (p) => p.orderBy === "start_date",
+  },
+  {
+    key: "short",
+    icon: TimerIcon,
+    patch: { episodesMin: "2", episodesMax: "13" },
+    active: (p) => p.episodesMin === 2 && p.episodesMax === 13,
+  },
+  {
+    key: "movies",
+    icon: ClapperboardIcon,
+    patch: { type: "MOVIE" },
+    active: (p) => p.type === "MOVIE",
+  },
+  {
+    key: "own",
+    icon: MonitorPlayIcon,
+    patch: { hasCustomPlayer: "1" },
+    active: (p) => p.hasCustomPlayer === true,
+  },
+];
+
+/** The keys a preset sets, so tapping an active one can take it back off. */
+function undo(patch: FilterPatch): FilterPatch {
+  return Object.fromEntries(Object.keys(patch).map((key) => [key, null]));
+}
+
+/**
+ * The plain catalogue: presets, a toolbar that stays in reach while you
+ * scroll, the grid, and "show more" that keeps adding pages under the ones
+ * already on screen (the pager is still there for jumping further).
+ */
+function CatalogResults({
+  params,
+  view,
+  onView,
+  onChange,
+  buildHref,
+}: {
+  params: ReturnType<typeof parseBrowseParams>;
+  view: AnimeViewMode;
+  onView: (view: string) => void;
+  onChange: (patch: FilterPatch) => void;
+  buildHref: (page: number) => string;
+}) {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const first = useBrowse(params);
+  const [extra, setExtra] = useState(0);
+  const [rolling, setRolling] = useState(false);
+
+  // A new set of filters starts from its first page again.
+  const signature = JSON.stringify({ ...params, page: undefined });
+  useEffect(() => setExtra(0), [signature]);
+
+  const total = first.data?.meta.total ?? 0;
+  const perPage = first.data?.meta.perPage ?? params.perPage;
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
+  const pages = Array.from({ length: extra }, (_, i) => params.page + i + 1).filter((n) => n <= lastPage);
+  const shown = Math.min(total, (params.page - 1) * perPage + (1 + pages.length) * perPage);
+
+  const random = async () => {
+    if (rolling) return;
+    setRolling(true);
+    try {
+      const pick = await apiRequest<{ slug: string }>("/anime/random-from", {
+        query: {
+          ...params,
+          page: undefined,
+          genres: params.genres?.join(","),
+          excludeGenres: params.excludeGenres?.join(","),
+        },
+      });
+      navigate(`/anime/${pick.slug}`, { viewTransition: true });
+    } catch {
+      toast.error(t("browse.randomNone"));
+    } finally {
+      setRolling(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {PRESETS.map(({ key, icon: Icon, patch, active }) => {
+          const on = active(params);
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? undo(patch) : patch)}
+              className={cn(
+                "btn-sheen inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all duration-200 active:scale-95",
+                on
+                  ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30"
+                  : "border-primary/25 bg-primary/10 text-primary hover:-translate-y-0.5 hover:border-primary",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {t(`browse.presets.${key}` as "browse.presets.airing")}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stays under the header while the grid scrolls, so the count, the
+          order and the view are always one reach away. */}
+      <div className="sticky top-14 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-background/85 px-2.5 py-2 shadow-sm backdrop-blur-md">
+        <p className="mr-auto text-xs text-muted-foreground">
+          {first.data ? (
+            <span className="tabular-nums">
+              {t("browse.shown", { shown: shown.toLocaleString(), total: total.toLocaleString() })}
+            </span>
+          ) : (
+            <Loader2Icon className="size-3.5 animate-spin" />
+          )}
+        </p>
+        <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => onChange({ orderBy: value })}>
+          <SelectTrigger className="h-8 w-44 rounded-lg border-primary/25 bg-primary/5 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_VALUES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`sort.${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => void random()}
+              aria-label={t("browse.random")}
+              className="btn-sheen grid size-8 place-items-center rounded-lg border border-primary/25 bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-90"
+            >
+              <DicesIcon className={cn("size-4 transition-transform duration-500", rolling && "animate-spin")} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t("browse.random")}</TooltipContent>
+        </Tooltip>
+        <ToggleGroup
+          type="single"
+          value={view}
+          onValueChange={onView}
+          variant="outline"
+          className="h-8 [&>*]:h-8 [&>*]:w-8"
+        >
+          <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
+            <LayoutGridIcon className="size-3.5" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label={t("library.viewList")}>
+            <ListIcon className="size-3.5" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {first.isError ? (
+        <ErrorState onRetry={() => void first.refetch()} />
+      ) : first.isPending ? (
+        <AnimeGridSkeleton view={view} />
+      ) : first.data.items.length === 0 ? (
+        <NoResultsState />
+      ) : (
+        <div
+          className={cn("flex flex-col gap-6 transition-opacity", first.isPlaceholderData && "opacity-60")}
+          aria-busy={first.isPlaceholderData}
+        >
+          <AnimeGrid items={first.data.items} priorityCount={6} view={view} />
+          {pages.map((page) => (
+            <MorePage key={page} params={params} page={page} view={view} />
+          ))}
+          {params.page + pages.length < lastPage && (
+            <button
+              type="button"
+              onClick={() => setExtra((n) => n + 1)}
+              className="btn-sheen group mx-auto inline-flex items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-5 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-lg hover:shadow-primary/25 active:scale-95"
+            >
+              <ArrowDownIcon className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
+              {t("browse.loadMore")}
+            </button>
+          )}
+          <PaginationBar
+            page={params.page + pages.length}
+            hasNextPage={params.page + pages.length < lastPage}
+            totalPages={lastPage}
+            buildHref={buildHref}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One more page under the ones already shown. */
+function MorePage({
+  params,
+  page,
+  view,
+}: {
+  params: ReturnType<typeof parseBrowseParams>;
+  page: number;
+  view: AnimeViewMode;
+}) {
+  const { data, isPending } = useBrowse({ ...params, page });
+  if (isPending || !data) return <AnimeGridSkeleton view={view} />;
+  return (
+    <div className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+      <AnimeGrid items={data.items} view={view} />
+    </div>
+  );
 }

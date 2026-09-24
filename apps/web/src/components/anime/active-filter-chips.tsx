@@ -94,6 +94,50 @@ export function ActiveFilterChips({
     });
   }
 
+  for (const id of params.excludeGenres ?? []) {
+    const genre = genres.find((g) => g.id === id);
+    if (!genre) continue;
+    chips.push({
+      key: `exgenre-${id}`,
+      label: `− ${labels.genreLabel(genre.name)}`,
+      onRemove: () => {
+        const rest = (params.excludeGenres ?? []).filter((g) => g !== id);
+        onChange({ excludeGenres: rest.length > 0 ? rest.join(",") : null });
+      },
+    });
+  }
+  if (params.maxScore != null) {
+    chips.push({
+      key: "maxScore",
+      label: t("browse.maxScoreValue", { value: params.maxScore }),
+      onRemove: () => onChange({ maxScore: null }),
+    });
+  }
+  if (params.yearFrom != null || params.yearTo != null) {
+    chips.push({
+      key: "years",
+      label: `${params.yearFrom ?? "…"} – ${params.yearTo ?? "…"}`,
+      onRemove: () => onChange({ yearFrom: null, yearTo: null }),
+    });
+  }
+  if (params.episodesMin != null || params.episodesMax != null) {
+    chips.push({
+      key: "episodes",
+      label: t("browse.episodesChip", {
+        from: params.episodesMin ?? 1,
+        to: params.episodesMax ?? "∞",
+      }),
+      onRemove: () => onChange({ episodesMin: null, episodesMax: null }),
+    });
+  }
+  if (params.hideListed) {
+    chips.push({
+      key: "hideListed",
+      label: t("browse.hideListed"),
+      onRemove: () => onChange({ hideListed: null }),
+    });
+  }
+
   if (chips.length === 0) return null;
 
   // Every filter key this row can show, so "clear all" really clears all of
@@ -109,6 +153,13 @@ export function ActiveFilterChips({
       hasCustomPlayer: null,
       studio: null,
       genres: null,
+      excludeGenres: null,
+      maxScore: null,
+      yearFrom: null,
+      yearTo: null,
+      episodesMin: null,
+      episodesMax: null,
+      hideListed: null,
     });
 
   return (
@@ -119,7 +170,7 @@ export function ActiveFilterChips({
           type="button"
           onClick={chip.onRemove}
           style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
-          className="group animate-in fade-in zoom-in-95 inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 py-1 pl-3 pr-2 text-xs text-foreground duration-300 transition-all hover:-translate-y-0.5 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+          className="group animate-in fade-in zoom-in-95 inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 py-1 pl-3 pr-2 text-xs font-medium text-primary duration-300 transition-all hover:-translate-y-0.5 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
         >
           {chip.label}
           <XIcon className="size-3 text-muted-foreground transition-colors group-hover:text-destructive" />

@@ -28,10 +28,13 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     return Number.isFinite(value) ? value : undefined;
   };
 
-  const genres = (search.get("genres") ?? "")
-    .split(",")
-    .map((entry) => Number.parseInt(entry, 10))
-    .filter((entry) => Number.isInteger(entry));
+  const ids = (key: string) =>
+    (search.get(key) ?? "")
+      .split(",")
+      .map((entry) => Number.parseInt(entry, 10))
+      .filter((entry) => Number.isInteger(entry));
+  const genres = ids("genres");
+  const excludeGenres = ids("excludeGenres");
 
   return {
     q: search.get("q")?.trim() || undefined,
@@ -48,6 +51,13 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     hasPlayer: search.get("hasPlayer") === "1" ? true : undefined,
     hasCustomPlayer: search.get("hasCustomPlayer") === "1" ? true : undefined,
     studio: search.get("studio")?.trim() || undefined,
+    maxScore: num("maxScore"),
+    excludeGenres: excludeGenres.length > 0 ? excludeGenres : undefined,
+    yearFrom: num("yearFrom"),
+    yearTo: num("yearTo"),
+    episodesMin: num("episodesMin"),
+    episodesMax: num("episodesMax"),
+    hideListed: search.get("hideListed") === "1" ? true : undefined,
   };
 }
 
@@ -62,6 +72,13 @@ export function hasActiveFilters(params: BrowseParams): boolean {
       params.hasPlayer ||
       params.hasCustomPlayer ||
       params.studio ||
+      params.maxScore != null ||
+      params.yearFrom != null ||
+      params.yearTo != null ||
+      params.episodesMin != null ||
+      params.episodesMax != null ||
+      params.hideListed ||
+      (params.excludeGenres && params.excludeGenres.length > 0) ||
       (params.genres && params.genres.length > 0) ||
       (params.orderBy && params.orderBy !== "popularity"),
   );
