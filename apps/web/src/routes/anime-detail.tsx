@@ -1,7 +1,24 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { BookOpenIcon, PlayIcon, SearchIcon, StarIcon } from "lucide-react";
+import {
+  BookOpenIcon,
+  CalendarIcon,
+  ClockIcon,
+  LanguagesIcon,
+  LayersIcon,
+  ListVideoIcon,
+  type LucideIcon,
+  MessagesSquareIcon,
+  MonitorPlayIcon,
+  PlayIcon,
+  SearchIcon,
+  ShieldIcon,
+  SparklesIcon,
+  StarIcon,
+  TvIcon,
+  UsersIcon,
+} from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { AnimeRail } from "@/components/anime/anime-rail";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -24,6 +41,7 @@ import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
@@ -140,13 +158,31 @@ function AnimeDetailView({ param }: { param: string }) {
   // Dropping the empties here rather than in the markup keeps the
   // separators honest: a dot only ever appears between two things that
   // actually exist.
-  const heroMeta = [
-    data.year != null ? String(data.year) : null,
-    labels.typeLabel(data.type),
-    data.episodes ? labels.episodeLabel(data.episodes, data.type) : null,
-    data.duration,
-    data.rating,
-  ].filter(Boolean) as string[];
+  // Each fact carries an icon, and the icon says what the fact *is* on
+  // hover — "2023" alone could be a start year or an end year, "PG-13"
+  // means nothing to half the audience. With icons doing the separating,
+  // the dots between items went: they were only ever there to separate.
+  const heroMeta = (
+    [
+      data.year != null
+        ? { icon: CalendarIcon, value: String(data.year), hint: t("detail.facts.aired") }
+        : null,
+      { icon: TvIcon, value: labels.typeLabel(data.type), hint: t("detail.facts.format") },
+      data.episodes
+        ? {
+            icon: ListVideoIcon,
+            value: labels.episodeLabel(data.episodes, data.type),
+            hint: t("detail.facts.episodes"),
+          }
+        : null,
+      data.duration
+        ? { icon: ClockIcon, value: data.duration, hint: t("detail.facts.duration") }
+        : null,
+      data.rating
+        ? { icon: ShieldIcon, value: data.rating, hint: t("detail.facts.rating") }
+        : null,
+    ] as Array<{ icon: LucideIcon; value: string; hint: string } | null>
+  ).filter((item): item is { icon: LucideIcon; value: string; hint: string } => item != null);
   const oneLiner = t("detail.oneLiner", {
     type: labels.typeLabel(data.type),
     year: data.year ?? "—",
@@ -208,12 +244,17 @@ function AnimeDetailView({ param }: { param: string }) {
             {/* Year · type · episodes · runtime, exactly as the catalogue
                 knows them — every one of these is a real field, and any the
                 title has no answer for simply drops out of the line. */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              {heroMeta.map((item, i) => (
-                <span key={`${item}-${i}`} className="flex items-center gap-2">
-                  {i > 0 && <Dot />}
-                  {item}
-                </span>
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
+              {heroMeta.map(({ icon: Icon, value, hint }) => (
+                <Tooltip key={hint}>
+                  <TooltipTrigger asChild>
+                    <span className="flex cursor-default items-center gap-1.5 transition-colors hover:text-foreground">
+                      <Icon className="size-3.5 text-[var(--accent-ink)]" />
+                      {value}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{hint}</TooltipContent>
+                </Tooltip>
               ))}
             </div>
 
@@ -240,15 +281,19 @@ function AnimeDetailView({ param }: { param: string }) {
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {data.score != null && (
-                <span className="flex items-center gap-1.5 text-sm">
-                  <StarIcon className="size-4 fill-amber-400 text-amber-400" />
-                  <span className="font-semibold tabular-nums">{data.score.toFixed(1)}</span>
-                  {data.scoredBy != null && data.scoredBy > 0 && (
-                    <span className="text-muted-foreground">
-                      ({labels.plain(data.scoredBy)})
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="flex cursor-default items-center gap-1.5 text-sm">
+                      <StarIcon className="size-4 fill-amber-400 text-amber-400" />
+                      <span className="font-semibold tabular-nums">{data.score.toFixed(1)}</span>
                     </span>
-                  )}
-                </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {data.scoredBy != null && data.scoredBy > 0
+                      ? t("detail.scoreHint", { votes: labels.plain(data.scoredBy) })
+                      : t("detail.scoreHintBare")}
+                  </TooltipContent>
+                </Tooltip>
               )}
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <span
@@ -267,9 +312,14 @@ function AnimeDetailView({ param }: { param: string }) {
                 />
               )}
               {data.translated && (
-                <Badge variant="outline" className="text-[11px]">
-                  {t("detail.machineTranslated")}
-                </Badge>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="grid size-6 cursor-default place-items-center rounded-md border border-border/60 text-muted-foreground">
+                      <LanguagesIcon className="size-3.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t("detail.machineTranslated")}</TooltipContent>
+                </Tooltip>
               )}
             </div>
 
@@ -295,16 +345,16 @@ function AnimeDetailView({ param }: { param: string }) {
           Each of these is a thing someone came for, so each gets its own
           card and its own heading rather than being a row inside the
           player's container. */}
-      <Panel id="watch" title={t("detail.sections.watch")}>
+      <Panel id="watch" icon={MonitorPlayIcon} title={t("detail.sections.watch")}>
         {/* Everything you do with a title while watching it — status,
-            score, episode, note — in one bar right above the player. The
-            bar is only as wide as what it holds; the rest of the line goes
-            to facts about the title rather than empty space. */}
-        <div className="mx-auto w-full min-w-0 sm:w-[88%]">
-          <div className="flex w-fit max-w-full items-center gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
-            <TitleTracker anime={data} title={title} />
-            <TitleFacts anime={data} className="self-start sm:self-center" />
-          </div>
+            score, episode, note — in one bar right above the player, the
+            full width of it. It used to be exactly as wide as its contents
+            and sat against the left edge with the rest of the line empty;
+            spanning the panel, with the facts pushed to the far end, is
+            what lines it up with the picture underneath. */}
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
+          <TitleTracker anime={data} title={title} />
+          <TitleFacts anime={data} />
         </div>
         <WatchSection
           anime={data}
@@ -318,9 +368,9 @@ function AnimeDetailView({ param }: { param: string }) {
       {/* Episodes live beside the player now, where you reach for them, so
           this row pairs the synopsis with the facts about the title
           instead of repeating a list that is already on screen. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <AboutBlock anime={data} oneLiner={oneLiner} />
-        <InfoSidebar anime={data} />
+        <InfoSidebar anime={data} className="h-full" />
       </div>
 
       <CharactersPanel animeId={data.id} />
@@ -329,7 +379,7 @@ function AnimeDetailView({ param }: { param: string }) {
 
       <RelatedSection anime={data} />
 
-      <Panel title={t("comments.heading")}>
+      <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
         <CommentsSection animeId={data.id} />
       </Panel>
     </article>
@@ -421,30 +471,28 @@ function TitleHeader({
   );
 }
 
-function Dot() {
-  return <span className="size-1 rounded-full bg-muted-foreground/40" />;
-}
-
-/**
- * One section of the page. Every block on this page is one of these, so
- * they share a surface, a heading and the hairline above it instead of each
- * inventing its own — and nothing has to be nested inside anything else to
- * get them.
- */
 function Panel({
   title,
+  icon: Icon,
   id,
+  className,
   children,
 }: {
   title: string;
+  /** What the section is, at a glance — every panel on the page has one. */
+  icon: LucideIcon;
   /** Anchor target, so the hero's "watch" button can jump here. */
   id?: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <section
       id={id}
-      className="relative flex scroll-mt-20 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5"
+      className={cn(
+        "relative flex scroll-mt-20 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5",
+        className,
+      )}
     >
       {/* The same hairline the header wears, in the same colour — it is
           what ties every surface on the page together as one show. */}
@@ -459,9 +507,10 @@ function Panel({
       <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
         <span
           aria-hidden
-          className="h-4 w-1 shrink-0 rounded-full"
-          style={{ background: "var(--accent-ink)" }}
-        />
+          className="grid size-7 shrink-0 place-items-center rounded-lg border border-[var(--accent-line-soft)] bg-[var(--accent-surface-strong)] text-[var(--accent-ink)]"
+        >
+          <Icon className="size-4" />
+        </span>
         {title}
       </h2>
       {children}
@@ -476,7 +525,7 @@ function FranchisePanel({ anime }: { anime: AnimeDetail }) {
   const { data: franchise } = useFranchise(anime.id);
   if (!(franchise ?? []).some((entry) => !entry.current)) return null;
   return (
-    <Panel title={t("detail.sections.seasons")}>
+    <Panel icon={LayersIcon} title={t("detail.sections.seasons")}>
       <FranchiseRail animeId={anime.id} />
     </Panel>
   );
@@ -739,7 +788,7 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
     ));
 
   return (
-    <Panel title={t("detail.sections.synopsis")}>
+    <Panel icon={BookOpenIcon} title={t("detail.sections.synopsis")} className="h-full">
       {hasSynopsis ? (
         <SynopsisBody synopsis={anime.synopsis} background={anime.background} />
       ) : (
@@ -799,7 +848,7 @@ function CharactersPanel({ animeId }: { animeId: number }) {
   const hasArt = (data ?? []).some((c) => c.imageUrl != null);
   if (!isPending && !hasArt) return null;
   return (
-    <Panel title={t("detail.sections.characters")}>
+    <Panel icon={UsersIcon} title={t("detail.sections.characters")}>
       <CharactersBlock animeId={animeId} />
     </Panel>
   );
@@ -931,13 +980,19 @@ function RelatedSection({ anime }: { anime: AnimeDetail }) {
   const items = data?.items ?? [];
   if (!isPending && items.length === 0) return null;
 
+  // The one section that used to sit bare on the page background while
+  // every other one had a card — it read as having fallen out of the
+  // layout. Same surface, same edge, same padding as the rest now.
   return (
-    <AnimeRail
-      title={t("detail.related")}
-      items={items}
-      loading={isPending}
-      href={`/browse?genres=${anime.genresDetailed[0]?.id ?? ""}`}
-    />
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5">
+      <AnimeRail
+        title={t("detail.related")}
+        icon={SparklesIcon}
+        items={items}
+        loading={isPending}
+        href={`/browse?genres=${anime.genresDetailed[0]?.id ?? ""}`}
+      />
+    </div>
   );
 }
 

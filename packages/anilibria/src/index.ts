@@ -19,6 +19,15 @@ export interface AniLibriaEpisode {
   hls480: string | null;
   hls720: string | null;
   hls1080: string | null;
+  /** The episode's own title, when the release team filled it in. */
+  name: string | null;
+  nameEnglish: string | null;
+  /** This episode's real length in seconds — not the title-wide average. */
+  durationSeconds: number | null;
+  /** A small still of this episode, absolute URL. */
+  thumb: string | null;
+  /** Where the opening sits, in seconds, when it was marked. */
+  opening: { start: number; stop: number } | null;
 }
 
 /** Enough of a release to decide whether it's usable, plus its episode list. */
@@ -37,11 +46,22 @@ interface RawSearchEntry {
   shikimori?: { id?: number } | null;
 }
 
+interface RawPreview {
+  src?: string | null;
+  thumbnail?: string | null;
+  optimized?: { src?: string | null; thumbnail?: string | null } | null;
+}
+
 interface RawEpisode {
   ordinal: number;
   hls_480?: string | null;
   hls_720?: string | null;
   hls_1080?: string | null;
+  name?: string | null;
+  name_english?: string | null;
+  duration?: number | null;
+  preview?: RawPreview | null;
+  opening?: { start?: number | null; stop?: number | null } | null;
 }
 
 interface RawRelease {
@@ -110,6 +130,13 @@ export class AniLibriaClient {
     }
   }
 
+  /** Storage paths come back site-relative; the page needs them whole. */
+  private absolute(path: string | null): string | null {
+    if (!path) return null;
+    if (/^https?:\/\//.test(path)) return path;
+    return `${new URL(this.baseUrl).origin}${path.startsWith("/") ? "" : "/"}${path}`;
+  }
+
   private async getRelease(id: number): Promise<AniLibriaRelease | null> {
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/anime/releases/${id}`, {
@@ -130,12 +157,40 @@ export class AniLibriaClient {
           hls480: e.hls_480 ?? null,
           hls720: e.hls_720 ?? null,
           hls1080: e.hls_1080 ?? null,
+          name: e.name?.trim() || null,
+          nameEnglish: e.name_english?.trim() || null,
+          durationSeconds:
+            typeof e.duration === "number" && e.duration > 0 ? e.duration : null,
+          thumb: this.absolute(
+            // The optimised webp thumbnail first: a few KB against the
+            // original's few hundred, and it is what a 64px row needs.
+            e.preview?.optimized?.thumbnail ??
+              e.preview?.thumbnail ??
+              e.preview?.src ??
+              null,
+          ),
+          opening: openingOf(e.opening),
         })),
       };
     } catch {
       return null;
     }
   }
+}
+
+/**
+ * An opening marker only when both ends are there and make sense — a lone
+ * start, or a stop before its start, would put a skip button in the wrong
+ * place, which is worse than not offering one.
+ */
+function openingOf(
+  raw: { start?: number | null; stop?: number | null } | null | undefined,
+): { start: number; stop: number } | null {
+  const start = raw?.start;
+  const stop = raw?.stop;
+  if (typeof start !== "number" || typeof stop !== "number") return null;
+  if (start < 0 || stop <= start) return null;
+  return { start, stop };
 }
 
 /** Best available quality for one episode, highest resolution first. */

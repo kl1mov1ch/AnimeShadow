@@ -1,5 +1,5 @@
 import type { AnimeSummary } from "@animeshadow/shared";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -9,6 +9,8 @@ import { useT } from "@/i18n";
 
 interface AnimeRailProps {
   title: string;
+  /** A heading icon, matching the section panels it may sit among. */
+  icon?: LucideIcon;
   subtitle?: ReactNode;
   items: AnimeSummary[];
   href?: string;
@@ -24,6 +26,7 @@ const SKELETON_COUNT = 6;
  */
 export function AnimeRail({
   title,
+  icon: Icon,
   subtitle,
   items,
   href,
@@ -55,7 +58,17 @@ export function AnimeRail({
     <section className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-0.5">
-          <h2 className="font-display text-lg tracking-tight sm:text-xl">{title}</h2>
+          <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
+            {Icon && (
+              <span
+                aria-hidden
+                className="grid size-7 shrink-0 place-items-center rounded-lg border border-[var(--accent-line-soft)] bg-[var(--accent-surface-strong)] text-[var(--accent-ink)]"
+              >
+                <Icon className="size-4" />
+              </span>
+            )}
+            {title}
+          </h2>
           {subtitle && (
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           )}

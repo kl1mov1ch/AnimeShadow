@@ -29,6 +29,11 @@ export class TtlCache<T> {
     this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs });
   }
 
+  /** Forget one key, so the next read recomputes it. */
+  delete(key: string): void {
+    this.store.delete(key);
+  }
+
   /** Get-or-compute, sharing one in-flight promise per key (stampede guard). */
   async wrap(key: string, produce: () => Promise<T>): Promise<T> {
     const cached = this.get(key);

@@ -455,6 +455,9 @@ model PlayerSource {
   /// and the stills it publishes for it. Absent for providers that only
   /// hand out a single series-wide embed.
   iframeEpisodes Json?
+  /// JSON object, episode number string -> { title, titleEn,
+  /// durationSeconds, thumb, opening } — see WatchSource.episodeMeta.
+  episodeMeta    Json?
   quality       String?
   episodesCount Int?
   position      Int      @default(0)

@@ -15,7 +15,6 @@ import {
   SkipForwardIcon,
   CheckIcon,
   PaletteIcon,
-  StarIcon,
   SparklesIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -38,7 +37,7 @@ import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
-import { useEpisodeStills } from "@/components/anime/episodes-panel";
+import { type EpisodeCatalog, episodesOf, useEpisodeCatalog } from "@/lib/episodes";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -119,7 +118,28 @@ export function WatchSection({
   const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
   const canUseOwn = ownSources.length > 0;
   const [preferOwn, setPreferOwn] = useState(true);
-  const useOwn = canUseOwn && preferOwn;
+
+  // How many episodes actually exist to play — what the sources can serve,
+  // not the planned total the catalogue stores for a show still airing.
+  const catalog = useEpisodeCatalog(anime.id);
+  const total = catalog.available ?? anime.episodes ?? 0;
+
+  // An episode past what exists — a stale saved position, a planned-total
+  // link, a typed number — is pulled back to the last real one before any
+  // player is asked for it, rather than letting the provider's page fall
+  // back to some episode of its own choosing and call that "playing".
+  useEffect(() => {
+    if (catalog.available != null && episode > catalog.available) {
+      onEpisodeChange(catalog.available);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog.available, episode]);
+
+  // Our player only for episodes our stream actually has. AniLibria can be
+  // a few episodes behind Kodik on a show that is airing; asking it for one
+  // it doesn't carry would quietly play its first episode instead.
+  const ownHasEpisode = ownSources.some((s) => s.hlsEpisodes?.[String(episode)] != null);
+  const useOwn = canUseOwn && preferOwn && ownHasEpisode;
 
   // A direct stream can be reachable from our server and not from the
   // viewer — AniLibria's CDN is blocked or throttled in some countries, and
@@ -142,7 +162,7 @@ export function WatchSection({
   }
 
   if (isPending && active) {
-    return <Skeleton className="mx-auto aspect-video w-full rounded-xl sm:w-[88%]" />;
+    return <Skeleton className="aspect-video w-full rounded-xl" />;
   }
 
   if (data?.available && data.sources.length > 0) {
@@ -168,12 +188,13 @@ export function WatchSection({
         data={data}
         title={title}
         animeId={anime.id}
-        episodesTotal={anime.episodes}
+        episodesTotal={total > 0 ? total : null}
+        catalog={catalog}
         runtime={anime.duration}
         episode={episode}
         onEpisodeChange={onEpisodeChange}
         useOwn={useOwn}
-        canUseOwn={canUseOwn}
+        canUseOwn={canUseOwn && ownHasEpisode}
         canUseProvider={providerSources.length > 0}
         onUseOwnChange={setPreferOwn}
         onAllFailed={
@@ -216,7 +237,7 @@ function PlayerFacade({
     <button
       type="button"
       onClick={onActivate}
-      className="group relative mx-auto block aspect-video w-full overflow-hidden rounded-xl border bg-black sm:w-[88%]"
+      className="group relative block aspect-video w-full overflow-hidden rounded-xl border bg-black"
     >
       {poster && (
         <img
@@ -737,6 +758,7 @@ function CustomHlsPlayer({
   onFailed,
   resumeFrom = 0,
   onEnded,
+  opening = null,
 }: {
   src: string;
   /** Which of the site's three looks the control bar wears. */
@@ -756,6 +778,8 @@ function CustomHlsPlayer({
   resumeFrom?: number;
   /** The stream ran to its end — the page decides what happens next. */
   onEnded?: () => void;
+  /** Where this episode's opening sits, when the provider marked it. */
+  opening?: { start: number; stop: number } | null;
 }) {
   const t = useT();
   const tone = SKINS[skin];
@@ -1178,6 +1202,26 @@ function CustomHlsPlayer({
             </button>
           )}
 
+          {/* Offered only while the opening is actually on screen, and only
+              where the provider marked it — a guessed skip that lands in the
+              middle of a scene is worse than no button. */}
+          {opening != null &&
+            currentTime >= opening.start &&
+            currentTime < opening.stop - 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const video = videoRef.current;
+                  if (video) video.currentTime = opening.stop;
+                  wake();
+                }}
+                className="btn-sheen absolute bottom-20 right-4 z-10 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/60 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-md transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95"
+              >
+                <SkipForwardIcon className="size-3.5" />
+                {t("watch.skipOpening")}
+              </button>
+            )}
+
           <div
             className={cn(
               // Slides down with the fade rather than only fading: the bar
@@ -1380,6 +1424,7 @@ function Player({
   title,
   animeId,
   episodesTotal,
+  catalog,
   runtime,
   episode,
   onEpisodeChange,
@@ -1393,6 +1438,8 @@ function Player({
   title: string;
   animeId: number;
   episodesTotal: number | null;
+  /** Everything the sources say about each episode — see useEpisodeCatalog. */
+  catalog: EpisodeCatalog;
   /** The title's runtime string, so an episode can tick itself off. */
   runtime: string | null;
   episode: number;
@@ -1467,7 +1514,6 @@ function Player({
   // persists for an anonymous visit), so the control itself only shows for
   // them — no point offering a stepper that quietly does nothing.
   const { data: progress } = useAnimeProgress(animeId, authed);
-  const stills = useEpisodeStills(animeId);
   const watchedEpisodes = useMemo(() => {
     const map = new Map<number, { completed: boolean; position: number }>();
     for (const row of progress?.episodes ?? []) {
@@ -1573,6 +1619,24 @@ function Player({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winnerId, racePool.length]);
 
+  // The list offers every episode any dub has, so the one just chosen may
+  // not be in the dub on screen. Rather than let that dub's page play
+  // something else, move to the best-ranked dub on this side that does
+  // carry it. If none here does, the list dims it and the parent's clamp
+  // and side switch are what catch it.
+  useEffect(() => {
+    const current = data.sources.find((s) => s.id === (winnerId ?? racePool[0]));
+    if (!current) return;
+    const has = episodesOf(current);
+    if (has == null || has.has(episode)) return;
+    const better = viableSources(data.sources).find((s) => episodesOf(s)?.has(episode));
+    if (better && better.id !== current.id) {
+      setWinnerId(null);
+      setRacePool([better.id]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episode]);
+
   // Everything this component has left to compute needs a source in the
   // picture, so the bail-out comes after the last hook, not before it —
   // React requires every hook to run on every render, and the two below
@@ -1670,7 +1734,7 @@ function Player({
   return (
     <div
       ref={containerRef}
-      className="mx-auto flex w-full min-w-0 flex-col gap-2.5 sm:w-[92%]"
+      className="flex w-full min-w-0 flex-col gap-2.5"
     >
       {/* Current pick, one line — the episode control lives right in it
           (only for signed-in viewers: nothing persists otherwise, so a
@@ -1782,6 +1846,7 @@ function Player({
                 onFailed={() => handleFailed(id)}
                 resumeFrom={episodeRecord?.positionSeconds ?? 0}
                 onEnded={handleEnded}
+                opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
               />
             );
           }
@@ -1816,11 +1881,12 @@ function Player({
         </div>
 
         <PlayerSidePanel
-          episodesTotal={episodesTotal}
+          total={episodesTotal ?? 0}
           episode={episode}
           onEpisodeChange={onEpisodeChange}
-          stills={stills}
-          duration={runtime}
+          catalog={catalog}
+          fallbackDuration={runtime}
+          currentEpisodes={episodesOf(displaySource)}
           watched={watchedEpisodes}
           canMark={authed}
           onToggleWatched={toggleWatched}
@@ -2043,16 +2109,6 @@ function SkinPicker({
           {t(`watch.skin.${option}`)}
         </button>
       ))}
-    </span>
-  );
-}
-
-function OwnPlayerMark() {
-  const t = useT();
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-      <SparklesIcon className="size-2.5" />
-      {t("watch.ourPlayer")}
     </span>
   );
 }

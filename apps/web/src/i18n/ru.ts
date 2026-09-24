@@ -185,7 +185,9 @@ export const ru: Dict = {
     seasons: {
       openHint: "Нажмите, чтобы открыть",
     },
-    machineTranslated: "Автоперевод",
+    machineTranslated: "Описание переведено автоматически",
+    scoreHint: "Оценка MyAnimeList · голосов: {votes}",
+    scoreHintBare: "Оценка MyAnimeList",
     ranked: "В рейтинге #{rank}",
     airedOf: "эпизодов: {episodes}",
     episodesHelpBody:
@@ -214,6 +216,7 @@ export const ru: Dict = {
     episodesPrev: "Предыдущие серии",
     episodesNext: "Следующие серии",
     episodeMark: "Отметить как просмотренную",
+    episodeInfo: "О серии",
     episodeNone: "По этому номеру ничего нет.",
     episodeNumber: "Серия {n}",
     japaneseTitle: "Японское название",
@@ -280,7 +283,13 @@ export const ru: Dict = {
     notWorking: "Не грузится?",
     ourPlayer: "Наш плеер",
     dubs: "Озвучка",
-    dubFavourite: "Любимая озвучка",
+    dubFavourite: "Отметить как любимую",
+    dubFavouriteOn: "Любимая озвучка — плеер откроется на ней",
+    skipOpening: "Пропустить опенинг",
+    episodeOpening: "Опенинг {from}–{to}",
+    episodeDubs: "Озвучек с этой серией: {n}",
+    episodeNotInDub: "Нет в текущей озвучке — переключим сами",
+    episodeWatched: "Просмотрено",
     skin: {
       shadow: "Тень",
       glass: "Стекло",

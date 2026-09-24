@@ -219,6 +219,10 @@ export class WatchService {
     if (stale && !this.refreshingIds.has(malId)) {
       this.refreshingIds.add(malId);
       void this.resolveAndPersist(malId, true)
+        // The response cache still holds what was served before this
+        // refresh; without dropping it, the refreshed rows would only
+        // reach viewers once it expires half an hour later.
+        .then(() => this.cache.delete(String(malId)))
         .catch(() => undefined)
         .finally(() => this.refreshingIds.delete(malId));
     }
@@ -247,6 +251,10 @@ export class WatchService {
         r.iframeEpisodes != null
           ? (r.iframeEpisodes as WatchSource["iframeEpisodes"])
           : undefined,
+      episodeMeta:
+        r.episodeMeta != null
+          ? (r.episodeMeta as WatchSource["episodeMeta"])
+          : undefined,
       quality: r.quality,
       episodesCount: r.episodesCount,
       stable: r.stable,
@@ -271,12 +279,24 @@ export class WatchService {
     // in the background, so the *next* open has episode stills. Guarded by
     // the same in-flight set as the age-based refresh above so the two can
     // never run at each other.
+    //
+    // A direct-stream row with no episode metadata is stale by definition:
+    // since that field existed, every AniLibria row is written with an
+    // entry per episode. Testing for the field itself rather than a date is
+    // exact — a date cutoff either misses rows written between the change
+    // and the deploy, or, set a little ahead, re-resolves on every single
+    // open until the clock catches up.
     if (
-      rows.some((r) => r.updatedAt.getTime() < SOURCE_SCHEMA_SINCE) &&
+      (rows.some((r) => r.updatedAt.getTime() < SOURCE_SCHEMA_SINCE) ||
+        rows.some((r) => r.format === "hls" && r.episodeMeta == null)) &&
       !this.refreshingIds.has(malId)
     ) {
       this.refreshingIds.add(malId);
       void this.resolveAndPersist(malId, true)
+        // The response cache still holds what was served before this
+        // refresh; without dropping it, the refreshed rows would only
+        // reach viewers once it expires half an hour later.
+        .then(() => this.cache.delete(String(malId)))
         .catch(() => undefined)
         .finally(() => this.refreshingIds.delete(malId));
     }
@@ -395,9 +415,19 @@ export class WatchService {
       if (!release || release.episodes.length === 0) return null;
 
       const hlsEpisodes: Record<string, string> = {};
+      const episodeMeta: NonNullable<WatchSource["episodeMeta"]> = {};
       for (const episode of release.episodes) {
         const url = bestEpisodeUrl(episode);
-        if (url) hlsEpisodes[String(episode.ordinal)] = url;
+        if (!url) continue;
+        const key = String(episode.ordinal);
+        hlsEpisodes[key] = url;
+        episodeMeta[key] = {
+          title: episode.name,
+          titleEn: episode.nameEnglish,
+          durationSeconds: episode.durationSeconds,
+          thumb: episode.thumb,
+          opening: episode.opening,
+        };
       }
       if (Object.keys(hlsEpisodes).length === 0) return null;
 
@@ -408,6 +438,7 @@ export class WatchService {
         format: "hls",
         embedUrl: "",
         hlsEpisodes,
+        episodeMeta,
         quality: "HD",
         episodesCount: release.episodesTotal,
         stable: null,
@@ -585,6 +616,7 @@ export class WatchService {
             embedUrl: s.embedUrl,
             hlsEpisodes: s.hlsEpisodes ?? Prisma.JsonNull,
             iframeEpisodes: s.iframeEpisodes ?? Prisma.JsonNull,
+            episodeMeta: s.episodeMeta ?? Prisma.JsonNull,
             quality: s.quality,
             episodesCount: s.episodesCount,
             position: index,

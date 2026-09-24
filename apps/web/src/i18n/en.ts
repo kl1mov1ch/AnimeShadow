@@ -183,7 +183,9 @@ export const en = {
     seasons: {
       openHint: "Click to open",
     },
-    machineTranslated: "Auto-translated",
+    machineTranslated: "Description machine-translated",
+    scoreHint: "MyAnimeList score · {votes} votes",
+    scoreHintBare: "MyAnimeList score",
     ranked: "Ranked #{rank}",
     airedOf: "{episodes} ep. total",
     episodesHelpBody:
@@ -212,6 +214,7 @@ export const en = {
     episodesPrev: "Earlier episodes",
     episodesNext: "Later episodes",
     episodeMark: "Mark as watched",
+    episodeInfo: "About this episode",
     episodeNone: "No episode with that number.",
     episodeNumber: "Episode {n}",
     japaneseTitle: "Japanese title",
@@ -278,7 +281,13 @@ export const en = {
     notWorking: "Not loading?",
     ourPlayer: "Our player",
     dubs: "Dub",
-    dubFavourite: "Favourite dub",
+    dubFavourite: "Mark as favourite",
+    dubFavouriteOn: "Favourite dub — the player opens on it",
+    skipOpening: "Skip opening",
+    episodeOpening: "Opening {from}–{to}",
+    episodeDubs: "Dubs with this episode: {n}",
+    episodeNotInDub: "Not in this dub — we'll switch for you",
+    episodeWatched: "Watched",
     skin: {
       shadow: "Shadow",
       glass: "Glass",

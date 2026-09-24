@@ -21,6 +21,27 @@ export const watchSourceSchema = z.object({
   /** format "hls" only: episode number (as a string key) → HLS manifest URL. */
   hlsEpisodes: z.record(z.string(), z.string()).optional(),
   /**
+   * What the provider says about each episode beyond where to play it —
+   * its own title, its real length, a still, where the opening sits. Only
+   * AniLibria publishes any of this today; every field is optional because
+   * even there the release team fills in some episodes and not others.
+   */
+  episodeMeta: z
+    .record(
+      z.string(),
+      z.object({
+        title: z.string().nullable().optional(),
+        titleEn: z.string().nullable().optional(),
+        durationSeconds: z.number().nullable().optional(),
+        thumb: z.string().nullable().optional(),
+        opening: z
+          .object({ start: z.number(), stop: z.number() })
+          .nullable()
+          .optional(),
+      }),
+    )
+    .optional(),
+  /**
    * format "iframe": episode number → that episode's own embed page, plus
    * the stills the provider publishes for it.
    *
