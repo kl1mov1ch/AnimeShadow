@@ -157,6 +157,7 @@ export const en = {
       fresh: "New",
     },
     random: "Random from this selection",
+    headerGenres: "{count} genres · filters, ranges and saved sets",
     randomNone: "Nothing to pick from with these filters",
     loadMore: "Show more",
     shown: "Showing {shown} of {total}",

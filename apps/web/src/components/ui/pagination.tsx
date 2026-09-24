@@ -69,7 +69,7 @@ function PaginationLink({
         size === "icon" ? "size-9" : "h-9 px-3",
         isActive
           ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40"
-          : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/70 hover:text-foreground",
+          : "border border-primary/20 bg-primary/5 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/60 hover:bg-primary/15 hover:text-primary",
         "aria-disabled:pointer-events-none aria-disabled:opacity-40 aria-disabled:hover:translate-y-0",
         className
       )}

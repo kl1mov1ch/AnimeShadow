@@ -27,11 +27,8 @@ import {
   AnimeGridSkeleton,
   type AnimeViewMode,
 } from "@/components/anime/anime-grid";
-import { PageHeader } from "@/components/common/page-header";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { ErrorState, NoResultsState } from "@/components/common/states";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -47,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/i18n";
@@ -128,20 +124,24 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
+      <CatalogHeader
         title={isSearch ? `«${params.q}»` : t("browse.title")}
         description={isSearch ? t("search.groupTitle") : t("browse.subtitle")}
+        genreCount={genres.length}
         actions={
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="outline" className="lg:hidden">
-                <SlidersHorizontalIcon data-icon="inline-start" />
+              <button
+                type="button"
+                className="btn-sheen inline-flex items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95 lg:hidden"
+              >
+                <SlidersHorizontalIcon className="size-4" />
                 {t("browse.filters")}
-              </Button>
+              </button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[22rem] overflow-y-auto">
+            <SheetContent side="right" className="w-[22rem] overflow-y-auto border-primary/30 bg-background">
               <SheetHeader>
-                <SheetTitle>{t("browse.filters")}</SheetTitle>
+                <SheetTitle className="font-display">{t("browse.filters")}</SheetTitle>
                 <SheetDescription>{t("browse.filtersHint")}</SheetDescription>
               </SheetHeader>
               <div className="px-4 pb-8">{filters}</div>
@@ -252,16 +252,20 @@ function SearchResults({
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {t("search.detectedAs", { genres: "" })}
           {data.detectedGenres.map((g) => (
-            <Badge key={g} variant="secondary" className="font-normal">
+            <span
+              key={g}
+              className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+            >
               {g}
-            </Badge>
+            </span>
           ))}
         </div>
       )}
 
       {groups.map((group, index) => (
         <section key={`${group.reason}-${index}`} className="flex flex-col gap-4">
-          <h2 className="text-lg font-bold tracking-tight">
+          <h2 className="flex items-center gap-2 font-display text-lg tracking-tight">
+            <span aria-hidden className="h-4 w-1 rounded-full bg-primary" />
             {groupTitle(group.reason, group.label, t)}
             {isFetching && index === 0 && (
               <Loader2Icon className="ml-2 inline size-3.5 animate-spin text-muted-foreground" />
@@ -470,20 +474,7 @@ function CatalogResults({
           </TooltipTrigger>
           <TooltipContent>{t("browse.random")}</TooltipContent>
         </Tooltip>
-        <ToggleGroup
-          type="single"
-          value={view}
-          onValueChange={onView}
-          variant="outline"
-          className="h-8 [&>*]:h-8 [&>*]:w-8"
-        >
-          <ToggleGroupItem value="grid" aria-label={t("library.viewGrid")}>
-            <LayoutGridIcon className="size-3.5" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" aria-label={t("library.viewList")}>
-            <ListIcon className="size-3.5" />
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <ViewSwitch view={view} onView={onView} />
       </div>
 
       {first.isError ? (
@@ -538,6 +529,94 @@ function MorePage({
   return (
     <div className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
       <AnimeGrid items={data.items} view={view} />
+    </div>
+  );
+}
+
+/**
+ * The top of the catalogue: its name on the site's accent surface, with
+ * how big the thing being filtered is. It replaces the stock page header,
+ * which was the one block on the page that looked like a default.
+ */
+function CatalogHeader({
+  title,
+  description,
+  genreCount,
+  actions,
+}: {
+  title: string;
+  description: string;
+  genreCount: number;
+  actions?: React.ReactNode;
+}) {
+  const { t } = useI18n();
+  return (
+    <header className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-5 py-6 backdrop-blur-sm sm:px-7 sm:py-8">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(60% 120% at 100% 0%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 70%)",
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-6 -top-10 select-none font-display text-[10rem] leading-none text-primary/[0.07]"
+      >
+        影
+      </span>
+      <div className="relative flex flex-wrap items-end justify-between gap-4">
+        <div className="flex max-w-2xl flex-col gap-2">
+          <h1 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h1>
+          <p className="text-sm text-muted-foreground">{description}</p>
+          {genreCount > 0 && (
+            <p className="text-xs font-medium text-primary">
+              {t("browse.headerGenres", { count: genreCount })}
+            </p>
+          )}
+        </div>
+        {actions}
+      </div>
+    </header>
+  );
+}
+
+/** Grid or wide cards — the site's segmented control, not a stock toggle. */
+function ViewSwitch({ view, onView }: { view: AnimeViewMode; onView: (view: string) => void }) {
+  const { t } = useI18n();
+  const options = [
+    { value: "grid", icon: LayoutGridIcon, label: t("library.viewGrid") },
+    { value: "list", icon: ListIcon, label: t("library.viewList") },
+  ] as const;
+  return (
+    <div className="relative flex rounded-lg border border-primary/25 bg-primary/5 p-0.5">
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-y-0.5 w-8 rounded-md bg-primary shadow-md shadow-primary/30 transition-transform duration-300 ease-out",
+          view === "list" ? "translate-x-8" : "translate-x-0",
+        )}
+      />
+      {options.map(({ value, icon: Icon, label }) => (
+        <Tooltip key={value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onView(value)}
+              aria-pressed={view === value}
+              aria-label={label}
+              className={cn(
+                "relative z-10 grid size-8 place-items-center rounded-md transition-colors duration-200",
+                view === value ? "text-primary-foreground" : "text-muted-foreground hover:text-primary",
+              )}
+            >
+              <Icon className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ))}
     </div>
   );
 }

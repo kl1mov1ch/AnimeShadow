@@ -131,7 +131,6 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   };
   const title = labels.title(anime);
   const when = labels.seasonYearLabel(anime);
-  const episodes = labels.episodeLabel(anime.episodes, anime.type);
 
   // const hasScore = anime.score != null;
   const airing = anime.airing === "AIRING";
@@ -335,10 +334,10 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
               <TvIcon className="size-3 shrink-0 text-muted-foreground/70" />
               {labels.typeLabel(anime.type)}
             </span>
-            {episodes && (
+            {anime.episodes != null && anime.episodes > 0 && (
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <ListVideoIcon className="size-3 shrink-0 text-muted-foreground/70" />
-                {anime.episodes ?? episodes}
+                {anime.episodes}
               </span>
             )}
             {airing && (

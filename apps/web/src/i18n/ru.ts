@@ -159,6 +159,7 @@ export const ru: Dict = {
       fresh: "Новинки",
     },
     random: "Случайное из выборки",
+    headerGenres: "{count} жанров · фильтры, диапазоны и подборки",
     randomNone: "По этим фильтрам нечего выбрать",
     loadMore: "Показать ещё",
     shown: "Показано {shown} из {total}",
