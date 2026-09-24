@@ -83,6 +83,7 @@ export const en = {
       "AnimeShadow neither stores nor distributes video. All rights to the anime belong to their respective holders. Catalogue data is aggregated from open sources.",
     rights: "© {year} AnimeShadow",
     madeWith: "Made by anime fans, for anime fans.",
+    toTop: "Back to top",
   },
   discover: {
     title: "Discover",
@@ -1412,6 +1413,59 @@ export const en = {
     continueRail: "Continue watching",
     continueRailSub: "Pick up where you left off",
     genresTitle: "Jump into a genre",
+    genresPersonal: "Picked from your taste and your list",
+    genresDefault: "The most popular — sign in and we'll tailor them",
+    heroRank: "#{rank} trending",
+    heroWatch: "Watch",
+    heroPause: "Pause the slider",
+    heroPlay: "Play the slider",
+    corner: {
+      title: "Anime corner",
+      subtitle: "Not another shelf: anime of the day, a mini-game and facts",
+      pick: "Anime of the day",
+      guess: "Guess the poster",
+      guessHint: "Which anime is this?",
+      guessRight: "Spot on!",
+      guessWrong: "Miss — the right answer is lit",
+      streak: "Correct in a row. Best: {best}",
+      open: "Open",
+      again: "Again",
+      facts: "Did you know?",
+    },
+    facts: {
+      sazae: {
+        title: "Sazae-san has aired since 1969",
+        body: "It is the longest-running animated series ever — in the Guinness World Records — and still airs every Sunday.",
+      },
+      astro: {
+        title: "It started with Astro Boy",
+        body: "Osamu Tezuka's Tetsuwan Atom premiered on 1 January 1963 and set the shape of Japanese TV anime: weekly half-hour episodes.",
+      },
+      spirited: {
+        title: "Two Oscars for Miyazaki",
+        body: "In 2003 Spirited Away became the first anime to win the Oscar for Best Animated Feature. The Boy and the Heron won it again in 2024.",
+      },
+      onepiece: {
+        title: "One Piece holds a Guinness record",
+        body: "Eiichiro Oda's manga is the most-published comic by a single author. The anime has run since 1999 and passed a thousand episodes.",
+      },
+      word: {
+        title: "In Japan, any cartoon is anime",
+        body: "アニメ is just short for the English word animation. To a Japanese viewer, The Lion King is anime too.",
+      },
+      ghibli: {
+        title: "Where Ghibli got its name",
+        body: "Founded in 1985 by Miyazaki, Takahata and Suzuki, the studio is named after the Italian Caproni Ca.309 Ghibli aircraft — itself named for a hot Saharan wind.",
+      },
+      pokemon: {
+        title: "The episode that changed TV",
+        body: "Flashing frames in the 1997 Pokémon episode about Porygon sent hundreds of children in Japan to hospital. Japanese TV adopted rules for on-screen flashes afterwards.",
+      },
+      akira: {
+        title: "Akira was animated to the voices",
+        body: "The 1988 film's dialogue was recorded before animation and the lip movements drawn to match — rare for anime then. It holds over 160,000 drawings.",
+      },
+    },
     views: "{views} views",
     continueWatching: "Resume · {done}/{total}",
     ongoing: "Ongoing",

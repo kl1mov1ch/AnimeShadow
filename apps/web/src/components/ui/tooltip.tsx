@@ -51,7 +51,11 @@ function TooltipContent({
           // about it is sized for being read at a glance rather than for
           // being small: 12px at medium weight, a full-strength border, and
           // a shadow heavy enough to lift it clear of whatever is behind.
-          "z-50 w-fit max-w-[min(20rem,80vw)] origin-(--radix-tooltip-content-transform-origin) rounded-lg border border-border bg-popover px-3 py-2 text-[12px] leading-snug font-medium text-balance text-popover-foreground shadow-xl shadow-black/25 ring-1 ring-[var(--accent-line-soft)]",
+          // In the site's own colour rather than a neutral chip: an accent
+          // edge, the accent glowing down from the top, and a shadow tinted
+          // the same way — the surface every panel on the site uses, only
+          // opaque, since a tooltip nearly always opens over artwork.
+          "z-50 w-fit max-w-[min(20rem,80vw)] origin-(--radix-tooltip-content-transform-origin) rounded-lg px-3 py-2 text-[12px] leading-snug font-medium text-balance border border-primary/35 bg-popover bg-gradient-to-b from-primary/[0.14] via-primary/[0.04] to-transparent text-popover-foreground shadow-xl shadow-primary/15 ring-1 ring-black/5",
           // It arrives from the side it points at, overshooting slightly,
           // and leaves faster than it came — the asymmetry is what makes an
           // appearance feel deliberate and a dismissal feel instant.
@@ -62,7 +66,7 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_3px)] rotate-45 rounded-[2px] border-b border-r border-border bg-popover fill-popover" />
+        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_3px)] rotate-45 rounded-[2px] border-b border-r border-primary/35 bg-popover fill-popover" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

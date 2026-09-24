@@ -13,11 +13,12 @@ import {
   SunIcon,
   UserPlusIcon,
   WandSparklesIcon,
+  XIcon,
 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -26,6 +27,7 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { MorphIcon } from "@/components/ui/morph-icon";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -56,11 +58,49 @@ import { cn } from "@/lib/utils";
 // now the header's own nav gets it too.
 function navClass({ isActive }: { isActive: boolean }): string {
   return cn(
-    "group relative flex items-center gap-1.5 overflow-hidden rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-all duration-200",
+    "group relative z-10 flex items-center gap-1.5 overflow-hidden rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors duration-300",
     isActive
-      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-      : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/70 hover:text-foreground",
+      ? "text-primary-foreground"
+      : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
   );
+}
+
+/**
+ * One highlight for the whole nav, sliding to whichever item is active,
+ * rather than each item filling itself in. Moving between pages is then a
+ * movement along the bar — the fill travels from where you were to where
+ * you are — instead of one pill switching off and another switching on.
+ */
+function useNavIndicator(navRef: React.RefObject<HTMLElement | null>) {
+  const location = useLocation();
+  const [box, setBox] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+      setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [navRef, location.pathname]);
+
+  return box;
+}
+
+/** Whether the page has scrolled away from the top — the header firms up. */
+function useScrolled(threshold = 8): boolean {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > threshold);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [threshold]);
+  return scrolled;
 }
 
 /** The band of light that sweeps across a control on hover — the header's
@@ -82,13 +122,21 @@ export function SiteHeader() {
   const { canInstall, isIosSafari } = usePwaInstall();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const navRef = useRef<HTMLElement | null>(null);
+  const indicator = useNavIndicator(navRef);
+  const scrolled = useScrolled();
+  const [rolling, setRolling] = useState(false);
 
   const surprise = async () => {
+    if (rolling) return;
+    setRolling(true);
     try {
       const r = await apiRequest<{ slug: string }>("/anime/random");
       navigate(`/anime/${r.slug}`);
     } catch {
       /* ignore */
+    } finally {
+      setRolling(false);
     }
   };
 
@@ -104,7 +152,17 @@ export function SiteHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <header
+      className={cn(
+        "sticky top-0 z-40 border-b backdrop-blur transition-all duration-300",
+        // At the very top the header lets the page show through; once the
+        // page moves under it, it firms up and casts a shadow, so where the
+        // header ends and the content begins stays clear.
+        scrolled
+          ? "bg-background/90 shadow-lg shadow-black/5 supports-[backdrop-filter]:bg-background/80"
+          : "border-transparent bg-background/60 supports-[backdrop-filter]:bg-background/40",
+      )}
+    >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
@@ -118,7 +176,7 @@ export function SiteHeader() {
               className="-ml-2 shrink-0 md:hidden"
               aria-label={t("common.menu")}
             >
-              <MenuIcon />
+              <MorphIcon on={menuOpen} off={MenuIcon} onIcon={XIcon} className="size-5" />
             </Button>
           </SheetTrigger>
           <MobileMenu
@@ -133,7 +191,14 @@ export function SiteHeader() {
 
         {/* Tighter than it was: with the labels this wide, gap-5/6 pushed the
             search field and the icon row outward on a narrow laptop. */}
-        <nav className="hidden items-center gap-3 md:flex lg:gap-4">
+        <nav ref={navRef} className="relative hidden items-center gap-1 md:flex lg:gap-1.5">
+          {indicator && (
+            <span
+              aria-hidden
+              className="absolute inset-y-0 my-auto h-[calc(100%-2px)] rounded-lg bg-primary shadow-md shadow-primary/30 transition-[left,width] duration-300 ease-out"
+              style={{ left: indicator.left, width: indicator.width }}
+            />
+          )}
           {nav.map((item, i) => (
             <NavLink
               viewTransition
@@ -146,7 +211,7 @@ export function SiteHeader() {
                 className="reveal relative z-10 inline-flex items-center gap-1.5 whitespace-nowrap"
                 style={{ "--i": i + 1 } as CSSProperties}
               >
-                <item.Icon className="size-4" />
+                <item.Icon className="size-4 transition-transform duration-300 group-hover:scale-110" />
                 {item.label}
               </span>
               <Shimmer />
@@ -196,7 +261,12 @@ export function SiteHeader() {
                   aria-label={t("footer.randomAnime")}
                   className="group relative overflow-hidden"
                 >
-                  <ShuffleIcon className="relative z-10" />
+                  <ShuffleIcon
+                    className={cn(
+                      "relative z-10 transition-transform duration-500 group-hover:rotate-180",
+                      rolling && "animate-spin",
+                    )}
+                  />
                   <Shimmer />
                 </Button>
               </TooltipTrigger>
@@ -423,7 +493,7 @@ function MobileTheme() {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
     >
-      {isDark ? <SunIcon className="size-4" /> : <MoonStarIcon className="size-4" />}
+      <MorphIcon on={isDark} off={MoonStarIcon} onIcon={SunIcon} className="size-4" spin="ccw" />
       {isDark ? t("theme.toLight") : t("theme.toDark")}
     </button>
   );

@@ -1,20 +1,22 @@
-import type { AnimeSummary } from "@animeshadow/shared";
 import {
+  ArrowRightIcon,
   CheckIcon,
   CrownIcon,
   type LucideIcon,
   MoonIcon,
   SwordIcon,
 } from "lucide-react";
+import type { ComponentType } from "react";
 import { Link } from "react-router-dom";
-import { LogoGlyph } from "@/components/brand/logo-glyph";
+import { BladeScene, CrownScene, NightScene } from "@/components/anime/plan-scenes";
 import { useT } from "@/i18n";
-import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface Plan {
   key: "shadow" | "ronin" | "shogun";
   icon: LucideIcon;
+  /** What moves behind this card — each tier has its own. */
+  scene: ComponentType;
   price: string;
   period: string;
   featured?: boolean;
@@ -27,28 +29,30 @@ interface Plan {
  * gets everything. Free, $4.99 and $9.99.
  */
 const PLANS: Plan[] = [
-  { key: "shadow", icon: MoonIcon, price: "$0", period: "forever", perkCount: 3 },
+  { key: "shadow", icon: MoonIcon, scene: NightScene, price: "$0", period: "forever", perkCount: 3 },
   {
     key: "ronin",
     icon: SwordIcon,
+    scene: BladeScene,
     price: "$4.99",
     period: "month",
     featured: true,
     perkCount: 4,
   },
-  { key: "shogun", icon: CrownIcon, price: "$9.99", period: "month", perkCount: 4 },
+  { key: "shogun", icon: CrownIcon, scene: CrownScene, price: "$9.99", period: "month", perkCount: 4 },
 ];
 
 /**
- * The plans, at the foot of the homepage. Each paid tier is headed by a
- * picture — a real title from the catalogue, so the offer is attached to
- * the thing being sold — while the free tier wears the mark of the site
- * itself: nothing is being sold there, so there is nothing to illustrate.
+ * The plans, at the foot of the homepage.
  *
- * The cards answer to the pointer: they lift, the picture drifts and
- * brightens, and a band of light crosses them.
+ * Each tier has a scene of its own running behind the whole card — a night
+ * sky for the shadow, a blade and falling petals for the rōnin, turning gold
+ * rays and embers for the shōgun — so the three are told apart at a glance
+ * by what they are, not only by their price. They used to share one
+ * treatment with a different poster on top, which made the free tier and
+ * the top tier look like the same product in two covers.
  */
-export function PlansSection({ art }: { art: AnimeSummary[] }) {
+export function PlansSection() {
   const t = useT();
   return (
     <section className="flex flex-col gap-4">
@@ -69,13 +73,8 @@ export function PlansSection({ art }: { art: AnimeSummary[] }) {
       </div>
 
       <div className="grid items-stretch gap-4 lg:grid-cols-3">
-        {PLANS.map((plan, i) => {
-          // The free tier is deliberately picture-less; the paid ones take
-          // the next titles in the pool, so the two are never the same art.
-          const backdrop = plan.key === "shadow" ? undefined : art[i - 1];
-          const image = backdrop
-            ? imageSrc(backdrop.imageLargeUrl ?? backdrop.imageUrl)
-            : undefined;
+        {PLANS.map((plan) => {
+          const Scene = plan.scene;
           const perks = Array.from({ length: plan.perkCount }, (_, n) =>
             t(`plans.${plan.key}.perk${n + 1}` as "plans.shadow.perk1"),
           );
@@ -87,41 +86,23 @@ export function PlansSection({ art }: { art: AnimeSummary[] }) {
                 "group relative isolate flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-500 hover:-translate-y-2",
                 plan.featured
                   ? "border-primary/60 bg-card shadow-xl shadow-primary/10 lg:-my-2"
-                  : "border-border/60 bg-card/60 hover:border-primary/40",
+                  : "border-border/60 bg-card hover:border-primary/40",
               )}
             >
-              {/* The picture at the head of the block. */}
-              <div className="relative h-32 shrink-0 overflow-hidden">
-                {image ? (
-                  <img
-                    src={image}
-                    alt=""
-                    loading="lazy"
-                    className="size-full scale-105 object-cover object-top opacity-80 transition-all duration-700 group-hover:scale-110 group-hover:opacity-100"
-                  />
-                ) : (
-                  // No title to show for the free tier — the mark of the
-                  // site stands in its place.
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 grid place-items-center overflow-hidden bg-gradient-to-br from-primary/25 via-card to-card"
-                  >
-                    <LogoGlyph className="size-24 text-foreground/15 transition-transform duration-700 group-hover:scale-110" />
-                    <LogoGlyph className="absolute -left-6 -top-6 size-20 -rotate-12 text-foreground/[0.06]" />
-                    <LogoGlyph className="absolute -bottom-8 -right-6 size-28 rotate-6 text-foreground/[0.06]" />
-                  </span>
-                )}
-                {/* The picture fades into the card rather than ending on a
-                    hard edge. */}
-                <span
-                  aria-hidden
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, color-mix(in srgb, var(--primary) 12%, transparent) 0%, transparent 35%, var(--card) 100%)",
-                  }}
-                />
+              {/* The scene runs behind the whole card; the content sits on a
+                  floor that rises out of it, so text stays readable over
+                  whatever is moving. */}
+              <Scene />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--card) 55%, transparent) 38%, var(--card) 62%)",
+                }}
+              />
 
+              <div className="relative h-32 shrink-0">
                 {plan.featured && (
                   <span className="absolute right-4 top-4 rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30">
                     {t("plans.popular")}
@@ -131,7 +112,7 @@ export function PlansSection({ art }: { art: AnimeSummary[] }) {
                 <div className="absolute inset-x-5 bottom-3 flex items-center gap-2.5">
                   <span
                     className={cn(
-                      "grid size-10 shrink-0 place-items-center rounded-xl backdrop-blur-sm transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110",
+                      "grid size-11 shrink-0 place-items-center rounded-xl shadow-lg backdrop-blur-sm transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110",
                       plan.featured
                         ? "bg-primary text-primary-foreground"
                         : "border border-border/60 bg-background/70 text-primary",
@@ -158,7 +139,7 @@ export function PlansSection({ art }: { art: AnimeSummary[] }) {
 
               <div
                 className={cn(
-                  "flex flex-1 flex-col p-5",
+                  "relative flex flex-1 flex-col p-5",
                   plan.featured && "lg:p-6 lg:pt-5",
                 )}
               >
@@ -204,13 +185,14 @@ export function PlansSection({ art }: { art: AnimeSummary[] }) {
                   to="/support"
                   viewTransition
                   className={cn(
-                    "mt-7 inline-flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-all duration-300 active:scale-[0.98]",
+                    "group/cta btn-sheen mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-[0.98]",
                     plan.featured
                       ? "bg-primary text-primary-foreground hover:shadow-lg hover:shadow-primary/30"
                       : "border border-border/70 hover:border-primary/50 hover:text-primary",
                   )}
                 >
                   {t(`plans.${plan.key}.cta` as "plans.shadow.cta")}
+                  <ArrowRightIcon className="size-4 transition-transform duration-300 group-hover/cta:translate-x-1" />
                 </Link>
               </div>
             </article>

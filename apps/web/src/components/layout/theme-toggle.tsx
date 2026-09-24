@@ -1,6 +1,8 @@
 import { MoonStarIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import { MorphIcon } from "@/components/ui/morph-icon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { useUpdateProfile } from "@/lib/query";
@@ -22,14 +24,22 @@ export function ThemeToggle() {
     if (status === "authenticated") update.mutate({ theme: next });
   };
 
+  const label = isDark ? t("theme.toLight") : t("theme.toDark");
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => choose(isDark ? "light" : "dark")}
-      aria-label={isDark ? t("theme.toLight") : t("theme.toDark")}
-    >
-      {isDark ? <SunIcon /> : <MoonStarIcon />}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => choose(isDark ? "light" : "dark")}
+          aria-label={label}
+        >
+          {/* The moon turns into the sun and back, so the button shows
+              which way it goes rather than flashing a different glyph. */}
+          <MorphIcon on={isDark} off={MoonStarIcon} onIcon={SunIcon} className="size-4" spin="ccw" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -1222,3 +1222,74 @@ html.light .home-theme {
     animation: none;
   }
 }
+
+/*
+  Plan scenes — one living backdrop per subscription tier, so the three
+  cards are told apart by what moves behind them, not only by their price.
+  Pure CSS, a handful of elements each; everything stops under reduced
+  motion and the stills that remain are still distinct.
+*/
+
+/* Shadow: a night sky. Stars breathe out of phase, the moon's glow drifts,
+   a band of mist slides past below it. */
+@keyframes scene-twinkle {
+  0%, 100% { opacity: 0.15; scale: 0.7; }
+  50% { opacity: 0.95; scale: 1; }
+}
+@keyframes scene-moon-drift {
+  0%, 100% { translate: 0 0; }
+  50% { translate: -14px 8px; }
+}
+@keyframes scene-mist {
+  from { translate: -35% 0; }
+  to { translate: 35% 0; }
+}
+
+/* Rōnin: a blade crossing the frame, then another, and petals falling
+   through the gaps between them. */
+@keyframes scene-slash {
+  0% { translate: -140% 0; opacity: 0; }
+  8% { opacity: 1; }
+  22% { translate: 260% 0; opacity: 0; }
+  100% { translate: 260% 0; opacity: 0; }
+}
+@keyframes scene-petal {
+  0% { translate: 0 -20px; rotate: 0deg; opacity: 0; }
+  12% { opacity: 0.9; }
+  100% { translate: var(--petal-sway, 30px) 260px; rotate: 320deg; opacity: 0; }
+}
+
+/* Shōgun: gold rays turning slowly behind the crown, embers rising. */
+@keyframes scene-rays {
+  to { rotate: 360deg; }
+}
+@keyframes scene-ember {
+  0% { translate: 0 0; opacity: 0; scale: 0.6; }
+  15% { opacity: 1; }
+  100% { translate: var(--ember-drift, 10px) -220px; opacity: 0; scale: 1.1; }
+}
+
+.scene-star { animation: scene-twinkle var(--dur, 3s) ease-in-out var(--delay, 0s) infinite; }
+.scene-moon { animation: scene-moon-drift 14s ease-in-out infinite; }
+.scene-mist { animation: scene-mist 18s ease-in-out infinite alternate; }
+.scene-slash { animation: scene-slash 5.5s cubic-bezier(0.7, 0, 0.3, 1) var(--delay, 0s) infinite; }
+.scene-petal { animation: scene-petal var(--dur, 7s) linear var(--delay, 0s) infinite; }
+.scene-rays { animation: scene-rays 40s linear infinite; }
+.scene-ember { animation: scene-ember var(--dur, 5s) ease-out var(--delay, 0s) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-star,
+  .scene-moon,
+  .scene-mist,
+  .scene-slash,
+  .scene-petal,
+  .scene-rays,
+  .scene-ember {
+    animation: none;
+  }
+  .scene-slash,
+  .scene-petal,
+  .scene-ember {
+    opacity: 0;
+  }
+}

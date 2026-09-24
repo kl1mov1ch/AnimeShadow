@@ -1,11 +1,21 @@
 import type { AnimeSummary } from "@animeshadow/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { BookmarkCheckIcon, BookmarkPlusIcon, ClockIcon } from "lucide-react";
+import {
+  BookmarkCheckIcon,
+  BookmarkPlusIcon,
+  CalendarIcon,
+  ClockIcon,
+  ListVideoIcon,
+  PlayIcon,
+  TvIcon,
+} from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AnimePoster } from "@/components/anime/anime-poster";
 import { ScoreBadge } from "@/components/anime/score-badge";
+import { STATUS_META } from "@/components/library/library-meta";
+import { MorphIcon } from "@/components/ui/morph-icon";
 import {
   HoverCard,
   HoverCardContent,
@@ -65,7 +75,8 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const isAuthed = authStatus === "authenticated";
   const { data: libraryEntries } = useLibrary(undefined, isAuthed);
   const addToLibrary = useUpsertLibraryEntry();
-  const inLibrary = libraryEntries?.some((entry) => entry.anime.id === anime.id) ?? false;
+  const entry = libraryEntries?.find((e) => e.anime.id === anime.id) ?? null;
+  const inLibrary = entry != null;
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prefetched = useRef(false);
   const queryClient = useQueryClient();
@@ -126,7 +137,6 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const title = labels.title(anime);
   const when = labels.seasonYearLabel(anime);
   const episodes = labels.episodeLabel(anime.episodes, anime.type);
-  const metaLine = [labels.typeLabel(anime.type), episodes].filter(Boolean).join(" · ");
   const genreLine = anime.genres.slice(0, 2).map(labels.genreLabel).join(", ");
 
   // const hasScore = anime.score != null;
@@ -179,36 +189,72 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 -translate-x-[220%] -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out will-change-transform group-hover:translate-x-[420%] motion-reduce:hidden"
         />
 
-        {/* One action on the poster: keep it for later. Slides in under a
-            hover; on a touch screen, where there is no hover to wait for, it
-            simply stays out. */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={keep}
-              disabled={addToLibrary.isPending}
-              aria-label={inLibrary ? t("card.inList") : t("card.addToList")}
-              className={cn(
-                "absolute right-2 z-20 grid size-9 place-items-center rounded-lg border border-white/15 backdrop-blur transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
-                isAdult ? "top-10" : "top-2",
-                inLibrary ? "bg-primary/90 text-primary-foreground" : "bg-black/60 text-white",
-                canHover
-                  ? "translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
-                  : "opacity-100",
-              )}
-            >
-              {inLibrary ? (
-                <BookmarkCheckIcon className="size-4" />
-              ) : (
-                <BookmarkPlusIcon className="size-4" />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            {inLibrary ? t("card.inList") : t("card.addToList")}
-          </TooltipContent>
-        </Tooltip>
+        {/* Two actions on the poster, stacked: keep it for later, and go
+            straight to the player. They slide in one after the other under
+            a hover; on a touch screen, with no hover to wait for, the
+            bookmark stays put and the whole poster is the play action. */}
+        <div
+          className={cn(
+            "absolute right-2 z-20 flex flex-col gap-1.5",
+            isAdult ? "top-10" : "top-2",
+          )}
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={keep}
+                disabled={addToLibrary.isPending}
+                aria-label={inLibrary ? t("card.inList") : t("card.addToList")}
+                className={cn(
+                  "grid size-9 place-items-center rounded-lg border border-white/15 backdrop-blur transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
+                  inLibrary ? "bg-primary/90 text-primary-foreground" : "bg-black/60 text-white",
+                  canHover && !inLibrary
+                    ? "translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
+                    : "opacity-100",
+                )}
+              >
+                <MorphIcon
+                  on={inLibrary}
+                  off={BookmarkPlusIcon}
+                  onIcon={BookmarkCheckIcon}
+                  className="size-4"
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              {inLibrary ? t("card.inList") : t("card.addToList")}
+            </TooltipContent>
+          </Tooltip>
+          {canHover && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  to={`${animeHref(anime)}#watch`}
+                  viewTransition
+                  aria-label={t("card.watch")}
+                  className="grid size-9 translate-x-2 place-items-center rounded-lg border border-white/15 bg-black/60 text-white opacity-0 backdrop-blur transition-all delay-75 duration-300 hover:scale-110 hover:bg-primary hover:text-primary-foreground active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
+                >
+                  <PlayIcon className="size-4 fill-current" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="left">{t("card.watch")}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* Where it stands in the viewer's own list — the status's icon and
+            colour, and for a show being watched, how far along. The same
+            marks the library page uses, so a card says it in the same
+            words. */}
+        {entry && (
+          <LibraryMark
+            status={entry.status}
+            progress={entry.progress}
+            episodes={anime.episodes}
+            label={t(`status.${entry.status}`)}
+          />
+        )}
 
         {isAdult && (
           <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur">
@@ -230,7 +276,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
 
         {/* "Coming soon" only — the "airing" tag added noise without telling the
             user anything they don't already get from the season/year line. */}
-        {unreleased ? (
+        {unreleased && !entry ? (
           <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur">
             {t("card.soon")}
           </span>
@@ -250,13 +296,35 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
               That answer now lives in the hover preview instead — a plain
               dot still marks an airing title at a glance, without a label
               claiming a fact the card can't actually back up with a date. */}
-          <span className="min-w-0 truncate">
-            {metaLine}
+          <span className="flex min-w-0 items-center gap-2.5 truncate">
+            <span className="inline-flex items-center gap-1">
+              <TvIcon className="size-3 shrink-0 text-muted-foreground/70" />
+              {labels.typeLabel(anime.type)}
+            </span>
+            {episodes && (
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <ListVideoIcon className="size-3 shrink-0 text-muted-foreground/70" />
+                {anime.episodes ?? episodes}
+              </span>
+            )}
             {airing && (
-              <span aria-hidden className="ml-1.5 inline-block size-1.5 rounded-full bg-primary" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    aria-label={labels.airingLabel(anime.airing)}
+                    className="inline-block size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="top">{labels.airingLabel(anime.airing)}</TooltipContent>
+              </Tooltip>
             )}
           </span>
-          {when && <span className="shrink-0 tabular-nums">{when}</span>}
+          {when && (
+            <span className="inline-flex shrink-0 items-center gap-1 tabular-nums">
+              <CalendarIcon className="size-3 text-muted-foreground/70" />
+              {when}
+            </span>
+          )}
         </div>
         {(genreLine || anime.members != null) && (
           <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground/70">
@@ -325,6 +393,56 @@ function AnimeCardPreview({ anime }: { anime: AnimeSummary }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The viewer's own status for this title, bottom-left on the poster: the
+ * status icon on its colour, and for anything in progress a bar along the
+ * foot of the picture showing how far through they are.
+ */
+function LibraryMark({
+  status,
+  progress,
+  episodes,
+  label,
+}: {
+  status: keyof typeof STATUS_META;
+  progress: number;
+  episodes: number | null;
+  label: string;
+}) {
+  const meta = STATUS_META[status];
+  const Icon = meta.Icon;
+  const percent =
+    episodes && episodes > 0 && progress > 0
+      ? Math.min(100, Math.round((progress / episodes) * 100))
+      : null;
+
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            aria-label={label}
+            className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium backdrop-blur"
+          >
+            <Icon className={cn("size-3.5", meta.text)} />
+            {percent != null && status !== "COMPLETED" && (
+              <span className="tabular-nums text-foreground/80">
+                {progress}/{episodes}
+              </span>
+            )}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{label}</TooltipContent>
+      </Tooltip>
+      {percent != null && status !== "COMPLETED" && (
+        <span aria-hidden className="absolute inset-x-0 bottom-0 z-10 h-1 bg-black/40">
+          <span className={cn("block h-full", meta.bar)} style={{ width: `${percent}%` }} />
+        </span>
+      )}
+    </>
   );
 }
 

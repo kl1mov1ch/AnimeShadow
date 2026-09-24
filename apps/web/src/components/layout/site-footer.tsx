@@ -1,5 +1,19 @@
-import { ZapIcon } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
+import {
+  ArrowUpIcon,
+  BookmarkIcon,
+  CompassIcon,
+  CrownIcon,
+  InfoIcon,
+  LayoutGridIcon,
+  type LucideIcon,
+  MapIcon,
+  RocketIcon,
+  ScaleIcon,
+  UserRoundIcon,
+  ZapIcon,
+} from "lucide-react";
+import { type ComponentType, type SVGProps, useEffect, useState } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/i18n";
@@ -71,13 +85,13 @@ export function SiteFooter() {
 
           <div className="mt-1 flex items-center gap-2">
             {SOCIALS.map(({ label, href, Icon, glow }) => (
+              <Tooltip key={label}>
+              <TooltipTrigger asChild>
               <a
-                key={label}
                 href={href}
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={label}
-                title={label}
                 // Each one lights up in its own colour on hover rather than
                 // all four turning the same accent: the glow is how you tell
                 // them apart at a glance, since the glyphs are small and the
@@ -95,30 +109,31 @@ export function SiteFooter() {
               >
                 <Icon className="size-4 transition-transform duration-300 group-hover:scale-110" />
               </a>
+              </TooltipTrigger>
+              <TooltipContent>{label}</TooltipContent>
+              </Tooltip>
             ))}
           </div>
         </div>
 
         {/* Navigation */}
-        <FooterColumn title={t("footer.nav")}>
-          <FooterLink to="/">{t("nav.discover")}</FooterLink>
-          <FooterLink to="/browse">{t("nav.browse")}</FooterLink>
-          <FooterLink to="/library">{t("nav.library")}</FooterLink>
+        <FooterColumn icon={MapIcon} title={t("footer.nav")}>
+          <FooterLink icon={CompassIcon} to="/">{t("nav.discover")}</FooterLink>
+          <FooterLink icon={LayoutGridIcon} to="/browse">{t("nav.browse")}</FooterLink>
+          <FooterLink icon={BookmarkIcon} to="/library">{t("nav.library")}</FooterLink>
         </FooterColumn>
 
         {/* Project */}
-        <FooterColumn title={t("footer.project")}>
-          <FooterLink to="/about">{t("footer.about")}</FooterLink>
-          <FooterLink to="/profile">{t("footer.profile")}</FooterLink>
-          <FooterLink to="/support">{t("footer.pro")}</FooterLink>
+        <FooterColumn icon={RocketIcon} title={t("footer.project")}>
+          <FooterLink icon={InfoIcon} to="/about">{t("footer.about")}</FooterLink>
+          <FooterLink icon={UserRoundIcon} to="/profile">{t("footer.profile")}</FooterLink>
+          <FooterLink icon={CrownIcon} to="/support">{t("footer.pro")}</FooterLink>
         </FooterColumn>
 
         {/* Legal — a real paragraph, always reads better at full width than
             squeezed into half a phone screen. */}
         <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-            {t("footer.legal")}
-          </h3>
+          <ColumnHeading icon={ScaleIcon}>{t("footer.legal")}</ColumnHeading>
           <p className="text-xs leading-relaxed text-muted-foreground/80">
             {t("footer.disclaimer")}
           </p>
@@ -128,31 +143,85 @@ export function SiteFooter() {
       <div className="border-t border-border/50">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-1 px-4 py-5 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between">
           <span>{t("footer.rights", { year })}</span>
-          <span>{t("footer.madeWith")}</span>
+          <span className="flex items-center justify-between gap-4 sm:justify-end">
+            {t("footer.madeWith")}
+            <BackToTop label={t("footer.toTop")} />
+          </span>
         </div>
       </div>
     </footer>
   );
 }
 
+function ColumnHeading({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+      <span className="grid size-6 place-items-center rounded-md border border-[var(--accent-line-soft)] bg-[var(--accent-surface-strong)] text-[var(--accent-ink)]">
+        <Icon className="size-3.5" />
+      </span>
+      {children}
+    </h3>
+  );
+}
+
 function FooterColumn({
+  icon,
   title,
   children,
 }: {
+  icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-        {title}
-      </h3>
+      <ColumnHeading icon={icon}>{title}</ColumnHeading>
       <nav className="flex flex-col gap-2 text-sm">{children}</nav>
     </div>
   );
 }
 
-function FooterLink({ to, children }: { to: string; children: React.ReactNode }) {
+/**
+ * Back to the top of the page. Only offered once there is a page's worth
+ * of scrolling behind the visitor — at the top of a short page it would be
+ * a button that does nothing. The arrow runs up on hover, the way it will
+ * travel.
+ */
+function BackToTop({ label }: { label: string }) {
+  const [far, setFar] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setFar(window.scrollY > window.innerHeight);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  if (!far) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label={label}
+          className="group grid size-8 shrink-0 animate-in place-items-center overflow-hidden rounded-lg border border-border/60 text-muted-foreground transition-all duration-200 fade-in-0 zoom-in-90 hover:border-primary/50 hover:text-primary active:scale-90"
+        >
+          <ArrowUpIcon className="size-4 transition-transform duration-300 group-hover:-translate-y-0.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function FooterLink({
+  icon: Icon,
+  to,
+  children,
+}: {
+  icon: LucideIcon;
+  to: string;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       to={to}
@@ -162,11 +231,8 @@ function FooterLink({ to, children }: { to: string; children: React.ReactNode })
       // harder than the navigation at the top of the page.
       className="group inline-flex w-fit items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
     >
-      <span
-        aria-hidden
-        className="h-px w-0 bg-primary/70 transition-all duration-300 group-hover:w-3"
-      />
-      {children}
+      <Icon className="size-3.5 shrink-0 text-muted-foreground/60 transition-all duration-300 group-hover:scale-110 group-hover:text-primary" />
+      <span className="transition-transform duration-300 group-hover:translate-x-0.5">{children}</span>
     </Link>
   );
 }

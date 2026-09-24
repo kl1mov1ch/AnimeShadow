@@ -6,18 +6,18 @@ import {
   SpotlightHero,
   SpotlightHeroSkeleton,
 } from "@/components/anime/spotlight-hero";
-import { GENRE_ART, HOME_GENRE_IDS } from "@/components/anime/genre-art";
 import { GenreCards } from "@/components/anime/genre-cards";
 import { HomeActions } from "@/components/anime/home-actions";
 import { PlansSection } from "@/components/anime/plans-section";
+import { AnimeCorner } from "@/components/home/anime-corner";
 import { ErrorState } from "@/components/common/states";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
+import { useHomeGenres } from "@/lib/home-genres";
 import {
   useContinueWatching,
   useDiscover,
-  useGenres,
   useHomeRecommendations,
 } from "@/lib/query";
 import { useDocumentHead } from "@/lib/seo";
@@ -30,14 +30,6 @@ import { useDocumentHead } from "@/lib/seo";
  * long-run community consensus. Nine sections total including the hero —
  * not ten near-identical carousels.
  */
-/**
- * How many genre tiles the front page leads with. Which genres those may be
- * is decided by the allow-list in `genre-art` — an allow-list rather than a
- * block-list, so the adult and fan-service shelves can never appear here by
- * growing large enough to outrank the everyday ones.
- */
-const HOME_GENRE_COUNT = 10;
-
 export function Component() {
   const t = useT();
   const labels = useLabels();
@@ -49,7 +41,7 @@ export function Component() {
   });
   const isAuthed = status === "authenticated";
   const { data, isPending, isError, refetch } = useDiscover();
-  const { data: genres } = useGenres();
+  const homeGenres = useHomeGenres();
   const { data: cont } = useContinueWatching(isAuthed);
   const { data: recs, isPending: recsPending } = useHomeRecommendations();
 
@@ -66,13 +58,6 @@ export function Component() {
   }
 
   const continueItems = (cont?.items ?? []).map((i) => i.anime);
-  // The biggest genres first, and only the everyday ones — the front page
-  // does not lead with the adult shelf.
-  const topGenres = (genres ?? [])
-    .filter((g) => HOME_GENRE_IDS.has(g.id) && GENRE_ART[g.id] != null)
-    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
-    .slice(0, HOME_GENRE_COUNT);
-
   // A face for each genre card, from lists this page already loaded.
   const posterPool = [
     ...(data?.trendingNow ?? []),
@@ -147,15 +132,17 @@ export function Component() {
 
       <GenreCards
         title={t("home.genresTitle")}
-        genres={topGenres}
+        genres={homeGenres.genres}
+        personal={homeGenres.personal}
         label={labels.genreLabel}
         topFor={topFor}
-        allLabel={t("home.allGenres")}
-        allNote={t("home.allGenresNote")}
         countLabel={(count) => t("home.genreCount", { count })}
-        openLabel={t("home.genreOpen")}
         previewLabel={t("home.genrePreview")}
       />
+
+      {/* Something to do rather than something to scroll past — built from
+          the titles this page already loaded. */}
+      <AnimeCorner pool={posterPool} />
 
 
       <AnimeRail
@@ -192,7 +179,7 @@ export function Component() {
         loading={isPending}
         href="/browse?orderBy=score"
       />
-      <PlansSection art={posterPool.slice(0, 3)} />
+      <PlansSection />
 
     </div>
   );
