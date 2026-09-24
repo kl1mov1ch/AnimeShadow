@@ -1,7 +1,5 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
   GaugeIcon,
   Loader2Icon,
   Maximize2Icon,
@@ -24,20 +22,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 } from "@/components/ui/dropdown-menu";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
-import { type EpisodeCatalog, episodesOf, useEpisodeCatalog } from "@/lib/episodes";
+import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -53,6 +49,7 @@ interface WatchSectionProps {
     | "airedFrom"
     | "episodes"
     | "duration"
+    | "screenshots"
     | "bannerImage"
     | "imageLargeUrl"
     | "imageUrl"
@@ -119,6 +116,32 @@ export function WatchSection({
   const canUseOwn = ownSources.length > 0;
   const [preferOwn, setPreferOwn] = useState(true);
 
+  // Where this viewer left off, applied once per visit — and only if they
+  // haven't picked an episode themselves in the meantime. It used to live
+  // inside Player, which remounts whenever the viewer is moved between our
+  // player and the provider's; every remount re-applied the saved episode
+  // and threw away whatever had just been clicked, and so did a progress
+  // request that simply answered after the click. A choice the viewer made
+  // always outranks one we remembered for them.
+  const { status: authStatus } = useAuth();
+  const { data: progress } = useAnimeProgress(anime.id, authStatus === "authenticated");
+  const chosenRef = useRef(false);
+  useEffect(() => {
+    chosenRef.current = false;
+  }, [anime.id]);
+  useEffect(() => {
+    if (chosenRef.current) return;
+    if (progress?.resumeEpisode != null) {
+      chosenRef.current = true;
+      onEpisodeChange(progress.resumeEpisode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress?.resumeEpisode]);
+  const chooseEpisode = (next: number) => {
+    chosenRef.current = true;
+    onEpisodeChange(next);
+  };
+
   // How many episodes actually exist to play — what the sources can serve,
   // not the planned total the catalogue stores for a show still airing.
   const catalog = useEpisodeCatalog(anime.id);
@@ -162,16 +185,21 @@ export function WatchSection({
   }
 
   if (isPending && active) {
-    return <Skeleton className="aspect-video w-full rounded-xl" />;
+    return <PlayerShell frames={[]} loading />;
   }
 
   if (data?.available && data.sources.length > 0) {
     if (!activated) {
       return (
-        <PlayerFacade
-          poster={imageSrc(anime.bannerImage ?? anime.imageLargeUrl ?? anime.imageUrl)}
+        <PlayerShell
+          frames={facadeFrames(anime, catalog, episode)}
           label={t("watch.loadPlayer")}
-          onActivate={() => {
+          catalog={catalog}
+          total={total}
+          episode={episode}
+          fallbackDuration={anime.duration}
+          onActivate={(picked) => {
+            if (picked != null) chooseEpisode(picked);
             setActivated(true);
             onActivate?.();
           }}
@@ -192,7 +220,7 @@ export function WatchSection({
         catalog={catalog}
         runtime={anime.duration}
         episode={episode}
-        onEpisodeChange={onEpisodeChange}
+        onEpisodeChange={chooseEpisode}
         useOwn={useOwn}
         canUseOwn={canUseOwn && ownHasEpisode}
         canUseProvider={providerSources.length > 0}
@@ -219,45 +247,215 @@ export function WatchSection({
 }
 
 /**
- * What sits in the player's slot until it is asked for: the title's own art
- * and one obvious button. Clicking mounts the real player, which then runs
- * its usual source race — nothing about playback changes, only when it
- * starts costing bandwidth.
+ * Frames to show before the player is running: this episode's own still
+ * first, then the show's screenshots, then the other episodes' stills.
+ * Frames, not the key visual — a poster in a 16:9 box is cropped to a
+ * strip of someone's face, where a frame is the right shape and is what
+ * the viewer is about to watch.
  */
-function PlayerFacade({
-  poster,
+function facadeFrames(
+  anime: WatchSectionProps["anime"],
+  catalog: EpisodeCatalog,
+  episode: number,
+): string[] {
+  const out: string[] = [];
+  const add = (url: string | null | undefined) => {
+    if (url && !out.includes(url)) out.push(url);
+  };
+  add(catalog.info.get(episode)?.thumb);
+  for (const shot of anime.screenshots ?? []) add(shot);
+  for (const [, info] of catalog.info) {
+    if (out.length >= 8) break;
+    add(info.thumb);
+  }
+  if (out.length === 0) add(anime.bannerImage);
+  return out.slice(0, 8);
+}
+
+/** How long each frame holds before the next one dissolves in. */
+const FACADE_FRAME_MS = 3_800;
+
+/**
+ * The player before it runs, in exactly the player's shape: the picture on
+ * the left at 16:9, the episode column on the right, a bar above both. So
+ * pressing play — or the sources arriving — changes what is inside the
+ * boxes and never the boxes themselves; nothing on the page jumps.
+ *
+ * While sources load it is a skeleton of that same layout. Once they are
+ * in, the frames dissolve one into the next, and the column lists the
+ * episodes: choosing one starts the player on it.
+ */
+function PlayerShell({
+  frames,
+  loading = false,
   label,
+  catalog,
+  total = 0,
+  episode = 1,
+  fallbackDuration = null,
   onActivate,
 }: {
-  poster: string | undefined;
-  label: string;
-  onActivate: () => void;
+  frames: string[];
+  loading?: boolean;
+  label?: string;
+  catalog?: EpisodeCatalog;
+  total?: number;
+  episode?: number;
+  fallbackDuration?: string | null;
+  onActivate?: (episode: number | null) => void;
 }) {
+  const t = useT();
+  const [index, setIndex] = useState(0);
+  const [broken, setBroken] = useState<Set<string>>(() => new Set());
+  const usable = frames.filter((f) => !broken.has(f));
+
+  useEffect(() => {
+    if (usable.length < 2) return;
+    const timer = setInterval(() => setIndex((i) => (i + 1) % usable.length), FACADE_FRAME_MS);
+    return () => clearInterval(timer);
+  }, [usable.length]);
+
   return (
-    <button
-      type="button"
-      onClick={onActivate}
-      className="group relative block aspect-video w-full overflow-hidden rounded-xl border bg-black"
-    >
-      {poster && (
-        <img
-          src={poster}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="absolute inset-0 size-full object-cover opacity-60 transition-opacity duration-300 group-hover:opacity-75"
-        />
-      )}
-      <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-      <span className="relative flex size-full flex-col items-center justify-center gap-3">
-        <span className="grid size-16 place-items-center rounded-full bg-[var(--accent-ink,var(--primary))] text-background shadow-2xl transition-transform duration-300 group-hover:scale-110">
-          <PlayIcon className="size-7 translate-x-[2px] fill-current" />
-        </span>
-        <span className="rounded-full bg-black/50 px-3 py-1 text-sm font-medium text-white backdrop-blur">
-          {label}
-        </span>
-      </span>
-    </button>
+    <div className="flex w-full min-w-0 flex-col gap-2.5">
+      {/* The bar's footprint, so the real one takes the same space. */}
+      <div className="h-11 rounded-xl border border-border/60 bg-card/60">
+        {loading && <div className="m-2 h-7 w-40 animate-pulse rounded-lg bg-primary/10" />}
+      </div>
+
+      <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-stretch">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => onActivate?.(null)}
+          aria-label={label}
+          className="group relative -mx-5 block aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl"
+        >
+          {usable.map((frame, i) => (
+            <img
+              key={frame}
+              src={imageSrc(frame)}
+              alt=""
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+              onError={() => setBroken((b) => new Set(b).add(frame))}
+              className={cn(
+                "absolute inset-0 size-full object-cover transition-opacity duration-1000",
+                i === index % Math.max(1, usable.length)
+                  ? "home-kenburns opacity-80 group-hover:opacity-95"
+                  : "opacity-0",
+              )}
+            />
+          ))}
+          {loading ? (
+            <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/25 via-primary/5 to-transparent" />
+          ) : (
+            <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-black/10" />
+          )}
+          <span className="relative flex size-full flex-col items-center justify-center gap-3">
+            {loading ? (
+              <>
+                <Loader2Icon className="size-8 animate-spin text-primary" />
+                <span className="text-xs font-medium text-white/80">{t("watch.findingSource")}</span>
+              </>
+            ) : (
+              <>
+                <span className="relative grid size-16 place-items-center">
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 animate-ping rounded-full bg-primary/30 [animation-duration:2.4s] motion-reduce:hidden"
+                  />
+                  <span className="btn-sheen relative grid size-16 place-items-center rounded-full border border-primary/50 bg-primary text-primary-foreground shadow-2xl shadow-primary/40 transition-transform duration-300 group-hover:scale-110">
+                    <PlayIcon className="size-7 translate-x-[2px] fill-current" />
+                  </span>
+                </span>
+                <span className="rounded-lg border border-primary/30 bg-black/55 px-3 py-1 text-sm font-medium text-white backdrop-blur">
+                  {label}
+                </span>
+              </>
+            )}
+          </span>
+          {usable.length > 1 && !loading && (
+            <span className="absolute inset-x-0 bottom-3 flex justify-center gap-1">
+              {usable.map((frame, i) => (
+                <span
+                  key={frame}
+                  className={cn(
+                    "h-1 rounded-full transition-all duration-500",
+                    i === index % usable.length ? "w-5 bg-primary" : "w-1.5 bg-white/40",
+                  )}
+                />
+              ))}
+            </span>
+          )}
+        </button>
+
+        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/40 lg:h-full lg:max-h-[34rem]">
+          <div className="flex shrink-0 gap-1 border-b border-border/60 p-1">
+            <span className="h-7 flex-1 rounded-lg bg-primary/15" />
+            <span className="h-7 flex-1 rounded-lg bg-primary/5" />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 [scrollbar-width:thin]">
+            {loading || !catalog || total <= 0
+              ? Array.from({ length: 7 }, (_, i) => (
+                  <span
+                    key={i}
+                    style={{ animationDelay: `${i * 80}ms` }}
+                    className="flex h-11 shrink-0 animate-pulse items-center gap-2 rounded-lg p-1"
+                  >
+                    <span className="aspect-video h-full rounded-md bg-primary/15" />
+                    <span className="flex flex-1 flex-col gap-1">
+                      <span className="h-2.5 w-3/4 rounded bg-primary/15" />
+                      <span className="h-2 w-1/3 rounded bg-primary/10" />
+                    </span>
+                  </span>
+                ))
+              : Array.from({ length: total }, (_, i) => i + 1).map((n) => {
+                  const info = catalog.info.get(n);
+                  const length =
+                    info?.durationSeconds != null
+                      ? formatClock(info.durationSeconds)
+                      : fallbackDuration;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => onActivate?.(n)}
+                      className={cn(
+                        "group/ep flex shrink-0 items-center gap-2 rounded-lg border p-1 pr-2 text-left transition-colors duration-200",
+                        n === episode
+                          ? "border-primary bg-primary/10"
+                          : "border-transparent hover:border-primary/40 hover:bg-secondary/40",
+                      )}
+                    >
+                      <span className="relative aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-secondary/60">
+                        {info?.thumb ? (
+                          <img
+                            src={imageSrc(info.thumb)}
+                            alt=""
+                            loading="lazy"
+                            className="size-full object-cover transition-transform duration-500 group-hover/ep:scale-110"
+                          />
+                        ) : (
+                          <span className="grid size-full place-items-center font-display text-xs text-muted-foreground">
+                            {n}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate text-xs font-medium leading-tight">
+                          {info?.title ? `${n}. ${info.title}` : t("detail.episodeNumber", { n })}
+                        </span>
+                        {length && (
+                          <span className="text-[10px] tabular-nums text-muted-foreground">{length}</span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -472,152 +670,8 @@ function Countdown({ target }: { target: Date }) {
 const STALL_MS = 6_000;
 /** Later batches get less patience — we're already in "keep hunting" mode. */
 const STALL_MS_RETRY = 4_000;
-const HOLD_REPEAT_DELAY_MS = 380;
-const HOLD_REPEAT_INTERVAL_MS = 90;
 
-/**
- * A button that fires `onClick` for a normal press (mouse click or keyboard
- * Enter/Space — both raise a native "click", so that's the single source of
- * truth for "short press"), but switches to firing `onRepeat` on an interval
- * once held past HOLD_REPEAT_DELAY_MS, for fast-scrolling through episodes.
- * The click that naturally follows releasing a hold is swallowed once so it
- * doesn't also count as a step.
- */
-function useHoldRepeat(onClick: () => void, onRepeat: () => void) {
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const heldRef = useRef(false);
 
-  const clear = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    timeoutRef.current = null;
-    intervalRef.current = null;
-  };
-  useEffect(() => clear, []);
-
-  return {
-    onPointerDown: () => {
-      timeoutRef.current = setTimeout(() => {
-        heldRef.current = true;
-        onRepeat();
-        intervalRef.current = setInterval(onRepeat, HOLD_REPEAT_INTERVAL_MS);
-      }, HOLD_REPEAT_DELAY_MS);
-    },
-    onPointerUp: clear,
-    onPointerLeave: clear,
-    onClick: () => {
-      clear();
-      if (heldRef.current) {
-        heldRef.current = false; // trailing click after a hold — already stepped, ignore
-        return;
-      }
-      onClick();
-    },
-  };
-}
-
-/**
- * Which episode you're on, editable directly — the embed can't tell us this,
- * so the viewer does. Arrows step by one on a normal click and fast-scroll on
- * hold; the number itself is a plain text field so you can jump straight to
- * wherever you actually left off instead of clicking through every episode.
- */
-function EpisodeStepper({
-  episode,
-  episodesTotal,
-  onSeek,
-  onAdvanceClick,
-  onRetreatClick,
-}: {
-  episode: number;
-  episodesTotal: number | null;
-  /** Pure reposition — hold-to-repeat and manual entry, no side effects. */
-  onSeek: (next: number) => void;
-  /** A single click on the arrows — may carry side effects (see Player). */
-  onAdvanceClick: () => void;
-  onRetreatClick: () => void;
-}) {
-  const t = useT();
-  const [draft, setDraft] = useState(String(episode));
-  const [editing, setEditing] = useState(false);
-  // The repeat interval's own callback is created once per hold and never
-  // re-reads props/state from a fresh render, so it needs a ref to see the
-  // current episode instead of a value closed over when the hold started.
-  const episodeRef = useRef(episode);
-  useEffect(() => {
-    episodeRef.current = episode;
-    if (!editing) setDraft(String(episode));
-  }, [episode, editing]);
-
-  const step = (dir: 1 | -1) => {
-    const next = episodeRef.current + dir;
-    if (next < 1) return;
-    if (episodesTotal != null && next > episodesTotal) return;
-    onSeek(next);
-  };
-
-  const commit = () => {
-    setEditing(false);
-    const parsed = Number.parseInt(draft, 10);
-    if (!Number.isFinite(parsed)) {
-      setDraft(String(episode));
-      return;
-    }
-    const clamped = Math.max(1, episodesTotal != null ? Math.min(episodesTotal, parsed) : parsed);
-    onSeek(clamped);
-  };
-
-  const prevHold = useHoldRepeat(onRetreatClick, () => step(-1));
-  const nextHold = useHoldRepeat(onAdvanceClick, () => step(1));
-
-  return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-border/60 bg-card/60 py-1 pl-1 pr-1.5">
-      <button
-        type="button"
-        {...prevHold}
-        disabled={episode <= 1}
-        aria-label={t("watch.prevEpisode")}
-        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-8"
-      >
-        <ChevronLeftIcon className="size-4 sm:size-3.5" />
-      </button>
-
-      <input
-        type="text"
-        inputMode="numeric"
-        value={editing ? draft : String(episode)}
-        aria-label={t("watch.episodeInputLabel")}
-        onFocus={() => setEditing(true)}
-        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        }}
-        className="w-7 shrink-0 rounded-md bg-primary/10 text-center text-sm font-semibold tabular-nums text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-6"
-      />
-      {episodesTotal != null && (
-        <span className="shrink-0 text-xs text-muted-foreground">/ {episodesTotal}</span>
-      )}
-
-      <button
-        type="button"
-        {...nextHold}
-        disabled={episodesTotal != null && episode >= episodesTotal}
-        aria-label={t("watch.nextEpisode")}
-        className="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:size-8"
-      >
-        <ChevronRightIcon className="size-4 sm:size-3.5" />
-      </button>
-
-      {/* A hover tooltip is a desktop affordance anyway — on a phone it's one
-          more tap target crowding the bar. */}
-      <span className="hidden sm:inline-flex">
-        <InfoTooltip>{t("watch.episodeHelpBody")}</InfoTooltip>
-      </span>
-    </div>
-  );
-}
 
 /** How many candidate embeds load in parallel before one is shown. */
 const RACE_SIZE = 2;
@@ -702,7 +756,29 @@ function sourceUrlFor(source: WatchSource, episode: number): string | null {
       null
     );
   }
-  return source.iframeEpisodes?.[String(episode)]?.url ?? source.embedUrl;
+  return withEmbedOptions(source.iframeEpisodes?.[String(episode)]?.url ?? source.embedUrl);
+}
+
+/**
+ * Kodik's own embed options that hide its season/episode and dub pickers.
+ *
+ * Episodes and dubs are chosen in our panel beside the player, so the same
+ * controls inside the frame are a second, disconnected way to do it — pick
+ * a dub in there and our panel no longer says what is playing. These are
+ * parameters Kodik documents for embedding sites; they change what its
+ * page shows and nothing else, and leave its player, its ads and its
+ * traffic exactly as they were.
+ */
+function withEmbedOptions(url: string): string {
+  try {
+    const parsed = new URL(url, window.location.href);
+    if (!/(^|\.)kodik/i.test(parsed.hostname)) return url;
+    parsed.searchParams.set("hide_selectors", "true");
+    parsed.searchParams.set("translations", "false");
+    return parsed.toString();
+  } catch {
+    return url;
+  }
 }
 
 /** How long the control bar stays up after the last interaction once
@@ -1521,15 +1597,6 @@ function Player({
     }
     return map;
   }, [progress]);
-  const resumeAppliedRef = useRef(false);
-  useEffect(() => {
-    if (resumeAppliedRef.current) return;
-    if (progress?.resumeEpisode != null) {
-      onEpisodeChange(progress.resumeEpisode);
-      resumeAppliedRef.current = true;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progress]);
 
   const episodeRecord = progress?.episodes.find((e) => e.episode === episode);
   // Recording "watched" needs real evidence, not just "this page was open":
@@ -1718,18 +1785,7 @@ function Player({
     setRacePool(initialRacePool(data.sources, favouriteDub));
   };
 
-  const goToEpisode = (next: number, markCurrentDone: boolean) => {
-    if (next < 1) return;
-    if (episodesTotal != null && next > episodesTotal) return;
-    if (markCurrentDone) {
-      update.mutate({
-        episode,
-        positionSeconds: episodeRecord?.positionSeconds ?? 0,
-        completed: true,
-      });
-    }
-    onEpisodeChange(next);
-  };
+
 
   return (
     <div
@@ -1749,15 +1805,6 @@ function Player({
           canUseProvider={canUseProvider}
           onChange={onUseOwnChange}
         />
-        {authed && (
-          <EpisodeStepper
-            episode={episode}
-            episodesTotal={episodesTotal}
-            onSeek={onEpisodeChange}
-            onAdvanceClick={() => goToEpisode(episode + 1, true)}
-            onRetreatClick={() => goToEpisode(episode - 1, false)}
-          />
-        )}
         {searching && (
           <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
             <Loader2Icon className="size-3 animate-spin" />

@@ -136,6 +136,7 @@ export function PlayerSidePanel({
       ) : (
         <DubList
           key="dubs"
+          canFavourite={canMark}
           sources={sources}
           currentSourceId={currentSourceId}
           favouriteDub={favouriteDub}
@@ -516,6 +517,7 @@ function InfoLine({
  * opens on a starred dub ahead of its own ranking.
  */
 function DubList({
+  canFavourite,
   sources,
   currentSourceId,
   favouriteDub,
@@ -523,6 +525,8 @@ function DubList({
   onToggleFavourite,
   sourceLabel,
 }: {
+  /** Favourites are remembered for an account — signed out, there is none. */
+  canFavourite: boolean;
   sources: WatchSource[];
   currentSourceId: string;
   favouriteDub: string | null;
@@ -576,6 +580,7 @@ function DubList({
               )}
             </button>
 
+            {canFavourite && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -600,6 +605,7 @@ function DubList({
                 {starred ? t("watch.dubFavouriteOn") : t("watch.dubFavourite")}
               </TooltipContent>
             </Tooltip>
+            )}
           </div>
         );
       })}

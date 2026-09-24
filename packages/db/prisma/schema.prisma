@@ -58,6 +58,7 @@ model User {
   /// The achievement each one needs is re-checked in profile.service.ts on
   /// every write, so a key here is never trusted on its own.
   avatarFrame           String?
+  guessScore            GuessScore?
   profileTitle          String?
   /// How many times UserGenrePreference has been written via
   /// RecommendationService.setPreferences — capped at GENRE_PREFERENCE_MAX_SETS
@@ -499,4 +500,20 @@ model GenreOnAnime {
 
   @@id([animeId, genreId])
   @@index([genreId])
+}
+
+/// "Guess the anime from a frame" on the front page — one row per player.
+/// `current` is the run in progress, kept server-side so a streak can only
+/// grow by answering rounds the server dealt; `best` is what the
+/// leaderboard ranks.
+model GuessScore {
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @id
+  best      Int      @default(0)
+  current   Int      @default(0)
+  played    Int      @default(0)
+  bestAt    DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([best])
 }

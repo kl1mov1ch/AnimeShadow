@@ -142,7 +142,7 @@ export function Component() {
 
       {/* Something to do rather than something to scroll past — built from
           the titles this page already loaded. */}
-      <AnimeCorner pool={posterPool} />
+      <AnimeCorner />
 
 
       <AnimeRail

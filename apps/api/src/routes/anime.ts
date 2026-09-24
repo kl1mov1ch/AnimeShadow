@@ -39,61 +39,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // One round of "guess the anime from a frame" for the front page.
-  //
-  // Drawn from well-known titles only — the ones with the most ratings —
-  // because a frame from something nobody has seen is not a question, it is
-  // a lottery. Only titles that actually have stored frames qualify, and the
-  // three wrong answers come from the same pool so none is an obvious
-  // throwaway. The frame is one of the answer's own screenshots, picked at
-  // random, so the same title does not always show the same shot.
-  fastify.get(
-    "/anime/guess",
-    { preHandler: fastify.optionalAuth },
-    async (request) => {
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      const pool = await fastify.prisma.anime.findMany({
-        where: {
-          AND: [
-            {
-              screenshots: { isEmpty: false },
-              score: { gte: 7 },
-              scoredBy: { gte: 20_000 },
-              imageUrl: { not: null },
-            },
-            contentGuardWhere(allowAdult),
-          ],
-        },
-        orderBy: { scoredBy: "desc" },
-        take: 400,
-        select: {
-          id: true,
-          slug: true,
-          title: true,
-          titleLocalized: true,
-          imageUrl: true,
-          screenshots: true,
-        },
-      });
-      if (pool.length < 4) throw new NotFoundError("Недостаточно тайтлов для игры.");
-
-      const shuffled = [...pool];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
-      }
-      const options = shuffled.slice(0, 4);
-      const answer = options[Math.floor(Math.random() * options.length)]!;
-      const frame = answer.screenshots[Math.floor(Math.random() * answer.screenshots.length)]!;
-
-      return {
-        frame,
-        answerId: answer.id,
-        options: options.map(({ screenshots: _shots, ...rest }) => rest),
-      };
-    },
-  );
-
   fastify.get(
     "/anime/:id",
     { preHandler: fastify.optionalAuth },
