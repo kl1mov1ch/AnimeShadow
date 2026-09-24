@@ -44,13 +44,22 @@ import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface WatchSectionProps {
   anime: Pick<
     AnimeDetail,
-    // The image fields are for the facade shown before the player loads.
-    "id" | "airing" | "airedFrom" | "episodes" | "bannerImage" | "imageLargeUrl" | "imageUrl"
+    // The image fields are for the facade shown before the player loads;
+    // `duration` is what lets an episode tick itself off as watched.
+    | "id"
+    | "airing"
+    | "airedFrom"
+    | "episodes"
+    | "duration"
+    | "bannerImage"
+    | "imageLargeUrl"
+    | "imageUrl"
   >;
   title: string;
   active: boolean;
@@ -95,23 +104,34 @@ export function WatchSection({
 
   const { data: rawData, isPending } = useWatchSources(anime.id, active && !notYetOut);
 
-  // One decision, made for the viewer rather than by them.
+  // Two players, and the viewer can always see which one they are on.
   //
   // Our own player (`CustomHlsPlayer`) needs a direct stream, which only a
-  // source of format "hls" has — in practice an AniLibria release. When one
-  // exists it wins outright: it is the player that looks like the rest of
-  // the site, remembers where you stopped and rolls into the next episode.
-  // Everything else is the provider's own page inside an iframe, with its
-  // interface in it, and that is what a title without a direct stream gets.
+  // source of format "hls" has — in practice an AniLibria release. The
+  // rest is the provider's own page inside an iframe, with its interface
+  // in it. They can't share one race: a race shows whichever answered
+  // first, which would make "whose player am I looking at" a coin toss.
+  // So the sources are split and only one side is ever handed to `Player`.
   //
-  // The two can't share one race — a race shows whichever answered first,
-  // which would make "whose player am I looking at" a coin toss — so the
-  // sources are split and only one side is ever handed to `Player`. There
-  // is no control for this: with a direct stream ours is simply better, and
-  // without one there is nothing to offer.
+  // Ours is preselected wherever it can play at all, and the switch stays
+  // on screen either way — including on the titles where our side is
+  // empty, where it shows as unavailable with the reason rather than
+  // vanishing. A control that appears on some titles and not others is
+  // harder to trust than one that is always there and sometimes greyed.
   const ownSources = rawData?.sources.filter((s) => s.format === "hls") ?? [];
   const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
-  const useOwn = ownSources.length > 0;
+  const canUseOwn = ownSources.length > 0;
+  const [preferOwn, setPreferOwn] = useState(true);
+  const useOwn = canUseOwn && preferOwn;
+
+  // A direct stream can be reachable from our server and not from the
+  // viewer — AniLibria's CDN is blocked or throttled in some countries, and
+  // what that looks like here is a request that never answers rather than
+  // one that fails. Falling back to the provider when our side gives up is
+  // the difference between "this title doesn't play" and a two-second
+  // hiccup nobody notices. Their own click always wins afterwards: this
+  // only fires while the preference is still the one we chose for them.
+  const handleOwnFailed = () => setPreferOwn(false);
   const data = rawData
     ? { ...rawData, sources: useOwn ? ownSources : providerSources }
     : rawData;
@@ -152,8 +172,16 @@ export function WatchSection({
         title={title}
         animeId={anime.id}
         episodesTotal={anime.episodes}
+        runtime={anime.duration}
         episode={episode}
         onEpisodeChange={onEpisodeChange}
+        useOwn={useOwn}
+        canUseOwn={canUseOwn}
+        canUseProvider={providerSources.length > 0}
+        onUseOwnChange={setPreferOwn}
+        onAllFailed={
+          useOwn && providerSources.length > 0 ? handleOwnFailed : undefined
+        }
       />
     );
   }
@@ -254,27 +282,67 @@ function usePreconnect(sources: WatchSource[] | undefined): void {
 }
 
 /**
- * Records roughly where a signed-in user left off on one episode — the
- * embed is a third-party iframe we can't read a real seek position from, so
+ * Minutes of runtime out of the string the catalogue stores ("24 мин.").
+ *
+ * It is a per-title average, not this episode's real length, so everything
+ * built on it has to be a threshold rather than a measurement.
+ */
+function runtimeMinutes(duration: string | null): number | null {
+  if (!duration) return null;
+  const match = /\d+/.exec(duration);
+  const minutes = match ? Number(match[0]) : Number.NaN;
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
+/**
+ * How much of an episode counts as having watched it. Short of the end on
+ * purpose: credits, and the fact that the runtime here is a title-wide
+ * average that individual episodes miss in both directions.
+ */
+const COMPLETE_AT = 0.8;
+
+/**
+ * Records roughly where a signed-in user left off on one episode — a
+ * third-party embed is a page we can't read a seek position out of, so
  * this measures elapsed time the player was open on this episode instead,
  * added onto whatever was already stored for it. Flushes on visibility
  * hide, unmount and episode change, same triggers as useWatchSession.
+ *
+ * Once that total passes most of the title's runtime the episode marks
+ * itself watched, which is the whole point of measuring: with an embed
+ * nothing else will ever say "this one is finished", and ticking every
+ * episode by hand is the kind of bookkeeping people simply stop doing.
+ * Deliberately generous in one direction only — it can miss an episode
+ * someone watched elsewhere, and it will not claim one they left running
+ * for two minutes.
  */
 function useEpisodeTracking({
   animeId,
   episode,
   seedPosition,
   active,
+  runtime,
+  alreadyDone,
 }: {
   animeId: number;
   episode: number;
   seedPosition: number;
   active: boolean;
+  /** The title's runtime string, for the "finished" threshold. */
+  runtime: string | null;
+  /** Already ticked — nothing here should re-send that. */
+  alreadyDone: boolean;
 }): void {
   const { status } = useAuth();
   const authed = status === "authenticated";
   const update = useUpdateProgress(animeId);
   const baseRef = useRef(seedPosition);
+  // Survives the flush closure, so an episode is only ever announced
+  // finished once per visit to it.
+  const doneRef = useRef(alreadyDone);
+  useEffect(() => {
+    doneRef.current = alreadyDone;
+  }, [episode, alreadyDone]);
 
   useEffect(() => {
     baseRef.current = seedPosition;
@@ -284,13 +352,32 @@ function useEpisodeTracking({
     if (!authed || !active) return;
     let start = Date.now();
 
+    const minutes = runtimeMinutes(runtime);
+    const completeAfter = minutes != null ? minutes * 60 * COMPLETE_AT : null;
+
     const flush = () => {
       const elapsed = Math.round((Date.now() - start) / 1000);
       start = Date.now(); // reset so a resume doesn't double-count
       if (elapsed < 15) return;
       baseRef.current += elapsed;
-      update.mutate({ episode, positionSeconds: baseRef.current });
+      const finished =
+        !doneRef.current &&
+        completeAfter != null &&
+        baseRef.current >= completeAfter;
+      if (finished) doneRef.current = true;
+      update.mutate({
+        episode,
+        positionSeconds: baseRef.current,
+        ...(finished ? { completed: true } : {}),
+      });
     };
+
+    // Without waiting for a flush trigger: someone who watches an episode
+    // straight through and then closes the tab should already be ticked by
+    // the time they do, not ticked by the unload handler racing the close.
+    const tick = completeAfter != null && !doneRef.current
+      ? setInterval(flush, 60_000)
+      : null;
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
@@ -302,11 +389,12 @@ function useEpisodeTracking({
 
     return () => {
       flush();
+      if (tick != null) clearInterval(tick);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", flush);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed, active, animeId, episode]);
+  }, [authed, active, animeId, episode, runtime]);
 }
 
 /* ---------- countdown ---------- */
@@ -1290,15 +1378,31 @@ function Player({
   title,
   animeId,
   episodesTotal,
+  runtime,
   episode,
   onEpisodeChange,
+  useOwn,
+  canUseOwn,
+  canUseProvider,
+  onUseOwnChange,
+  onAllFailed,
 }: {
   data: WatchResponse;
   title: string;
   animeId: number;
   episodesTotal: number | null;
+  /** The title's runtime string, so an episode can tick itself off. */
+  runtime: string | null;
   episode: number;
   onEpisodeChange: (episode: number) => void;
+  /** Which of the two players is on screen — see WatchSection for the split. */
+  useOwn: boolean;
+  /** Is there a direct stream at all? Without one our side has nothing to play. */
+  canUseOwn: boolean;
+  canUseProvider: boolean;
+  onUseOwnChange: (useOwn: boolean) => void;
+  /** Every source on this side is dead — the other side is worth a try. */
+  onAllFailed?: (() => void) | undefined;
 }) {
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead). Rather
@@ -1392,6 +1496,8 @@ function Player({
     episode,
     seedPosition: episodeRecord?.positionSeconds ?? 0,
     active: watching,
+    runtime,
+    alreadyDone: episodeRecord?.completed ?? false,
   });
   useWatchSession({ animeId, episode, active: watching });
   const update = useUpdateProgress(animeId);
@@ -1439,6 +1545,18 @@ function Player({
   const handleEnded = () => {
     if (autoNext && nextEpisode != null) onEpisodeChange(nextEpisode);
   };
+
+  // `exhausted` means the race tried everything it had and nothing
+  // answered. Reported once per mount, which is enough: the parent
+  // responds by handing us a different set of sources, which remounts us.
+  const reportedFailureRef = useRef(false);
+  useEffect(() => {
+    if (winnerId != null || racePool.length > 0) return;
+    if (reportedFailureRef.current) return;
+    reportedFailureRef.current = true;
+    onAllFailed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winnerId, racePool.length]);
 
   // Everything this component has left to compute needs a source in the
   // picture, so the bail-out comes after the last hook, not before it —
@@ -1565,6 +1683,12 @@ function Player({
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm">
+        <PlayerSwitch
+          useOwn={useOwn}
+          canUseOwn={canUseOwn}
+          canUseProvider={canUseProvider}
+          onChange={onUseOwnChange}
+        />
         {authed && (
           <EpisodeStepper
             episode={episode}
@@ -1845,6 +1969,96 @@ function readAutoNext(): boolean {
  * player and its own everything. That is a real difference to a viewer
  * choosing between two dubs, and it used to be invisible.
  */
+/**
+ * Ours or theirs, as one segmented control above the picture.
+ *
+ * Deliberately not a dropdown: there are exactly two, the difference is
+ * something a viewer feels immediately (our interface versus the
+ * provider's), and switching back after trying one should cost a single
+ * click in a place the eye already is.
+ *
+ * A side with nothing to play stays visible and goes unavailable, with the
+ * reason on hover, rather than disappearing — otherwise the bar would
+ * change shape from title to title and the control would be something you
+ * have to go looking for.
+ */
+function PlayerSwitch({
+  useOwn,
+  canUseOwn,
+  canUseProvider,
+  onChange,
+}: {
+  useOwn: boolean;
+  canUseOwn: boolean;
+  canUseProvider: boolean;
+  onChange: (useOwn: boolean) => void;
+}) {
+  const t = useT();
+  const options = [
+    {
+      own: true,
+      label: t("watch.playerOwn"),
+      enabled: canUseOwn,
+      why: t("watch.playerOwnUnavailable"),
+    },
+    {
+      own: false,
+      label: t("watch.playerProvider"),
+      enabled: canUseProvider,
+      why: t("watch.playerProviderUnavailable"),
+    },
+  ];
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
+      {options.map((option) => {
+        const active = useOwn === option.own;
+        return (
+          <Tooltip key={String(option.own)}>
+            <TooltipTrigger asChild>
+              {/* The disabled half still has to answer a hover, and a
+                  disabled button doesn't fire pointer events — so the
+                  wrapper carries the tooltip and the button inside it goes
+                  inert instead. */}
+              <span className={cn(!option.enabled && "cursor-not-allowed")}>
+                <button
+                  type="button"
+                  onClick={() => option.enabled && onChange(option.own)}
+                  aria-pressed={active}
+                  aria-disabled={!option.enabled}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all duration-200",
+                    !option.enabled
+                      ? "pointer-events-none opacity-40"
+                      : active
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground active:scale-95",
+                  )}
+                >
+                  {option.own && (
+                    <SparklesIcon
+                      className={cn(
+                        "size-3 transition-transform duration-300",
+                        active && "morph-pop",
+                      )}
+                    />
+                  )}
+                  {option.label}
+                  {active && option.enabled && (
+                    <DrawnCheck key={String(useOwn)} className="size-3" />
+                  )}
+                </button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {option.enabled ? t(`watch.${option.own ? "playerOwnHint" : "playerProviderHint"}`) : option.why}
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
 function OwnPlayerMark() {
   const t = useT();
   return (

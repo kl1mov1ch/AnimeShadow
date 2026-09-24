@@ -1,3 +1,4 @@
+import { ZapIcon } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Link } from "react-router-dom";
@@ -9,11 +10,36 @@ const SOCIALS: Array<{
   label: string;
   href: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** The colour this one lights up in on hover. */
+  glow: string;
 }> = [
-  { label: "Telegram", href: "https://t.me/animeshadow", Icon: TelegramIcon },
-  { label: "Discord", href: "https://discord.gg/animeshadow", Icon: DiscordIcon },
-  { label: "VK", href: "https://vk.com/animeshadow", Icon: VkIcon },
-  { label: "GitHub", href: "https://github.com/animeshadow", Icon: GithubIcon },
+  {
+    label: "Telegram",
+    href: "https://t.me/animeshadow",
+    Icon: TelegramIcon,
+    glow: "#26A5E4",
+  },
+  {
+    label: "Discord",
+    href: "https://discord.gg/animeshadow",
+    Icon: DiscordIcon,
+    glow: "#5865F2",
+  },
+  // Where support for the project goes. A plain bolt rather than their
+  // wordmark: a generic glyph beside the name says the same thing without
+  // putting someone else's brand in our footer.
+  {
+    label: "Boosty",
+    href: "https://boosty.to/animeshadow",
+    Icon: ZapIcon,
+    glow: "#F15F2C",
+  },
+  {
+    label: "GitHub",
+    href: "https://github.com/animeshadow",
+    Icon: GithubIcon,
+    glow: "#8B949E",
+  },
 ];
 
 export function SiteFooter() {
@@ -44,25 +70,30 @@ export function SiteFooter() {
           </p>
 
           <div className="mt-1 flex items-center gap-2">
-            {SOCIALS.map(({ label, href, Icon }) => (
+            {SOCIALS.map(({ label, href, Icon, glow }) => (
               <a
                 key={label}
                 href={href}
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={label}
+                title={label}
+                // Each one lights up in its own colour on hover rather than
+                // all four turning the same accent: the glow is how you tell
+                // them apart at a glance, since the glyphs are small and the
+                // row is otherwise four identical squares. Telegram keeps
+                // its permanent fill — it is the actual community home, so
+                // it leads even before anyone reaches for it.
+                style={{ "--glow": glow } as React.CSSProperties}
                 className={cn(
-                  "flex size-9 items-center justify-center rounded-lg border transition-colors",
-                  // Telegram is the actual community home for this
-                  // audience — worth its own brand colour instead of
-                  // reading as one interchangeable grey circle among four.
-                  // Discord/VK/GitHub stay quiet on purpose.
+                  "group relative flex size-9 items-center justify-center rounded-lg border transition-all duration-300",
+                  "hover:-translate-y-0.5 hover:border-[var(--glow)] hover:text-[var(--glow)] hover:shadow-[0_0_18px_-2px_var(--glow)]",
                   label === "Telegram"
-                    ? "border-transparent bg-[#26A5E4] text-white shadow-sm shadow-[#26A5E4]/30 hover:brightness-110"
-                    : "border-border/60 text-muted-foreground hover:border-primary/50 hover:text-primary",
+                    ? "border-transparent bg-[#26A5E4] text-white shadow-sm shadow-[#26A5E4]/30 hover:text-white hover:brightness-110"
+                    : "border-border/60 text-muted-foreground",
                 )}
               >
-                <Icon className="size-4" />
+                <Icon className="size-4 transition-transform duration-300 group-hover:scale-110" />
               </a>
             ))}
           </div>
@@ -154,14 +185,6 @@ function DiscordIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
       <path d="M19.3 5.34A17 17 0 0 0 15 4l-.2.42a13 13 0 0 1 3.7 1.9 15.6 15.6 0 0 0-12.98 0A13 13 0 0 1 9.2 4.42L9 4a17 17 0 0 0-4.3 1.34C2 9.4 1.24 13.35 1.6 17.24a17.2 17.2 0 0 0 5.24 2.66l.66-1.6a11 11 0 0 1-2.03-.98l.5-.37a12.3 12.3 0 0 0 10.55 0l.5.37c-.64.38-1.32.71-2.03.98l.66 1.6a17.2 17.2 0 0 0 5.24-2.66c.42-4.4-.72-8.32-3.7-11.9ZM8.5 14.9c-1 0-1.83-.94-1.83-2.1 0-1.14.8-2.08 1.83-2.08s1.85.95 1.83 2.09c0 1.15-.8 2.09-1.83 2.09Zm7 0c-1 0-1.83-.94-1.83-2.1 0-1.14.8-2.08 1.83-2.08s1.85.95 1.83 2.09c0 1.15-.8 2.09-1.83 2.09Z" />
-    </svg>
-  );
-}
-
-function VkIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
-      <path d="M13.1 17.2c-5.4 0-8.9-3.8-9-10.1h2.8c.1 4.7 2.3 6.7 4 7.1V7.1h2.6v3.9c1.7-.2 3.4-2 4-3.9h2.6a7.6 7.6 0 0 1-3.5 4.9c1.8.8 3 2.4 3.8 4.9h-2.9c-.5-1.7-1.6-3-3.6-3.3v3.3h-.3Z" />
     </svg>
   );
 }

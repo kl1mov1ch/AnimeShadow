@@ -322,9 +322,7 @@ function AnimeDetailView({ param }: { param: string }) {
 
       <AboutBlock anime={data} oneLiner={oneLiner} />
 
-      <Panel title={t("detail.sections.characters")}>
-        <CharactersBlock animeId={data.id} />
-      </Panel>
+      <CharactersPanel animeId={data.id} />
 
       <FranchisePanel anime={data} />
 
@@ -783,6 +781,28 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
 // stretched wide by too few items.
 const CHARACTERS_COLLAPSED = 12;
 const CHARACTERS_GRID = "grid grid-cols-6 gap-x-2 gap-y-4 lg:grid-cols-12";
+
+/**
+ * The heading belongs to the content, not to the slot.
+ *
+ * `CharactersBlock` already bows out when a title has no usable character
+ * art — but it was doing that *inside* a `Panel`, which left the bordered
+ * surface and its "Персонажи" heading sitting on the page with nothing
+ * under them. Deciding one level up means the whole section leaves
+ * together. The extra `useCharacters` costs nothing: react-query serves
+ * both callers from the same cache entry.
+ */
+function CharactersPanel({ animeId }: { animeId: number }) {
+  const t = useT();
+  const { data, isPending } = useCharacters(animeId);
+  const hasArt = (data ?? []).some((c) => c.imageUrl != null);
+  if (!isPending && !hasArt) return null;
+  return (
+    <Panel title={t("detail.sections.characters")}>
+      <CharactersBlock animeId={animeId} />
+    </Panel>
+  );
+}
 
 function CharactersBlock({ animeId }: { animeId: number }) {
   const t = useT();

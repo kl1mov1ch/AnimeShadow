@@ -150,6 +150,15 @@ export class ProfileService {
       }
     }
 
+    // The bio is the one free-text field every account can write and every
+    // visitor to that profile can read, so it gets the same filter as the
+    // PRO-only signature above — that one was checked and this one wasn't,
+    // which had it backwards: this is the field with the larger audience
+    // and no subscription standing behind it.
+    if (input.bio && isProfane(input.bio)) {
+      throw new BadRequestError("Недопустимый текст в описании профиля.");
+    }
+
     let birthDate: Date | undefined;
     if (input.birthDate !== undefined) {
       const existing = await this.prisma.user.findUniqueOrThrow({
