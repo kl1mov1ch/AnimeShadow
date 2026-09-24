@@ -1126,3 +1126,99 @@ html.light .home-theme {
     display: none;
   }
 }
+
+/*
+  Morphing icons.
+
+  A button that changes what it means should change its icon, and the two
+  states should be visibly the *same* icon turning into the other one
+  rather than one blinking out and another blinking in. Both glyphs sit in
+  the same grid cell; the outgoing one shrinks and twists away while the
+  incoming one unwinds into place, so the eye follows a single object.
+
+  The mark that lands (a tick, a cross) then draws its own stroke, which is
+  what makes a confirmation feel like it happened rather than appeared.
+*/
+.morph-layer {
+  grid-area: 1 / 1;
+  transition:
+    opacity 0.22s ease-out,
+    rotate 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.morph-in {
+  opacity: 1;
+  rotate: 0deg;
+  scale: 1;
+}
+
+/* Out to the left or the right depending on which way the swap goes, so
+   the pair reads as one rotation rather than two unrelated fades. */
+.morph-out-ccw {
+  opacity: 0;
+  rotate: -90deg;
+  scale: 0.4;
+}
+
+.morph-out-cw {
+  opacity: 0;
+  rotate: 90deg;
+  scale: 0.4;
+}
+
+.morph-draw path,
+.morph-draw polyline,
+.morph-draw line {
+  stroke-dasharray: var(--draw-len, 32);
+  stroke-dashoffset: var(--draw-len, 32);
+  animation: morph-draw 0.42s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+/* A cross is two strokes, and drawing them together looks like a scribble;
+   the second waits for the first. */
+.morph-draw line:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+@keyframes morph-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The moment a choice lands: one quiet pulse out from the button. */
+.morph-pop {
+  animation: morph-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes morph-pop {
+  0% {
+    scale: 1;
+  }
+  38% {
+    scale: 1.18;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .morph-layer {
+    transition: opacity 0.12s linear;
+    rotate: 0deg;
+    scale: 1;
+  }
+
+  .morph-draw path,
+  .morph-draw polyline,
+  .morph-draw line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .morph-pop {
+    animation: none;
+  }
+}

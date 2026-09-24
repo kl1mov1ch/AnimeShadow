@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
+import { DrawnCheck } from "@/components/ui/morph-icon";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { STATUSES, STATUS_META } from "./library-meta";
@@ -190,11 +191,21 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
             >
               <Icon
                 className={cn(
-                  "size-4 shrink-0 transition-transform group-hover:scale-110",
-                  active ? "animate-in zoom-in-50" : text,
+                  "size-4 shrink-0 transition-transform duration-300 group-hover:scale-110",
+                  // Picking a status is a commitment, so the icon lands with
+                  // a pop rather than simply being the icon that is there.
+                  active ? "morph-pop" : text,
                 )}
               />
-              {active && <span>{t(`status.${s}`)}</span>}
+              {active && (
+                <>
+                  <span>{t(`status.${s}`)}</span>
+                  {/* Re-keyed on the status so the stroke redraws every time
+                      the choice changes — it is the answer to the click, not
+                      a badge that happens to be present. */}
+                  <DrawnCheck key={s} className="size-3.5 shrink-0" />
+                </>
+              )}
             </button>
           );
         })}

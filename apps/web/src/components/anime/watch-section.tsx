@@ -14,6 +14,7 @@ import {
   RotateCwIcon,
   ShuffleIcon,
   SkipForwardIcon,
+  CheckIcon,
   SparklesIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -42,6 +43,7 @@ import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
+import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { cn } from "@/lib/utils";
 
 interface WatchSectionProps {
@@ -93,24 +95,23 @@ export function WatchSection({
 
   const { data: rawData, isPending } = useWatchSources(anime.id, active && !notYetOut);
 
-  // Two players, and the viewer picks. Our own one (`CustomHlsPlayer`)
-  // needs a direct stream, which only a source of format "hls" has;
-  // everything else is the provider's own page in an iframe, with its
-  // interface inside it. They can't be mixed into one race — a race picks
-  // whatever answers first, which is exactly the decision being handed back
-  // to the viewer here — so the sources are split and only one side is
-  // handed to `Player` at a time.
+  // One decision, made for the viewer rather than by them.
   //
-  // Our own player leads when it's available at all, because it's the one
-  // that looks like the rest of the site, remembers the position and rolls
-  // into the next episode. When there's no direct stream (most titles —
-  // only AniLibria releases carry one) there is nothing to switch between,
-  // and the switch doesn't appear.
+  // Our own player (`CustomHlsPlayer`) needs a direct stream, which only a
+  // source of format "hls" has — in practice an AniLibria release. When one
+  // exists it wins outright: it is the player that looks like the rest of
+  // the site, remembers where you stopped and rolls into the next episode.
+  // Everything else is the provider's own page inside an iframe, with its
+  // interface in it, and that is what a title without a direct stream gets.
+  //
+  // The two can't share one race — a race shows whichever answered first,
+  // which would make "whose player am I looking at" a coin toss — so the
+  // sources are split and only one side is ever handed to `Player`. There
+  // is no control for this: with a direct stream ours is simply better, and
+  // without one there is nothing to offer.
   const ownSources = rawData?.sources.filter((s) => s.format === "hls") ?? [];
   const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
-  const canUseOwn = ownSources.length > 0;
-  const [preferOwn, setPreferOwn] = useState(true);
-  const useOwn = canUseOwn && preferOwn;
+  const useOwn = ownSources.length > 0;
   const data = rawData
     ? { ...rawData, sources: useOwn ? ownSources : providerSources }
     : rawData;
@@ -153,10 +154,6 @@ export function WatchSection({
         episodesTotal={anime.episodes}
         episode={episode}
         onEpisodeChange={onEpisodeChange}
-        useOwn={useOwn}
-        canUseOwn={canUseOwn}
-        hasProvider={providerSources.length > 0}
-        onUseOwnChange={setPreferOwn}
       />
     );
   }
@@ -602,6 +599,15 @@ function sourceUrlFor(source: WatchSource, episode: number): string | null {
 const RESUME_MIN_SECONDS = 30;
 /** And this close to the end, the viewer wants the next episode, not a seek. */
 const RESUME_TAIL_SECONDS = 60;
+
+/**
+ * Every square button in the control bar. Hover picks up the site accent
+ * rather than a neutral wash: over a video, colour is the only thing that
+ * says this player belongs to AnimeShadow and not to whoever hosts the
+ * stream. `group` is here so an icon inside can react to the hover too.
+ */
+const CONTROL_BUTTON =
+  "group flex size-8 items-center justify-center rounded-lg text-white/90 transition-all duration-200 hover:bg-primary/25 hover:text-white active:scale-90";
 
 const CONTROLS_HIDE_MS = 2600;
 const SKIP_SECONDS = 10;
@@ -1067,23 +1073,41 @@ function CustomHlsPlayer({
               type="button"
               onClick={togglePlay}
               aria-label={t("watch.play")}
-              className="absolute inset-0 flex items-center justify-center"
+              className="group/play absolute inset-0 flex items-center justify-center"
             >
-              <span className="flex size-16 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur transition-transform hover:scale-105">
-                <PlayIcon className="size-7 fill-current" />
+              {/* The site accent, not a grey disc: this is the one moment
+                  the player is the whole screen, so it may as well look
+                  like the rest of AnimeShadow. The ring behind it breathes,
+                  so the button reads as waiting rather than parked. */}
+              <span className="relative flex size-16 items-center justify-center">
+                <span
+                  aria-hidden
+                  className="absolute inset-0 animate-ping rounded-full bg-primary/25 [animation-duration:2.6s] motion-reduce:hidden"
+                />
+                <span className="btn-sheen relative flex size-16 items-center justify-center rounded-full border border-primary/50 bg-primary/90 text-primary-foreground shadow-lg shadow-primary/30 backdrop-blur transition-transform duration-300 group-hover/play:scale-105 group-active/play:scale-95">
+                  <PlayIcon className="size-7 translate-x-0.5 fill-current" />
+                </span>
               </span>
             </button>
           )}
 
           <div
             className={cn(
-              "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3 pb-2 pt-8 transition-opacity duration-300",
-              controlsVisible ? "opacity-100" : "pointer-events-none opacity-0",
+              // Slides down with the fade rather than only fading: the bar
+              // belongs to the bottom edge, so leaving is a movement toward
+              // it, the way every other panel on the site leaves.
+              "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3 pb-2 pt-10 backdrop-blur-[2px] transition-all duration-300 ease-out",
+              controlsVisible
+                ? "translate-y-0 opacity-100"
+                : "pointer-events-none translate-y-2 opacity-0",
             )}
           >
             <div className="group relative flex h-4 items-center">
-              <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/20">
-                <div className="h-full bg-white/35" style={{ width: `${bufferedPct}%` }} />
+              <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full bg-white/35 transition-[width] duration-500 ease-out"
+                  style={{ width: `${bufferedPct}%` }}
+                />
               </div>
               <Slider
                 value={[shownTime]}
@@ -1097,7 +1121,10 @@ function CustomHlsPlayer({
                   setScrubTime(null);
                   wake();
                 }}
-                className="relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-range]]:bg-primary group-hover:[&_[data-slot=slider-thumb]]:opacity-100"
+                // The track thickens under the pointer: the one place an
+                // extra pixel of height earns itself, since this is the
+                // control people actually aim at.
+                className="relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:shadow-primary/40 [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all [&_[data-slot=slider-range]]:bg-primary group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5"
               />
             </div>
 
@@ -1106,29 +1133,30 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={togglePlay}
                 aria-label={playing ? t("watch.pause") : t("watch.play")}
-                className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
+                className={CONTROL_BUTTON}
               >
-                {playing ? (
-                  <PauseIcon className="size-4 fill-current" />
-                ) : (
-                  <PlayIcon className="size-4 fill-current" />
-                )}
+                <MorphIcon
+                  on={playing}
+                  off={PlayIcon}
+                  onIcon={PauseIcon}
+                  className="size-4 fill-current"
+                />
               </button>
               <button
                 type="button"
                 onClick={() => skip(-SKIP_SECONDS)}
                 aria-label={t("watch.skipBack")}
-                className="hidden size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:flex"
+                className={cn(CONTROL_BUTTON, "hidden sm:flex")}
               >
-                <RotateCcwIcon className="size-4" />
+                <RotateCcwIcon className="size-4 transition-transform duration-300 group-hover:-rotate-45" />
               </button>
               <button
                 type="button"
                 onClick={() => skip(SKIP_SECONDS)}
                 aria-label={t("watch.skipForward")}
-                className="hidden size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:flex"
+                className={cn(CONTROL_BUTTON, "hidden sm:flex")}
               >
-                <RotateCwIcon className="size-4" />
+                <RotateCwIcon className="size-4 transition-transform duration-300 group-hover:rotate-45" />
               </button>
 
               {/* Volume — a hover-reveal slider where hover exists at all; a
@@ -1139,13 +1167,15 @@ function CustomHlsPlayer({
                   type="button"
                   onClick={toggleMute}
                   aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                  className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
+                  className={CONTROL_BUTTON}
                 >
-                  {muted || volume === 0 ? (
-                    <VolumeXIcon className="size-4" />
-                  ) : (
-                    <Volume2Icon className="size-4" />
-                  )}
+                  <MorphIcon
+                    on={muted || volume === 0}
+                    off={Volume2Icon}
+                    onIcon={VolumeXIcon}
+                    className="size-4"
+                    spin="ccw"
+                  />
                 </button>
                 <div className="w-0 overflow-hidden transition-all group-hover:w-16 group-focus-within:w-16">
                   <Slider
@@ -1162,17 +1192,20 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={toggleMute}
                 aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:hidden"
+                className={cn(CONTROL_BUTTON, "sm:hidden")}
               >
-                {muted || volume === 0 ? (
-                  <VolumeXIcon className="size-4" />
-                ) : (
-                  <Volume2Icon className="size-4" />
-                )}
+                <MorphIcon
+                  on={muted || volume === 0}
+                  off={Volume2Icon}
+                  onIcon={VolumeXIcon}
+                  className="size-4"
+                  spin="ccw"
+                />
               </button>
 
-              <span className="ml-1 shrink-0 text-xs tabular-nums text-white/80">
-                {formatTime(shownTime)} / {formatTime(duration)}
+              <span className="ml-1 shrink-0 font-display text-[11px] tabular-nums text-white/85">
+                {formatTime(shownTime)}
+                <span className="text-white/40"> / {formatTime(duration)}</span>
               </span>
 
               <span className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -1181,9 +1214,19 @@ function CustomHlsPlayer({
                     <button
                       type="button"
                       aria-label={t("watch.speed")}
-                      className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors hover:bg-white/15"
+                      className={cn(
+                        "flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-white/90 transition-colors",
+                        speedMenuOpen
+                          ? "bg-primary/25 text-white"
+                          : "hover:bg-primary/25 hover:text-white",
+                      )}
                     >
-                      <GaugeIcon className="size-3.5" />
+                      <GaugeIcon
+                        className={cn(
+                          "size-3.5 transition-transform duration-300",
+                          speedMenuOpen && "rotate-180",
+                        )}
+                      />
                       {speed}x
                     </button>
                   </PopoverTrigger>
@@ -1201,6 +1244,9 @@ function CustomHlsPlayer({
                         )}
                       >
                         {rate}x
+                        {rate === speed && (
+                          <DrawnCheck key={rate} className="size-3.5 text-primary" />
+                        )}
                       </button>
                     ))}
                   </PopoverContent>
@@ -1211,7 +1257,7 @@ function CustomHlsPlayer({
                     type="button"
                     onClick={togglePip}
                     aria-label={t("watch.pip")}
-                    className="hidden size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15 sm:flex"
+                    className={cn(CONTROL_BUTTON, "hidden sm:flex")}
                   >
                     <PictureInPicture2Icon className="size-4" />
                   </button>
@@ -1221,13 +1267,14 @@ function CustomHlsPlayer({
                   type="button"
                   onClick={toggleFullscreen}
                   aria-label={isFullscreen ? t("watch.exitFullscreen") : t("watch.fullscreen")}
-                  className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
+                  className={CONTROL_BUTTON}
                 >
-                  {isFullscreen ? (
-                    <Minimize2Icon className="size-4" />
-                  ) : (
-                    <Maximize2Icon className="size-4" />
-                  )}
+                  <MorphIcon
+                    on={isFullscreen}
+                    off={Maximize2Icon}
+                    onIcon={Minimize2Icon}
+                    className="size-4"
+                  />
                 </button>
               </span>
             </div>
@@ -1245,10 +1292,6 @@ function Player({
   episodesTotal,
   episode,
   onEpisodeChange,
-  useOwn,
-  canUseOwn,
-  hasProvider,
-  onUseOwnChange,
 }: {
   data: WatchResponse;
   title: string;
@@ -1256,12 +1299,6 @@ function Player({
   episodesTotal: number | null;
   episode: number;
   onEpisodeChange: (episode: number) => void;
-  /** Which of the two players is on screen — see WatchSection for the split. */
-  useOwn: boolean;
-  /** Is there a direct stream at all? Without one, our own player has nothing to play. */
-  canUseOwn: boolean;
-  hasProvider: boolean;
-  onUseOwnChange: (useOwn: boolean) => void;
 }) {
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead). Rather
@@ -1528,11 +1565,6 @@ function Player({
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm">
-        {/* Only where there is a genuine choice: a title with no direct
-            stream would get a switch whose other half does nothing. */}
-        {canUseOwn && hasProvider && (
-          <PlayerSwitch useOwn={useOwn} onChange={onUseOwnChange} />
-        )}
         {authed && (
           <EpisodeStepper
             episode={episode}
@@ -1582,7 +1614,12 @@ function Player({
                   : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
               )}
             >
-              <SkipForwardIcon className="size-3.5" />
+              <MorphIcon
+                on={autoNext}
+                off={SkipForwardIcon}
+                onIcon={CheckIcon}
+                className="size-3.5"
+              />
               <span className="hidden sm:inline">{t("watch.autoNext")}</span>
             </button>
           )}
@@ -1598,11 +1635,12 @@ function Player({
                 : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
             )}
           >
-            {theatre ? (
-              <Minimize2Icon className="size-3.5" />
-            ) : (
-              <Maximize2Icon className="size-3.5" />
-            )}
+            <MorphIcon
+              on={theatre}
+              off={Maximize2Icon}
+              onIcon={Minimize2Icon}
+              className="size-3.5"
+            />
             <span className="hidden sm:inline">
               {theatre ? t("watch.theatreExit") : t("watch.theatre")}
             </span>
@@ -1807,49 +1845,6 @@ function readAutoNext(): boolean {
  * player and its own everything. That is a real difference to a viewer
  * choosing between two dubs, and it used to be invisible.
  */
-/**
- * Ours or theirs, as one segmented control above the picture.
- *
- * Deliberately not a dropdown: there are exactly two, the difference is
- * something a viewer feels immediately (our interface versus the
- * provider's), and switching back after trying one should cost a single
- * click in a place the eye already is.
- */
-function PlayerSwitch({
-  useOwn,
-  onChange,
-}: {
-  useOwn: boolean;
-  onChange: (useOwn: boolean) => void;
-}) {
-  const t = useT();
-  const options: Array<{ own: boolean; label: string }> = [
-    { own: true, label: t("watch.playerOwn") },
-    { own: false, label: t("watch.playerProvider") },
-  ];
-  return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
-      {options.map((option) => (
-        <button
-          key={String(option.own)}
-          type="button"
-          onClick={() => onChange(option.own)}
-          aria-pressed={useOwn === option.own}
-          className={cn(
-            "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-            useOwn === option.own
-              ? "bg-primary/15 text-primary"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {option.own && <SparklesIcon className="size-3" />}
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function OwnPlayerMark() {
   const t = useT();
   return (
