@@ -40,3 +40,5 @@ skills-lock.json
 
 # Prometheus scrape token (copied from METRICS_TOKEN)
 deploy/prometheus/metrics-token
+apps/web/dist-next/
+apps/web/dist-prev/

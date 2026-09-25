@@ -37,6 +37,9 @@ const GUESTS = "var(--chart-2)";
 
 const WINDOWS: AdminWindow[] = ["today", "7d", "30d"];
 
+const ZERO: AdminAudienceStats = { visitors: 0, pageviews: 0, animeViews: 0, titles: 0, watchSessions: 0, watchSeconds: 0 };
+const EMPTY_SPLIT = { window: "7d" as AdminWindow, registered: ZERO, guests: ZERO };
+
 /**
  * The overview, built around one question the old dashboard couldn't
  * answer: how much of the site is used by people without an account? Every
@@ -51,7 +54,11 @@ export function AdminOverviewTab() {
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   if (isPending) return <OverviewSkeleton />;
 
-  const split = data.split.find((s) => s.window === window) ?? data.split[0]!;
+  // An API older than this page (a half-finished deploy) has no split at
+  // all — show zeros rather than take the whole admin page down.
+  const splits = data.split ?? [];
+  const split = splits.find((s) => s.window === window) ?? splits[0] ?? EMPTY_SPLIT;
+  const month = splits.find((s) => s.window === "30d");
 
   return (
     <div className="flex flex-col gap-5">
@@ -61,7 +68,7 @@ export function AdminOverviewTab() {
           icon={GlobeIcon}
           label={t("admin.x.visitors30")}
           value={data.kpis.visitors.current}
-          note={t("admin.x.guestShare", { p: share(data.split[2]?.guests.visitors ?? 0, data.split[2]?.registered.visitors ?? 0) })}
+          note={t("admin.x.guestShare", { p: share(month?.guests.visitors ?? 0, month?.registered.visitors ?? 0) })}
         />
         <Stat icon={EyeIcon} label={t("admin.x.pageviews30")} value={data.kpis.pageviews.current} note={t("admin.x.allTime", { n: data.kpis.pageviews.total.toLocaleString() })} />
         <Stat icon={MessageSquareIcon} label={t("admin.kpi.comments")} value={data.kpis.comments.total} note={t("admin.x.newIn30", { n: data.kpis.comments.current })} />
@@ -222,8 +229,8 @@ function TrendPanel({ timeline, kind }: { timeline: AdminOverview["timeline"]; k
   const { locale } = useLocale();
   const data = timeline.map((d) => ({
     date: d.date,
-    registered: kind === "pageviews" ? d.pageviews - d.guestPageviews : d.watchMinutes,
-    guests: kind === "pageviews" ? d.guestPageviews : d.guestWatchMinutes,
+    registered: kind === "pageviews" ? d.pageviews - (d.guestPageviews ?? 0) : d.watchMinutes,
+    guests: kind === "pageviews" ? (d.guestPageviews ?? 0) : (d.guestWatchMinutes ?? 0),
   }));
   const config = {
     registered: { label: t("admin.x.registered"), color: REGISTERED },
@@ -265,7 +272,15 @@ function TrendPanel({ timeline, kind }: { timeline: AdminOverview["timeline"]; k
   );
 }
 
-function TopAnimePanel({ items }: { items: AdminOverview["topAnime"] }) {
+function TopAnimePanel({ items: raw }: { items: AdminOverview["topAnime"] }) {
+  // Older API responses have no per-audience columns — count them as zero.
+  const items = raw.map((i) => ({
+    ...i,
+    viewsRegistered: i.viewsRegistered ?? 0,
+    viewsGuests: i.viewsGuests ?? 0,
+    watchSecondsRegistered: i.watchSecondsRegistered ?? 0,
+    watchSecondsGuests: i.watchSecondsGuests ?? 0,
+  }));
   const t = useT();
   const labels = useLabels();
   const duration = useFormatDuration();

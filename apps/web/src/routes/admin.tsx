@@ -70,7 +70,7 @@ function AdminPanel() {
   const counts: Partial<Record<AdminTab, number>> = overview.data
     ? { users: overview.data.kpis.users.total, comments: overview.data.kpis.comments.total }
     : {};
-  const today = overview.data?.split.find((s) => s.window === "today");
+  const today = overview.data?.split?.find((s) => s.window === "today");
   const updatedAt = overview.dataUpdatedAt
     ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(overview.dataUpdatedAt)
     : null;

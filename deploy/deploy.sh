@@ -71,36 +71,53 @@ $AS_APP_USER "cd '$APP_DIR' && pnpm install --frozen-lockfile"
 step "prisma generate"
 $AS_APP_USER "cd '$APP_DIR' && pnpm db:generate"
 
+# Migrations before anything is built: if the database can't take them,
+# nothing has changed yet and the live site is still whole.
+step "apply migrations"
+$AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
+
 step "build packages (one at a time)"
 $AS_APP_USER "cd '$APP_DIR' && pnpm --filter './packages/*' -r --workspace-concurrency=1 build"
 
 step "build api"
 $AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/api build"
 
-step "build web"
-$AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/web exec vite build"
-
-step "apply migrations"
-$AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
+# The web app is built next to the live one, not over it. Building straight
+# into dist once put a new front end in front of an old API (a later step
+# failed before the API restarted): every new endpoint 404'd and the admin
+# page crashed. It's swapped in only after the new API answers.
+WEB="$APP_DIR/apps/web"
+step "build web (into dist-next)"
+$AS_APP_USER "cd '$APP_DIR' && rm -rf '$WEB/dist-next' && pnpm --filter @animeshadow/web exec vite build --outDir dist-next --emptyOutDir"
 
 step "sync systemd unit + restart api"
 cp "$APP_DIR/deploy/animeshadow-api.service" /etc/systemd/system/animeshadow-api.service
 systemctl daemon-reload
 systemctl restart animeshadow-api
 
-step "sync caddy config + reload"
-cp "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
-systemctl reload caddy
-
 step "health"
-for i in $(seq 1 20); do
+for i in $(seq 1 30); do
   if curl -fsS -o /dev/null http://127.0.0.1:4000/api/health; then
     echo "api is up"
     break
   fi
-  [ "$i" = 20 ] && { echo "!! api did not come up — journalctl -u animeshadow-api -n 80"; exit 1; }
+  if [ "$i" = 30 ]; then
+    echo "!! api did not come up — the old web app stays live."
+    echo "   journalctl -u animeshadow-api -n 80"
+    exit 1
+  fi
   sleep 2
 done
+
+step "swap in the new web app"
+rm -rf "$WEB/dist-prev"
+[ -d "$WEB/dist" ] && mv "$WEB/dist" "$WEB/dist-prev"
+mv "$WEB/dist-next" "$WEB/dist"
+echo "previous build kept in apps/web/dist-prev"
+
+step "sync caddy config + reload"
+cp "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
+systemctl reload caddy
 
 echo
 echo "Deployed $AFTER in ${SECONDS}s"
