@@ -34,6 +34,26 @@ if [ -z "$(swapon --show --noheadings 2>/dev/null)" ]; then
   free -m | sed -n '3p'
 fi
 
+# Postgres is the first thing the kernel's OOM killer picks when a build
+# runs the machine out of memory, and nothing restarted it — so the next
+# deploy built fine and then died at the migrations with "can't reach
+# database server". Make sure it's up (and comes back on boot) first.
+step "postgres"
+systemctl enable postgresql >/dev/null 2>&1 || true
+if ! pg_isready -h localhost -p 5432 -q; then
+  echo "postgres is down — starting it"
+  systemctl start postgresql
+  # Debian/Ubuntu: the real service is the cluster unit behind the wrapper.
+  command -v pg_lsclusters >/dev/null && pg_lsclusters --no-header | while read -r ver name _; do
+    systemctl start "postgresql@${ver}-${name}" || true
+  done
+fi
+for i in $(seq 1 15); do
+  pg_isready -h localhost -p 5432 -q && { echo "postgres is ready"; break; }
+  [ "$i" = 15 ] && { echo "!! postgres did not start — journalctl -u 'postgresql*' -n 80"; exit 1; }
+  sleep 2
+done
+
 step "git pull"
 BEFORE="$(cd "$APP_DIR" && git rev-parse --short HEAD)"
 $AS_APP_USER "cd '$APP_DIR' && git pull --ff-only"
