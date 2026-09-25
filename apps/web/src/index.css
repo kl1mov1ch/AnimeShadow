@@ -911,13 +911,15 @@ html.light .home-theme {
   }
 }
 
-/* The hero dot filling up while its slide is on screen. */
+/* The hero dot filling up while its slide is on screen. A scale, not a
+   width: animating width re-laid out the whole homepage on every frame for
+   as long as it was open. */
 @keyframes home-slide-progress {
   from {
-    width: 0%;
+    transform: scaleX(0);
   }
   to {
-    width: 100%;
+    transform: scaleX(1);
   }
 }
 
@@ -1442,4 +1444,62 @@ body:has([role="dialog"][data-state="open"]) main * {
 .frame-scan { animation: frame-scan 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
 @media (prefers-reduced-motion: reduce) {
   .frame-scan { animation: none; top: 50%; }
+}
+
+/* ==========================================================================
+   Performance
+   Measured, not guessed: under a 4x CPU slowdown the homepage scrolled at
+   about one frame a second — 130 animations that never stop, 32 elements
+   re-blurring what's behind them on every frame, 6,000 nodes laid out
+   whether on screen or not. What's below keeps the look and drops the cost.
+   ========================================================================== */
+
+/* No backdrop blur anywhere: every frame under a blurred surface had to be
+   re-blurred. The surfaces that used it are near-opaque now instead. */
+*,
+*::before,
+*::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Slow drifts on full-width photos — invisible at a glance, a large layer
+   repainted forever. */
+.home-kenburns,
+.home-float {
+  animation: none !important;
+}
+
+/* The plan cards' scenes (stars, petals, embers, rays) move only under the
+   pointer. At rest they are a still picture. */
+.group:not(:hover) :is(.scene-star, .scene-moon, .scene-mist, .scene-slash, .scene-petal, .scene-rays, .scene-ember) {
+  animation: none !important;
+}
+
+/* Achievement medallions: still until hovered. The avatar frame keeps its
+   motion — one element, and the one thing on a profile meant to move. */
+.ach-root:not(:hover) :is(.ach-spin, .ach-spin-back, .ach-pulse, .ach-shine, .ach-ember, .ach-flicker) {
+  animation: none !important;
+}
+
+/* Off-screen sections aren't rendered at all until they come near. The
+   intrinsic size keeps the scrollbar honest meanwhile. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 720px;
+}
+
+/* Titles, the frame's cap and the PRO seal: their loops repainted text
+   gradients, box-shadows and drop-shadows every frame, on every profile and
+   every comment. They play under the pointer and rest otherwise. */
+.title-badge:not(:hover),
+.title-badge:not(:hover) * {
+  animation: none !important;
+}
+.frame-cap-mark,
+.frame-cap-icon {
+  animation: none !important;
+}
+:not(:hover) > .pro-seal {
+  animation: none !important;
 }

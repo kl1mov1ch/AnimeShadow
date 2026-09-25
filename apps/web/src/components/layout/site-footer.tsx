@@ -61,7 +61,7 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-16 border-t border-border/60 bg-card/30">
+    <footer className="cv-auto relative mt-16 border-t border-border/60 bg-card/30">
       {/* thin accent line */}
       <div
         aria-hidden

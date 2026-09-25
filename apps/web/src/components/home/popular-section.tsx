@@ -158,7 +158,7 @@ function PopularCard({ anime, rank }: { anime: AnimeSummary; rank: number }) {
       <Shine className="z-20" />
 
       <span className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-        <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--hm-bg)]/70 px-2 py-1 text-[11px] font-semibold text-[var(--hm-text)] backdrop-blur-sm">
+        <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--hm-bg)]/70 px-2 py-1 text-[11px] font-semibold text-[var(--hm-text)]">
           <StarIcon className="size-3 fill-[var(--hm-accent)] text-[var(--hm-accent)]" />
           <span className="tabular-nums">{anime.score != null ? anime.score.toFixed(1) : "—"}</span>
         </span>

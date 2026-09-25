@@ -236,7 +236,7 @@ function MetaChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-foreground/90 backdrop-blur transition-colors [&_svg]:size-3.5 [&_svg]:text-foreground/55",
+        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-foreground/90 transition-colors [&_svg]:size-3.5 [&_svg]:text-foreground/55",
         className,
       )}
     >
@@ -296,7 +296,7 @@ function SlideContent({
                 className={cn(
                   "size-1.5 rounded-full",
                   anime.airing === "AIRING"
-                    ? "animate-pulse bg-emerald-400"
+                    ? "bg-emerald-400"
                     : anime.airing === "UPCOMING"
                       ? "bg-amber-400"
                       : "bg-foreground/40",
@@ -313,7 +313,7 @@ function SlideContent({
             <Link
               key={genre.id}
               to={`/browse?genres=${genre.id}`}
-              className="rounded-lg border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary"
+              className="rounded-lg border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary"
             >
               {labels.genreLabel(genre.name)}
             </Link>
@@ -336,7 +336,7 @@ function SlideContent({
         className="reveal flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
         style={step(3)}
       >
-        <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/50 [&_[data-slot=select-trigger]]:backdrop-blur [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
+        <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/92 [&_[data-slot=select-trigger]]: [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
           <Button
             asChild
             className="group relative overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary px-5 font-semibold shadow-lg shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
@@ -373,7 +373,7 @@ function SlideControls({
 }) {
   const labels = useLabels();
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 rounded-full border border-white/10 bg-background/60 p-1 backdrop-blur-md sm:justify-start">
+    <div className="flex shrink-0 items-center justify-between gap-2 rounded-full border border-white/10 bg-background/92 p-1 sm:justify-start">
       <NavButton side="left" onClick={() => onStep(-1)} />
       <div className="flex items-center gap-1.5 px-1">
         {slides.map((slide, i) => {

@@ -134,11 +134,24 @@ export function Component() {
       <main>
         <HeroSection slides={hero} />
         <PopularSection shelves={shelves} />
-        <GenreSection genres={homeGenres} label={labels.genreLabel} posterFor={posterFor} />
-        <FeatureSection />
-        <StatsSection />
-        <SubscriptionSection />
-        <CtaSection />
+        {/* Everything below the first two screens is skipped by the
+            browser — no layout, no paint, no running animations — until
+            it scrolls near. */}
+        <div className="cv-auto">
+          <GenreSection genres={homeGenres} label={labels.genreLabel} posterFor={posterFor} />
+        </div>
+        <div className="cv-auto">
+          <FeatureSection />
+        </div>
+        <div className="cv-auto">
+          <StatsSection />
+        </div>
+        <div className="cv-auto">
+          <SubscriptionSection />
+        </div>
+        <div className="cv-auto">
+          <CtaSection />
+        </div>
       </main>
       <HomeFooter />
     </div>

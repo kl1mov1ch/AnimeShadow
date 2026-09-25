@@ -45,7 +45,7 @@ export function AnimePoster({
       {status === "loading" && (
         <span
           aria-hidden
-          className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted via-muted/60 to-muted"
+          className="absolute inset-0 bg-gradient-to-br from-muted via-muted/60 to-muted"
         />
       )}
       <picture>

@@ -347,7 +347,7 @@ function AnimeDetailView({ param }: { param: string }) {
             and sat against the left edge with the rest of the line empty;
             spanning the panel, with the facts pushed to the far end, is
             what lines it up with the picture underneath. */}
-        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-2 shadow-sm backdrop-blur-sm sm:px-3">
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/92 p-2 shadow-sm sm:px-3">
           <TitleTracker anime={data} title={title} />
           <TitleFacts anime={data} />
         </div>
@@ -485,7 +485,10 @@ function Panel({
     <section
       id={id}
       className={cn(
-        "relative flex scroll-mt-20 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5",
+        "relative flex scroll-mt-20 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5",
+        // Off-screen panels aren't laid out or painted until scrolled near.
+        // Not the player's: skipping it would throttle the embed mid-episode.
+        id !== "watch" && "cv-auto",
         className,
       )}
     >
@@ -979,7 +982,7 @@ function RelatedSection({ anime }: { anime: AnimeDetail }) {
   // every other one had a card — it read as having fallen out of the
   // layout. Same surface, same edge, same padding as the rest now.
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5">
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5">
       <AnimeRail
         title={t("detail.related")}
         icon={SparklesIcon}

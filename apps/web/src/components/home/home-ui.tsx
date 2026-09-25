@@ -225,7 +225,7 @@ export function HomeBadge({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        tone === "accent" ? "bg-[var(--hm-accent)] text-white" : "bg-black/70 text-[var(--hm-text)] backdrop-blur-sm",
+        tone === "accent" ? "bg-[var(--hm-accent)] text-white" : "bg-black/70 text-[var(--hm-text)]",
         className,
       )}
     >

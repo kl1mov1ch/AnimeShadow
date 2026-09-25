@@ -88,7 +88,7 @@ export function PlayerSidePanel({
   return (
     <aside
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/40 backdrop-blur-sm",
+        "flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/92",
         className,
       )}
     >

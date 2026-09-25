@@ -356,7 +356,7 @@ function PlayerShell({
             />
           ))}
           {loading ? (
-            <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-primary/25 via-primary/5 to-transparent" />
+            <span className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/5 to-transparent" />
           ) : (
             <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-black/10" />
           )}
@@ -377,7 +377,7 @@ function PlayerShell({
                     <PlayIcon className="size-7 translate-x-[2px] fill-current" />
                   </span>
                 </span>
-                <span className="rounded-lg border border-primary/30 bg-black/55 px-3 py-1 text-sm font-medium text-white backdrop-blur">
+                <span className="rounded-lg border border-primary/30 bg-black/70 px-3 py-1 text-sm font-medium text-white">
                   {label}
                 </span>
               </>
@@ -1291,7 +1291,7 @@ function CustomHlsPlayer({
                   aria-hidden
                   className="absolute inset-0 animate-ping rounded-full bg-primary/25 [animation-duration:2.6s] motion-reduce:hidden"
                 />
-                <span className="btn-sheen relative flex size-16 items-center justify-center rounded-full border border-primary/50 bg-primary/90 text-primary-foreground shadow-lg shadow-primary/30 backdrop-blur transition-transform duration-300 group-hover/play:scale-105 group-active/play:scale-95">
+                <span className="btn-sheen relative flex size-16 items-center justify-center rounded-full border border-primary/50 bg-primary/90 text-primary-foreground shadow-lg shadow-primary/30 transition-transform duration-300 group-hover/play:scale-105 group-active/play:scale-95">
                   <PlayIcon className="size-7 translate-x-0.5 fill-current" />
                 </span>
               </span>
@@ -1311,7 +1311,7 @@ function CustomHlsPlayer({
                   if (video) video.currentTime = opening.stop;
                   wake();
                 }}
-                className="btn-sheen absolute bottom-20 right-4 z-10 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/60 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-md transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95"
+                className="btn-sheen absolute bottom-20 right-4 z-10 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95"
               >
                 <SkipForwardIcon className="size-3.5" />
                 {t("watch.skipOpening")}
@@ -2015,17 +2015,17 @@ const SKINS: Record<
   { bar: string; button: string; range: string }
 > = {
   shadow: {
-    bar: "bg-gradient-to-t from-black/90 via-black/45 to-transparent backdrop-blur-[2px]",
+    bar: "bg-gradient-to-t from-black/90 via-black/45 to-transparent]",
     button: "text-white/90 hover:bg-primary/25 hover:text-white",
     range: "[&_[data-slot=slider-range]]:bg-primary",
   },
   glass: {
-    bar: "bg-black/25 backdrop-blur-xl border-t border-white/15",
+    bar: "bg-black/70 border-t border-white/15",
     button: "text-white/90 hover:bg-white/20 hover:text-white",
     range: "[&_[data-slot=slider-range]]:bg-white",
   },
   accent: {
-    bar: "bg-gradient-to-t from-[var(--accent)]/85 via-[var(--accent)]/35 to-transparent backdrop-blur-[2px]",
+    bar: "bg-gradient-to-t from-[var(--accent)]/85 via-[var(--accent)]/35 to-transparent]",
     button: "text-white hover:bg-white/25",
     range: "[&_[data-slot=slider-range]]:bg-white",
   },

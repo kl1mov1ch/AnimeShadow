@@ -71,7 +71,7 @@ export function InfoSidebar({
           )}
         >
           {anime.airing === "AIRING" && (
-            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+            <span aria-hidden className="size-1.5 rounded-full bg-emerald-500" />
           )}
           {labels.airingLabel(anime.airing)}
         </span>,
@@ -82,7 +82,7 @@ export function InfoSidebar({
   return (
     <aside
       className={cn(
-        "relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5",
+        "relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5",
         className,
       )}
     >

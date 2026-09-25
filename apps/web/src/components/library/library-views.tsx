@@ -95,7 +95,7 @@ export function LibraryTile({
 
         <div className="absolute inset-x-1.5 top-1.5 flex items-start justify-between gap-1">
           <span
-            className="inline-flex max-w-[70%] items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm"
+            className="inline-flex max-w-[70%] items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white"
             title={t(`status.${entry.status}`)}
           >
             <span className={cn("size-1.5 shrink-0 rounded-full", meta.dot)} />
@@ -105,12 +105,12 @@ export function LibraryTile({
             {entry.score != null && (
               <UserScore
                 score={entry.score}
-                className="rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+                className="rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white"
               />
             )}
             {entry.anime.score != null && (
               <span
-                className="rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] tabular-nums text-white/80 backdrop-blur-sm"
+                className="rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] tabular-nums text-white/80"
                 title="MyAnimeList"
               >
                 {entry.anime.score.toFixed(1)}
@@ -304,7 +304,7 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
     <section className="reveal flex flex-col gap-2" style={{ "--i": 2 } as CSSProperties}>
       <div className="flex items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+          <span className="size-1.5 rounded-full bg-emerald-500" />
           {t("library.continueTitle")}
           <span className="text-xs font-normal text-muted-foreground">{entries.length}</span>
         </h2>

@@ -7,10 +7,22 @@ import {
   useMemo,
   useState,
 } from "react";
-import { type Dict, en } from "./en";
+import type { Dict } from "./en";
 import { ru } from "./ru";
 
-const DICTS: Record<Locale, Dict> = { en, ru };
+/**
+ * Russian ships in the main bundle — it's the default and most visitors'
+ * language. English (~65 KB) is fetched only when someone actually picks
+ * it; until it arrives, Russian stands in.
+ */
+const DICTS: Partial<Record<Locale, Dict>> = { ru };
+let englishLoad: Promise<void> | null = null;
+function loadEnglish(): Promise<void> {
+  englishLoad ??= import("./en").then((m) => {
+    DICTS.en = m.en;
+  });
+  return englishLoad;
+}
 const STORAGE_KEY = "animeshadow.locale.v1";
 
 function readLocale(): Locale {
@@ -50,6 +62,11 @@ const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(readLocale);
+  // Bumped when a lazily loaded dictionary arrives, so `t` re-reads it.
+  const [dictVersion, setDictVersion] = useState(0);
+  useEffect(() => {
+    if (locale === "en" && !DICTS.en) void loadEnglish().then(() => setDictVersion((v) => v + 1));
+  }, [locale]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
@@ -66,7 +83,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback<TranslateFn>(
     (key, vars) => {
-      let str = lookup(DICTS[locale], key) ?? lookup(en, key) ?? key;
+      let str = lookup(DICTS[locale] ?? ru, key) ?? lookup(ru, key) ?? key;
       if (vars) {
         for (const [name, value] of Object.entries(vars)) {
           str = str.split(`{${name}}`).join(String(value));
@@ -74,7 +91,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       }
       return str;
     },
-    [locale],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale, dictVersion],
   );
 
   const value = useMemo<I18nValue>(
@@ -89,7 +107,7 @@ const FALLBACK_I18N: I18nValue = {
   locale: DEFAULT_LOCALE,
   setLocale: () => {},
   t: (key, vars) => {
-    let str = lookup(DICTS[DEFAULT_LOCALE], key) ?? lookup(en, key) ?? key;
+    let str = lookup(DICTS[DEFAULT_LOCALE] ?? ru, key) ?? lookup(ru, key) ?? key;
     if (vars) {
       for (const [name, value] of Object.entries(vars)) {
         str = str.split(`{${name}}`).join(String(value));

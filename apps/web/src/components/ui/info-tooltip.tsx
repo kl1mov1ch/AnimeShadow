@@ -51,7 +51,7 @@ export function InfoTooltip({
       <PopoverContent
         align={align}
         side={side}
-        className="w-64 max-w-[80vw] border-[var(--accent-line-soft)] text-xs leading-relaxed shadow-lg shadow-black/10 backdrop-blur-sm"
+        className="w-64 max-w-[80vw] border-[var(--accent-line-soft)] text-xs leading-relaxed shadow-lg shadow-black/10"
         onClick={(e) => e.stopPropagation()}
       >
         {children}

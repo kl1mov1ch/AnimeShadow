@@ -268,7 +268,7 @@ function UserRow({
       <TableCell>
         {online ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+            <span className="size-1.5 rounded-full bg-emerald-500" />
             {t("admin.users.online")}
           </span>
         ) : lastSeen ? (

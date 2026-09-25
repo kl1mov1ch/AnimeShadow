@@ -85,7 +85,7 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
           AnimeShadow
         </Link>
 
-        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/80 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
+        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/92 p-6 shadow-2xl shadow-black/20 sm:p-8">
           {/* The site hairline, same as the header and every dialog. */}
           <span
             aria-hidden

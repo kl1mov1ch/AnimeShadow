@@ -126,7 +126,7 @@ export function SlowNetworkNotice() {
     <div
       role="status"
       aria-live="polite"
-      className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-3 left-3 z-50 w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl border border-border/60 bg-card/95 p-3.5 shadow-lg backdrop-blur duration-500 sm:bottom-5 sm:left-5"
+      className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-3 left-3 z-50 w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl border border-border/60 bg-card/95 p-3.5 shadow-lg duration-500 sm:bottom-5 sm:left-5"
     >
       <button
         type="button"

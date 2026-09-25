@@ -148,10 +148,10 @@ function GenreTile({
       />
 
       <span className="relative flex items-start justify-between gap-2">
-        <span className="grid size-10 place-items-center rounded-xl border border-border/50 bg-background/70 text-foreground backdrop-blur-sm transition-all duration-300 group-hover:border-primary/60 group-hover:bg-primary group-hover:text-primary-foreground">
+        <span className="grid size-10 place-items-center rounded-xl border border-border/50 bg-background/92 text-foreground transition-all duration-300 group-hover:border-primary/60 group-hover:bg-primary group-hover:text-primary-foreground">
           <Icon className="size-5 transition-transform duration-300 group-hover:scale-110" />
         </span>
-        <span className="grid size-7 place-items-center rounded-full border border-border/50 bg-background/70 text-muted-foreground opacity-0 backdrop-blur-sm transition-all duration-300 -translate-x-1 group-hover:translate-x-0 group-hover:text-primary group-hover:opacity-100">
+        <span className="grid size-7 place-items-center rounded-full border border-border/50 bg-background/92 text-muted-foreground opacity-0 transition-all duration-300 -translate-x-1 group-hover:translate-x-0 group-hover:text-primary group-hover:opacity-100">
           <ArrowRightIcon className="size-3.5" />
         </span>
       </span>

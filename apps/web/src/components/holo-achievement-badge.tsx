@@ -212,7 +212,7 @@ export function HoloAchievementBadge({
         title={tip}
         aria-label={title}
         className={cn(
-          "block size-14 shrink-0 select-none transition-transform duration-300 hover:scale-110",
+          "ach-root block size-14 shrink-0 select-none transition-transform duration-300 hover:scale-110",
           !animated && "ach-still",
           className,
         )}
@@ -228,7 +228,7 @@ export function HoloAchievementBadge({
       onClick={onClick}
       title={tip}
       className={cn(
-        "group flex w-[200px] select-none flex-col items-center gap-2 text-center",
+        "ach-root group flex w-[200px] select-none flex-col items-center gap-2 text-center",
         !animated && "ach-still",
         className,
       )}

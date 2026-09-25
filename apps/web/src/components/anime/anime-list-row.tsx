@@ -122,7 +122,7 @@ export function AnimeListRow({
             <PosterFallback title={title} seed={anime.id} />
           )}
           {isAdult && (
-            <span className="absolute right-1 top-1 rounded-md bg-rose-600/90 px-1 py-0.5 text-[10px] font-bold text-white backdrop-blur">
+            <span className="absolute right-1 top-1 rounded-md bg-rose-600/90 px-1 py-0.5 text-[10px] font-bold text-white">
               18+
             </span>
           )}
@@ -166,7 +166,7 @@ export function AnimeListRow({
             )}
             {anime.airing === "AIRING" && (
               <span className="inline-flex items-center gap-1 text-emerald-500">
-                <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                <span className="size-1.5 rounded-full bg-emerald-500" />
                 {labels.airingLabel(anime.airing)}
               </span>
             )}

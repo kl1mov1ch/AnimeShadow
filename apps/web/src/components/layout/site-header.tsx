@@ -154,13 +154,13 @@ export function SiteHeader() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 border-b backdrop-blur transition-all duration-300",
+        "sticky top-0 z-40 border-b transition-all duration-300",
         // At the very top the header lets the page show through; once the
         // page moves under it, it firms up and casts a shadow, so where the
         // header ends and the content begins stays clear.
         scrolled
-          ? "bg-background/90 shadow-lg shadow-black/5 supports-[backdrop-filter]:bg-background/80"
-          : "border-transparent bg-background/60 supports-[backdrop-filter]:bg-background/40",
+          ? "bg-background/92 shadow-lg shadow-black/5 supports-[backdrop-filter]:bg-background/92"
+          : "border-transparent bg-background/92 supports-[backdrop-filter]:bg-background/92",
       )}
     >
       <div

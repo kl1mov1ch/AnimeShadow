@@ -24,7 +24,7 @@ export function HomeHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--hm-border)] bg-[var(--hm-bg)]/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-[var(--hm-border)] bg-[var(--hm-bg)]/90">
       <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center gap-3 px-4 sm:px-6">
         <Link to="/" className="group flex shrink-0 items-center gap-2" aria-label="AnimeShadow">
           <LogoGlyph className="size-6 text-[var(--hm-accent)] transition-transform duration-300 group-hover:-rotate-6" />

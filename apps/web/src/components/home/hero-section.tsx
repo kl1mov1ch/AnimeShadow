@@ -104,7 +104,7 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
 
       <HomeContainer className="relative grid items-center gap-8 py-12 lg:min-h-[520px] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:py-16">
         <div className="flex flex-col items-start">
-          <span className="rounded-md border border-[var(--hm-border)] bg-[var(--hm-card)]/80 px-2.5 py-1 text-[11px] font-medium text-[var(--hm-muted)] backdrop-blur-sm">
+          <span className="rounded-md border border-[var(--hm-border)] bg-[var(--hm-card)]/80 px-2.5 py-1 text-[11px] font-medium text-[var(--hm-muted)]">
             Добро пожаловать
           </span>
 
@@ -132,7 +132,7 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
           <ul className="mt-8 flex flex-wrap gap-x-8 gap-y-3">
             {PERKS.map(({ icon: Icon, title, note }) => (
               <li key={title} className="flex items-center gap-2.5">
-                <span className="grid size-8 place-items-center rounded-lg border border-[var(--hm-border)] bg-[var(--hm-card)]/80 text-[var(--hm-accent)] backdrop-blur-sm">
+                <span className="grid size-8 place-items-center rounded-lg border border-[var(--hm-border)] bg-[var(--hm-card)]/80 text-[var(--hm-accent)]">
                   <Icon className="size-4" />
                 </span>
                 <span className="leading-tight">
@@ -153,7 +153,7 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
             onPointerLeave={() => setPaused(false)}
             className="animate-in fade-in slide-in-from-right-4 hidden justify-self-end duration-500 lg:block"
           >
-            <div className="home-float max-w-sm rounded-2xl border border-[var(--hm-border)] bg-[var(--hm-card)]/70 p-4 backdrop-blur-md">
+            <div className="home-float max-w-sm rounded-2xl border border-[var(--hm-border)] bg-[var(--hm-card)]/70 p-4">
               <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--hm-accent)]">Выходит сейчас</p>
               <h2 className="home-display mt-2 line-clamp-2 text-xl text-[var(--hm-text)]">
                 {current.titleLocalized ?? current.title}
@@ -211,7 +211,7 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
                 {i === index && (
                   <span
                     key={`${index}-${paused}`}
-                    className="block h-full rounded-full bg-[var(--hm-accent)]"
+                    className="block h-full w-full origin-left rounded-full bg-[var(--hm-accent)]"
                     style={{
                       animation: paused ? "none" : `home-slide-progress ${SLIDE_MS}ms linear forwards`,
                       width: paused ? "100%" : undefined,
@@ -246,7 +246,7 @@ function StepButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="group/btn relative isolate grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-[var(--hm-border)] bg-[var(--hm-card)]/70 text-[var(--hm-muted)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--hm-accent)] hover:text-[var(--hm-text)] active:scale-95"
+      className="group/btn relative isolate grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-[var(--hm-border)] bg-[var(--hm-card)]/70 text-[var(--hm-muted)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--hm-accent)] hover:text-[var(--hm-text)] active:scale-95"
     >
       <span className="relative z-10">{children}</span>
       <Shine />

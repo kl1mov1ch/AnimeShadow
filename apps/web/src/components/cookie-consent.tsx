@@ -67,7 +67,7 @@ export function CookieConsent() {
   return (
     <div
       role="status"
-      className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-3 right-3 z-50 w-[min(15.5rem,calc(100vw-1.5rem))] rounded-xl border border-border/60 bg-card/95 p-3.5 shadow-lg backdrop-blur duration-300 sm:bottom-5 sm:right-5"
+      className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-3 right-3 z-50 w-[min(15.5rem,calc(100vw-1.5rem))] rounded-xl border border-border/60 bg-card/95 p-3.5 shadow-lg duration-300 sm:bottom-5 sm:right-5"
     >
       <button
         type="button"

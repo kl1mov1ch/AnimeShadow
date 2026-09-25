@@ -117,7 +117,7 @@ export function GenreSection({
 
                   <Shine className="z-20" />
 
-                  <span className="relative mb-auto mt-2 grid size-11 place-items-center rounded-xl border border-[var(--hm-border)] bg-[var(--hm-bg)]/60 text-[var(--hm-text)] backdrop-blur-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-[var(--hm-accent)] group-hover:text-[var(--hm-accent)]">
+                  <span className="relative mb-auto mt-2 grid size-11 place-items-center rounded-xl border border-[var(--hm-border)] bg-[var(--hm-bg)]/60 text-[var(--hm-text)] transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-[var(--hm-accent)] group-hover:text-[var(--hm-accent)]">
                     <Icon className="size-5 transition-transform duration-300 group-hover:scale-110" />
                   </span>
 

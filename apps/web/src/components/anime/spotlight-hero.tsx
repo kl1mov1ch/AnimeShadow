@@ -215,13 +215,13 @@ function SlidePitch({
         style={stagger(0)}
         className="flex animate-in flex-wrap items-center gap-2 fade-in slide-in-from-bottom-2 duration-500"
       >
-        <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary backdrop-blur-sm">
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
           <TrendingUpIcon className="size-3.5" />
           {t("home.heroRank", { rank })}
         </span>
         {anime.airing === "AIRING" && (
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-500 backdrop-blur-sm">
-            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-500">
+            <span aria-hidden className="size-1.5 rounded-full bg-emerald-500" />
             {labels.airingLabel(anime.airing)}
           </span>
         )}
@@ -273,7 +273,7 @@ function SlidePitch({
               key={genre.id}
               to={`/browse?genres=${genre.id}`}
               viewTransition
-              className="rounded-lg border border-border/60 bg-background/50 px-2.5 py-0.5 text-[11px] text-muted-foreground backdrop-blur-sm transition-colors hover:border-primary/50 hover:text-primary"
+              className="rounded-lg border border-border/60 bg-background/92 px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
             >
               {labels.genreLabel(genre.name)}
             </Link>
@@ -345,7 +345,7 @@ function KeepButton({ anime, title }: { anime: AnimeDetail; title: string }) {
           disabled={upsert.isPending}
           aria-label={kept ? t("card.inList") : t("card.addToList")}
           className={cn(
-            "grid size-10 place-items-center rounded-lg border backdrop-blur-sm transition-all duration-200 active:scale-90",
+            "grid size-10 place-items-center rounded-lg border transition-all duration-200 active:scale-90",
             kept
               ? "border-primary/60 bg-primary/15 text-primary"
               : "border-border/60 bg-background/60 text-foreground hover:border-primary/50 hover:text-primary",
@@ -389,7 +389,7 @@ function SlideQueue({
               aria-current={active}
               aria-label={label(slide)}
               className={cn(
-                "group/q relative flex w-44 items-center gap-2.5 overflow-hidden rounded-xl border p-1.5 pr-3 text-left backdrop-blur-md transition-all duration-300 lg:w-full",
+                "group/q relative flex w-44 items-center gap-2.5 overflow-hidden rounded-xl border p-1.5 pr-3 text-left transition-all duration-300 lg:w-full",
                 active
                   ? "border-primary/60 bg-background/85 shadow-lg shadow-primary/15"
                   : "border-border/50 bg-background/45 hover:border-primary/40 hover:bg-background/70",
@@ -425,7 +425,7 @@ function SlideQueue({
                 <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-primary/15">
                   <span
                     key={`${index}-${paused}`}
-                    className="block h-full bg-primary"
+                    className="block h-full w-full origin-left bg-primary"
                     style={{
                       animation: paused ? "none" : `home-slide-progress ${ROTATE_MS}ms linear forwards`,
                       width: paused ? "100%" : undefined,
@@ -461,7 +461,7 @@ function HeroControl({
           aria-label={label}
           aria-pressed={pressed}
           className={cn(
-            "btn-sheen grid size-9 shrink-0 place-items-center rounded-lg border backdrop-blur-sm transition-all duration-200 active:scale-90",
+            "btn-sheen grid size-9 shrink-0 place-items-center rounded-lg border transition-all duration-200 active:scale-90",
             pressed
               ? "border-primary/60 bg-primary/15 text-primary"
               : "border-border/60 bg-background/70 text-muted-foreground hover:border-primary/50 hover:text-foreground",

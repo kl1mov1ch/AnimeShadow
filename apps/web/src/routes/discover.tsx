@@ -120,6 +120,9 @@ export function Component() {
         loading={isPending}
         href="/browse?airing=AIRING&orderBy=start_date"
       />
+      {/* From here down nothing is laid out, painted or animated until it
+          scrolls near — the homepage used to render ~6,000 nodes up front. */}
+      <div className="cv-auto">
       <AnimeRail
         title={t("home.trendingMonth")}
         subtitle={t("home.trendingMonthSub")}
@@ -127,9 +130,11 @@ export function Component() {
         loading={isPending}
         href="/browse?orderBy=popularity"
       />
+      </div>
 
       <HomeActions />
 
+      <div className="cv-auto">
       <GenreCards
         title={t("home.genresTitle")}
         genres={homeGenres.genres}
@@ -139,12 +144,16 @@ export function Component() {
         countLabel={(count) => t("home.genreCount", { count })}
         previewLabel={t("home.genrePreview")}
       />
+      </div>
 
       {/* Something to do rather than something to scroll past — built from
           the titles this page already loaded. */}
-      <AnimeCorner />
+      <div className="cv-auto">
+        <AnimeCorner />
+      </div>
 
 
+      <div className="cv-auto">
       <AnimeRail
         title={t("home.recommended")}
         subtitle={
@@ -179,7 +188,10 @@ export function Component() {
         loading={isPending}
         href="/browse?orderBy=score"
       />
-      <PlansSection />
+      </div>
+      <div className="cv-auto">
+        <PlansSection />
+      </div>
 
     </div>
   );

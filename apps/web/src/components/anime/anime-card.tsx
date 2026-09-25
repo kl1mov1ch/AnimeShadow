@@ -9,7 +9,7 @@ import {
   PlayIcon,
   TvIcon,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AnimePoster } from "@/components/anime/anime-poster";
@@ -73,6 +73,11 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const entry = libraryEntries?.find((e) => e.anime.id === anime.id) ?? null;
   const inLibrary = entry != null;
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The drawer, the light band and the play button only exist once the
+  // card has been hovered. A homepage renders ~100 cards; building all of
+  // that for each one — and keeping the band on its own GPU layer — was a
+  // large share of what the page cost to draw and scroll.
+  const [hovered, setHovered] = useState(false);
   const prefetched = useRef(false);
   const queryClient = useQueryClient();
   const { locale } = useLocale();
@@ -94,6 +99,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   };
 
   const startIntent = () => {
+    if (!hovered) setHovered(true);
     if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
     prefetchTimer.current = setTimeout(prefetch, PREFETCH_HOVER_INTENT_MS);
   };
@@ -177,10 +183,12 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
 
         {/* A band of light crossing the poster on hover. One transform on
             one element — nothing here repaints the picture underneath. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 -translate-x-[220%] -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out will-change-transform group-hover:translate-x-[420%] motion-reduce:hidden"
-        />
+        {hovered && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 -translate-x-[220%] -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%] motion-reduce:hidden"
+          />
+        )}
 
         {/* Two actions on the poster, stacked: keep it for later, and go
             straight to the player. They slide in one after the other under
@@ -219,7 +227,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
               {inLibrary ? t("card.inList") : t("card.addToList")}
             </TooltipContent>
           </Tooltip>
-          {canHover && (
+          {canHover && hovered && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
@@ -280,8 +288,8 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             It takes no room on the page and covers nothing but the part of
             the picture that was already under a shadow. Clicks go through
             it to the poster link underneath. */}
-        {canHover && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-full bg-gradient-to-t from-black via-black/90 to-black/0 px-2.5 pb-2.5 pt-8 text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:transition-none">
+        {canHover && hovered && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-full bg-gradient-to-t from-black via-black/90 to-black/0 px-2.5 pb-2.5 pt-8 text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 starting:translate-y-full starting:opacity-0 motion-reduce:transition-none">
             {anime.genres.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {anime.genres.slice(0, 3).map((g) => (
@@ -345,7 +353,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                 <TooltipTrigger asChild>
                   <span
                     aria-label={labels.airingLabel(anime.airing)}
-                    className="inline-block size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500"
+                    className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500"
                   />
                 </TooltipTrigger>
                 <TooltipContent side="top">{labels.airingLabel(anime.airing)}</TooltipContent>

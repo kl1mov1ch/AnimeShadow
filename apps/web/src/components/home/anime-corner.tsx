@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 
 /** The section surface every panel on the site wears. */
 const PANEL =
-  "relative flex flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5";
+  "relative flex flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5";
 
 function SectionHeading({
   title,
@@ -313,7 +313,7 @@ function GuessGame() {
           </span>
         )}
         {over && (
-          <div className="absolute inset-0 grid animate-in place-items-center bg-black/60 backdrop-blur-sm fade-in-0 duration-300">
+          <div className="absolute inset-0 grid animate-in place-items-center bg-black/70 fade-in-0 duration-300">
             <div className="flex flex-col items-center gap-2 px-4 text-center text-white">
               <TrophyIcon className="size-8 text-amber-400" />
               <p className="font-display text-lg">{t("home.game.over", { n: streak })}</p>

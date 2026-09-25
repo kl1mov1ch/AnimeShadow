@@ -37,7 +37,7 @@ export function CtaSection() {
 
       <HomeContainer className="relative grid items-center gap-8 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.65fr)] lg:py-20">
         <Reveal>
-          <span className="inline-flex items-center gap-2 rounded-md border border-[var(--hm-border)] bg-[var(--hm-card)]/70 px-2.5 py-1 text-[11px] font-medium text-[var(--hm-muted)] backdrop-blur-sm">
+          <span className="inline-flex items-center gap-2 rounded-md border border-[var(--hm-border)] bg-[var(--hm-card)]/70 px-2.5 py-1 text-[11px] font-medium text-[var(--hm-muted)]">
             <SparklesIcon className="size-3 text-[var(--hm-accent)]" />
             Смотреть можно бесплатно
           </span>

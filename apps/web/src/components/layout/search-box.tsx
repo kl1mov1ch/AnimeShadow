@@ -211,7 +211,7 @@ export function SearchBox() {
           // Same width as the input right above it, not a fixed size of its
           // own — a dropdown wider than what it hangs off of read as
           // visually disconnected from the search box.
-          <div className="animate-in fade-in-0 slide-in-from-top-1 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-border/60 bg-popover/95 text-popover-foreground shadow-xl shadow-black/20 backdrop-blur-md duration-200">
+          <div className="animate-in fade-in-0 slide-in-from-top-1 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-border/60 bg-popover/95 text-popover-foreground shadow-xl shadow-black/20 duration-200">
             {/* The header's own hairline, repeated — it's what marks a
                 surface as belonging to the site rather than to the browser. */}
             <div

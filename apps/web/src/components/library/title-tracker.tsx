@@ -158,7 +158,7 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
         ref={statusRowRef}
         role="radiogroup"
         aria-label={t("library.watchStatus")}
-        className="relative flex items-center gap-0.5 rounded-full border border-border/60 bg-card/60 p-0.5 backdrop-blur-sm"
+        className="relative flex items-center gap-0.5 rounded-full border border-border/60 bg-card/92 p-0.5"
       >
         {highlight && (
           <span
