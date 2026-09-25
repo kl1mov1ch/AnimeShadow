@@ -538,6 +538,24 @@ html body[data-scroll-locked] {
   --accent-surface-strong: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+/*
+  The same accent tokens for the rest of the site, derived from the site
+  colour rather than a title's. They used to exist only inside
+  .title-themed, so every panel outside a title page that used them —
+  the catalogue, the profile, the front page's corner — got an undefined
+  border colour, which falls back to the text colour: a grey-white
+  outline where a soft accent edge was meant. Declared on both theme roots
+  so each resolves against its own --primary.
+*/
+:root,
+.dark {
+  --accent-ink: color-mix(in oklab, var(--primary) 70%, var(--foreground));
+  --accent-line: color-mix(in srgb, var(--primary) 40%, transparent);
+  --accent-line-soft: color-mix(in srgb, var(--primary) 18%, transparent);
+  --accent-surface: color-mix(in srgb, var(--primary) 5%, transparent);
+  --accent-surface-strong: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
 /* Four bars keeping time next to whichever theme is playing (see
    ThemePlayer). Purely decorative, so it simply holds still rather than
    animating when reduced motion is asked for. */
