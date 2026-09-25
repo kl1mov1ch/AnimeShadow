@@ -18,4 +18,20 @@ export const FEATURES = {
   richEffects: false,
   /** The "genres for you" block on the homepage. */
   homeGenres: false,
+  /**
+   * English. Off: the site is Russian only — no switcher, and the English
+   * dictionary is never downloaded. The dictionary itself (i18n/en.ts)
+   * stays; it is also the type every other locale is checked against.
+   */
+  englishLocale: false,
+  /**
+   * The light theme. Off: dark only — no toggle anywhere, no per-account
+   * theme to fetch and sync on every page.
+   */
+  lightTheme: false,
+  /**
+   * The title's opening playing behind headers and hero slides. Off: stills
+   * only — no /themes lookup and no video stream per page.
+   */
+  openingVideos: false,
 } as const;

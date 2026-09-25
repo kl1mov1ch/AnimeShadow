@@ -30,7 +30,6 @@ import type {
   UpsertLibraryInput,
   WatchResponse,
 } from "@animeshadow/shared";
-import { AnimeThemesClient } from "@animeshadow/animethemes";
 import {
   QueryClient,
   useMutation,
@@ -99,9 +98,10 @@ export function useDiscover() {
   });
 }
 
-export function useGenres() {
+export function useGenres(enabled = true) {
   return useQuery({
     queryKey: queryKeys.genres,
+    enabled,
     queryFn: ({ signal }) =>
       apiRequest<{ items: Genre[] }>("/genres", { signal }).then((r) => r.items),
     staleTime: 60 * 60_000,
@@ -273,24 +273,6 @@ export function useAnimeOpening(id: number, enabled = true) {
   });
 }
 
-let browserThemes: AnimeThemesClient | null = null;
-/** Set once the archive has refused the browser too (it answers some
- *  visitors with a page that carries no CORS header). After that, every
- *  further title would only add another red CORS line to the console for
- *  an answer we already know, so the fallback stays off for the session. */
-let browserThemesBlocked = false;
-
-/**
- * The same AnimeThemes lookup the server does, run from the browser instead.
- * One shared client, so its request spacing applies across the whole page.
- * No User-Agent: the browser sends its own, and a custom one would cost a
- * CORS preflight per request.
- */
-function themesFromBrowser(malId: number): Promise<AnimeThemes> {
-  browserThemes ??= new AnimeThemesClient({ userAgent: null });
-  return browserThemes.getThemes(malId);
-}
-
 function animeThemesQuery(id: number) {
   return {
     queryKey: ["anime", "themes", id] as const,
@@ -298,18 +280,10 @@ function animeThemesQuery(id: number) {
       const viaServer = await apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }).catch(
         (error: unknown) => ({ tracks: [], opening: null, error: String(error) }) as AnimeThemes,
       );
-      if (!viaServer.error || browserThemesBlocked) return viaServer;
-      // The server could not reach the archive. The visitor's browser very
-      // likely can: the archive sends CORS headers for this site, and an
-      // edge that turns away a datacenter IP lets an ordinary visitor through.
-      const direct = await themesFromBrowser(id).catch(
-        (error: unknown) => ({ tracks: [], opening: null, error: String(error) }) as AnimeThemes,
-      );
-      if (direct.error) {
-        browserThemesBlocked = true;
-        return viaServer;
-      }
-      return direct;
+      // Server only. The browser used to retry the archive itself when the
+      // server couldn't reach it — a second request per title, and a CORS
+      // error in the console whenever the archive turned the browser away.
+      return viaServer;
     },
     staleTime: Infinity,
     gcTime: 60 * 60_000,
@@ -506,6 +480,10 @@ export function useAchievements(enabled = true) {
     enabled,
     queryFn: ({ signal }) =>
       apiRequest<EarnedAchievement[]>("/me/achievements", { signal }),
+    // Read by the achievement toast watcher on every page; ten minutes is
+    // plenty for "you just earned something", and the profile refetches
+    // on its own.
+    staleTime: 10 * 60_000,
   });
 }
 
@@ -750,6 +728,7 @@ export function useGenrePreferences(enabled = true) {
       apiRequest<GenrePreferences>("/me/genre-preferences", { signal }).then(
         (r) => r.genreIds,
       ),
+    staleTime: 30 * 60_000,
   });
 }
 
@@ -829,7 +808,7 @@ export function useRecommendationsStatus(enabled = true) {
       apiRequest<{ configured: boolean }>("/me/recommendations-status", { signal }).then(
         (r) => r.configured,
       ),
-    staleTime: 5 * 60_000,
+    staleTime: 30 * 60_000,
   });
 }
 

@@ -57,6 +57,7 @@ import {
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
+import { WhenNear } from "@/components/common/when-near";
 
 export function Component() {
   const t = useT();
@@ -368,15 +369,25 @@ function AnimeDetailView({ param }: { param: string }) {
         <InfoSidebar anime={data} className="h-full" />
       </div>
 
-      <CharactersPanel animeId={data.id} />
+      {/* Everything below the player loads when it's about to be seen —
+          its requests included — not all at once when the page opens. */}
+      <WhenNear>
+        <CharactersPanel animeId={data.id} />
+      </WhenNear>
 
-      <FranchisePanel anime={data} />
+      <WhenNear minHeight={200}>
+        <FranchisePanel anime={data} />
+      </WhenNear>
 
-      <RelatedSection anime={data} />
+      <WhenNear>
+        <RelatedSection anime={data} />
+      </WhenNear>
 
-      <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
-        <CommentsSection animeId={data.id} />
-      </Panel>
+      <WhenNear minHeight={400}>
+        <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
+          <CommentsSection animeId={data.id} />
+        </Panel>
+      </WhenNear>
     </article>
   );
 }

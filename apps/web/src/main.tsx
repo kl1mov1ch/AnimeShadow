@@ -20,6 +20,7 @@ window.addEventListener("unhandledrejection", (event) => {
   }
 });
 import "@/index.css";
+import { FEATURES } from "@/lib/features";
 
 // A deploy replaces every built asset with a freshly-hashed filename — a tab
 // left open across that moment still has the *old* index.html in memory, so
@@ -41,12 +42,17 @@ createRoot(container).render(
       <ThemeProvider
         attribute="class"
         defaultTheme="dark"
-        enableSystem
+        // Dark only while the light theme is switched off (lib/features):
+        // forced, so a theme saved earlier in the browser can't bring it back.
+        forcedTheme={FEATURES.lightTheme ? undefined : "dark"}
+        enableSystem={FEATURES.lightTheme}
         disableTransitionOnChange
       >
         <I18nProvider>
           <AuthProvider>
-            <ThemeSync />
+            {/* Syncing the account's theme fetched the profile on every
+                page; with one theme there is nothing to sync. */}
+            {FEATURES.lightTheme && <ThemeSync />}
             <RouterProvider router={router} />
           </AuthProvider>
         </I18nProvider>

@@ -48,8 +48,13 @@ export function SearchBox() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isAuthed = status === "authenticated";
-  const { data: genres = [] } = useGenres();
-  const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed);
+  const [open, setOpen] = useState(false);
+  // Genre chips only exist in the open dropdown — fetched on first open,
+  // not on every page load.
+  const [wasOpened, setWasOpened] = useState(false);
+  if (open && !wasOpened) setWasOpened(true);
+  const { data: genres = [] } = useGenres(wasOpened);
+  const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed && wasOpened);
   const favoriteGenres = favoriteGenreIds
     .map((id) => genres.find((g) => g.id === id))
     .filter((g): g is NonNullable<typeof g> => g != null)
@@ -57,7 +62,6 @@ export function SearchBox() {
     .map((g) => ({ id: g.id, label: labels.genreLabel(g.name) }));
 
   const [term, setTerm] = useState("");
-  const [open, setOpen] = useState(false);
   // The full hint ("title, character or a vibe") never fit a header-sized
   // field — it was cut off mid-word. Three short ones taking turns say the
   // same thing and each fits.

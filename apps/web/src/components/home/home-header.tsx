@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { HOME_NAV } from "./home-nav";
+import { FEATURES } from "@/lib/features";
 
 /**
  * The landing's header: the site's real controls — the full search box with
@@ -73,8 +74,8 @@ export function HomeHeader() {
               <TooltipContent>{t("frameSearch.navLabel")}</TooltipContent>
             </Tooltip>
           )}
-          <LanguageSwitcher />
-          <ThemeToggle />
+          {FEATURES.englishLocale && <LanguageSwitcher />}
+          {FEATURES.lightTheme && <ThemeToggle />}
           <UserMenu />
           <button
             type="button"

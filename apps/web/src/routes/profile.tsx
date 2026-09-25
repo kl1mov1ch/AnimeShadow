@@ -103,6 +103,7 @@ import { AchievementsCard, FavoriteGenresCard } from "@/components/profile/profi
 import { ProfileStudio } from "@/components/profile/profile-studio";
 import { ProfileProgress } from "@/components/profile/profile-progress";
 import { useProfileAccentStyle } from "@/components/profile/profile-accent";
+import { FEATURES } from "@/lib/features";
 
 export function Component() {
   const t = useT();
@@ -767,6 +768,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
             see the options without opening it and could not tell which was
             active without reading. They are all on screen now, wide enough
             to hit, each showing what it actually means. */}
+        {FEATURES.lightTheme && (
         <SettingsRow
           icon={PaletteIcon}
           label={t("profile.settings.theme")}
@@ -825,6 +827,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
             })}
           </div>
         </SettingsRow>
+        )}
 
         <SettingsRow
           icon={MoonStarIcon}

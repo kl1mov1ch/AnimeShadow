@@ -22,6 +22,7 @@ import {
 } from "@/lib/query";
 import { useDocumentHead } from "@/lib/seo";
 import { FEATURES } from "@/lib/features";
+import { WhenNear } from "@/components/common/when-near";
 
 /**
  * Homepage rail order is a deliberate hierarchy, not an arbitrary list:
@@ -151,9 +152,13 @@ export function Component() {
 
       {/* Something to do rather than something to scroll past — built from
           the titles this page already loaded. */}
-      <div className="cv-auto">
-        <AnimeCorner />
-      </div>
+      {/* The game fetches a round and the leaderboard — only once it's
+          about to be on screen. */}
+      <WhenNear minHeight={420}>
+        <div className="cv-auto">
+          <AnimeCorner />
+        </div>
+      </WhenNear>
 
 
       <div className="cv-auto">

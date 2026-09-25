@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isSlowConnection } from "@/lib/connection";
 import { useAnimeOpening } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 /**
  * A title's opening, played as background motion behind a poster or a hero.
@@ -69,7 +70,13 @@ function shouldAllowMotion(): boolean {
   return !isSlowConnection();
 }
 
-export function OpeningVideo({
+/** Off while FEATURES.openingVideos is false: renders nothing and so
+ *  requests nothing — no themes lookup, no video. */
+export function OpeningVideo(props: Parameters<typeof OpeningVideoPlayer>[0]) {
+  return FEATURES.openingVideos ? <OpeningVideoPlayer {...props} /> : null;
+}
+
+function OpeningVideoPlayer({
   animeId,
   /** The caller's decision that this one is wanted now — a settled hover, or
    *  the slide currently on screen. Nothing loads while this is false. */

@@ -49,6 +49,7 @@ import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useRecommendationsStatus } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 // A plain underlined text link, active state aside, read as the most
 // static thing in the header — no motion, no fill, nothing to notice it
@@ -272,8 +273,8 @@ export function SiteHeader() {
               </TooltipTrigger>
               <TooltipContent>{t("footer.randomAnime")}</TooltipContent>
             </Tooltip>
-            <LanguageSwitcher />
-            <ThemeToggle />
+            {FEATURES.englishLocale && <LanguageSwitcher />}
+            {FEATURES.lightTheme && <ThemeToggle />}
             {/* Only rendered once the browser actually has something to
                 offer (a native prompt, or Safari on an iPhone/iPad) — no
                 dead button on the many browsers/platforms with no install
@@ -435,8 +436,8 @@ function MobileMenu({
 
       {/* preferences */}
       <div className="flex flex-col gap-1 p-3">
-        <MobileLanguage />
-        <MobileTheme />
+        {FEATURES.englishLocale && <MobileLanguage />}
+        {FEATURES.lightTheme && <MobileTheme />}
       </div>
 
       {authed && (

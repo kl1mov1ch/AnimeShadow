@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Dict } from "./en";
 import { ru } from "./ru";
+import { FEATURES } from "@/lib/features";
 
 /**
  * Russian ships in the main bundle — it's the default and most visitors'
@@ -26,6 +27,8 @@ function loadEnglish(): Promise<void> {
 const STORAGE_KEY = "animeshadow.locale.v1";
 
 function readLocale(): Locale {
+  // Russian only while English is switched off (lib/features).
+  if (!FEATURES.englishLocale) return DEFAULT_LOCALE;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "ru" || stored === "en") return stored;
@@ -69,6 +72,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [locale]);
 
   const setLocale = useCallback((next: Locale) => {
+    if (!FEATURES.englishLocale && next !== DEFAULT_LOCALE) return;
     setLocaleState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);

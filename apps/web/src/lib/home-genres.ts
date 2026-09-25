@@ -4,6 +4,7 @@ import { DEFAULT_HOME_GENRES } from "@/components/anime/genre-cards";
 import { GENRE_ART } from "@/components/anime/genre-art";
 import { useAuth } from "@/hooks/use-auth";
 import { useGenrePreferences, useGenres, useLibrary } from "@/lib/query";
+import { FEATURES } from "@/lib/features";
 
 const HOME_GENRE_SLOTS = 6;
 
@@ -20,8 +21,9 @@ const HOME_GENRE_SLOTS = 6;
 export function useHomeGenres(): { genres: Genre[]; personal: boolean } {
   const { status } = useAuth();
   const authed = status === "authenticated";
-  const { data: all } = useGenres();
-  const { data: picked } = useGenrePreferences(authed);
+  // Nothing to fetch while the homepage genres block is switched off.
+  const { data: all } = useGenres(FEATURES.homeGenres);
+  const { data: picked } = useGenrePreferences(authed && FEATURES.homeGenres);
   const { data: library } = useLibrary(undefined, authed);
 
   return useMemo(() => {
