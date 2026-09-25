@@ -1,16 +1,14 @@
 import type {
   EarnedAchievement,
-  LibraryStatus,
   MyProfile,
   ProfileStats,
-  ProgressDetail,
   PublicProfile,
   Rank,
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import { type CSSProperties, useState } from "react";
 import {
-  BarChart3Icon,
+  Settings2Icon,
   CheckCircle2Icon,
   CheckIcon,
   ChevronRightIcon,
@@ -25,9 +23,6 @@ import {
   StarIcon,
   SunIcon,
   PaletteIcon,
-  PencilIcon,
-  PlayCircleIcon,
-  SettingsIcon,
   ShieldCheckIcon,
   SearchIcon,
   SparklesIcon,
@@ -37,7 +32,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, } from "react-router-dom";
 import { toast } from "sonner";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
 import { AchievementBadge } from "@/components/achievement-badge";
@@ -45,23 +40,13 @@ import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import {
   fmtDuration,
-  mmss,
-  ProgressEmpty,
-  ProgressRow,
-} from "@/components/anime/progress-row";
+  } from "@/components/anime/progress-row";
 import { UserTitleBadge } from "@/components/user-title-badge";
 import { PasswordInput, TextInput } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Area, AreaChart, Pie, PieChart, XAxis, YAxis } from "recharts";
 import {
   Dialog,
   DialogContent,
@@ -79,9 +64,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
-import { PosterFallback } from "@/components/anime/poster-fallback";
 import { useLocale, useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
@@ -89,12 +72,9 @@ import { useLabels } from "@/lib/labels";
 import {
   useAchievements,
   useDeleteAccount,
-  useDeleteProgress,
   useGenrePreferencesStatus,
   useGenres,
-  useLibrary,
   useMyProfile,
-  useMyProgress,
   usePublicProfile,
   useReactionGif,
   useResendVerification,
@@ -116,12 +96,11 @@ import {
   ProfileTitleBadge,
 } from "@/components/profile/profile-cosmetics";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
-import { ContinueStrip } from "@/components/library/library-views";
 import { ProfileBlocks } from "@/components/profile/profile-blocks";
-import { ProfileSettingsExtras, SettingsSearchProvider, SettingsSearchBox, useSettingsMatch } from "@/components/profile/profile-settings-extras";
+import { useSettingsMatch } from "@/components/profile/profile-settings-extras";
+import { AchievementsCard, FavoriteGenresCard } from "@/components/profile/profile-side";
+import { ProfileStudio } from "@/components/profile/profile-studio";
 import { useImagePalette } from "@/hooks/use-image-palette";
-import { ProfileRail } from "@/components/profile/profile-rail";
-import { useLibraryEdit } from "@/components/library/use-library-edit";
 
 export function Component() {
   const t = useT();
@@ -180,7 +159,7 @@ function ProfileShell({
       } as CSSProperties)
     : undefined;
   return (
-    <div style={style} className="mx-auto flex w-full max-w-6xl flex-col gap-6 sm:gap-8">
+    <div style={style} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 sm:gap-6">
       {children}
     </div>
   );
@@ -192,130 +171,61 @@ function PublicView({ username }: { username: string }) {
   if (isPending) return <ProfileSkeleton />;
   if (isError || !data)
     return <ErrorState title={t("errors.notFoundTitle")} message={t("errors.notFoundBody")} />;
+  return <ProfilePage profile={data} own={false} />;
+}
+
+function OwnView() {
+  const { data: profile, isPending } = useMyProfile();
+  const [studioOpen, setStudioOpen] = useState(false);
+  if (isPending || !profile) return <ProfileSkeleton />;
   return (
-    <ProfileShell profile={data}>
-      <ProfileHero profile={data} stats={data.stats} />
-      <StatsBar
-        stats={data.stats}
-        achievementsEarned={data.achievements.filter((a) => a.earned).length}
+    <>
+      <ProfilePage profile={profile} own onCustomise={() => setStudioOpen(true)} />
+      <ProfileStudio
+        profile={profile}
+        open={studioOpen}
+        onOpenChange={setStudioOpen}
+        account={<SettingsTab profile={profile} />}
       />
-      {data.stats.topRated.length > 0 && (
-        <section className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t("profile.summary.topRated")}
-          </span>
-          <TopRatedList titles={data.stats.topRated} className="max-w-xs" />
-        </section>
-      )}
-      <ProfileBlocks profile={data} own={false} />
-      <AchievementsGrid achievements={data.achievements} />
-    </ProfileShell>
+    </>
   );
 }
 
-// Settings is a dialog now, not a destination: a profile is one page,
-// and "edit what you are looking at" should not navigate away from it.
-const PROFILE_TABS = ["profile", "progress", "achievements", "stats"] as const;
-type ProfileTab = (typeof PROFILE_TABS)[number];
-
-function OwnView() {
-  const t = useT();
-  const { data: profile, isPending } = useMyProfile();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requested = searchParams.get("tab");
-  const tab: ProfileTab = PROFILE_TABS.includes(requested as ProfileTab)
-    ? (requested as ProfileTab)
-    : "profile";
-
-  if (isPending || !profile) return <ProfileSkeleton />;
-
+/**
+ * The whole profile, one page: who it is, the numbers, then what they've
+ * been watching on the left and what they like and have won on the right.
+ * There are no tabs — every part is a block the owner can move or hide —
+ * and exactly one button changes anything: "customise", in the header.
+ */
+function ProfilePage({
+  profile,
+  own,
+  onCustomise,
+}: {
+  profile: PublicProfile;
+  own: boolean;
+  onCustomise?: () => void;
+}) {
   return (
     <ProfileShell profile={profile}>
-      <ProfileHero
-        profile={profile}
-        stats={profile.stats}
-        editable
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
-      <StatsBar
-        stats={profile.stats}
-        achievementsEarned={profile.achievements.filter((a) => a.earned).length}
-      />
-
-      {/* The rail used to be the page's navigation, which cost a whole
-          column to three links. The tabs are a row now — the column goes to
-          content instead, and on desktop the page finally has the shape it
-          should: what you did, next to what you have. */}
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setSearchParams(v === "profile" ? {} : { tab: v }, { replace: true })}
-        className="gap-4"
-      >
-        <TabsList className="h-auto! w-full flex-row justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card/40 p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <ProfileTabTrigger value="profile" icon={UserIcon} label={t("profile.tabs.profile")} />
-          <ProfileTabTrigger
-            value="progress"
-            icon={PlayCircleIcon}
-            label={t("profile.tabs.progress")}
+      <ProfileHero profile={profile} stats={profile.stats} editable={own} onOpenSettings={onCustomise} />
+      {!profile.hidden.stats && (
+        <StatsBar
+          stats={profile.stats}
+          achievementsEarned={profile.achievements.filter((a) => a.earned).length}
+        />
+      )}
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <ProfileBlocks profile={profile} own={own} />
+        <aside className="flex flex-col gap-5 lg:sticky lg:top-20">
+          <AchievementsCard
+            profile={profile}
+            own={own}
+            renderAll={() => <AchievementsGrid achievements={profile.achievements} />}
           />
-          <ProfileTabTrigger
-            value="achievements"
-            icon={TrophyIcon}
-            label={t("profile.tabs.achievements")}
-          />
-          <ProfileTabTrigger value="stats" icon={BarChart3Icon} label={t("profile.tabs.stats")} />
-        </TabsList>
-
-        <div className="gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-5">
-          <div className="min-w-0">
-            <TabsContent
-              value="profile"
-              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-            >
-              <ProfileBlocks profile={profile} own />
-            </TabsContent>
-            <TabsContent
-              value="progress"
-              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-            >
-              <ProgressTab profile={profile} />
-            </TabsContent>
-            <TabsContent
-              value="achievements"
-              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-            >
-              <AchievementsTab />
-            </TabsContent>
-            <TabsContent
-              value="stats"
-              className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-            >
-              <StatsTab profile={profile} />
-            </TabsContent>
-          </div>
-
-          <div className="mt-4 lg:sticky lg:top-20 lg:mt-0">
-            <ProfileRail profile={profile} onOpenSettings={() => setSettingsOpen(true)} />
-          </div>
-        </div>
-      </Tabs>
-
-      {/* Everything that used to be a fifth tab. Same component, same
-          rows, same mutations — it just no longer costs leaving the page
-          you were looking at. */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
-          <SettingsSearchProvider>
-            <DialogHeader>
-              <DialogTitle>{t("profile.tabs.settings")}</DialogTitle>
-            </DialogHeader>
-            <SettingsSearchBox />
-            <SettingsTab profile={profile} />
-            <ProfileSettingsExtras profile={profile} />
-          </SettingsSearchProvider>
-        </DialogContent>
-      </Dialog>
+          <FavoriteGenresCard profile={profile} />
+        </aside>
+      </div>
     </ProfileShell>
   );
 }
@@ -377,86 +287,6 @@ function StatsBar({
     </div>
   );
 }
-
-/** The charts panel, on a tab of its own now rather than wedged under the
- *  identity card where it never had the width to be read. */
-function StatsTab({ profile }: { profile: MyProfile }) {
-  const t = useT();
-  const { locale } = useLocale();
-  const stats = profile.stats;
-  const day = stats.mostProductiveDay
-    ? new Date(stats.mostProductiveDay).toLocaleDateString(locale, { day: "numeric", month: "long" })
-    : "—";
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-4">
-          <span className="text-[11px] text-muted-foreground">
-            {t("profile.summary.mostProductiveDay")}
-          </span>
-          <span className="font-display text-lg">{day}</span>
-        </div>
-        <div className="flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-4">
-          <span className="text-[11px] text-muted-foreground">
-            {t("profile.summary.avgPerSession")}
-          </span>
-          <span className="font-display text-lg">
-            {stats.avgSessionMinutes != null
-              ? t("profile.summary.minutesShort", { minutes: stats.avgSessionMinutes })
-              : "—"}
-          </span>
-        </div>
-      </div>
-      <LibraryCharts stats={stats} />
-      {stats.topRated.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/40 p-4">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t("profile.summary.topRated")}
-          </span>
-          <TopRatedList titles={stats.topRated} />
-        </section>
-      )}
-    </div>
-  );
-}
-
-/**
- * Three tabs used to mean three unrelated accent colours — sky, violet,
- * amber — which made the rail read as a paint chart rather than as one
- * control. They now share the site's own pill language: a gradient fill
- * for wherever you are, a quiet lift for everywhere else, and the same
- * band of light every other button here sweeps on hover.
- */
-function ProfileTabTrigger({
-  value,
-  icon: Icon,
-  label,
-}: {
-  value: ProfileTab;
-  icon: typeof PlayCircleIcon;
-  label: string;
-}) {
-  return (
-    <TabsTrigger
-      value={value}
-      className={cn(
-        "group relative h-auto flex-none justify-center gap-2 overflow-hidden rounded-lg border-transparent px-3.5 py-2 text-foreground/70 transition-all duration-200 sm:px-4",
-        "hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
-        "data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:via-primary/85 data-[state=active]:to-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25 data-[state=active]:hover:translate-y-0",
-      )}
-    >
-      <Icon className="relative z-10 size-4 shrink-0" />
-      <span className="relative z-10">{label}</span>
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%] group-data-[state=active]:via-white/30"
-      />
-    </TabsTrigger>
-  );
-}
-
-/* ---------------- hero ---------------- */
 
 const RANK_RING: Record<Rank, string> = {
   NOVICE: "ring-muted-foreground/40",
@@ -567,7 +397,7 @@ function ProfileHero({
 
   return (
     <>
-      <header className="reveal-group relative overflow-hidden rounded-2xl border border-border/60 bg-card/40">
+      <header className="reveal-group relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] backdrop-blur-sm">
         <div className="relative">
           {/* Half what it was: a 224px band of artwork pushed everything
               that matters below the fold for no information gained. */}
@@ -575,7 +405,7 @@ function ProfileHero({
             url={profile.bannerUrl}
             accent={profile.accentColor}
             editable={false}
-            className="h-20 sm:h-28"
+            className="h-28 sm:h-44"
           />
           {/* Sized to the band, not to the band it used to be: at 13rem
               over an 7rem strip the mark was twice the height of the thing
@@ -599,7 +429,7 @@ function ProfileHero({
 
         {/* The identity rides up over the banner's lower edge, the way the
             reference has it — one row, not a card parked in a column. */}
-        <div className="relative -mt-14 flex flex-col gap-4 px-4 pb-4 sm:-mt-16 sm:px-6 sm:pb-6">
+        <div className="relative -mt-14 flex flex-col gap-4 px-4 pb-5 sm:-mt-16 sm:px-8 sm:pb-6">
           <div className="flex flex-wrap items-end gap-4">
             {editable ? <AvatarEditOverlay media={media}>{avatar}</AvatarEditOverlay> : avatar}
 
@@ -634,21 +464,16 @@ function ProfileHero({
             {/* In the flow, not pinned over the banner — on a wide screen
                 they sit at the right end of the identity row, on a narrow
                 one they wrap under it on their own line. */}
+            {/* The one control on the page that changes the profile. */}
             {editable && (
-              <div className="flex shrink-0 items-center gap-2 pb-1">
-                <Button size="sm"  onClick={onOpenSettings}>
-                  <PencilIcon />
-                  {t("profile.editProfile")}
-                </Button>
-                <button
-                  type="button"
-                  onClick={onOpenSettings}
-                  aria-label={t("profile.tabs.settings")}
-                  className="grid size-9 place-items-center rounded-lg border border-border/60 bg-card/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                >
-                  <SettingsIcon className="size-4" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="btn-sheen mb-1 inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95"
+              >
+                <Settings2Icon className="size-4" />
+                {t("profile.studio.open")}
+              </button>
             )}
           </div>
 
@@ -762,469 +587,7 @@ const RANK_BAR: Record<Rank, string> = {
   LEGEND: "from-amber-400 to-amber-300",
 };
 
-/** Top 3 titles by the viewer's own score, as a compact list — a rank
- * number, a small thumb, the title, the score, nothing else on the row
- * itself. A tooltip carries the full title and score so the row can stay
- * this narrow instead of a poster-sized card per title. Real ratings
- * only, never a placeholder for a title that just happens to sit on the
- * list unscored. */
-function TopRatedList({
-  titles,
-  className,
-}: {
-  titles: ProfileStats["topRated"];
-  className?: string;
-}) {
-  if (titles.length === 0) return null;
 
-  return (
-    <div className={cn("flex flex-col gap-0.5", className)}>
-      {titles.map((title, i) => (
-        <Tooltip key={title.animeId}>
-          <TooltipTrigger asChild>
-            <Link
-              to={`/anime/${title.slug}`}
-              className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 outline-none transition-colors hover:bg-secondary/40 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="w-3 shrink-0 text-center text-[10px] font-semibold text-muted-foreground/60">
-                {i + 1}
-              </span>
-              <span className="relative size-7 shrink-0 overflow-hidden rounded-md bg-muted">
-                {title.imageUrl ? (
-                  <img
-                    src={imageSrc(title.imageUrl)}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <PosterFallback title={title.title} seed={title.animeId} />
-                )}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-xs">{title.title}</span>
-              <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-amber-500">
-                <StarIcon className="size-2.5 fill-current" />
-                {title.score}
-              </span>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent>
-            {title.title} · {title.score}/10
-          </TooltipContent>
-        </Tooltip>
-      ))}
-    </div>
-  );
-}
-
-const LIBRARY_STATUSES: LibraryStatus[] = [
-  "WATCHING",
-  "COMPLETED",
-  "PLANNED",
-  "ON_HOLD",
-  "DROPPED",
-];
-
-/** One hue — the site's own — stepped down in strength per slice, instead
- * of five unrelated colours. A status ring is one measurement, so it reads
- * as one colour family; the legend/tooltip is what names the slices. */
-function primaryShade(index: number): string {
-  const strength = Math.max(25, 92 - index * 16);
-  return `color-mix(in oklab, var(--primary) ${strength}%, transparent)`;
-}
-
-/** Card shell for a chart, with the site's own 影 mark watermarked behind
- * it — the same glyph as the header and the toasts, at a weight that never
- * competes with the data. */
-function ChartPanel({
-  title,
-  className,
-  children,
-}: {
-  title: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "reveal relative flex flex-col gap-2 overflow-hidden rounded-xl border border-border/60 bg-card/40 p-4",
-        className,
-      )}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-3 -top-4 select-none font-display text-7xl leading-none text-primary/[0.07]"
-      >
-        <SlicedGlyph />
-      </span>
-      <span className="relative text-xs font-medium text-muted-foreground">{title}</span>
-      <div className="relative">{children}</div>
-    </div>
-  );
-}
-
-/**
- * What the viewer actually did, not just what's on their shelf: minutes
- * watched per day over the last two weeks, and how the list splits by
- * status. One hue throughout (the site's own) — these are two views of one
- * person's watching, not five unrelated series that need telling apart.
- */
-function LibraryCharts({ stats }: { stats: ProfileStats }) {
-  const t = useT();
-  const labels = useLabels();
-  const { locale } = useLocale();
-  const { data: entries = [], isPending } = useLibrary();
-
-  const activity = stats.dailyActivity;
-  const hasActivity = activity.some((d) => d.minutes > 0 || d.episodes > 0);
-
-  const dayLabel = (day: string) =>
-    new Date(`${day}T00:00:00Z`).toLocaleDateString(locale, {
-      day: "numeric",
-      month: "short",
-    });
-
-  if (isPending) return <Skeleton className="h-44 flex-1 rounded-xl" />;
-
-  if (entries.length === 0 && !hasActivity) {
-    return (
-      <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border/60 bg-card/20 p-4 text-center text-xs text-muted-foreground">
-        {t("profile.summary.chartsEmpty")}
-      </div>
-    );
-  }
-
-  const byStatus = LIBRARY_STATUSES.map((status, i) => ({
-    status,
-    count: entries.filter((e) => e.status === status).length,
-    fill: primaryShade(i),
-  })).filter((row) => row.count > 0);
-
-  const statusConfig: ChartConfig = Object.fromEntries(
-    LIBRARY_STATUSES.map((status, i) => [
-      status,
-      { label: labels.statusLabel(status), color: primaryShade(i) },
-    ]),
-  );
-
-  const activityConfig = {
-    minutes: { label: t("profile.summary.minutesAxis"), color: "var(--primary)" },
-    episodes: { label: t("profile.summary.episodesAxis"), color: "var(--primary)" },
-  } satisfies ChartConfig;
-
-  return (
-    <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-      <ChartPanel title={t("profile.summary.activityChart")} className="flex-[2]">
-        <ChartContainer config={activityConfig} className="aspect-auto h-[140px] w-full">
-          <AreaChart data={activity} margin={{ top: 4, right: 6, bottom: 0, left: -30 }}>
-            <defs>
-              <linearGradient id="profile-activity-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.45} />
-                <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.03} />
-              </linearGradient>
-            </defs>
-            <XAxis
-              dataKey="day"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={6}
-              minTickGap={22}
-              tick={{ fontSize: 9 }}
-              tickFormatter={dayLabel}
-            />
-            <YAxis hide />
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent labelFormatter={(value) => dayLabel(String(value))} />}
-            />
-            <Area
-              dataKey="minutes"
-              type="monotone"
-              stroke="var(--primary)"
-              strokeWidth={2}
-              fill="url(#profile-activity-fill)"
-              animationDuration={900}
-            />
-            <Area
-              dataKey="episodes"
-              type="monotone"
-              stroke="var(--primary)"
-              strokeOpacity={0.45}
-              strokeWidth={1.5}
-              strokeDasharray="4 3"
-              fill="none"
-              animationDuration={900}
-            />
-          </AreaChart>
-        </ChartContainer>
-      </ChartPanel>
-
-      {(byStatus.length > 0 || stats.topRated.length > 0) && (
-        <ChartPanel title={t("profile.summary.libraryChart")} className="flex-1">
-          {byStatus.length > 0 && (
-            // Smaller than before — the freed height is exactly what the
-            // top-3 list below borrows, so the panel doesn't grow taller
-            // than the activity chart next to it.
-            <ChartContainer config={statusConfig} className="mx-auto aspect-square w-full max-w-[92px]">
-              <PieChart>
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel nameKey="status" />} />
-                <Pie
-                  data={byStatus}
-                  dataKey="count"
-                  nameKey="status"
-                  innerRadius="60%"
-                  outerRadius="92%"
-                  paddingAngle={3}
-                  cornerRadius={6}
-                  strokeWidth={0}
-                  animationDuration={900}
-                />
-              </PieChart>
-            </ChartContainer>
-          )}
-          {stats.topRated.length > 0 && (
-            <TopRatedList
-              titles={stats.topRated}
-              className={byStatus.length > 0 ? "mt-2 border-t border-border/60 pt-2" : undefined}
-            />
-          )}
-        </ChartPanel>
-      )}
-    </div>
-  );
-}
-
-/* ---------------- shared bits ---------------- */
-
-function SectionHeading({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <h2 className="font-display text-lg">{title}</h2>
-      {hint && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{hint}</span>}
-    </div>
-  );
-}
-
-/* ---------------- progress tab ---------------- */
-
-const PROGRESS_PAGE_SIZE = 9;
-const FREE_PROGRESS_LIMIT = 10;
-
-/**
- * The four-line side rail this used to be is now one row across the top —
- * a running commentary on the list below rather than a box next to it that
- * repeated numbers already on screen. Search, a status filter and paging
- * are new: the list itself used to just be every tracked title, in order,
- * with no way to jump to one by name once there were more than a screenful.
- */
-function ProgressTab({ profile }: { profile: MyProfile }) {
-  const t = useT();
-  const labels = useLabels();
-  const { data, isPending } = useMyProgress();
-  const deleteProgress = useDeleteProgress();
-  const rows = data ?? [];
-
-  // The same "pick up where you left off" strip the library page opens
-  // with — real posters, real per-episode progress, one tap to log the
-  // next one — reused here rather than rebuilt, so a change to how it
-  // behaves only ever has to be made once.
-  const { data: libraryEntries } = useLibrary(undefined, true);
-  const libraryEdit = useLibraryEdit();
-  const continuing = (libraryEntries ?? [])
-    .filter((e) => e.status === "WATCHING" && (!e.anime.episodes || e.progress < e.anime.episodes))
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .slice(0, 8);
-
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "watching" | "completed">("all");
-  const [page, setPage] = useState(1);
-
-  const inProgress = rows.filter((r) => !r.completed).length;
-  const lastWatched = rows[0]?.lastWatchedAt ? labels.formatDate(rows[0]!.lastWatchedAt) : null;
-
-  const q = query.trim().toLowerCase();
-  const filtered = rows.filter((r) => {
-    if (q && !r.title.toLowerCase().includes(q)) return false;
-    if (statusFilter === "watching" && r.completed) return false;
-    if (statusFilter === "completed" && !r.completed) return false;
-    return true;
-  });
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PROGRESS_PAGE_SIZE));
-  const safePage = Math.min(page, pageCount);
-  const visible = filtered.slice(
-    (safePage - 1) * PROGRESS_PAGE_SIZE,
-    safePage * PROGRESS_PAGE_SIZE,
-  );
-
-  const resetPage = () => setPage(1);
-  const atFreeLimit = !profile.isPro && rows.length >= FREE_PROGRESS_LIMIT;
-
-  return (
-    <div className="flex flex-col gap-4">
-      {continuing.length > 0 && <ContinueStrip entries={continuing} edit={libraryEdit} />}
-
-      {/* One line, not a sidebar box — "Прогресс" restated four different
-          ways used to live next to the list in its own card; here it's a
-          running header for the exact same list, no numbers duplicated. */}
-      {!isPending && (
-        <div className="reveal-group flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border/60 bg-card/40 px-4 py-3 text-sm">
-          <ProgressStat label={t("profile.summary.inProgress")} value={String(inProgress)} i={0} />
-          <ProgressStat
-            label={t("profile.summary.completedTitles")}
-            value={String(profile.stats.titlesCompleted)}
-            i={1}
-          />
-          {profile.stats.meanScore != null && (
-            <ProgressStat
-              label={t("profile.summary.meanScore")}
-              value={t("library.scoreValue", { value: profile.stats.meanScore })}
-              i={2}
-            />
-          )}
-          {lastWatched && (
-            <ProgressStat label={t("profile.summary.lastWatched")} value={lastWatched} i={3} />
-          )}
-        </div>
-      )}
-
-      {atFreeLimit && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/[0.06] px-4 py-2.5 text-xs text-foreground/85">
-          <SparklesIcon className="size-3.5 shrink-0 text-primary" />
-          <span className="min-w-0 flex-1">
-            {t("profile.progress.freeLimit", { count: FREE_PROGRESS_LIMIT })}
-          </span>
-          <Button asChild size="sm" variant="outline" className="shrink-0">
-            <Link to="/support">{t("footer.pro")}</Link>
-          </Button>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <SectionHeading
-          title={t("home.continueRail")}
-          hint={isPending ? undefined : t("library.countTracked", { count: filtered.length })}
-        />
-        {rows.length > 0 && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {/* The same focus-blooming pill as the header and catalogue
-                search fields, so every search box on the site behaves
-                identically. */}
-            <div className="group relative">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60 transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-primary" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  resetPage();
-                }}
-                placeholder={t("profile.progress.searchPlaceholder")}
-                className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-all duration-200 focus:border-primary/50 focus:bg-card focus:ring-4 focus:ring-primary/15 sm:w-48"
-              />
-            </div>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => {
-                setStatusFilter(v as typeof statusFilter);
-                resetPage();
-              }}
-            >
-              <SelectTrigger className="h-8 w-36 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("profile.progress.filterAll")}</SelectItem>
-                <SelectItem value="watching">{t("profile.progress.filterWatching")}</SelectItem>
-                <SelectItem value="completed">{t("profile.progress.filterCompleted")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {isPending ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
-          ))}
-        </div>
-      ) : rows.length === 0 ? (
-        <ProgressEmpty />
-      ) : filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          {t("detail.noCharactersMatch")}
-        </p>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {visible.map((row) => (
-              <ProgressRow
-                key={row.animeId}
-                row={row}
-                deleting={
-                  deleteProgress.isPending && deleteProgress.variables === row.animeId
-                }
-                onDelete={() =>
-                  deleteProgress.mutate(row.animeId, {
-                    onSuccess: () => toast.success(t("profile.progressCard.deleted")),
-                    onError: () => toast.error(t("errors.genericTitle")),
-                  })
-                }
-              />
-            ))}
-          </div>
-          {/* Matches the catalogue's pager: rounded, lifting, with the
-              current position carried in the site colour rather than as
-              flat grey text. */}
-          {pageCount > 1 && (
-            <div className="flex items-center justify-center gap-3 pt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
-                disabled={safePage <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                {t("common.previous")}
-              </Button>
-              <span className="flex items-baseline gap-1 text-xs tabular-nums">
-                <span className="font-semibold text-primary">{safePage}</span>
-                <span className="text-muted-foreground/60">/</span>
-                <span className="text-muted-foreground">{pageCount}</span>
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
-                disabled={safePage >= pageCount}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t("common.next")}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function ProgressStat({ label, value, i }: { label: string; value: string; i: number }) {
-  return (
-    <span
-      className="reveal flex items-baseline gap-1.5 text-xs"
-      style={{ "--i": i } as CSSProperties}
-    >
-      <span className="text-muted-foreground">{label}:</span>
-      <span className="font-medium tabular-nums text-foreground">{value}</span>
-    </span>
-  );
-}
-
-
-/* ---------------- settings tab ---------------- */
 
 /** A small sub-field label, for the rare expanded row with more than one
  * input inside it (identity's username + bio, the PRO title's icon +
@@ -2245,11 +1608,6 @@ function arraysMatchAsSets(a: number[], b: number[]): boolean {
 
 
 /* ---------------- achievements ---------------- */
-
-function AchievementsTab() {
-  const { data } = useAchievements();
-  return <AchievementsGrid achievements={data ?? []} />;
-}
 
 type AchFilter = "all" | "earned" | "progress";
 

@@ -1,7 +1,5 @@
 import type {
   FeedEvent,
-  LibraryEntry,
-  LibraryStatus,
   ProfileBlock,
   ProfileLayout,
   PublicProfile,
@@ -17,14 +15,10 @@ import {
   FlameIcon,
   HeartHandshakeIcon,
   HistoryIcon,
-  LibraryIcon,
   type LucideIcon,
-  MinusIcon,
   PencilIcon,
   PlayIcon,
-  PlusIcon,
   RadioIcon,
-  Settings2Icon,
   SparklesIcon,
   StarIcon,
   TrophyIcon,
@@ -33,8 +27,6 @@ import {
 import { type CSSProperties, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { STATUSES, STATUS_META } from "@/components/library/library-meta";
-import { useLibraryEdit } from "@/components/library/use-library-edit";
 import {
   Dialog,
   DialogContent,
@@ -43,18 +35,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MorphIcon } from "@/components/ui/morph-icon";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
-  type PublicListEntry,
   useLibrary,
   useTasteCompare,
   useUpdateProfile,
   useUserFeed,
-  useUserList,
   useUserWatching,
   useUserYear,
 } from "@/lib/query";
@@ -67,7 +56,6 @@ const BLOCK_ICON: Record<ProfileBlock, LucideIcon> = {
   watching: RadioIcon,
   year: CalendarDaysIcon,
   activity: HistoryIcon,
-  library: LibraryIcon,
   compare: SparklesIcon,
 };
 
@@ -162,16 +150,13 @@ function relative(iso: string, locale: string): string {
  * "customise" switch that turns the same column into its own editor.
  */
 export function ProfileBlocks({ profile, own }: { profile: PublicProfile; own: boolean }) {
-  const t = useT();
   const { user, status } = useAuth();
-  const [editing, setEditing] = useState(false);
 
   const visible = (block: ProfileBlock) => {
     if (profile.layout.hidden.includes(block)) return false;
     if (block === "watching") return !profile.hidden.watching;
     if (block === "year") return !profile.hidden.stats;
     if (block === "activity") return !profile.hidden.activity;
-    if (block === "library") return !profile.hidden.list;
     if (block === "compare") return !own && status === "authenticated" && user?.id !== profile.id && !profile.hidden.list;
     if (block === "showcase") return own || profile.favorites.length > 0;
     return true;
@@ -179,42 +164,28 @@ export function ProfileBlocks({ profile, own }: { profile: PublicProfile; own: b
 
   return (
     <div className="flex flex-col gap-4">
-      {own && (
-        <div className="flex justify-end">
-          <SmallButton
-            icon={editing ? XIcon : Settings2Icon}
-            label={editing ? t("profile.blocks.done") : t("profile.blocks.customise")}
-            onClick={() => setEditing((e) => !e)}
-            active={editing}
-          />
-        </div>
-      )}
-      {editing ? (
-        <LayoutEditor layout={profile.layout} onClose={() => setEditing(false)} />
-      ) : (
-        profile.layout.order.filter(visible).map((block) => {
-          switch (block) {
-            case "showcase":
-              return <ShowcaseBlock key={block} profile={profile} own={own} />;
-            case "watching":
-              return <WatchingBlock key={block} userId={profile.id} own={own} />;
-            case "year":
-              return <YearBlock key={block} userId={profile.id} />;
-            case "activity":
-              return <ActivityBlock key={block} userId={profile.id} />;
-            case "library":
-              return <LibraryBlock key={block} userId={profile.id} own={own} />;
-            case "compare":
-              return <CompareBlock key={block} userId={profile.id} name={profile.displayName} />;
-          }
-        })
-      )}
+      {profile.layout.order.filter(visible).map((block) => {
+        switch (block) {
+          case "showcase":
+            return <ShowcaseBlock key={block} profile={profile} own={own} />;
+          case "watching":
+            return <WatchingBlock key={block} userId={profile.id} own={own} />;
+          case "year":
+            return <YearBlock key={block} userId={profile.id} />;
+          case "activity":
+            return <ActivityBlock key={block} userId={profile.id} />;
+          case "compare":
+            return <CompareBlock key={block} userId={profile.id} name={profile.displayName} />;
+          default:
+            return null;
+        }
+      })}
     </div>
   );
 }
 
 /** Order and visibility of the blocks, and where the accent comes from. */
-function LayoutEditor({ layout, onClose }: { layout: ProfileLayout; onClose: () => void }) {
+export function LayoutEditor({ layout, onClose }: { layout: ProfileLayout; onClose?: () => void }) {
   const t = useT();
   const update = useUpdateProfile();
   const [order, setOrder] = useState(layout.order);
@@ -235,13 +206,13 @@ function LayoutEditor({ layout, onClose }: { layout: ProfileLayout; onClose: () 
       {
         onSuccess: () => {
           toast.success(t("profile.blocks.saved"));
-          onClose();
+          onClose?.();
         },
       },
     );
 
   return (
-    <section className="flex animate-in flex-col gap-3 rounded-2xl border border-primary/40 bg-[var(--accent-surface)] p-4 fade-in-0 zoom-in-95 duration-300 sm:p-5">
+    <section className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">{t("profile.blocks.editorHint")}</p>
       <ol className="flex flex-col gap-1.5">
         {order.map((block, i) => {
@@ -313,7 +284,7 @@ function LayoutEditor({ layout, onClose }: { layout: ProfileLayout; onClose: () 
         />
       </label>
       <div className="flex justify-end gap-2">
-        <SmallButton icon={XIcon} label={t("common.cancel")} onClick={onClose} />
+        {onClose && <SmallButton icon={XIcon} label={t("common.cancel")} onClick={onClose} />}
         <SmallButton icon={CheckCircle2Icon} label={t("common.save")} onClick={save} active />
       </div>
     </section>
@@ -745,162 +716,6 @@ function ActivityBlock({ userId }: { userId: string }) {
       {items.length > 8 && (
         <button type="button" onClick={() => setMore((m) => !m)} className="self-center text-xs font-semibold text-primary hover:underline">
           {more ? t("profile.feed.less") : t("profile.feed.more", { n: items.length - 8 })}
-        </button>
-      )}
-    </Block>
-  );
-}
-
-/* ------------------------------------------------------------------------ */
-/* The list                                                                  */
-/* ------------------------------------------------------------------------ */
-
-/**
- * The list, by status. On one's own profile each card carries the three
- * things people change most — one more episode, the status, the score —
- * right there on the poster, without opening the title.
- */
-function LibraryBlock({ userId, own }: { userId: string; own: boolean }) {
-  const t = useT();
-  const labels = useLabels();
-  const mine = useLibrary(undefined, own);
-  const theirs = useUserList(userId, !own);
-  const edit = useLibraryEdit();
-  const [status, setStatus] = useState<LibraryStatus | "ALL">("ALL");
-  const [more, setMore] = useState(false);
-
-  const entries: Array<LibraryEntry | PublicListEntry> = (own ? mine.data : theirs.data) ?? [];
-  const pending = own ? mine.isPending : theirs.isPending;
-  const counts = useMemo(() => {
-    const map = new Map<LibraryStatus, number>();
-    for (const e of entries) map.set(e.status, (map.get(e.status) ?? 0) + 1);
-    return map;
-  }, [entries]);
-  const filtered = entries.filter((e) => status === "ALL" || e.status === status);
-  const shown = more ? filtered : filtered.slice(0, 12);
-
-  return (
-    <Block
-      block="library"
-      action={own ? <Link to="/library" className="text-xs font-semibold text-primary hover:underline">{t("profile.blocks.openList")} →</Link> : undefined}
-    >
-      <div className="flex flex-wrap gap-1">
-        <button
-          type="button"
-          onClick={() => setStatus("ALL")}
-          className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", status === "ALL" ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary")}
-        >
-          {t("profile.feed.filter.all")} {entries.length}
-        </button>
-        {STATUSES.map((s) => {
-          const Icon = STATUS_META[s].Icon;
-          return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatus(s)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors",
-                status === s ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary hover:bg-primary/20",
-              )}
-            >
-              <Icon className="size-3" />
-              {t(`status.${s}`)} {counts.get(s) ?? 0}
-            </button>
-          );
-        })}
-      </div>
-      {pending ? (
-        <span className="h-48 animate-pulse rounded-xl bg-primary/10" />
-      ) : shown.length === 0 ? (
-        <Empty text={t("profile.blocks.listEmpty")} />
-      ) : (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-          {shown.map((entry) => {
-            const meta = STATUS_META[entry.status];
-            const total = entry.anime.episodes ?? 0;
-            const percent = total > 0 ? Math.min(100, Math.round((entry.progress / total) * 100)) : 0;
-            return (
-              <div key={entry.anime.id} className="group relative">
-                <Link to={animeHref(entry.anime)} viewTransition className="relative block aspect-[2/3] overflow-hidden rounded-xl border border-primary/20 transition-all duration-300 group-hover:border-primary">
-                  {entry.anime.imageUrl && (
-                    <img src={imageSrc(entry.anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                  )}
-                  <span className={cn("absolute inset-x-0 top-0 h-1", meta.bar)} />
-                  {entry.score != null && (
-                    <span className="absolute right-1 top-2 inline-flex items-center gap-0.5 rounded bg-black/70 px-1 text-[10px] font-bold text-amber-400">
-                      <StarIcon className="size-2.5 fill-current" />
-                      {entry.score}
-                    </span>
-                  )}
-                  {total > 0 && entry.status !== "COMPLETED" && (
-                    <span className="absolute inset-x-0 bottom-0 h-1 bg-black/50">
-                      <span className={cn("block h-full", meta.bar)} style={{ width: `${percent}%` }} />
-                    </span>
-                  )}
-                </Link>
-                {own && "notes" in entry && (
-                  <div className="absolute inset-x-1 bottom-2 z-10 flex translate-y-2 items-center justify-between gap-1 rounded-lg bg-black/80 p-1 opacity-0 backdrop-blur transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" onClick={() => edit.step(entry, -1)} aria-label="-1" className="grid size-6 place-items-center rounded text-white hover:bg-primary">
-                          <MinusIcon className="size-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("profile.blocks.minusEp")}</TooltipContent>
-                    </Tooltip>
-                    <span className="font-display text-[11px] tabular-nums text-white">
-                      {entry.progress}
-                      {total > 0 && `/${total}`}
-                    </span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" onClick={() => edit.step(entry, 1)} aria-label="+1" className="grid size-6 place-items-center rounded bg-primary text-primary-foreground hover:brightness-110">
-                          <PlusIcon className="size-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("profile.blocks.plusEp")}</TooltipContent>
-                    </Tooltip>
-                  </div>
-                )}
-                <span className="mt-1 line-clamp-1 block text-[11px] font-medium">{labels.title(entry.anime)}</span>
-                {own && "notes" in entry && (
-                  <div className="mt-1 flex gap-1">
-                    <select
-                      value={entry.status}
-                      onChange={(e) => edit.setStatus(entry, e.target.value as LibraryStatus)}
-                      aria-label={t("library.status")}
-                      className="h-6 min-w-0 flex-1 rounded border border-primary/25 bg-card/70 px-1 text-[10px] outline-none focus:border-primary"
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {t(`status.${s}`)}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={entry.score ?? ""}
-                      onChange={(e) => edit.setScore(entry, e.target.value ? Number(e.target.value) : null)}
-                      aria-label={t("library.score")}
-                      className="h-6 w-10 rounded border border-primary/25 bg-card/70 px-0.5 text-[10px] outline-none focus:border-primary"
-                    >
-                      <option value="">★</option>
-                      {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {filtered.length > 12 && (
-        <button type="button" onClick={() => setMore((m) => !m)} className="self-center text-xs font-semibold text-primary hover:underline">
-          {more ? t("profile.feed.less") : t("profile.feed.more", { n: filtered.length - 12 })}
         </button>
       )}
     </Block>

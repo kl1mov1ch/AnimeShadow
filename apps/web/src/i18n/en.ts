@@ -1000,6 +1000,23 @@ export const en = {
     signedOutBody: "Sign in to search anime by frame.",
   },
   profile: {
+    studio: {
+      open: "Customise",
+      title: "Customise profile",
+      hint: "Everything that changes the profile, in one place.",
+      mediaHint: "The avatar and background are changed right in the header: hover over them.",
+      tabs: {
+        look: "Appearance",
+        blocks: "Blocks",
+        privacy: "Privacy",
+        account: "Account",
+        list: "Move list",
+      },
+    },
+    side: {
+      earnedShare: "{n}% of all achievements",
+      next: "Closest to unlocking",
+    },
     blocks: {
       showcase: "My five",
       watching: "Watching now",

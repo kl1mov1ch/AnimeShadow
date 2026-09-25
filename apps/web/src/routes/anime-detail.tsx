@@ -1,5 +1,4 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
-import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import {
   BookOpenIcon,
@@ -201,14 +200,10 @@ function AnimeDetailView({ param }: { param: string }) {
     // context, so the wash below can sit at -z-10 behind the content without
     // falling behind the body's own opaque background, where it would be
     // invisible.
-    <article
-      className="title-themed relative isolate flex flex-col gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10"
-      style={
-        data.accentColor
-          ? ({ "--title-accent": data.accentColor } as CSSProperties)
-          : undefined
-      }
-    >
+    // The site's own colour, not the cover's. Taking each title's dominant
+    // colour made every anime page a different palette — pale cream on one,
+    // teal on the next — and none of them looked like the rest of the site.
+    <article className="relative isolate flex flex-col gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10">
       <TitleHeader
         animeId={data.id}
         // The widescreen banner is decoration behind the header, and one of
@@ -670,7 +665,7 @@ function AudienceStats({ animeId }: { animeId: number }) {
     `color-mix(in srgb, var(--accent) ${strength}%, transparent)`;
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-4 transition-colors duration-300 hover:border-[color-mix(in_srgb,var(--title-accent,var(--primary))_35%,transparent)]">
+    <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-4 transition-colors duration-300 hover:border-primary/35">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground/70">
           {t("detail.audienceTitle")}

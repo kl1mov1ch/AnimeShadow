@@ -516,32 +516,11 @@ html body[data-scroll-locked] {
   }
 }
 
-/*
-  A title page dresses itself in its key visual's dominant colour. The page
-  publishes that one value as --title-accent (from AniList); everything below
-  is derived from it, so a whole palette comes from a single number and no
-  per-title CSS is ever written.
-
-  Derived *against the theme*, deliberately. A cover's dominant colour is
-  whatever the artwork happens to be — plenty are pale cream or near-white —
-  so using it raw as text would be illegible on a light theme. --accent-ink is
-  mixed toward the theme's own foreground, which keeps the hue while
-  guaranteeing it stays readable in both themes. The raw colour is only ever
-  used where contrast cannot be at stake: washes, hairlines and fills.
-*/
-.title-themed {
-  --accent: var(--title-accent, var(--primary));
-  --accent-ink: color-mix(in oklab, var(--accent) 55%, var(--foreground));
-  --accent-line: color-mix(in srgb, var(--accent) 40%, transparent);
-  --accent-line-soft: color-mix(in srgb, var(--accent) 20%, transparent);
-  --accent-surface: color-mix(in srgb, var(--accent) 7%, transparent);
-  --accent-surface-strong: color-mix(in srgb, var(--accent) 14%, transparent);
-}
 
 /*
   The same accent tokens for the rest of the site, derived from the site
-  colour rather than a title's. They used to exist only inside
-  .title-themed, so every panel outside a title page that used them —
+  colour. They used to exist only on title pages, so every panel
+  elsewhere that used them —
   the catalogue, the profile, the front page's corner — got an undefined
   border colour, which falls back to the text colour: a grey-white
   outline where a soft accent edge was meant. Declared on both theme roots

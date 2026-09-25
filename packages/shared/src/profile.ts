@@ -144,7 +144,6 @@ export const PROFILE_BLOCKS = [
   "watching",
   "year",
   "activity",
-  "library",
   "compare",
 ] as const;
 export const profileBlockSchema = z.enum(PROFILE_BLOCKS);
