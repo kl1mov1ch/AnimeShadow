@@ -27,7 +27,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm sm:p-5">
+    <section className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5">
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2.5 font-display text-base tracking-tight">
           <span className="grid size-7 place-items-center rounded-lg bg-primary/15 text-primary">

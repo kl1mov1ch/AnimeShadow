@@ -17,7 +17,7 @@ export function ScoreBadge({ score, className, size = "sm" }: ScoreBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md bg-black/70 font-semibold text-white tabular-nums backdrop-blur",
+        "inline-flex items-center gap-1 rounded-md bg-black/70 font-semibold text-white tabular-nums",
         size === "sm" ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-sm",
         className,
       )}

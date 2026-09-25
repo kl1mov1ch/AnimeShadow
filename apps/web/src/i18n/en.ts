@@ -96,6 +96,13 @@ export const en = {
     viewDetails: "View details",
   },
   browse: {
+    anyShort: "Any",
+    withPlayerShort: "With player",
+    anyLength: "Any",
+    allGenres: "All genres · {count}",
+    savedNone: "No saved sets yet",
+    hideListedShort: "Hide mine",
+    studioShort: "MAPPA…",
     title: "Browse the catalogue",
     subtitle:
       "Filter by format, status, score, year and genre. Search matches titles in the catalogue.",
@@ -273,6 +280,10 @@ export const en = {
     searchCharacters: "Search characters…",
     noCharactersMatch: "No one matches that search.",
     characterModal: {
+      tabAbout: "About",
+      tabVoices: "Voices",
+      tabAnime: "Anime",
+      tabManga: "Manga",
       voicedBy: "Voiced by",
       japaneseName: "Japanese name",
       noDescription: "No description found yet.",
@@ -312,6 +323,7 @@ export const en = {
     },
   },
   watch: {
+    geoHint: "If Kodik says the video is not available in your country, it restricts playback by region. Turn off your VPN (or exclude kodikplayer.com from it) and reload.",
     loadPlayer: "Load the player",
     voiceover: "Audio / subtitles",
     switchPlayer: "Switch player ({count})",
@@ -843,6 +855,19 @@ export const en = {
     notFoundBody: "The page you're after doesn't exist or has moved.",
   },
   support: {
+    eyebrow: "Support",
+    safeNote: "Paid through Boosty — we never see card details",
+    previewTitle: "What PRO looks like",
+    previewName: "Your name",
+    previewBody: "The 影 seal after your name — on your profile, in comments, everywhere people see you.",
+    steps: {
+      title: "How PRO gets switched on",
+      pickTitle: "Pick a tier on Boosty",
+      pickBody: "Rōnin or Shōgun — you subscribe on Boosty's page and choose how to pay there.",
+      tellTitle: "Send us your login",
+      doneTitle: "The seal on your name",
+      doneBody: "PRO is switched on by hand within a day — and the 影 seal appears next to your name.",
+    },
     title: "Support the project",
     lead: "AnimeShadow is free and stays that way. PRO and donations are an optional extra — a way to say thanks and pick up a few nice perks.",
     plansTitle: "Subscription",
@@ -889,6 +914,15 @@ export const en = {
     },
   },
   about: {
+    eyebrow: "About",
+    steps: {
+      catalogTitle: "A catalogue from open databases",
+      catalogBody: "Titles, synopses, genres and scores come from open anime databases.",
+      videoTitle: "Video stays with the players",
+      videoBody: "Episodes are shown by third-party players. We store and serve nothing — we only embed.",
+      listTitle: "The list is yours",
+      listBody: "Statuses, scores and per-episode progress live with us and follow you to any device.",
+    },
     title: "About",
     lead: "AnimeShadow is a quiet, dark room where the interface steps back and the light goes to the poster.",
     introBody:
@@ -954,6 +988,7 @@ export const en = {
     close: "Close",
   },
   frameSearch: {
+    bestMatch: "Best match",
     navLabel: "Search by frame",
     beta: "Beta",
     betaNote: "A test feature — it doesn't always work. Searches go through trace.moe, an outside service with a small shared quota, so sometimes you'll need to try again later.",

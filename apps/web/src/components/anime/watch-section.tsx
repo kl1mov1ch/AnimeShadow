@@ -36,6 +36,7 @@ import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/quer
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -67,6 +68,9 @@ interface WatchSectionProps {
    */
   onActivate?: () => void;
 }
+
+/** Our own HLS player (AniLibria streams). Off: Kodik only. */
+const OWN_PLAYER_ENABLED = false;
 
 export function WatchSection({
   anime,
@@ -112,7 +116,11 @@ export function WatchSection({
   // empty, where it shows as unavailable with the reason rather than
   // vanishing. A control that appears on some titles and not others is
   // harder to trust than one that is always there and sometimes greyed.
-  const ownSources = rawData?.sources.filter((s) => s.format === "hls") ?? [];
+  //
+  // For now the site plays Kodik only: our own player is switched off and
+  // its switch hidden, so every title opens the same way. The code for it
+  // stays; turning it back on is `OWN_PLAYER_ENABLED`.
+  const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls") ?? []) : [];
   const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
   const canUseOwn = ownSources.length > 0;
   const [preferOwn, setPreferOwn] = useState(true);
@@ -680,8 +688,13 @@ const STALL_MS_RETRY = 4_000;
 
 
 
-/** How many candidate embeds load in parallel before one is shown. */
-const RACE_SIZE = 2;
+/**
+ * How many candidate embeds load at once. One: a Kodik page is megabytes
+ * of its own scripts, and loading two to keep the faster one halved the
+ * bandwidth each got — on an ordinary connection that made *both* slow.
+ * A dead one is still caught by the stall timer and the next one tried.
+ */
+const RACE_SIZE = 1;
 
 /** Sources the stability probe already confirmed dead. Automatic racing and
  * retry skip these entirely — there's no point spending a stall timeout
@@ -1806,12 +1819,14 @@ function Player({
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm">
-        <PlayerSwitch
-          useOwn={useOwn}
-          canUseOwn={canUseOwn}
-          canUseProvider={canUseProvider}
-          onChange={onUseOwnChange}
-        />
+        {canUseOwn && (
+          <PlayerSwitch
+            useOwn={useOwn}
+            canUseOwn={canUseOwn}
+            canUseProvider={canUseProvider}
+            onChange={onUseOwnChange}
+          />
+        )}
         {/* What is on screen, by number and — where anyone has published
             one — by name. */}
         <span className="flex min-w-0 items-center gap-1.5 text-xs">
@@ -1862,6 +1877,14 @@ function Player({
           )}
           {displaySource.format === "hls" && (
             <SkinPicker skin={skin} onChange={setSkinPersisted} />
+          )}
+          {/* Kodik refuses some countries outright and says so inside its
+              own frame, where we can't see it — so the explanation sits
+              here, one hover away, for whoever gets that message. */}
+          {displaySource.format !== "hls" && (
+            <InfoTooltip side="bottom" className="size-4 opacity-70 hover:opacity-100">
+              {t("watch.geoHint")}
+            </InfoTooltip>
           )}
         </span>
 

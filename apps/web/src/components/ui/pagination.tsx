@@ -29,7 +29,7 @@ function PaginationContent({
     <ul
       data-slot="pagination-content"
       className={cn(
-        "flex flex-row items-center gap-1 rounded-full border border-border/60 bg-card/50 p-1 backdrop-blur-sm",
+        "flex flex-row items-center gap-1 rounded-full border border-border/60 bg-card/80 p-1",
         className
       )}
       {...props}

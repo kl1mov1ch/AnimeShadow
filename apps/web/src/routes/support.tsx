@@ -1,248 +1,159 @@
+import {
+  CoffeeIcon,
+  CrownIcon,
+  ExternalLinkIcon,
+  GemIcon,
+  HeartIcon,
+  HeartHandshakeIcon,
+  type LucideIcon,
+  MessageCircleIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+} from "lucide-react";
 import type { CSSProperties } from "react";
-import { CheckIcon, ExternalLinkIcon, HeartIcon, SparklesIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { PlansSection } from "@/components/anime/plans-section";
+import { PageHero, SectionTitle } from "@/components/common/page-hero";
+import { ProMark } from "@/components/common/pro-mark";
+import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { BOOSTY_URL } from "@/lib/support-links";
-import { cn } from "@/lib/utils";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
+
+const reveal = (i: number) => ({ "--i": i }) as CSSProperties;
 
 /**
- * One-off tips and PRO both route to the same place: Boosty. We never touch
- * payment details ourselves, so there's nothing to build here beyond a clear
- * link out and an honest note about what happens after — PRO isn't granted
- * automatically (no webhook from Boosty into the backend yet), so it's a
- * manual flip once someone's subscription shows up on our end.
+ * One-off tips and the paid tiers both go to the same place: Boosty. We
+ * never touch payment details ourselves; PRO is switched on by hand once a
+ * subscription shows up, and the page says so.
  *
- * The page's job is to make that worth doing without overclaiming. Every
- * number and perk on it is one the site actually delivers; the persuasion is
- * in the presentation, not in the promises.
+ * The tiers are the same three the homepage shows — shadow, rōnin, shōgun,
+ * each with its own moving scene — instead of a separate "free / PRO" pair
+ * with different prices, so the two pages no longer disagree about what
+ * the site sells. Every perk on it is one the site actually delivers.
  */
-
-/** The band of light every deliberate action on this site sweeps on hover. */
-function Sheen({ tone = "light" }: { tone?: "primary" | "light" }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]",
-        tone === "light" ? "via-white/40" : "via-primary/30",
-      )}
-    />
-  );
-}
-
 export function Component() {
   const t = useT();
+  const { user } = useAuth();
 
-  const freeFeatures = [
-    t("support.feat.catalog"),
-    t("support.feat.list"),
-    t("support.feat.progress"),
-    t("support.feat.reviews"),
-  ];
-  const proFeatures = [
-    t("support.feat.resume"),
-    t("support.feat.unlimited"),
-    t("support.feat.hd"),
-    t("support.feat.badge"),
-    t("support.feat.early"),
+  const tips: Array<{ icon: LucideIcon; amount: number; name: string; perk: string }> = [
+    { icon: CoffeeIcon, amount: 3, name: t("support.tiers.t1Name"), perk: t("support.tiers.t1Perk") },
+    { icon: GemIcon, amount: 10, name: t("support.tiers.t2Name"), perk: t("support.tiers.t2Perk") },
+    { icon: CrownIcon, amount: 25, name: t("support.tiers.t3Name"), perk: t("support.tiers.t3Perk") },
   ];
 
-  const tiers = [
-    { amount: 3, name: t("support.tiers.t1Name"), perk: t("support.tiers.t1Perk") },
-    { amount: 10, name: t("support.tiers.t2Name"), perk: t("support.tiers.t2Perk") },
-    { amount: 25, name: t("support.tiers.t3Name"), perk: t("support.tiers.t3Perk") },
+  const steps: Array<{ icon: LucideIcon; title: string; body: string }> = [
+    { icon: HeartIcon, title: t("support.steps.pickTitle"), body: t("support.steps.pickBody") },
+    { icon: MessageCircleIcon, title: t("support.steps.tellTitle"), body: t("support.boosty.proNote") },
+    { icon: ShieldCheckIcon, title: t("support.steps.doneTitle"), body: t("support.steps.doneBody") },
   ];
 
   return (
-    <div className="reveal-group mx-auto flex max-w-4xl flex-col gap-10 py-8 sm:gap-14">
-      <header
-        className="reveal relative flex flex-col items-center gap-4 overflow-hidden rounded-3xl border border-border/60 bg-card/40 px-5 py-10 text-center sm:px-8 sm:py-14"
-        style={{ "--i": 0 } as CSSProperties}
-      >
-        {/* The site mark as a watermark rather than a bullet point — the same
-            move the profile charts make, so the page reads as ours on sight. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-6 -top-10 select-none font-display text-[10rem] leading-none text-primary/[0.06] sm:text-[14rem]"
+    <div className="reveal-group mx-auto flex max-w-5xl flex-col gap-8 py-4 sm:gap-12 sm:py-6">
+      <div className="reveal" style={reveal(0)}>
+        <PageHero
+          icon={HeartHandshakeIcon}
+          eyebrow={t("support.eyebrow")}
+          title={t("support.title")}
+          lead={t("support.lead")}
+          aside={<SealPreview name={user?.displayName ?? t("support.previewName")} />}
         >
-          <SlicedGlyph />
-        </span>
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
-        />
-
-        <span className="relative font-display text-5xl text-primary"><SlicedGlyph /></span>
-        <h1 className="relative font-display text-3xl sm:text-4xl">{t("support.title")}</h1>
-        <p className="relative max-w-prose text-lg text-muted-foreground">
-          {t("support.lead")}
-        </p>
-
-        <Button
-          size="lg"
-          className="group relative mt-1 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary px-6 font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
-          asChild
-        >
-          <a href={BOOSTY_URL} target="_blank" rel="noopener noreferrer">
-            <HeartIcon className="relative z-10 fill-current" />
-            <span className="relative z-10">{t("support.boosty.cta")}</span>
-            <ExternalLinkIcon className="relative z-10 size-3.5 opacity-70" />
-            <Sheen />
-          </a>
-        </Button>
-      </header>
-
-      {/* Boosty — the one real place any of this actually goes. */}
-      <section
-        className="reveal relative overflow-hidden rounded-3xl border border-primary/40 bg-primary/[0.06] p-6 shadow-[0_0_60px_-20px] shadow-primary/30 sm:p-8"
-        style={{ "--i": 1 } as CSSProperties}
-      >
-        <div className="flex flex-col gap-5">
-          <div className="flex items-center gap-2">
-            <HeartIcon className="size-5 text-primary" />
-            <h2 className="font-display text-xl">{t("support.boosty.title")}</h2>
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <a
+              href={BOOSTY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-sheen group inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95"
+            >
+              <HeartIcon className="size-4 fill-current" />
+              {t("support.boosty.cta")}
+              <ExternalLinkIcon className="size-3.5 opacity-70" />
+            </a>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ShieldCheckIcon className="size-3.5 text-primary" />
+              {t("support.safeNote")}
+            </span>
           </div>
-          <p className="max-w-prose text-muted-foreground">{t("support.boosty.body")}</p>
+        </PageHero>
+      </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            {tiers.map((tier, i) => (
-              <div
-                key={tier.amount}
-                style={{ animationDelay: `${i * 70}ms`, animationFillMode: "backwards" }}
-                className="animate-in fade-in zoom-in-95 group relative flex flex-col items-start gap-0.5 overflow-hidden rounded-2xl border border-border/60 bg-card/50 px-4 py-3 duration-500 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
+      <div className="reveal" style={reveal(1)}>
+        <PlansSection ctaHref={BOOSTY_URL} showCompare={false} />
+      </div>
+
+      {/* How PRO actually gets switched on — said plainly, since it is by hand. */}
+      <section className="reveal flex flex-col gap-4" style={reveal(2)}>
+        <SectionTitle icon={SparklesIcon} title={t("support.steps.title")} />
+        <ol className="grid gap-3 md:grid-cols-3">
+          {steps.map(({ icon: Icon, title, body }, i) => (
+            <li
+              key={title}
+              className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5"
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -right-2 -top-5 select-none font-display text-7xl leading-none text-primary/[0.08]"
               >
-                <span className="relative z-10 font-display text-xl text-primary">
-                  ${tier.amount}+
-                </span>
-                <span className="relative z-10 text-sm font-medium text-foreground/90">
-                  {tier.name}
-                </span>
-                <span className="relative z-10 text-xs text-muted-foreground">{tier.perk}</span>
-                <Sheen tone="primary" />
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-muted-foreground/80">{t("support.boosty.proNote")}</p>
-        </div>
+                {i + 1}
+              </span>
+              <span className="grid size-10 place-items-center rounded-xl bg-primary/15 text-primary">
+                <Icon className="size-5" />
+              </span>
+              <h3 className="font-semibold">{title}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      {/* Plans — informational; the actual subscribe action is the same Boosty link above. */}
-      <section className="reveal flex flex-col gap-5" style={{ "--i": 2 } as CSSProperties}>
-        <h2 className="font-display text-xl">{t("support.plansTitle")}</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <PlanCard
-            name={t("support.free.name")}
-            price={t("support.free.price")}
-            period={t("support.free.period")}
-            tagline={t("support.free.tagline")}
-            features={freeFeatures}
-            cta={
-              <Button variant="outline" className="w-full" disabled>
-                {t("support.currentPlan")}
-              </Button>
-            }
-          />
-          <PlanCard
-            highlight
-            badge={t("support.pro.badge")}
-            name={t("support.pro.name")}
-            price={t("support.pro.price")}
-            period={t("support.pro.period")}
-            tagline={t("support.pro.tagline")}
-            features={proFeatures}
-            cta={
-              <Button
-                className="group relative w-full overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-md shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40"
-                asChild
-              >
-                <a href={BOOSTY_URL} target="_blank" rel="noopener noreferrer">
-                  <SparklesIcon className="relative z-10" />
-                  <span className="relative z-10">{t("support.getPro")}</span>
-                  <Sheen />
-                </a>
-              </Button>
-            }
-          />
+      {/* One-off tips — for anyone who wants to say thanks without a plan. */}
+      <section
+        className="reveal relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/[0.12] via-primary/[0.04] to-transparent p-5 shadow-xl shadow-primary/10 sm:p-7"
+        style={reveal(3)}
+      >
+        <SectionTitle icon={HeartIcon} title={t("support.boosty.title")} note={t("support.boosty.body")} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          {tips.map(({ icon: Icon, amount, name, perk }, i) => (
+            <a
+              key={amount}
+              href={BOOSTY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ animationDelay: `${i * 70}ms`, animationFillMode: "backwards" }}
+              className="btn-sheen group relative flex animate-in flex-col gap-2 overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/70 p-4 fade-in-0 zoom-in-95 duration-500 transition-all hover:-translate-y-1 hover:border-primary hover:shadow-lg hover:shadow-primary/15"
+            >
+              <span className="flex items-center justify-between">
+                <span className="grid size-9 place-items-center rounded-lg bg-primary/15 text-primary transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110">
+                  <Icon className="size-4" />
+                </span>
+                <span className="font-display text-2xl text-primary tabular-nums">${amount}+</span>
+              </span>
+              <span className="font-semibold">{name}</span>
+              <span className="text-xs leading-relaxed text-muted-foreground">{perk}</span>
+            </a>
+          ))}
         </div>
       </section>
     </div>
   );
 }
 
-function PlanCard({
-  name,
-  price,
-  period,
-  tagline,
-  features,
-  cta,
-  highlight = false,
-  badge,
-}: {
-  name: string;
-  price: string;
-  period: string;
-  tagline: string;
-  features: string[];
-  cta: React.ReactNode;
-  highlight?: boolean;
-  badge?: string;
-}) {
+/** What PRO looks like where people will see it: the seal after a name. */
+function SealPreview({ name }: { name: string }) {
+  const t = useT();
   return (
-    <div
-      className={cn(
-        "relative flex flex-col gap-5 rounded-2xl border p-6 transition-all duration-300",
-        highlight
-          ? "border-primary/50 bg-primary/[0.06] shadow-[0_0_50px_-16px] shadow-primary/25 hover:-translate-y-1 hover:shadow-[0_0_60px_-12px] hover:shadow-primary/35"
-          : "border-border/60 bg-card/40 hover:-translate-y-0.5 hover:border-border",
-      )}
-    >
-      {badge && (
-        <Badge className="absolute -top-2.5 right-5 bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/30">
-          {badge}
-        </Badge>
-      )}
-      <div className="flex flex-col gap-1">
-        <span className="font-display text-lg">{name}</span>
-        <div className="flex items-baseline gap-1">
-          <span
-            className={cn(
-              "font-display text-3xl",
-              highlight &&
-                "bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent",
-            )}
-          >
-            {price}
-          </span>
-          {period && <span className="text-sm text-muted-foreground">{period}</span>}
-        </div>
-        <span className="text-sm text-muted-foreground">{tagline}</span>
+    <div className="hidden w-64 flex-col gap-3 rounded-2xl border border-primary/30 bg-background/80 p-4 shadow-xl shadow-primary/15 md:flex">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("support.previewTitle")}
+      </span>
+      <div className="flex items-center gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/15 font-display text-lg text-primary ring-2 ring-primary/50 ring-offset-2 ring-offset-background">
+          {name.charAt(0).toUpperCase()}
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5 text-lg font-bold tracking-tight">
+          <span className="truncate">{name}</span>
+          <ProMark />
+        </span>
       </div>
-
-      <ul className="flex flex-col gap-2 text-sm">
-        {features.map((f, i) => (
-          <li
-            key={f}
-            style={{ animationDelay: `${i * 50}ms`, animationFillMode: "backwards" }}
-            className="animate-in fade-in slide-in-from-left-2 flex items-start gap-2 duration-500"
-          >
-            <span
-              className={cn(
-                "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full",
-                highlight ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground",
-              )}
-            >
-              <CheckIcon className="size-3" />
-            </span>
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-auto">{cta}</div>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t("support.previewBody")}</p>
     </div>
   );
 }

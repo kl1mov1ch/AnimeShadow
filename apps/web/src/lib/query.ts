@@ -272,6 +272,11 @@ export function useAnimeOpening(id: number, enabled = true) {
 }
 
 let browserThemes: AnimeThemesClient | null = null;
+/** Set once the archive has refused the browser too (it answers some
+ *  visitors with a page that carries no CORS header). After that, every
+ *  further title would only add another red CORS line to the console for
+ *  an answer we already know, so the fallback stays off for the session. */
+let browserThemesBlocked = false;
 
 /**
  * The same AnimeThemes lookup the server does, run from the browser instead.
@@ -291,12 +296,18 @@ function animeThemesQuery(id: number) {
       const viaServer = await apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }).catch(
         (error: unknown) => ({ tracks: [], opening: null, error: String(error) }) as AnimeThemes,
       );
-      if (!viaServer.error) return viaServer;
+      if (!viaServer.error || browserThemesBlocked) return viaServer;
       // The server could not reach the archive. The visitor's browser very
       // likely can: the archive sends CORS headers for this site, and an
       // edge that turns away a datacenter IP lets an ordinary visitor through.
-      const direct = await themesFromBrowser(id);
-      return direct.error ? viaServer : direct;
+      const direct = await themesFromBrowser(id).catch(
+        (error: unknown) => ({ tracks: [], opening: null, error: String(error) }) as AnimeThemes,
+      );
+      if (direct.error) {
+        browserThemesBlocked = true;
+        return viaServer;
+      }
+      return direct;
     },
     staleTime: Infinity,
     gcTime: 60 * 60_000,

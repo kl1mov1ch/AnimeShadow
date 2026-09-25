@@ -6,7 +6,7 @@ import {
   MoonIcon,
   SwordIcon,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { BladeScene, CrownScene, NightScene } from "@/components/anime/plan-scenes";
 import { useT } from "@/i18n";
@@ -52,7 +52,15 @@ const PLANS: Plan[] = [
  * treatment with a different poster on top, which made the free tier and
  * the top tier look like the same product in two covers.
  */
-export function PlansSection() {
+export function PlansSection({
+  ctaHref,
+  showCompare = true,
+}: {
+  /** Where the buttons go when not to /support — the support page itself
+   *  sends them straight out to Boosty. */
+  ctaHref?: string;
+  showCompare?: boolean;
+} = {}) {
   const t = useT();
   return (
     <section className="flex flex-col gap-4">
@@ -63,13 +71,15 @@ export function PlansSection() {
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{t("plans.subtitle")}</p>
         </div>
-        <Link
-          to="/support"
-          viewTransition
-          className="text-sm text-muted-foreground transition-colors hover:text-primary"
-        >
-          {t("plans.compare")} →
-        </Link>
+        {showCompare && (
+          <Link
+            to="/support"
+            viewTransition
+            className="text-sm text-muted-foreground transition-colors hover:text-primary"
+          >
+            {t("plans.compare")} →
+          </Link>
+        )}
       </div>
 
       <div className="grid items-stretch gap-4 lg:grid-cols-3">
@@ -112,10 +122,10 @@ export function PlansSection() {
                 <div className="absolute inset-x-5 bottom-3 flex items-center gap-2.5">
                   <span
                     className={cn(
-                      "grid size-11 shrink-0 place-items-center rounded-xl shadow-lg backdrop-blur-sm transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110",
+                      "grid size-11 shrink-0 place-items-center rounded-xl shadow-lg transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110",
                       plan.featured
                         ? "bg-primary text-primary-foreground"
-                        : "border border-border/60 bg-background/70 text-primary",
+                        : "border border-border/60 bg-background/90 text-primary",
                     )}
                   >
                     <plan.icon className="size-5" />
@@ -181,9 +191,8 @@ export function PlansSection() {
                   ))}
                 </ul>
 
-                <Link
-                  to="/support"
-                  viewTransition
+                <CtaLink
+                  href={ctaHref}
                   className={cn(
                     "group/cta btn-sheen mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-[0.98]",
                     plan.featured
@@ -193,16 +202,33 @@ export function PlansSection() {
                 >
                   {t(`plans.${plan.key}.cta` as "plans.shadow.cta")}
                   <ArrowRightIcon className="size-4 transition-transform duration-300 group-hover/cta:translate-x-1" />
-                </Link>
+                </CtaLink>
               </div>
             </article>
           );
         })}
       </div>
 
-      <p className="text-center text-xs text-muted-foreground">
-        {t("plans.disclaimer")}
-      </p>
+      {!ctaHref && (
+        <p className="text-center text-xs text-muted-foreground">
+          {t("plans.disclaimer")}
+        </p>
+      )}
     </section>
+  );
+}
+
+function CtaLink({ href, className, children }: { href?: string; className: string; children: ReactNode }) {
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link to="/support" viewTransition className={className}>
+      {children}
+    </Link>
   );
 }

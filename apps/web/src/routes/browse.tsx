@@ -112,13 +112,14 @@ export function Component() {
     [searchParams],
   );
 
-  const filters = (
+  const filters = (fill: boolean) => (
     <BrowseFilters
       params={params}
       genres={genres}
       onChange={(changes) => patch(changes)}
       onReset={reset}
       showReset={hasActiveFilters(params)}
+      fill={fill}
     />
   );
 
@@ -144,7 +145,7 @@ export function Component() {
                 <SheetTitle className="font-display">{t("browse.filters")}</SheetTitle>
                 <SheetDescription>{t("browse.filtersHint")}</SheetDescription>
               </SheetHeader>
-              <div className="px-4 pb-8">{filters}</div>
+              <div className="px-4 pb-8">{filters(false)}</div>
             </SheetContent>
           </Sheet>
         }
@@ -153,10 +154,10 @@ export function Component() {
       <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />
 
       <div className="flex gap-8">
+        {/* As tall as the screen under the header, and it rides along with
+            the page: the filters never scroll on their own. */}
         <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto pb-4 [scrollbar-width:thin]">
-            {filters}
-          </div>
+          <div className="sticky top-20 h-[calc(100dvh-6rem)] pb-2">{filters(true)}</div>
         </aside>
 
         <div className="min-w-0 flex-1">
@@ -391,6 +392,10 @@ function CatalogResults({
   const lastPage = Math.max(1, Math.ceil(total / perPage));
   const pages = Array.from({ length: extra }, (_, i) => params.page + i + 1).filter((n) => n <= lastPage);
   const shown = Math.min(total, (params.page - 1) * perPage + (1 + pages.length) * perPage);
+  // Warm the page after the last one shown: the first request for any page
+  // goes all the way upstream, so "next" and "load more" were the slow clicks.
+  const nextPage = params.page + pages.length + 1;
+  useBrowse({ ...params, page: nextPage }, Boolean(first.data) && !first.isPlaceholderData && nextPage <= lastPage);
 
   const random = async () => {
     if (rolling) return;
@@ -439,7 +444,7 @@ function CatalogResults({
 
       {/* Stays under the header while the grid scrolls, so the count, the
           order and the view are always one reach away. */}
-      <div className="sticky top-14 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-background/85 px-2.5 py-2 shadow-sm backdrop-blur-md">
+      <div className="sticky top-14 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-background/95 px-2.5 py-2 shadow-sm">
         <p className="mr-auto text-xs text-muted-foreground">
           {first.data ? (
             <span className="tabular-nums">
@@ -551,7 +556,7 @@ function CatalogHeader({
 }) {
   const { t } = useI18n();
   return (
-    <header className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-5 py-6 backdrop-blur-sm sm:px-7 sm:py-8">
+    <header className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-5 py-6 sm:px-7 sm:py-8">
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0"

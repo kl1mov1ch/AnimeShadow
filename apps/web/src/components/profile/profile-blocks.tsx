@@ -75,7 +75,7 @@ function Block({
   return (
     <section
       className={cn(
-        "relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm fade-in-0 slide-in-from-bottom-2 duration-500 sm:p-5",
+        "relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 fade-in-0 slide-in-from-bottom-2 duration-500 sm:p-5",
         className,
       )}
     >

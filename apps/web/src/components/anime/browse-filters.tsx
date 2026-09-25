@@ -1,9 +1,11 @@
 import type { Genre } from "@animeshadow/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BookmarkIcon,
   BookmarkPlusIcon,
   BuildingIcon,
   EyeOffIcon,
+  ListFilterIcon,
   MinusIcon,
   PlayCircleIcon,
   PlusIcon,
@@ -13,10 +15,10 @@ import {
   XIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { MorphIcon } from "@/components/ui/morph-icon";
+import { useNavigate } from "react-router-dom";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useT } from "@/i18n";
@@ -60,26 +62,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Section({
-  label,
-  action,
-  children,
-}: {
-  label: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-2 border-b border-[var(--accent-line-soft)] pb-4 last:border-b-0 last:pb-0">
-      <div className="flex min-h-5 items-center justify-between gap-2">
-        <SectionLabel>{label}</SectionLabel>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function Pill({
   active,
   onClick,
@@ -97,7 +79,7 @@ function Pill({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "btn-sheen inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-200 active:scale-95",
+        "btn-sheen inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all duration-200 active:scale-95",
         active
           ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/25"
           : "border-primary/20 bg-primary/5 text-muted-foreground hover:border-primary/50 hover:text-foreground",
@@ -123,15 +105,30 @@ function ClearLink({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * The catalogue's filters, in the sidebar (and a sheet on a phone).
+ * The catalogue's filters: a sticky sidebar card as tall as the screen (and
+ * a sheet on a phone).
  *
- * Every range is a range: score from–to, years from–to, episode counts as
- * the handful of lengths people actually ask for. Genres are a three-way
- * switch — tap once to require it, again to rule it out, again to forget
- * it — because "no ecchi" is as common a wish as "romance". Counts on each
- * genre say how big a shelf is before you commit to it.
+ * It used to be a tall column of pill rows that scrolled inside itself — the
+ * page scrolled, the sidebar scrolled, and half the filters were always out
+ * of sight. Now the single-choice filters are selects, two to a row, the
+ * ranges are one line each, and genres take whatever height is left, with
+ * the full searchable list one click away. Nothing inside scrolls.
+ *
+ * Genres are still a three-way switch — tap once to require it, again to
+ * rule it out, again to forget it — because "no ecchi" is as common a wish
+ * as "romance".
  */
-export function BrowseFilters({ params, genres, onChange, onReset, showReset }: BrowseFiltersProps) {
+export function BrowseFilters({
+  params,
+  genres,
+  onChange,
+  onReset,
+  showReset,
+  fill = false,
+}: BrowseFiltersProps & {
+  /** Fill the height it is given (the sticky sidebar) instead of growing. */
+  fill?: boolean;
+}) {
   const t = useT();
   const labels = useLabels();
   const { status } = useAuth();
@@ -157,8 +154,8 @@ export function BrowseFilters({ params, genres, onChange, onReset, showReset }: 
     [params.yearFrom, params.yearTo],
   );
 
-  const included = new Set(params.genres ?? []);
-  const excluded = new Set(params.excludeGenres ?? []);
+  const included = useMemo(() => new Set(params.genres ?? []), [params.genres]);
+  const excluded = useMemo(() => new Set(params.excludeGenres ?? []), [params.excludeGenres]);
   const cycleGenre = (id: number) => {
     const inc = new Set(included);
     const exc = new Set(excluded);
@@ -176,25 +173,29 @@ export function BrowseFilters({ params, genres, onChange, onReset, showReset }: 
     });
   };
 
-  const [genreQuery, setGenreQuery] = useState("");
-  const shownGenres = useMemo(() => {
-    const q = genreQuery.trim().toLowerCase();
-    return [...genres]
-      .filter((g) => !q || labels.genreLabel(g.name).toLowerCase().includes(q))
-      .sort((a, b) => {
+  // Picked genres first, then the biggest shelves.
+  const sortedGenres = useMemo(
+    () =>
+      [...genres].sort((a, b) => {
         const rank = (g: Genre) => (included.has(g.id) || excluded.has(g.id) ? 0 : 1);
         return rank(a) - rank(b) || (b.count ?? 0) - (a.count ?? 0);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genres, genreQuery, params.genres, params.excludeGenres]);
+      }),
+    [genres, included, excluded],
+  );
 
   const episodePreset = EPISODE_PRESETS.find(
     (p) => (params.episodesMin ?? null) === p.min && (params.episodesMax ?? null) === p.max,
   );
+  const picked = included.size + excluded.size;
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 backdrop-blur-sm">
-      <div className="group relative flex items-center rounded-lg border border-primary/25 bg-card/70 transition-all duration-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5",
+        fill && "h-full min-h-0",
+      )}
+    >
+      <div className="group relative flex shrink-0 items-center rounded-lg border border-primary/25 bg-card/70 transition-all duration-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
         <SearchIcon className="pointer-events-none absolute left-3 size-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
         <input
           id="browse-search"
@@ -203,7 +204,7 @@ export function BrowseFilters({ params, genres, onChange, onReset, showReset }: 
           placeholder={t("browse.searchPlaceholder")}
           type="search"
           aria-label={t("browse.search")}
-          className="h-10 w-full bg-transparent pl-9 pr-9 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
+          className="h-9 w-full bg-transparent pl-9 pr-9 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
         />
         {term && (
           <button
@@ -219,34 +220,47 @@ export function BrowseFilters({ params, genres, onChange, onReset, showReset }: 
 
       {authed && <SavedSets />}
 
-      <Section label={t("browse.format")} action={params.type ? <ClearLink onClick={() => onChange({ type: null })} /> : undefined}>
-        <div className="flex flex-wrap gap-1.5">
-          {TYPE_VALUES.map((value) => (
-            <Pill key={value} active={params.type === value} onClick={() => onChange({ type: params.type === value ? null : value })}>
-              {labels.typeLabel(value)}
-            </Pill>
-          ))}
-        </div>
-      </Section>
+      <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-2.5">
+        <Field label={t("browse.format")}>
+          <PickSelect
+            value={params.type ?? null}
+            anyLabel={t("browse.anyShort")}
+            options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
+            onPick={(type) => onChange({ type })}
+          />
+        </Field>
+        <Field label={t("browse.status")}>
+          <PickSelect
+            value={params.airing ?? null}
+            anyLabel={t("browse.anyShort")}
+            options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
+            onPick={(airing) => onChange({ airing })}
+          />
+        </Field>
+        <Field label={t("browse.episodes")}>
+          <PickSelect
+            value={episodePreset?.key ?? null}
+            anyLabel={t("browse.anyLength")}
+            options={EPISODE_PRESETS.map((p) => ({
+              value: p.key,
+              label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
+            }))}
+            onPick={(key) => {
+              const preset = EPISODE_PRESETS.find((p) => p.key === key);
+              onChange(
+                preset
+                  ? { episodesMin: String(preset.min), episodesMax: preset.max != null ? String(preset.max) : null }
+                  : { episodesMin: null, episodesMax: null },
+              );
+            }}
+          />
+        </Field>
+        <Field label={t("browse.studio")}>
+          <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
+        </Field>
+      </div>
 
-      <Section label={t("browse.status")} action={params.airing ? <ClearLink onClick={() => onChange({ airing: null })} /> : undefined}>
-        <div className="flex flex-wrap gap-1.5">
-          {AIRING_VALUES.map((value) => (
-            <Pill key={value} active={params.airing === value} onClick={() => onChange({ airing: params.airing === value ? null : value })}>
-              {labels.airingLabel(value)}
-            </Pill>
-          ))}
-        </div>
-      </Section>
-
-      <Section
-        label={t("browse.scoreRange")}
-        action={
-          <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
-            {score[0].toFixed(1)} – {score[1].toFixed(1)}
-          </span>
-        }
-      >
+      <Range label={t("browse.scoreRange")} value={`${score[0].toFixed(1)} – ${score[1].toFixed(1)}`}>
         <Slider
           value={score}
           min={0}
@@ -261,18 +275,10 @@ export function BrowseFilters({ params, genres, onChange, onReset, showReset }: 
             })
           }
           aria-label={t("browse.scoreRange")}
-          className="mt-1"
         />
-      </Section>
+      </Range>
 
-      <Section
-        label={t("browse.yearRange")}
-        action={
-          <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
-            {years[0]} – {years[1]}
-          </span>
-        }
-      >
+      <Range label={t("browse.yearRange")} value={`${years[0]} – ${years[1]}`}>
         <Slider
           value={years}
           min={YEAR_MIN}
@@ -287,127 +293,204 @@ export function BrowseFilters({ params, genres, onChange, onReset, showReset }: 
             })
           }
           aria-label={t("browse.yearRange")}
-          className="mt-1"
         />
-      </Section>
+      </Range>
 
-      <Section
-        label={t("browse.episodes")}
-        action={episodePreset ? <ClearLink onClick={() => onChange({ episodesMin: null, episodesMax: null })} /> : undefined}
-      >
-        <div className="flex flex-wrap gap-1.5">
-          {EPISODE_PRESETS.map((preset) => (
-            <Pill
-              key={preset.key}
-              active={episodePreset?.key === preset.key}
-              onClick={() =>
-                onChange(
-                  episodePreset?.key === preset.key
-                    ? { episodesMin: null, episodesMax: null }
-                    : {
-                        episodesMin: String(preset.min),
-                        episodesMax: preset.max != null ? String(preset.max) : null,
-                      },
-                )
-              }
-            >
-              {t(`browse.episodePreset.${preset.key}` as "browse.episodePreset.one")}
-            </Pill>
+      <div className={cn("grid shrink-0 gap-1.5", authed ? "grid-cols-2" : "grid-cols-1")}>
+        <Pill active={params.hasPlayer === true} onClick={() => onChange({ hasPlayer: params.hasPlayer ? null : "1" })}>
+          <PlayCircleIcon className="size-3.5 shrink-0" />
+          <span className="truncate">{t("browse.withPlayerShort")}</span>
+        </Pill>
+        {authed && (
+          <Pill active={params.hideListed === true} onClick={() => onChange({ hideListed: params.hideListed ? null : "1" })}>
+            <EyeOffIcon className="size-3.5 shrink-0" />
+            <span className="truncate">{t("browse.hideListedShort")}</span>
+          </Pill>
+        )}
+      </div>
+
+      {/* Genres take the rest of the card. What doesn't fit fades out under
+          the "all genres" button rather than scrolling inside the sidebar. */}
+      <div className={cn("flex flex-col gap-2", fill && "min-h-0 flex-1")}>
+        <div className="flex min-h-5 items-center justify-between gap-2">
+          <SectionLabel>
+            {t("browse.genres")}
+            {picked > 0 && <span className="ml-1.5 text-primary">· {picked}</span>}
+          </SectionLabel>
+          {picked > 0 && <ClearLink onClick={() => onChange({ genres: null, excludeGenres: null })} />}
+        </div>
+        <div
+          className={cn(
+            "flex flex-wrap content-start gap-1.5",
+            fill && "min-h-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]",
+          )}
+        >
+          {(fill ? sortedGenres : sortedGenres.slice(0, 18)).map((genre) => (
+            <GenreChip
+              key={genre.id}
+              genre={genre}
+              state={included.has(genre.id) ? "in" : excluded.has(genre.id) ? "out" : "off"}
+              onClick={() => cycleGenre(genre.id)}
+            />
           ))}
         </div>
-      </Section>
-
-      <Section
-        label={t("browse.genres")}
-        action={
-          included.size + excluded.size > 0 ? (
-            <ClearLink onClick={() => onChange({ genres: null, excludeGenres: null })} />
-          ) : undefined
-        }
-      >
-        <p className="text-[11px] leading-snug text-muted-foreground">{t("browse.genresHint")}</p>
-        <input
-          value={genreQuery}
-          onChange={(e) => setGenreQuery(e.target.value)}
-          placeholder={t("browse.genreSearch")}
-          className="h-8 rounded-lg border border-primary/20 bg-card/60 px-2.5 text-xs outline-none transition-colors focus:border-primary"
-        />
-        <div className="flex max-h-60 flex-wrap gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
-          {shownGenres.map((genre) => {
-            const state = included.has(genre.id) ? "in" : excluded.has(genre.id) ? "out" : "off";
-            return (
-              <button
-                key={genre.id}
-                type="button"
-                onClick={() => cycleGenre(genre.id)}
-                aria-pressed={state !== "off"}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-lg border py-1 pl-1.5 pr-2 text-xs transition-all duration-200 active:scale-95",
-                  state === "in" && "border-primary bg-primary/20 text-primary",
-                  state === "out" && "border-rose-500/60 bg-rose-500/10 text-rose-500 line-through decoration-rose-500/60",
-                  state === "off" && "border-primary/15 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                )}
-              >
-                <span
-                  className={cn(
-                    "grid size-4 place-items-center rounded",
-                    state === "in" && "bg-primary text-primary-foreground",
-                    state === "out" && "bg-rose-500 text-white",
-                    state === "off" && "bg-primary/10",
-                  )}
-                >
-                  {state === "off" ? null : (
-                    <MorphIcon on={state === "out"} off={PlusIcon} onIcon={MinusIcon} className="size-3" />
-                  )}
-                </span>
-                {labels.genreLabel(genre.name)}
-                {genre.count != null && genre.count > 0 && (
-                  <span className="tabular-nums opacity-60">{genre.count}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section label={t("browse.studio")} action={params.studio ? <ClearLink onClick={() => onChange({ studio: null })} /> : undefined}>
-        <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
-      </Section>
-
-      <Section label={t("browse.more")}>
-        <div className="flex flex-col gap-1.5">
-          <Pill
-            active={params.hasPlayer === true}
-            onClick={() => onChange({ hasPlayer: params.hasPlayer ? null : "1" })}
-            className="w-full justify-center py-2"
-          >
-            <PlayCircleIcon className="size-3.5" />
-            {t("browse.onlyWithPlayer")}
-          </Pill>
-          {authed && (
-            <Pill
-              active={params.hideListed === true}
-              onClick={() => onChange({ hideListed: params.hideListed ? null : "1" })}
-              className="w-full justify-center py-2"
-            >
-              <EyeOffIcon className="size-3.5" />
-              {t("browse.hideListed")}
-            </Pill>
-          )}
-        </div>
-      </Section>
+        <AllGenres genres={sortedGenres} included={included} excluded={excluded} onCycle={cycleGenre} />
+      </div>
 
       {showReset && (
         <button
           type="button"
           onClick={onReset}
-          className="group flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/5 py-2 text-xs font-medium text-rose-500 transition-all duration-200 hover:bg-rose-500/15 active:scale-[0.98]"
+          className="group flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/5 py-2 text-xs font-medium text-rose-500 transition-all duration-200 hover:bg-rose-500/15 active:scale-[0.98]"
         >
           <RotateCcwIcon className="size-3.5 transition-transform duration-500 group-hover:-rotate-180" />
           {t("browse.clearAll")}
         </button>
       )}
     </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <SectionLabel>{label}</SectionLabel>
+      {children}
+    </div>
+  );
+}
+
+function Range({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
+  return (
+    <div className="flex shrink-0 flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>{label}</SectionLabel>
+        <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
+          {value}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const ANY = "__any";
+
+/** One choice or none, as a select — a row of pills took four lines for it. */
+function PickSelect({
+  value,
+  anyLabel,
+  options,
+  onPick,
+}: {
+  value: string | null;
+  anyLabel: string;
+  options: Array<{ value: string; label: string }>;
+  onPick: (value: string | null) => void;
+}) {
+  return (
+    <Select value={value ?? ANY} onValueChange={(v) => onPick(v === ANY ? null : v)}>
+      <SelectTrigger
+        size="sm"
+        className={cn("w-full min-w-0 text-xs", value && "border-primary bg-primary/15 text-primary")}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ANY}>{anyLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+type GenreState = "in" | "out" | "off";
+
+function GenreChip({ genre, state, onClick }: { genre: Genre; state: GenreState; onClick: () => void }) {
+  const labels = useLabels();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={state !== "off"}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-lg border py-1 pl-1.5 pr-2 text-xs transition-colors duration-200 active:scale-95",
+        state === "in" && "border-primary bg-primary/20 text-primary",
+        state === "out" && "border-rose-500/60 bg-rose-500/10 text-rose-500 line-through decoration-rose-500/60",
+        state === "off" && "border-primary/15 bg-card/40 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "grid size-4 place-items-center rounded",
+          state === "in" && "bg-primary text-primary-foreground",
+          state === "out" && "bg-rose-500 text-white",
+          state === "off" && "bg-primary/10",
+        )}
+      >
+        {state === "in" && <PlusIcon className="size-3" />}
+        {state === "out" && <MinusIcon className="size-3" />}
+      </span>
+      {labels.genreLabel(genre.name)}
+      {genre.count != null && genre.count > 0 && <span className="tabular-nums opacity-60">{genre.count}</span>}
+    </button>
+  );
+}
+
+/** Every genre, searchable, in a popover — the sidebar shows only what fits. */
+function AllGenres({
+  genres,
+  included,
+  excluded,
+  onCycle,
+}: {
+  genres: Genre[];
+  included: Set<number>;
+  excluded: Set<number>;
+  onCycle: (id: number) => void;
+}) {
+  const t = useT();
+  const labels = useLabels();
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = q ? genres.filter((g) => labels.genreLabel(g.name).toLowerCase().includes(q)) : genres;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/5 py-1.5 text-xs font-semibold text-primary transition-colors hover:border-primary hover:bg-primary/15"
+        >
+          <ListFilterIcon className="size-3.5" />
+          {t("browse.allGenres", { count: genres.length })}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="end" className="flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-2 p-3">
+        <p className="text-[11px] leading-snug text-muted-foreground">{t("browse.genresHint")}</p>
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("browse.genreSearch")}
+          className="h-8 rounded-lg border border-primary/20 bg-card/60 px-2.5 text-xs outline-none transition-colors focus:border-primary"
+        />
+        <div className="flex max-h-[min(22rem,60dvh)] flex-wrap content-start gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+          {shown.map((genre) => (
+            <GenreChip
+              key={genre.id}
+              genre={genre}
+              state={included.has(genre.id) ? "in" : excluded.has(genre.id) ? "out" : "off"}
+              onClick={() => onCycle(genre.id)}
+            />
+          ))}
+          {shown.length === 0 && <p className="text-xs text-muted-foreground">{t("browse.noGenre")}</p>}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -431,7 +514,7 @@ function StudioPicker({ value, onPick }: { value: string | null; onPick: (name: 
 
   return (
     <div className="relative">
-      <BuildingIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <BuildingIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-primary" />
       <input
         value={text}
         onChange={(e) => {
@@ -440,11 +523,14 @@ function StudioPicker({ value, onPick }: { value: string | null; onPick: (name: 
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder={t("browse.studioPlaceholder")}
-        className="h-9 w-full rounded-lg border border-primary/20 bg-card/60 pl-8 pr-3 text-xs outline-none transition-colors focus:border-primary"
+        placeholder={t("browse.studioShort")}
+        className={cn(
+          "h-8 w-full min-w-0 rounded-lg border border-primary/25 bg-primary/5 pl-7 pr-2 text-xs font-medium outline-none transition-colors placeholder:text-muted-foreground hover:border-primary/60 focus:border-primary",
+          value && "border-primary bg-primary/15 text-primary",
+        )}
       />
       {open && data && data.length > 0 && (
-        <div className="absolute inset-x-0 top-full z-20 mt-1 animate-in overflow-hidden rounded-lg border border-primary/35 bg-popover bg-gradient-to-b from-primary/[0.1] to-transparent shadow-xl shadow-primary/15 fade-in-0 slide-in-from-top-1">
+        <div className="absolute left-0 top-full z-30 mt-1 w-56 animate-in overflow-hidden rounded-lg border border-primary/35 bg-popover bg-gradient-to-b from-primary/[0.1] to-transparent shadow-xl shadow-primary/15 fade-in-0 slide-in-from-top-1">
           {data.map((studio) => (
             <button
               key={studio.name}
@@ -488,12 +574,13 @@ function readSets(userId: string): SavedSet[] {
 }
 
 /**
- * Filter combinations the viewer comes back to, one tap each. Kept in the
- * browser, per account: they are a convenience for this person on this
- * device, not something worth a table.
+ * Filter combinations the viewer comes back to, picked from a select. Kept
+ * in the browser, per account: they are a convenience for this person on
+ * this device, not something worth a table.
  */
 function SavedSets() {
   const t = useT();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const userId = user?.id ?? "anon";
   const [sets, setSets] = useState<SavedSet[]>(() => readSets(userId));
@@ -514,6 +601,7 @@ function SavedSets() {
     params.delete("page");
     return params.toString();
   })();
+  const active = sets.find((s) => s.query === current);
 
   const save = () => {
     const label = name.trim();
@@ -523,24 +611,51 @@ function SavedSets() {
     setNaming(false);
   };
 
+  const iconButton =
+    "grid size-8 shrink-0 place-items-center rounded-lg border border-primary/25 bg-primary/5 text-primary transition-colors hover:border-primary hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-40";
+
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/5 p-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <SectionLabel>{t("browse.saved")}</SectionLabel>
-        {current && !naming && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => setNaming(true)}
-                aria-label={t("browse.saveSet")}
-                className="grid size-6 place-items-center rounded-md text-primary transition-colors hover:bg-primary/15"
-              >
-                <BookmarkPlusIcon className="size-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{t("browse.saveSet")}</TooltipContent>
-          </Tooltip>
+    <div className="flex shrink-0 flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <Select
+          value={active?.name ?? ""}
+          onValueChange={(picked) => {
+            const set = sets.find((s) => s.name === picked);
+            if (set) navigate(`/browse?${set.query}`, { replace: true });
+          }}
+        >
+          <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs" disabled={sets.length === 0}>
+            <BookmarkIcon className="size-3.5" />
+            <SelectValue placeholder={sets.length === 0 ? t("browse.savedNone") : t("browse.saved")} />
+          </SelectTrigger>
+          <SelectContent>
+            {sets.map((set) => (
+              <SelectItem key={set.name} value={set.name}>
+                {set.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          type="button"
+          onClick={() => setNaming((v) => !v)}
+          disabled={!current}
+          aria-label={t("browse.saveSet")}
+          title={t("browse.saveSet")}
+          className={iconButton}
+        >
+          <BookmarkPlusIcon className="size-3.5" />
+        </button>
+        {active && (
+          <button
+            type="button"
+            onClick={() => write(sets.filter((s) => s !== active))}
+            aria-label={t("common.delete")}
+            title={t("common.delete")}
+            className={iconButton}
+          >
+            <Trash2Icon className="size-3.5" />
+          </button>
         )}
       </div>
       {naming && (
@@ -557,39 +672,12 @@ function SavedSets() {
             onChange={(e) => setName(e.target.value)}
             maxLength={30}
             placeholder={t("browse.setName")}
-            className="h-8 min-w-0 flex-1 rounded-md border border-primary/30 bg-card px-2 text-xs outline-none focus:border-primary"
+            className="h-8 min-w-0 flex-1 rounded-lg border border-primary/30 bg-card px-2 text-xs outline-none focus:border-primary"
           />
-          <button type="submit" className="btn-sheen rounded-md bg-primary px-2.5 text-xs font-semibold text-primary-foreground">
+          <button type="submit" className="btn-sheen rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground">
             OK
           </button>
         </form>
-      )}
-      {sets.length === 0 && !naming ? (
-        <p className="text-[11px] text-muted-foreground">{t("browse.savedEmpty")}</p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5">
-          {sets.map((set) => (
-            <span
-              key={set.name}
-              className={cn(
-                "group inline-flex items-center overflow-hidden rounded-md border text-xs transition-colors",
-                set.query === current ? "border-primary bg-primary text-primary-foreground" : "border-primary/30 bg-card/60 hover:border-primary",
-              )}
-            >
-              <Link to={`/browse?${set.query}`} viewTransition className="px-2 py-1 font-medium">
-                {set.name}
-              </Link>
-              <button
-                type="button"
-                onClick={() => write(sets.filter((s) => s.name !== set.name))}
-                aria-label={t("common.delete")}
-                className="grid h-full place-items-center px-1 opacity-50 transition-opacity hover:opacity-100"
-              >
-                <Trash2Icon className="size-3" />
-              </button>
-            </span>
-          ))}
-        </div>
       )}
     </div>
   );

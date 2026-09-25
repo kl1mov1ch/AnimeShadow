@@ -184,8 +184,12 @@
        any one of those can otherwise widen the whole page on a phone.
        Elements that need their own horizontal scroll (anime rails, episode
        strips) already set overflow-x: auto on themselves, which still works
-       fine nested inside this. */
-    overflow-x: hidden;
+       fine nested inside this.
+       `clip`, not `hidden`: hidden makes html and body scroll containers of
+       their own, and every `position: sticky` inside then sticks to a box
+       that never scrolls — the catalogue's filter card slid away with the
+       page because of it. */
+    overflow-x: clip;
   }
   html.dark {
     color-scheme: dark;
@@ -193,7 +197,7 @@
 
   body {
     margin: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -1421,4 +1425,21 @@ html.light .home-theme {
 
 @media (prefers-reduced-motion: reduce) {
   .fx-rise, .fx-fall, .fx-flash, .pro-seal { animation: none; }
+}
+
+/* While a dialog is open the page behind it is under a dark overlay, so its
+   loops have no one to watch them — pause them rather than pay for every
+   frame of them underneath. */
+body:has([role="dialog"][data-state="open"]) main * {
+  animation-play-state: paused !important;
+}
+
+/* Frame search: a scan line sweeping the uploaded frame while it is matched. */
+@keyframes frame-scan {
+  0% { top: -4rem; }
+  100% { top: 100%; }
+}
+.frame-scan { animation: frame-scan 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .frame-scan { animation: none; top: 50%; }
 }

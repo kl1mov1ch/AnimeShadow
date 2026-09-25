@@ -119,7 +119,7 @@ function keyOf(id: string): { provider: string; sourceKey: string } {
  * constantly, so a stored URL is no guarantee. We only look at the status —
  * the body is never read.
  */
-async function probeEmbed(url: string): Promise<boolean> {
+async function probeEmbed(url: string): Promise<boolean | null> {
   try {
     const response = await fetch(url, {
       method: "GET",
@@ -127,9 +127,18 @@ async function probeEmbed(url: string): Promise<boolean> {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       headers: { "user-agent": "Mozilla/5.0 (AnimeShadow player check)" },
     });
-    // Drain nothing; just release the socket.
-    void response.body?.cancel();
-    return response.ok;
+    if (response.ok) {
+      // Drain nothing; just release the socket.
+      void response.body?.cancel();
+      return true;
+    }
+    // Kodik answers 500 "not allowed in this country" to any address it
+    // geo-blocks — this server's included, when it sits behind a VPN or
+    // abroad. That says where *we* are, not whether the mirror works, and
+    // recording it marked every Kodik source dead at once. No verdict.
+    const body = await response.text().catch(() => "");
+    if (/запрещено к просмотру в данной стране|not available in your country/i.test(body)) return null;
+    return false;
   } catch {
     return false;
   }
@@ -322,7 +331,10 @@ export class WatchService {
         const source = queue.shift();
         if (!source) return;
         const url = probeUrlOf(source);
-        const ok = url != null && (await probeEmbed(url));
+        const verdict = url != null ? await probeEmbed(url) : false;
+        // Geo-blocked from here: keep whatever we knew before.
+        if (verdict == null) continue;
+        const ok = verdict;
         source.stable = ok;
         const { provider, sourceKey } = keyOf(source.id);
         // updateMany: a row may legitimately be gone (re-resolved meanwhile),

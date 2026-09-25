@@ -1,12 +1,16 @@
 import type { FrameMatch } from "@animeshadow/shared";
 import {
+  ArrowRightIcon,
   CheckIcon,
+  ClipboardPasteIcon,
   FlaskConicalIcon,
-  ImageIcon,
-  Loader2Icon,
+  ImageUpIcon,
+  LightbulbIcon,
+  LockIcon,
   PlayIcon,
   RotateCcwIcon,
   ScanSearchIcon,
+  SparklesIcon,
   UploadIcon,
   XIcon,
 } from "lucide-react";
@@ -14,15 +18,14 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { Button } from "@/components/ui/button";
+import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
-import { animeHref, imageSrc } from "@/lib/format";
+import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useFrameSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -50,6 +53,11 @@ function formatTimestamp(seconds: number): string {
  * Identify a screenshot: trace.moe matches the frame against its index of
  * episode footage and answers with the title, the episode and the exact
  * moment it came from.
+ *
+ * Two columns on a wide screen — the frame you gave on the left, what it
+ * was on the right — so the picture and the answer sit side by side instead
+ * of the answer landing below the fold. While it searches, a scan line runs
+ * over your frame; the best match gets a card of its own, the rest a list.
  */
 export function Component() {
   const t = useT();
@@ -79,8 +87,7 @@ export function Component() {
   );
 
   // Pasting a screenshot straight from the clipboard is how most people
-  // actually have one to hand — Win+Shift+S, then Ctrl+V here, with no file
-  // saved anywhere in between.
+  // actually have one to hand — Win+Shift+S, then Ctrl+V here.
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
       const file = [...(event.clipboardData?.items ?? [])]
@@ -92,39 +99,7 @@ export function Component() {
     return () => window.removeEventListener("paste", onPaste);
   }, [submit]);
 
-  // Signed out still gets the pitch, not just the door. Anyone can reach this
-  // page from the header now, and a bare "sign in" panel would tell them
-  // nothing about what they would be signing in for.
-  if (status !== "loading" && status !== "authenticated") {
-    return (
-      <div className="reveal-group mx-auto flex max-w-4xl flex-col gap-6 py-6">
-        <Hero />
-        <div
-          className="reveal flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border/70 p-8 text-center sm:p-10"
-          style={step(1)}
-        >
-          <span
-            aria-hidden
-            className="grid size-12 place-items-center rounded-2xl border border-border/60 bg-secondary/40 text-muted-foreground"
-          >
-            <ScanSearchIcon className="size-5" />
-          </span>
-          <p className="font-medium">{t("frameSearch.signedOutTitle")}</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {t("frameSearch.signedOutBody")}
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 pt-1">
-            <Button asChild>
-              <Link to="/login">{t("common.signIn")}</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/register">{t("common.createAccount")}</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const signedOut = status !== "loading" && status !== "authenticated";
 
   const reset = () => {
     setPreview(null);
@@ -133,125 +108,201 @@ export function Component() {
   };
 
   const serverError = search.isError ? describeError(search.error, t) : null;
+  const results = search.data?.results ?? [];
+  const [best, ...rest] = results;
 
   return (
-    <div className="reveal-group mx-auto flex max-w-4xl flex-col gap-6 py-6">
-      <Hero />
-
-      <section className="reveal" style={step(1)}>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void submit(file);
-            // Cleared so picking the same file twice still fires a change.
-            event.target.value = "";
-          }}
-        />
-
-        <div
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            const file = event.dataTransfer.files?.[0];
-            if (file) void submit(file);
-          }}
-          className={cn(
-            "flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed p-8 text-center transition-all duration-200 sm:p-12",
-            dragging
-              ? "border-primary/60 bg-primary/5"
-              : "border-border/70 hover:border-primary/40",
-          )}
+    <div className="reveal-group mx-auto flex max-w-6xl flex-col gap-6 py-4 sm:gap-8 sm:py-6">
+      <div className="reveal" style={step(0)}>
+        <PageHero
+          icon={ScanSearchIcon}
+          eyebrow={t("frameSearch.eyebrow")}
+          badge={t("frameSearch.beta")}
+          title={t("frameSearch.title")}
+          lead={t("frameSearch.lead")}
         >
-          {preview ? (
-            <img
-              src={preview}
-              alt=""
-              className="max-h-56 w-auto rounded-2xl border border-border/60 object-contain shadow-lg"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="grid size-14 place-items-center rounded-2xl border border-border/60 bg-secondary/40 text-muted-foreground"
-            >
-              <ImageIcon className="size-6" />
-            </span>
-          )}
+          {/* Said up front rather than discovered on failure: the search
+              runs on an outside service with a small shared quota. */}
+          <p className="flex max-w-prose items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 text-xs leading-relaxed text-foreground/80">
+            <FlaskConicalIcon className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+            {t("frameSearch.betaNote")}
+          </p>
+        </PageHero>
+      </div>
 
-          <p className="text-sm font-medium">{t("frameSearch.dropHint")}</p>
-          <p className="text-xs text-muted-foreground">{t("frameSearch.pasteHint")}</p>
-
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            <Button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              disabled={search.isPending}
-              className="group relative overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5"
+      {signedOut ? (
+        // Signed out still gets the pitch and the guide, not just a door.
+        <section
+          className="reveal relative flex flex-col items-center gap-3 overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-[var(--accent-surface)] p-8 text-center sm:p-12"
+          style={step(1)}
+        >
+          <span className="grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20">
+            <LockIcon className="size-6" />
+          </span>
+          <p className="font-display text-lg">{t("frameSearch.signedOutTitle")}</p>
+          <p className="max-w-sm text-sm text-muted-foreground">{t("frameSearch.signedOutBody")}</p>
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
+            <Link
+              to="/login"
+              className="btn-sheen inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
             >
-              <UploadIcon className="relative z-10 size-4" />
-              <span className="relative z-10">{t("frameSearch.pickFile")}</span>
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-              />
-            </Button>
-            {(preview || search.data) && (
-              <Button type="button" variant="outline" onClick={reset}>
-                <RotateCcwIcon className="size-3.5" />
-                {t("frameSearch.reset")}
-              </Button>
-            )}
+              {t("common.signIn")}
+            </Link>
+            <Link
+              to="/register"
+              className="inline-flex h-10 items-center rounded-lg border border-primary/35 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+            >
+              {t("common.createAccount")}
+            </Link>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : (
+        <div className="reveal grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]" style={step(1)}>
+          <section className="flex flex-col gap-3">
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void submit(file);
+                // Cleared so picking the same file twice still fires a change.
+                event.target.value = "";
+              }}
+            />
 
-      {(localError || serverError) && (
-        <p className="animate-in fade-in slide-in-from-top-1 rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive duration-200">
-          {localError ?? serverError}
-        </p>
-      )}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => !search.isPending && inputRef.current?.click()}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && !search.isPending) {
+                  e.preventDefault();
+                  inputRef.current?.click();
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragging(false);
+                const file = event.dataTransfer.files?.[0];
+                if (file) void submit(file);
+              }}
+              className={cn(
+                "group relative flex aspect-video cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center outline-none transition-all duration-300 focus-visible:ring-4 focus-visible:ring-primary/25",
+                dragging
+                  ? "scale-[1.01] border-primary bg-primary/10 shadow-xl shadow-primary/20"
+                  : preview
+                    ? "border-primary/40 bg-black"
+                    : "border-primary/30 bg-[var(--accent-surface)] hover:border-primary/70 hover:bg-primary/[0.06]",
+              )}
+            >
+              {preview ? (
+                <>
+                  <img src={preview} alt="" className="absolute inset-0 size-full object-contain" />
+                  {search.isPending && (
+                    // A scan line sweeping the frame while trace.moe looks.
+                    <>
+                      <span aria-hidden className="absolute inset-0 bg-primary/10" />
+                      <span aria-hidden className="frame-scan absolute inset-x-0 h-16 bg-gradient-to-b from-transparent via-primary/45 to-transparent" />
+                      <span aria-hidden className="frame-scan absolute inset-x-0 h-0.5 bg-primary shadow-[0_0_12px_2px_var(--primary)]" />
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(color-mix(in_srgb,var(--primary)_35%,transparent)_1px,transparent_1px)] [background-size:18px_18px]"
+                  />
+                  <span className="relative grid size-16 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20 transition-transform duration-500 group-hover:-translate-y-1 group-hover:scale-105">
+                    <ImageUpIcon className="size-7" />
+                  </span>
+                  <p className="relative font-semibold">{t("frameSearch.dropHint")}</p>
+                  <p className="relative flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <ClipboardPasteIcon className="size-3.5 text-primary" />
+                    {t("frameSearch.pasteHint")}
+                  </p>
+                </>
+              )}
+            </div>
 
-      {search.isPending && (
-        <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-          <Loader2Icon className="size-4 animate-spin text-primary" />
-          {t("frameSearch.searching")}
-        </div>
-      )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={search.isPending}
+                className="btn-sheen inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95 disabled:pointer-events-none disabled:opacity-60"
+              >
+                <UploadIcon className="size-4" />
+                {t("frameSearch.pickFile")}
+              </button>
+              {(preview || search.data) && (
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="group inline-flex h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                >
+                  <RotateCcwIcon className="size-3.5 transition-transform duration-500 group-hover:-rotate-180" />
+                  {t("frameSearch.reset")}
+                </button>
+              )}
+            </div>
 
-      {search.data && !search.isPending && (
-        <section className="reveal flex flex-col gap-3" style={step(2)}>
-          {search.data.results.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground">
-              {t("frameSearch.noMatches")}
-            </p>
-          ) : (
-            <>
-              <h2 className="font-display text-lg tracking-tight sm:text-xl">
-                {t("frameSearch.resultsHeading")}
-              </h2>
+            {(localError || serverError) && (
+              <p className="animate-in rounded-xl border border-destructive/40 bg-destructive/[0.07] p-3 text-sm text-destructive fade-in slide-in-from-top-1 duration-200">
+                {localError ?? serverError}
+              </p>
+            )}
+          </section>
+
+          <section className="flex min-w-0 flex-col gap-3">
+            {search.isPending ? (
               <div className="flex flex-col gap-3">
-                {search.data.results.map((match, i) => (
-                  <MatchRow key={`${match.title}-${i}`} match={match} index={i} />
+                <p className="flex items-center gap-2 text-sm font-medium text-primary">
+                  <ScanSearchIcon className="size-4 animate-pulse" />
+                  {t("frameSearch.searching")}
+                </p>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-3">
+                    <span className="aspect-video w-32 shrink-0 animate-pulse rounded-lg bg-primary/10" />
+                    <span className="flex flex-1 flex-col gap-2 pt-1">
+                      <span className="h-3.5 w-3/4 animate-pulse rounded bg-primary/10" />
+                      <span className="h-3 w-1/3 animate-pulse rounded bg-primary/10" />
+                    </span>
+                  </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground/70">
-                {t("frameSearch.framesSearched", {
-                  count: search.data.framesSearched.toLocaleString(),
-                })}
-              </p>
-            </>
-          )}
-        </section>
+            ) : search.data ? (
+              results.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-primary/30 p-8 text-center text-sm text-muted-foreground">
+                  {t("frameSearch.noMatches")}
+                </p>
+              ) : (
+                <>
+                  <SectionTitle icon={SparklesIcon} title={t("frameSearch.resultsHeading")} />
+                  {best && <BestMatch match={best} />}
+                  {rest.map((match, i) => (
+                    <MatchRow key={`${match.title}-${i}`} match={match} index={i} />
+                  ))}
+                  <p className="text-xs text-muted-foreground/70">
+                    {t("frameSearch.framesSearched", { count: search.data.framesSearched.toLocaleString() })}
+                  </p>
+                </>
+              )
+            ) : (
+              <Tips />
+            )}
+          </section>
+        </div>
       )}
 
+      {(signedOut || search.data) && <Tips className="reveal" />}
       <FrameGuide />
     </div>
   );
@@ -277,146 +328,147 @@ function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   return t("frameSearch.errorUnavailable");
 }
 
-/** The pitch. Shown whether or not the visitor can actually run a search —
- *  it is what tells them the feature exists at all. */
-function Hero() {
+function Tips({ className }: { className?: string }) {
   const t = useT();
+  const tips = [
+    t("frameSearch.tips.fromEpisode"),
+    t("frameSearch.tips.wholeFrame"),
+    t("frameSearch.tips.sharp"),
+    t("frameSearch.tips.noOverlay"),
+    t("frameSearch.tips.screenshot"),
+  ];
   return (
-    <header
-      className="reveal relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7"
-      style={step(0)}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-4 -top-8 select-none font-display text-[10rem] leading-none text-foreground/[0.03]"
-      >
-        <SlicedGlyph />
+    <div className={cn("flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5", className)}>
+      <SectionTitle icon={LightbulbIcon} title={t("frameSearch.tipsTitle")} />
+      <ul className="grid gap-2">
+        {tips.map((tip, i) => (
+          <li
+            key={tip}
+            style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
+            className="flex animate-in items-start gap-2.5 text-sm text-foreground/85 fade-in-0 slide-in-from-left-1 duration-500"
+          >
+            <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+              <CheckIcon className="size-3" strokeWidth={3} />
+            </span>
+            {tip}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The moment itself — the still first, the clip only once asked for. */
+function MatchMedia({ match, title, className }: { match: FrameMatch; title: string; className?: string }) {
+  const t = useT();
+  const [playing, setPlaying] = useState(false);
+  return (
+    <div className={cn("relative aspect-video shrink-0 overflow-hidden rounded-lg bg-black", className)}>
+      {playing && match.previewVideo ? (
+        <video src={match.previewVideo} autoPlay loop muted playsInline className="size-full object-cover" />
+      ) : match.previewImage ? (
+        <>
+          <img src={match.previewImage} alt="" loading="lazy" className="size-full object-cover" />
+          {match.previewVideo && (
+            <button
+              type="button"
+              onClick={() => setPlaying(true)}
+              aria-label={t("frameSearch.playMoment")}
+              className="group/play absolute inset-0 grid place-items-center bg-black/25 transition-colors hover:bg-black/40"
+            >
+              <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform group-hover/play:scale-110">
+                <PlayIcon className="size-4 translate-x-[1px] fill-current" />
+              </span>
+            </button>
+          )}
+        </>
+      ) : match.anime ? (
+        <PosterFallback title={title} seed={match.anime.id} />
+      ) : null}
+    </div>
+  );
+}
+
+function Similarity({ percent }: { percent: number }) {
+  const good = percent >= 90;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
+        <span
+          className={cn("block h-full rounded-full", good ? "bg-primary shadow-[0_0_8px_var(--primary)]" : "bg-muted-foreground/60")}
+          style={{ width: `${percent}%` }}
+        />
       </span>
-      <div className="flex items-center gap-2 text-primary">
-        <ScanSearchIcon className="size-5" />
-        <span className="text-sm font-medium uppercase tracking-wide">
-          {t("frameSearch.eyebrow")}
-        </span>
-        <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-          {t("frameSearch.beta")}
-        </span>
+      <span className={cn("text-xs font-bold tabular-nums", good ? "text-primary" : "text-muted-foreground")}>{percent}%</span>
+    </div>
+  );
+}
+
+function when(match: FrameMatch, t: ReturnType<typeof useT>) {
+  return match.episode != null
+    ? t("frameSearch.episodeAt", { episode: match.episode, time: formatTimestamp(match.fromSeconds) })
+    : t("frameSearch.atTime", { time: formatTimestamp(match.fromSeconds) });
+}
+
+function BestMatch({ match }: { match: FrameMatch }) {
+  const t = useT();
+  const labels = useLabels();
+  const title = match.anime ? labels.title(match.anime) : match.title;
+  return (
+    <article className="relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-primary/50 bg-gradient-to-br from-primary/[0.12] via-card/60 to-card/40 p-3 shadow-xl shadow-primary/10 fade-in-0 zoom-in-95 duration-500 sm:p-4">
+      <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary-foreground shadow-md shadow-primary/30">
+        <SparklesIcon className="size-3" />
+        {t("frameSearch.bestMatch")}
+      </span>
+      <MatchMedia match={match} title={title} className="w-full rounded-xl" />
+      <div className="flex flex-col gap-2">
+        {match.anime ? (
+          <Link to={animeHref(match.anime)} viewTransition className="font-display text-lg leading-snug transition-colors hover:text-primary">
+            {title}
+          </Link>
+        ) : (
+          <span className="font-display text-lg leading-snug">{title}</span>
+        )}
+        <p className="text-sm text-muted-foreground">{when(match, t)}</p>
+        <Similarity percent={Math.round(match.similarity * 100)} />
+        {match.anime ? (
+          <Link
+            to={animeHref(match.anime)}
+            viewTransition
+            className="btn-sheen group mt-1 inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+          >
+            {t("frameSearch.openPage")}
+            <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        ) : (
+          <p className="text-xs text-muted-foreground/70">{t("frameSearch.notInCatalogue")}</p>
+        )}
       </div>
-      <h1 className="font-display text-2xl sm:text-3xl">{t("frameSearch.title")}</h1>
-      <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-        {t("frameSearch.lead")}
-      </p>
-      {/* Said up front rather than discovered on failure: the search runs on
-          an outside service with a small shared quota, so it genuinely will
-          not always answer. */}
-      <p className="flex max-w-prose items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed text-foreground/80">
-        <FlaskConicalIcon className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
-        {t("frameSearch.betaNote")}
-      </p>
-    </header>
+    </article>
   );
 }
 
 function MatchRow({ match, index }: { match: FrameMatch; index: number }) {
   const t = useT();
   const labels = useLabels();
-  const [playing, setPlaying] = useState(false);
-  const percent = Math.round(match.similarity * 100);
   const title = match.anime ? labels.title(match.anime) : match.title;
 
   return (
     <div
-      className="animate-in fade-in slide-in-from-bottom-2 flex gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 sm:gap-4"
-      style={{ animationDelay: `${index * 60}ms`, animationFillMode: "backwards" }}
+      className="flex animate-in gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-2.5 fade-in slide-in-from-bottom-2 transition-all duration-300 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
+      style={{ animationDelay: `${(index + 1) * 60}ms`, animationFillMode: "backwards" }}
     >
-      {/* The moment itself. Starts as the still trace.moe returns and only
-          fetches the clip once asked — five autoplaying videos on one screen
-          is a lot of bandwidth for something you glance at. */}
-      <div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-xl bg-black sm:w-48">
-        {playing && match.previewVideo ? (
-          <video
-            src={match.previewVideo}
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="size-full object-cover"
-          />
-        ) : match.previewImage ? (
-          <>
-            <img
-              src={match.previewImage}
-              alt=""
-              loading="lazy"
-              className="size-full object-cover"
-            />
-            {match.previewVideo && (
-              <button
-                type="button"
-                onClick={() => setPlaying(true)}
-                aria-label={t("frameSearch.playMoment")}
-                className="absolute inset-0 grid place-items-center bg-black/20 opacity-0 transition-opacity duration-200 hover:opacity-100"
-              >
-                <span className="grid size-9 place-items-center rounded-full bg-background/30 text-white ring-1 ring-white/40 backdrop-blur-md">
-                  <PlayIcon className="size-4 translate-x-[1px] fill-current" />
-                </span>
-              </button>
-            )}
-          </>
-        ) : match.anime ? (
-          <PosterFallback title={title} seed={match.anime.id} />
-        ) : null}
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-start justify-between gap-2">
-          {match.anime ? (
-            <Link
-              to={animeHref(match.anime)}
-              className="line-clamp-2 font-medium leading-snug transition-colors hover:text-primary"
-            >
-              {title}
-            </Link>
-          ) : (
-            <span className="line-clamp-2 font-medium leading-snug">{title}</span>
-          )}
-          {/* A percentage is the one number that decides whether to trust the
-              row at all, so it stays visible rather than living in a tooltip. */}
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
-              percent >= 95
-                ? "bg-primary/15 text-primary"
-                : "bg-secondary/60 text-muted-foreground",
-            )}
-          >
-            {percent}%
-          </span>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          {match.episode != null
-            ? t("frameSearch.episodeAt", {
-                episode: match.episode,
-                time: formatTimestamp(match.fromSeconds),
-              })
-            : t("frameSearch.atTime", { time: formatTimestamp(match.fromSeconds) })}
-        </p>
-
+      <MatchMedia match={match} title={title} className="w-28 sm:w-36" />
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
         {match.anime ? (
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button asChild size="sm" variant="outline">
-              <Link to={animeHref(match.anime)}>{t("frameSearch.openPage")}</Link>
-            </Button>
-          </div>
+          <Link to={animeHref(match.anime)} viewTransition className="line-clamp-2 text-sm font-semibold leading-snug transition-colors hover:text-primary">
+            {title}
+          </Link>
         ) : (
-          <p className="text-xs text-muted-foreground/70">
-            {t("frameSearch.notInCatalogue")}
-          </p>
+          <span className="line-clamp-2 text-sm font-semibold leading-snug">{title}</span>
         )}
+        <p className="text-xs text-muted-foreground">{when(match, t)}</p>
+        <Similarity percent={Math.round(match.similarity * 100)} />
       </div>
     </div>
   );
@@ -549,31 +601,11 @@ function FrameGuide() {
     },
   ];
 
-  const tips = [
-    t("frameSearch.tips.fromEpisode"),
-    t("frameSearch.tips.wholeFrame"),
-    t("frameSearch.tips.sharp"),
-    t("frameSearch.tips.noOverlay"),
-    t("frameSearch.tips.screenshot"),
-  ];
-
   return (
-    <section className="reveal flex flex-col gap-4" style={step(3)}>
-      <div className="flex flex-col gap-3 rounded-3xl border border-border/60 bg-card/40 p-5">
-        <h2 className="font-display text-lg tracking-tight">{t("frameSearch.tipsTitle")}</h2>
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {tips.map((tip) => (
-            <li key={tip} className="flex items-start gap-2 text-sm text-foreground/85">
-              <CheckIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-              {tip}
-            </li>
-          ))}
-        </ul>
-      </div>
-
+    <section className="reveal flex flex-col gap-4 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5" style={step(3)}>
+      <SectionTitle icon={ScanSearchIcon} title={t("frameSearch.examplesTitle")} />
       <div className="flex flex-col gap-3">
-        <h2 className="font-display text-lg tracking-tight">{t("frameSearch.examplesTitle")}</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {examples.map(({ good, label, render }, i) => (
             <figure
               key={label}
@@ -583,7 +615,7 @@ function FrameGuide() {
               <div
                 className={cn(
                   "relative aspect-video overflow-hidden rounded-xl border-2 bg-black",
-                  good ? "border-emerald-500/60" : "border-rose-500/50",
+                  good ? "border-emerald-500/70 shadow-lg shadow-emerald-500/15" : "border-rose-500/50",
                 )}
               >
                 {render()}

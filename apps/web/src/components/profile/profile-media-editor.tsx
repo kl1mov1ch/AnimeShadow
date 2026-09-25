@@ -109,7 +109,7 @@ function MediaButton({
       title={label}
       aria-label={label}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium shadow-md backdrop-blur-md transition-all hover:scale-105 disabled:pointer-events-none disabled:opacity-60",
+        "flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium shadow-md transition-all hover:scale-105 disabled:pointer-events-none disabled:opacity-60",
         accent ? "bg-primary text-primary-foreground" : "bg-black/55 text-white hover:bg-black/70",
         iconOnly && "w-8 justify-center px-0",
       )}

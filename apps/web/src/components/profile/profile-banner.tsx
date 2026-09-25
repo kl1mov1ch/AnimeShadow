@@ -38,7 +38,7 @@ export function ProfileBanner({
       {editable && (
         <Link
           to="/profile?tab=settings"
-          className="absolute right-3 top-3 flex h-8 items-center gap-1.5 rounded-lg bg-black/50 px-3 text-xs font-medium text-white opacity-90 backdrop-blur-md transition-all hover:scale-105 hover:bg-black/70 hover:opacity-100"
+          className="absolute right-3 top-3 flex h-8 items-center gap-1.5 rounded-lg bg-black/50 px-3 text-xs font-medium text-white opacity-90 transition-all hover:scale-105 hover:bg-black/70 hover:opacity-100"
         >
           <ImagePlusIcon className="size-3.5" />
           <span className="hidden sm:inline">{t("profile.editBanner")}</span>

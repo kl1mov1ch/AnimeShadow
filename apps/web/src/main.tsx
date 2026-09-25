@@ -8,6 +8,17 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { I18nProvider } from "@/i18n";
 import { queryClient } from "@/lib/query";
 import { router } from "@/router";
+
+// A view transition that another navigation cut short rejects its promise
+// with an AbortError nobody awaits — clicking two links quickly is enough.
+// It means "the newer page won", which is exactly right, so it is not
+// reported as an uncaught error. Anything else still is.
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason as { name?: string; message?: string } | undefined;
+  if (reason?.name === "AbortError" && /transition/i.test(reason.message ?? "")) {
+    event.preventDefault();
+  }
+});
 import "@/index.css";
 
 // A deploy replaces every built asset with a freshly-hashed filename — a tab

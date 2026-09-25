@@ -200,7 +200,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                 disabled={addToLibrary.isPending}
                 aria-label={inLibrary ? t("card.inList") : t("card.addToList")}
                 className={cn(
-                  "grid size-9 place-items-center rounded-lg border border-white/15 backdrop-blur transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
+                  "grid size-9 place-items-center rounded-lg border border-white/15 transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
                   inLibrary ? "bg-primary/90 text-primary-foreground" : "bg-black/60 text-white",
                   canHover && !inLibrary
                     ? "translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
@@ -226,7 +226,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                   to={`${animeHref(anime)}#watch`}
                   viewTransition
                   aria-label={t("card.watch")}
-                  className="grid size-9 translate-x-2 place-items-center rounded-lg border border-white/15 bg-black/60 text-white opacity-0 backdrop-blur transition-all delay-75 duration-300 hover:scale-110 hover:bg-primary hover:text-primary-foreground active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
+                  className="grid size-9 translate-x-2 place-items-center rounded-lg border border-white/15 bg-black/60 text-white opacity-0 transition-all delay-75 duration-300 hover:scale-110 hover:bg-primary hover:text-primary-foreground active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
                 >
                   <PlayIcon className="size-4 fill-current" />
                 </Link>
@@ -250,7 +250,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         )}
 
         {isAdult && (
-          <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white backdrop-blur">
+          <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white">
             18+
           </span>
         )}
@@ -261,7 +261,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
           <ScoreBadge score={anime.score} className="absolute left-2 top-2 z-20" />
         )}
         {anime.score == null && countdown ? (
-          <span className="absolute left-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/90 backdrop-blur">
+          <span className="absolute left-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/90">
             <ClockIcon className="size-3 text-muted-foreground/70" />
             {countdown}
           </span>
@@ -270,7 +270,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         {/* "Coming soon" only — the "airing" tag added noise without telling the
             user anything they don't already get from the season/year line. */}
         {unreleased && !entry ? (
-          <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur transition-opacity duration-200 group-hover:opacity-0">
+          <span className="absolute bottom-2 left-2 z-10 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-opacity duration-200 group-hover:opacity-0">
             {t("card.soon")}
           </span>
         ) : null}
@@ -395,7 +395,7 @@ function LibraryMark({
         <TooltipTrigger asChild>
           <span
             aria-label={label}
-            className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-medium backdrop-blur transition-opacity duration-200 group-hover:opacity-0"
+            className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium transition-opacity duration-200 group-hover:opacity-0"
           >
             <Icon className={cn("size-3.5", meta.text)} />
             {percent != null && status !== "COMPLETED" && (

@@ -370,7 +370,7 @@ function ProfileHero({
 
   return (
     <>
-      <header className="reveal-group relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] backdrop-blur-sm">
+      <header className="reveal-group relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)]">
         {/* The picture fills the whole header, top to bottom and edge to
             edge — the identity sits on it, not under a strip cut out of it.
             A GIF plays here as uploaded. */}
