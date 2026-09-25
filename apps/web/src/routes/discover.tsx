@@ -21,6 +21,7 @@ import {
   useHomeRecommendations,
 } from "@/lib/query";
 import { useDocumentHead } from "@/lib/seo";
+import { FEATURES } from "@/lib/features";
 
 /**
  * Homepage rail order is a deliberate hierarchy, not an arbitrary list:
@@ -134,6 +135,7 @@ export function Component() {
 
       <HomeActions />
 
+      {FEATURES.homeGenres && (
       <div className="cv-auto">
       <GenreCards
         title={t("home.genresTitle")}
@@ -145,6 +147,7 @@ export function Component() {
         previewLabel={t("home.genrePreview")}
       />
       </div>
+      )}
 
       {/* Something to do rather than something to scroll past — built from
           the titles this page already loaded. */}

@@ -39,8 +39,21 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const { id } = parse(idParams, request.params);
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      const detail = await catalog.getAnimeById(id, undefined, allowAdult);
-      const genreIds = detail.genresDetailed.map((g) => g.id);
+      // Only the genres are needed. Read them straight from the catalogue;
+      // the full detail (with its upstream enrichment) only for a title we
+      // haven't stored yet.
+      const row = await fastify.prisma.anime.findUnique({
+        where: { id },
+        select: { rating: true, genres: { select: { genreId: true } } },
+      });
+      let genreIds: number[];
+      if (row) {
+        catalog.ensureViewable(row.rating, allowAdult);
+        genreIds = row.genres.map((g) => g.genreId);
+      } else {
+        const detail = await catalog.getAnimeById(id, undefined, allowAdult);
+        genreIds = detail.genresDetailed.map((g) => g.id);
+      }
       return recommendations.similarTo(id, genreIds, request.userId ?? null, undefined, allowAdult);
     },
   );

@@ -147,7 +147,12 @@ export class CatalogService {
   private themesFailures = 0;
   private themesBreakerUntil = 0;
 
-  private readonly auxCache = new TtlCache<unknown>(60 * 60_000, 256);
+  // Per-title and per-studio lookups: 256 slots filled within a few dozen
+  // title pages and evicted what was about to be asked for again.
+  private readonly auxCache = new TtlCache<unknown>(60 * 60_000, 5000);
+  /** The finished detail payload per (title, language), for two minutes —
+   *  a title page opened by many people is assembled once. */
+  private readonly detailCache = new TtlCache<AnimeDetail>(2 * 60_000, 2000);
   // Per (filters + page) browse results — one upstream call per unique page / 10 min.
   private readonly browseCache = new TtlCache<Paginated<AnimeSummary>>(
     10 * 60_000,
@@ -767,6 +772,13 @@ export class CatalogService {
     lang: Locale = DEFAULT_LOCALE,
     allowAdult = false,
   ): Promise<AnimeDetail> {
+    const cacheKey = `${id}:${lang}`;
+    const hit = this.detailCache.get(cacheKey);
+    if (hit) {
+      this.assertViewable(hit.rating, allowAdult);
+      return hit;
+    }
+
     const existing = await this.prisma.anime.findUnique({
       where: { id },
       include: ANIME_WITH_GENRES_INCLUDE,
@@ -780,9 +792,10 @@ export class CatalogService {
       this.assertViewable(existing.rating, allowAdult);
       this.scheduleHealBanner(existing);
       const detail = toDetailDto(existing);
-      await this.enrichFromAniList(detail);
-      detail.studioLogos = await this.getStudioLogos(detail.studios);
-      return this.translation.localizeDetail(detail, lang);
+      await this.enrichDetail(detail);
+      const localized = await this.translation.localizeDetail(detail, lang);
+      this.detailCache.set(cacheKey, localized);
+      return localized;
     }
 
     try {
@@ -795,9 +808,10 @@ export class CatalogService {
       }
       this.scheduleHealBanner(row);
       const dto = toDetailDto(row);
-      await this.enrichFromAniList(dto);
-      dto.studioLogos = await this.getStudioLogos(dto.studios);
-      return this.translation.localizeDetail(dto, lang);
+      await this.enrichDetail(dto);
+      const localized = await this.translation.localizeDetail(dto, lang);
+      this.detailCache.set(cacheKey, localized);
+      return localized;
     } catch (error) {
       // Deliberate content-gate rejections, not an upstream problem — must
       // never fall through to "serve whatever's cached" below.
@@ -816,6 +830,27 @@ export class CatalogService {
       }
       throw new UpstreamUnavailableError();
     }
+  }
+
+  /**
+   * Tags / next episode (AniList) and studio logos (Jikan), side by side and
+   * given a short budget. Both are decoration: the page used to wait for
+   * them one after the other, up to 2 + 2.5 seconds, on every open where
+   * AniList or Jikan was slow. Whatever isn't back in time keeps loading
+   * into the cache and shows up on the next open.
+   */
+  private async enrichDetail(detail: AnimeDetail): Promise<void> {
+    const [, logos] = await Promise.all([
+      withTimeout(this.enrichFromAniList(detail), 300, undefined),
+      withTimeout(this.getStudioLogos(detail.studios), 300, {} as Record<string, string>),
+    ]);
+    detail.studioLogos = logos;
+  }
+
+  /** The same rating gate as the detail page, for callers that only need a
+   *  title's genres and shouldn't pay for its whole payload. */
+  ensureViewable(rating: string | null, allowAdult: boolean): void {
+    this.assertViewable(rating, allowAdult);
   }
 
   /** Hentai is blocked outright (404 — as if the title doesn't exist); real
@@ -950,8 +985,10 @@ export class CatalogService {
     title: string,
     client: AniListClient = this.anilist,
   ): Promise<Awaited<ReturnType<AniListClient["getByMalId"]>>> {
+    // A failure is cached too (as "nothing"): AniList down or rate-limiting
+    // meant every single title page waited out the timeout again.
     return this.auxCache.wrap(`anilist-media:${malId}`, () =>
-      client.getByMalId(malId, title),
+      client.getByMalId(malId, title).catch(() => null),
     ) as Promise<Awaited<ReturnType<AniListClient["getByMalId"]>>>;
   }
 

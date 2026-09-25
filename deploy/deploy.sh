@@ -90,6 +90,19 @@ WEB="$APP_DIR/apps/web"
 step "build web (into dist-next)"
 $AS_APP_USER "cd '$APP_DIR' && rm -rf '$WEB/dist-next' && pnpm --filter @animeshadow/web exec vite build --outDir dist-next --emptyOutDir"
 
+# Compressed once here, served as-is by Caddy (file_server precompressed),
+# instead of Caddy compressing the same files again on every request.
+step "precompress web assets"
+find "$WEB/dist-next" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' -o -name '*.webmanifest' \) \
+  -size +1k -exec gzip -k -9 -f {} +
+if command -v brotli >/dev/null; then
+  find "$WEB/dist-next" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' -o -name '*.webmanifest' \) \
+    -size +1k -exec brotli -k -f -q 11 {} +
+else
+  echo "(brotli not installed — gzip only; 'apt install brotli' for smaller files)"
+fi
+chown -R "$APP_USER" "$WEB/dist-next"
+
 step "sync systemd unit + restart api"
 cp "$APP_DIR/deploy/animeshadow-api.service" /etc/systemd/system/animeshadow-api.service
 systemctl daemon-reload

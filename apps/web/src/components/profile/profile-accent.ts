@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useImagePalette } from "@/hooks/use-image-palette";
 import { imageSrc } from "@/lib/format";
+import { FEATURES } from "@/lib/features";
 
 /**
  * The owner's colour, as CSS variables for their profile — wherever it is
@@ -12,8 +13,11 @@ export function useProfileAccentStyle(
   profile: { accentColor: string | null; avatarUrl: string | null; layout: { autoAccent: boolean } } | undefined,
 ): CSSProperties | undefined {
   const palette = useImagePalette(
-    profile?.layout.autoAccent && profile.avatarUrl ? imageSrc(profile.avatarUrl) : undefined,
+    FEATURES.profileCustomization && profile?.layout.autoAccent && profile.avatarUrl
+      ? imageSrc(profile.avatarUrl)
+      : undefined,
   );
+  if (!FEATURES.profileCustomization) return undefined;
   const accent =
     profile?.layout.autoAccent && palette ? `rgb(${palette.rgb})` : (profile?.accentColor ?? null);
   if (!accent) return undefined;

@@ -8,9 +8,23 @@ animeshadow.online {
 
 	handle {
 		root * /var/www/animeshadow/apps/web/dist
+
+		# Hashed build output never changes under the same name: the browser
+		# keeps it for a year and never asks again.
+		@immutable path /assets/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+		# The entry points must always be re-checked, or a deploy would keep
+		# serving the old app to anyone who had it cached.
+		@entry path / /index.html /sw.js /registerSW.js /manifest.webmanifest
+		header @entry Cache-Control "no-cache"
+
 		try_files {path} /index.html
-		file_server
-		encode zstd gzip
+		# deploy.sh writes .br/.gz next to every text file, so the server
+		# sends those as they are instead of compressing on every request.
+		file_server {
+			precompressed br gzip
+		}
 	}
 }
 

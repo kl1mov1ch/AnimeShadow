@@ -25,12 +25,13 @@ import {
 } from "@/components/profile/profile-progress";
 import { useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 type StudioTab = "look" | "blocks" | "privacy" | "account" | "list";
 
 const TABS: Array<{ id: StudioTab; icon: typeof PaletteIcon }> = [
   { id: "look", icon: PaletteIcon },
-  { id: "blocks", icon: LayoutDashboardIcon },
+  ...(FEATURES.profileCustomization ? [{ id: "blocks" as const, icon: LayoutDashboardIcon }] : []),
   { id: "privacy", icon: LockIcon },
   { id: "account", icon: UserCogIcon },
   { id: "list", icon: UploadIcon },
@@ -100,8 +101,8 @@ export function ProfileStudio({
                     {t("profile.studio.mediaHint")}
                   </p>
                   <CosmeticsPicker profile={profile} />
-                  <ProgressPicker profile={profile} />
-                  <AccentSection profile={profile} />
+                  {FEATURES.profileCustomization && <ProgressPicker profile={profile} />}
+                  {FEATURES.profileCustomization && <AccentSection profile={profile} />}
                 </div>
               )}
               {tab === "blocks" && <LayoutEditor layout={profile.layout} />}

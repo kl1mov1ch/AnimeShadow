@@ -28,6 +28,7 @@ import type { CSSProperties } from "react";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 interface HoloAchievementBadgeProps {
   id: string;
@@ -130,10 +131,12 @@ export function HoloAchievementBadge({
   earnedAt,
   progress,
   variant = "badge",
-  animated = true,
+  animated: animatedProp = true,
   onClick,
   className,
 }: HoloAchievementBadgeProps) {
+  // Still unless looping effects are switched on (see lib/features).
+  const animated = animatedProp && FEATURES.richEffects;
   const t = useT();
   const labels = useLabels();
   const tier = TIER[rarity];

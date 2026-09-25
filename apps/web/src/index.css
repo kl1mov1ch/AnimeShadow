@@ -992,7 +992,8 @@ html.light .home-theme {
     rgb(255 255 255 / 0.55),
     transparent
   );
-  animation: rank-sheen 3.2s ease-in-out 1.1s infinite;
+  /* A sheen that crossed the bar every 3 seconds, forever: dropped. */
+  display: none;
 }
 
 @keyframes rank-fill {
@@ -1501,5 +1502,16 @@ body:has([role="dialog"][data-state="open"]) main * {
   animation: none !important;
 }
 :not(:hover) > .pro-seal {
+  animation: none !important;
+}
+
+/* Titles with effects switched off (FEATURES.richEffects): the colours stay,
+   nothing moves. */
+.title-still .title-text {
+  animation: none !important;
+}
+
+/* Still medallions include the epic tier's twinkles. */
+.ach-still .scene-star {
   animation: none !important;
 }

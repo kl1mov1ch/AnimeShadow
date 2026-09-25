@@ -1,0 +1,6 @@
+# Scripts and configs that run on the Linux server: always LF, whatever
+# the editor on this machine does. A CRLF deploy.sh dies on its first line.
+*.sh text eol=lf
+deploy/Caddyfile text eol=lf
+deploy/**/*.yml text eol=lf
+deploy/*.service text eol=lf

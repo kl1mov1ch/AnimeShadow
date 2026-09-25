@@ -2,6 +2,7 @@ import type { ProfileLayout, PublicProfile, Rank } from "@animeshadow/shared";
 import type { CSSProperties } from "react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 export type ProgressStyle = ProfileLayout["progressStyle"];
 export type ProgressMetric = ProfileLayout["progressMetric"];
@@ -74,7 +75,11 @@ export function ProfileProgress({ profile, className }: { profile: PublicProfile
         <span className="truncate font-medium">{label}</span>
         <span className="shrink-0 tabular-nums">{value}</span>
       </div>
-      <ProgressBar percent={percent} style={profile.layout.progressStyle} />
+      <ProgressBar
+        percent={percent}
+        style={FEATURES.profileCustomization ? profile.layout.progressStyle : "classic"}
+        plain={!FEATURES.profileCustomization}
+      />
     </div>
   );
 }
@@ -108,10 +113,13 @@ const HEAD: Record<ProgressStyle, string> = {
 export function ProgressBar({
   percent,
   style,
+  plain = false,
   className,
 }: {
   percent: number;
   style: ProgressStyle;
+  /** Just the fill: no shine, no glowing head. */
+  plain?: boolean;
   className?: string;
 }) {
   const fill = Math.min(100, Math.max(2, percent));
@@ -195,17 +203,17 @@ export function ProgressBar({
             } as CSSProperties
           }
         >
-          {(style === "ice" || style === "sparks" || style === "classic") && (
+          {!plain && (style === "ice" || style === "sparks" || style === "classic") && (
             <span className="ach-shine absolute inset-y-0 left-0 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
           )}
         </div>
       </div>
 
       {/* The leading edge: a glowing head where the fill stops. */}
-      <span
+      {!plain && <span
         className={cn("absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background", style === "fire" && "ach-flicker")}
         style={{ left: `${fill}%`, background: head, boxShadow: `0 0 10px 3px ${head}` }}
-      />
+      />}
     </div>
   );
 }

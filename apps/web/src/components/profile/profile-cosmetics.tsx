@@ -20,6 +20,7 @@ import { FrameFx, FrameRing, frameGlow, hasFrame } from "@/components/profile/fr
 import { useT } from "@/i18n";
 import { useCountUp } from "@/lib/use-count-up";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 /**
  * A frame is a thin turning rim plus what moves on the avatar — see
@@ -55,7 +56,7 @@ export function AvatarFrameRing({
   badge?: FrameBadge;
   children: ReactNode;
 }) {
-  if (!frame || !hasFrame(frame)) {
+  if (!FEATURES.profileCustomization || !frame || !hasFrame(frame)) {
     return (
       <div className={cn("rounded-full ring-4 ring-offset-2 ring-offset-card", fallback)}>
         {children}
@@ -165,8 +166,8 @@ export function ProfileTitleBadge({
   return (
     <span
       className={cn(
-        "title-badge inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-wide",
-        `title-${style.fx}`,
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-wide",
+        FEATURES.richEffects ? ["title-badge", `title-${style.fx}`] : "title-still",
         className,
       )}
       style={

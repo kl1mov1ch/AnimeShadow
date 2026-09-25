@@ -10,6 +10,7 @@ import { useAchievements, useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FramePreview, ProfileTitleBadge } from "./profile-cosmetics";
+import { FEATURES } from "@/lib/features";
 
 /**
  * Frames and titles — what the account has earned, and what it hasn't yet.
@@ -23,6 +24,7 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
 
   return (
     <div className="flex flex-col gap-5">
+      {FEATURES.profileCustomization && (
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {t("profile.cosmetics.frames")}
@@ -43,6 +45,7 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
           ))}
         </div>
       </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
