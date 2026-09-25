@@ -1,7 +1,30 @@
 import type { AchievementRarity } from "@animeshadow/shared";
-import { AwardIcon, CrownIcon, LockIcon, MedalIcon, StarIcon } from "lucide-react";
-import type { MouseEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import {
+  CalendarCheckIcon,
+  CheckCheckIcon,
+  CompassIcon,
+  CrownIcon,
+  FilmIcon,
+  FlameIcon,
+  GemIcon,
+  HeartIcon,
+  LayersIcon,
+  LibraryIcon,
+  LockIcon,
+  type LucideIcon,
+  MoonStarIcon,
+  MusicIcon,
+  PenLineIcon,
+  PlayIcon,
+  RocketIcon,
+  ShieldIcon,
+  SparklesIcon,
+  StarIcon,
+  TvIcon,
+  VenetianMaskIcon,
+  ZapIcon,
+} from "lucide-react";
+import type { CSSProperties } from "react";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -13,91 +36,93 @@ interface HoloAchievementBadgeProps {
   earnedAt?: string | null;
   /** Only meaningful when `earned` is false. */
   progress?: { current: number; target: number } | null;
-  /** "badge" (wide, with title/rarity text) or "circle" (icon only, small —
-   * for the pinned-achievement row under a name). Defaults to "badge". */
+  /** "badge" (medallion with its name and rarity under it) or "circle"
+   *  (the medallion alone, for small places). */
   variant?: "badge" | "circle";
-  /**
-   * False renders the earned look (colour, icon, foil hint) with none of
-   * the running cost: no pointer-tracked 3D tilt, no per-instance mousemove
-   * listener, no infinite CSS animation on the foil. A picker showing every
-   * earned badge at once (there can be dozens) doesn't need all of them
-   * animating simultaneously to make the point that they're earned —
-   * default true everywhere a badge appears mostly alone.
-   */
+  /** False keeps the look and drops the motion — for grids of many badges. */
   animated?: boolean;
   onClick?: () => void;
   className?: string;
 }
 
-/**
- * A badge-shaped achievement card, styled after a holographic award badge.
- * Earned achievements get the full treatment: pointer-tracked 3D tilt (a
- * matrix3d transform) plus a rotating rainbow-foil overlay clipped to the
- * badge shape. Everything not yet earned renders the same shape flat and
- * grey, with no tilt/animation at all — both because "locked" shouldn't
- * look like a reward, and because a grid can hold dozens of these; only the
- * ones actually worth showing off pay for the live pointer tracking and
- * SVG filter.
- */
-
-const identityMatrix =
-  "1, 0, 0, 0, " + "0, 1, 0, 0, " + "0, 0, 1, 0, " + "0, 0, 0, 1";
-
-const maxRotate = 0.25;
-const minRotate = -0.25;
-const maxScale = 1;
-const minScale = 0.97;
-
-const RARITY_ICON: Record<AchievementRarity, typeof AwardIcon> = {
-  common: AwardIcon,
-  rare: MedalIcon,
-  epic: StarIcon,
-  legendary: CrownIcon,
+/** Every achievement has its own mark — what it is for, not what tier it is. */
+const ICONS: Record<string, LucideIcon> = {
+  "first-episode": PlayIcon,
+  "first-review": PenLineIcon,
+  "first-series": TvIcon,
+  "first-donate": HeartIcon,
+  "fifty-episodes": FilmIcon,
+  "hundred-episodes": LayersIcon,
+  "hot-start": FlameIcon,
+  "night-owl": MoonStarIcon,
+  "week-streak": CalendarCheckIcon,
+  critic: StarIcon,
+  marathoner: ZapIcon,
+  melomaniac: MusicIcon,
+  "genre-expert": CompassIcon,
+  bibliophile: LibraryIcon,
+  "anon-critic": VenetianMaskIcon,
+  completionist: CheckCheckIcon,
+  "early-adopter": RocketIcon,
+  veteran: ShieldIcon,
+  patron: GemIcon,
+  supporter: CrownIcon,
 };
 
-/** Gradient + text/border colours per rarity — the only thing that changes per tier. */
-const RARITY_STYLE: Record<
+/**
+ * Each tier's metal, glow, shape and motion. The shape is a clip-path so
+ * the medallion itself — not a box around it — carries the silhouette:
+ * a disc for bronze, a hexagon for rare, an octagon for epic, a sunburst
+ * disc for legendary.
+ */
+const TIER: Record<
   AchievementRarity,
-  { from: string; to: string; text: string; border: string; sheen: string[] }
+  { from: string; via: string; to: string; ink: string; glow: string; clip: string }
 > = {
   common: {
-    from: "oklch(0.80 0.02 250)",
-    to: "oklch(0.56 0.02 250)",
-    text: "oklch(0.22 0.02 250)",
-    border: "oklch(0.4 0.02 250 / 0.6)",
-    sheen: ["hsl(220 20% 90%)", "hsl(220 10% 60%)", "hsl(220 30% 40%)"],
+    from: "#f0b27a",
+    via: "#b8703d",
+    to: "#6b3a1c",
+    ink: "#fff4e8",
+    glow: "rgba(214,140,80,0.45)",
+    clip: "circle(50% at 50% 50%)",
   },
   rare: {
-    from: "oklch(0.83 0.13 230)",
-    to: "oklch(0.53 0.17 245)",
-    text: "oklch(0.20 0.09 250)",
-    border: "oklch(0.35 0.14 245 / 0.7)",
-    sheen: ["hsl(200 100% 70%)", "hsl(230 90% 60%)", "hsl(190 90% 55%)"],
+    from: "#8be9ff",
+    via: "#2f8fe0",
+    to: "#173f8a",
+    ink: "#eaf8ff",
+    glow: "rgba(64,170,255,0.55)",
+    clip: "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
   },
   epic: {
-    from: "oklch(0.80 0.16 305)",
-    to: "oklch(0.48 0.20 295)",
-    text: "oklch(0.18 0.13 300)",
-    border: "oklch(0.32 0.18 298 / 0.7)",
-    sheen: ["hsl(280 90% 70%)", "hsl(320 90% 65%)", "hsl(260 85% 55%)"],
+    from: "#f0a6ff",
+    via: "#a24bf0",
+    to: "#4b1a8c",
+    ink: "#fbefff",
+    glow: "rgba(176,90,255,0.6)",
+    clip: "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
   },
   legendary: {
-    from: "oklch(0.91 0.15 95)",
-    to: "oklch(0.63 0.17 65)",
-    text: "oklch(0.24 0.06 70)",
-    border: "oklch(0.4 0.1 70 / 0.7)",
-    sheen: ["hsl(45 100% 75%)", "hsl(15 90% 60%)", "hsl(55 95% 65%)"],
+    from: "#fff1a8",
+    via: "#f5b400",
+    to: "#b3560a",
+    ink: "#3a1a00",
+    glow: "rgba(255,170,30,0.7)",
+    clip: "circle(50% at 50% 50%)",
   },
 };
 
-/** Flat, colourless — every rarity looks the same until it's earned. */
-const LOCKED_STYLE = {
-  from: "oklch(0.34 0 0)",
-  to: "oklch(0.24 0 0)",
-  text: "oklch(0.7 0 0)",
-  border: "oklch(0.4 0 0 / 0.5)",
-};
-
+/**
+ * An achievement as a medallion.
+ *
+ * Earned ones are metal in their tier's colour with the achievement's own
+ * mark on the face, and they move: bronze catches a slow shine, rare pulses
+ * with a spark circling it, epic sits in a turning aura, legendary burns
+ * with rotating rays and rising embers. Locked ones are the same shape in
+ * dark iron with the mark as a silhouette and, where the server counts
+ * progress, a ring filling around them.
+ */
 export function HoloAchievementBadge({
   id,
   rarity,
@@ -111,297 +136,245 @@ export function HoloAchievementBadge({
 }: HoloAchievementBadgeProps) {
   const t = useT();
   const labels = useLabels();
-  const isCircle = variant === "circle";
-  const ref = useRef<HTMLDivElement>(null);
-  const [matrix, setMatrix] = useState<string>(identityMatrix);
-  const [currentMatrix, setCurrentMatrix] = useState<string>(identityMatrix);
-  const [isTimeoutFinished, setIsTimeoutFinished] = useState<boolean>(false);
-
-  const getDimensions = () => {
-    const left = ref?.current?.getBoundingClientRect()?.left || 0;
-    const right = ref?.current?.getBoundingClientRect()?.right || 0;
-    const top = ref?.current?.getBoundingClientRect()?.top || 0;
-    const bottom = ref?.current?.getBoundingClientRect()?.bottom || 0;
-
-    return { left, right, top, bottom };
-  };
-
-  const getMatrix = (clientX: number, clientY: number) => {
-    const { left, right, top, bottom } = getDimensions();
-    const xCenter = (left + right) / 2;
-    const yCenter = (top + bottom) / 2;
-
-    const scale = [
-      maxScale - ((maxScale - minScale) * Math.abs(xCenter - clientX)) / (xCenter - left),
-      maxScale - ((maxScale - minScale) * Math.abs(yCenter - clientY)) / (yCenter - top),
-      maxScale -
-        ((maxScale - minScale) * (Math.abs(xCenter - clientX) + Math.abs(yCenter - clientY))) /
-          (xCenter - left + (yCenter - top)),
-    ];
-
-    const rotate = {
-      x1: 0.25 * ((yCenter - clientY) / yCenter - (xCenter - clientX) / xCenter),
-      x2: maxRotate - ((maxRotate - minRotate) * Math.abs(right - clientX)) / (right - left),
-      x3: 0,
-      y0: 0,
-      y2: maxRotate - ((maxRotate - minRotate) * (top - clientY)) / (top - bottom),
-      y3: 0,
-      z0: -(maxRotate - ((maxRotate - minRotate) * Math.abs(right - clientX)) / (right - left)),
-      z1: 0.2 - (0.2 + 0.6) * ((top - clientY) / (top - bottom)),
-      z3: 0,
-    };
-    return (
-      `${scale[0]}, ${rotate.y0}, ${rotate.z0}, 0, ` +
-      `${rotate.x1}, ${scale[1]}, ${rotate.z1}, 0, ` +
-      `${rotate.x2}, ${rotate.y2}, ${scale[2]}, 0, ` +
-      `${rotate.x3}, ${rotate.y3}, ${rotate.z3}, 1`
-    );
-  };
-
-  const getOppositeMatrix = (_matrix: string, clientY: number, onEnter?: boolean) => {
-    const { top, bottom } = getDimensions();
-    const oppositeY = bottom - clientY + top;
-    const weakening = onEnter ? 0.7 : 4;
-    const multiplier = onEnter ? -1 : 1;
-
-    return _matrix
-      .split(", ")
-      .map((item, index) => {
-        if (index === 2 || index === 4 || index === 8) {
-          return String((-parseFloat(item) * multiplier) / weakening);
-        } else if (index === 0 || index === 5 || index === 10) {
-          return "1";
-        } else if (index === 6) {
-          return String(
-            (multiplier * (maxRotate - ((maxRotate - minRotate) * (top - oppositeY)) / (top - bottom))) /
-              weakening,
-          );
-        } else if (index === 9) {
-          return String(
-            (maxRotate - ((maxRotate - minRotate) * (top - oppositeY)) / (top - bottom)) / weakening,
-          );
-        }
-        return item;
-      })
-      .join(", ");
-  };
-
-  const onMouseEnter = (e: MouseEvent<HTMLDivElement>) => {
-    const nextMatrix = getMatrix(e.clientX, e.clientY);
-    const oppositeMatrix = getOppositeMatrix(nextMatrix, e.clientY, true);
-
-    setMatrix(oppositeMatrix);
-    setIsTimeoutFinished(false);
-    setTimeout(() => setIsTimeoutFinished(true), 200);
-  };
-
-  const onMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (isTimeoutFinished) {
-      setCurrentMatrix(getMatrix(e.clientX, e.clientY));
-    }
-  };
-
-  const onMouseLeave = (e: MouseEvent<HTMLDivElement>) => {
-    const oppositeMatrix = getOppositeMatrix(matrix, e.clientY);
-    setCurrentMatrix(oppositeMatrix);
-    setTimeout(() => setCurrentMatrix(identityMatrix), 200);
-  };
-
-  useEffect(() => {
-    if (isTimeoutFinished) setMatrix(currentMatrix);
-  }, [currentMatrix, isTimeoutFinished]);
-
-  const Icon = earned ? RARITY_ICON[rarity] : LockIcon;
+  const tier = TIER[rarity];
+  const Icon = ICONS[id] ?? SparklesIcon;
   const title = t(`achievements.items.${id}.title` as "achievements.items.critic.title");
   const rarityLabel = t(`achievements.rarity.${rarity}` as "achievements.rarity.common");
   const percent =
-    !earned && progress ? Math.round((progress.current / progress.target) * 100) : null;
-  const gradId = `holo-grad-${id}-${variant}`;
-  const maskId = `holo-mask-${id}-${variant}`;
-
-  const shortTitle = title.length > 22 ? `${title.slice(0, 21)}…` : title;
-  const tooltip = earnedAt
-    ? t("achievements.earnedOn", { date: labels.formatDate(earnedAt) ?? "" })
+    !earned && progress && progress.target > 0
+      ? Math.min(100, Math.round((progress.current / progress.target) * 100))
+      : null;
+  const tip = earned
+    ? earnedAt
+      ? `${title} · ${t("achievements.earnedOn", { date: labels.formatDate(earnedAt) ?? "" })}`
+      : title
     : percent != null
-      ? `${title} — ${percent}%`
+      ? `${title} · ${progress!.current}/${progress!.target}`
       : title;
 
-  const viewBox = isCircle ? "0 0 64 64" : "0 0 260 64";
-  const polygonPoints = isCircle ? "0,0 64,64 64,0 0,64" : "0,0 260,64 260,0 0,64";
-  const defaultSize = isCircle ? "size-14" : "w-[220px]";
-  const rootClassName = cn(
-    "block select-none",
-    defaultSize,
-    onClick && "cursor-pointer",
-    className,
-  );
+  const medallion = (
+    <span className="relative block aspect-square w-full">
+      {earned && <Aura rarity={rarity} glow={tier.glow} />}
 
-  const shape = (fill: string, stroke?: string) =>
-    isCircle ? (
-      <>
-        <circle cx="32" cy="32" r="31" fill={fill} />
-        {stroke && <circle cx="32" cy="32" r="29.5" fill="none" stroke={stroke} strokeWidth="1.5" />}
-      </>
-    ) : (
-      <>
-        <rect width="260" height="64" rx="12" fill={fill} />
-        {stroke && (
-          <rect x="3" y="3" width="254" height="58" rx="10" fill="none" stroke={stroke} strokeWidth="1.5" />
-        )}
-      </>
-    );
-
-  const maskShape = isCircle ? (
-    <circle cx="32" cy="32" r="32" fill="white" />
-  ) : (
-    <rect width="260" height="64" fill="white" rx="12" />
-  );
-
-  const iconBox = isCircle ? { x: 14, y: 14, size: 36 } : { x: 10, y: 12, size: 40 };
-
-  // Locked/in-progress: the same shape, flat and still — no tilt, no foil,
-  // no per-instance mousemove listeners. Cheap enough for a whole grid of them.
-  if (!earned) {
-    return (
-      <div
-        title={tooltip}
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
-        onClick={onClick}
-        onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
-        className={cn(rootClassName, onClick && "group")}
+      {/* The rim: a slightly larger copy of the shape in the tier's dark metal. */}
+      <span
+        aria-hidden
+        className="absolute inset-[4%]"
+        style={{
+          clipPath: tier.clip,
+          background: earned
+            ? `linear-gradient(145deg, ${tier.from}, ${tier.to})`
+            : "linear-gradient(145deg, #3a3d48, #16181f)",
+        }}
+      />
+      {/* The face. */}
+      <span
+        aria-hidden
+        className="absolute inset-[11%] overflow-hidden"
+        style={{
+          clipPath: tier.clip,
+          background: earned
+            ? `radial-gradient(circle at 32% 26%, ${tier.from}, ${tier.via} 48%, ${tier.to} 100%)`
+            : "radial-gradient(circle at 32% 26%, #2c2f39, #1a1c24 55%, #101117 100%)",
+        }}
       >
-        {/* Dozens of these in a grid used to blur into one grey smear — a
-            grayscale filter that lifts on hover/focus (still flat, still
-            unearned, but not indistinguishable from its neighbours the
-            instant you actually look at one) reads as "still locked" while
-            staying scannable. */}
-        <svg
-          viewBox={viewBox}
-          className={cn(
-            "h-auto w-full opacity-80 grayscale transition-[filter] duration-200",
-            onClick && "group-hover:grayscale-0 group-focus-visible:grayscale-0",
-          )}
-        >
-          <defs>
-            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={LOCKED_STYLE.from} />
-              <stop offset="100%" stopColor={LOCKED_STYLE.to} />
-            </linearGradient>
-          </defs>
-          {shape(`url(#${gradId})`, LOCKED_STYLE.border)}
-          <foreignObject x={iconBox.x} y={iconBox.y} width={iconBox.size} height={iconBox.size}>
-            <div
-              style={{ color: LOCKED_STYLE.text }}
-              className="flex size-full items-center justify-center"
-            >
-              <Icon className={isCircle ? "size-5" : "size-6"} strokeWidth={2.25} />
-            </div>
-          </foreignObject>
-          {!isCircle && (
-            <>
-              <text
-                x="58"
-                y="27"
-                fontSize="9"
-                fontWeight="700"
-                letterSpacing="0.08em"
-                fill={LOCKED_STYLE.text}
-                opacity="0.75"
-              >
-                {percent != null ? `${percent}%` : rarityLabel.toUpperCase()}
-              </text>
-              <text x="58" y="46" fontSize="14" fontWeight="800" fill={LOCKED_STYLE.text}>
-                {shortTitle}
-              </text>
-            </>
-          )}
-        </svg>
-      </div>
+        {earned && (
+          <span className="ach-shine absolute inset-y-0 left-0 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/55 to-transparent" />
+        )}
+      </span>
+
+      <span className="absolute inset-0 grid place-items-center">
+        <Icon
+          aria-hidden
+          strokeWidth={2.2}
+          className={cn("w-[38%] h-[38%] drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]", earned && "ach-pop")}
+          style={{ color: earned ? tier.ink : "rgba(160,165,180,0.45)" }}
+        />
+      </span>
+
+      {!earned && (
+        <span className="absolute bottom-[6%] right-[6%] grid size-[26%] place-items-center rounded-full border border-white/10 bg-[#0d0e13] text-white/60">
+          <LockIcon className="size-[55%]" />
+        </span>
+      )}
+
+      {percent != null && <ProgressRing percent={percent} />}
+    </span>
+  );
+
+  const Root = onClick ? "button" : "span";
+
+  if (variant === "circle") {
+    return (
+      <Root
+        type={onClick ? "button" : undefined}
+        onClick={onClick}
+        title={tip}
+        aria-label={title}
+        className={cn(
+          "block size-14 shrink-0 select-none transition-transform duration-300 hover:scale-110",
+          !animated && "ach-still",
+          className,
+        )}
+      >
+        {medallion}
+      </Root>
     );
   }
 
-  const style = RARITY_STYLE[rarity];
-
   return (
-    <div
-      ref={ref}
-      title={tooltip}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+    <Root
+      type={onClick ? "button" : undefined}
       onClick={onClick}
-      onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
-      className={rootClassName}
-      onMouseMove={animated ? onMouseMove : undefined}
-      onMouseLeave={animated ? onMouseLeave : undefined}
-      onMouseEnter={animated ? onMouseEnter : undefined}
+      title={tip}
+      className={cn(
+        "group flex w-[200px] select-none flex-col items-center gap-2 text-center",
+        !animated && "ach-still",
+        className,
+      )}
     >
-      <div
-        style={{
-          transform: animated ? `perspective(700px) matrix3d(${matrix})` : undefined,
-          transformOrigin: "center center",
-          transition: animated ? "transform 200ms ease-out" : undefined,
-        }}
-      >
-        <svg viewBox={viewBox} className="h-auto w-full drop-shadow-md">
-          <defs>
-            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={style.from} />
-              <stop offset="100%" stopColor={style.to} />
-            </linearGradient>
-            <mask id={maskId}>{maskShape}</mask>
-          </defs>
-
-          {shape(`url(#${gradId})`, style.border)}
-
-          <foreignObject x={iconBox.x} y={iconBox.y} width={iconBox.size} height={iconBox.size}>
-            <div
-              style={{ color: style.text }}
-              className="flex size-full items-center justify-center"
-            >
-              <Icon className={isCircle ? "size-5" : "size-6"} strokeWidth={2.25} />
-            </div>
-          </foreignObject>
-
-          {!isCircle && (
-            <>
-              <text
-                x="58"
-                y="27"
-                fontSize="9"
-                fontWeight="700"
-                letterSpacing="0.08em"
-                fill={style.text}
-                opacity="0.75"
-              >
-                {rarityLabel.toUpperCase()}
-              </text>
-              <text x="58" y="46" fontSize="14" fontWeight="800" fill={style.text}>
-                {shortTitle}
-              </text>
-            </>
+      <span className="block w-[64%] transition-transform duration-500 group-hover:-translate-y-1 group-hover:scale-105">
+        {medallion}
+      </span>
+      <span className="flex flex-col items-center gap-0.5">
+        <span
+          className={cn(
+            "text-[10px] font-bold uppercase tracking-[0.14em]",
+            !earned && "text-muted-foreground",
           )}
+          style={earned ? { color: tier.via } : undefined}
+        >
+          {percent != null ? `${percent}%` : rarityLabel}
+        </span>
+        <span className={cn("line-clamp-2 text-sm font-semibold leading-tight", !earned && "text-muted-foreground")}>
+          {title}
+        </span>
+      </span>
+    </Root>
+  );
+}
 
-          {/* A single fixed diagonal foil streak, not five continuously
-              rotating, blurred panels — that ambient spin (running on every
-              earned badge on the page, all the time, whether hovered or
-              not) plus an SVG feGaussianBlur per panel was the actual lag:
-              dozens of always-on animations with an expensive, mostly
-              software-rendered filter behind them. The interactive tilt
-              above (real pointer tracking, only costs anything while
-              actually hovered) is the part worth keeping — it still reads
-              as "holographic", just without a foil that's spinning even
-              when nobody's looking at it. */}
-          <g
+/** What moves behind an earned medallion, by tier. */
+function Aura({ rarity, glow }: { rarity: AchievementRarity; glow: string }) {
+  if (rarity === "common") {
+    return (
+      <span
+        aria-hidden
+        className="absolute inset-[8%] rounded-full blur-md"
+        style={{ background: glow, opacity: 0.55 }}
+      />
+    );
+  }
+
+  if (rarity === "rare") {
+    return (
+      <>
+        <span aria-hidden className="ach-pulse absolute inset-0 rounded-full blur-lg" style={{ background: glow }} />
+        <span aria-hidden className="ach-spin absolute inset-[-2%]" style={{ "--dur": "4.5s" } as CSSProperties}>
+          <span className="absolute left-1/2 top-0 size-[9%] -translate-x-1/2 rounded-full bg-cyan-200 shadow-[0_0_10px_3px_rgba(120,220,255,0.9)]" />
+        </span>
+      </>
+    );
+  }
+
+  if (rarity === "epic") {
+    return (
+      <>
+        <span
+          aria-hidden
+          className="ach-spin absolute inset-[-10%] rounded-full opacity-80 blur-[3px]"
+          style={
+            {
+              "--dur": "7s",
+              background:
+                "conic-gradient(from 0deg, transparent, rgba(200,110,255,0.75), transparent 30%, rgba(255,110,220,0.6), transparent 60%, rgba(140,90,255,0.75), transparent)",
+              maskImage: "radial-gradient(circle, transparent 45%, black 52%, transparent 72%)",
+              WebkitMaskImage: "radial-gradient(circle, transparent 45%, black 52%, transparent 72%)",
+            } as CSSProperties
+          }
+        />
+        <span aria-hidden className="ach-pulse absolute inset-[6%] rounded-full blur-md" style={{ background: glow }} />
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
             aria-hidden
-            style={{ mixBlendMode: "overlay" }}
-            mask={`url(#${maskId})`}
-            transform={`rotate(20 ${isCircle ? "32 32" : "130 32"})`}
-          >
-            <polygon points={polygonPoints} fill={style.sheen[0]} opacity={0.3} />
-          </g>
-        </svg>
-      </div>
-    </div>
+            className="scene-star absolute size-[5%] rounded-full bg-fuchsia-100"
+            style={
+              {
+                left: `${[12, 84, 20][i]}%`,
+                top: `${[18, 30, 82][i]}%`,
+                "--dur": `${1.8 + i * 0.5}s`,
+                "--delay": `${i * 0.4}s`,
+                boxShadow: "0 0 6px 2px rgba(240,160,255,0.8)",
+              } as CSSProperties
+            }
+          />
+        ))}
+      </>
+    );
+  }
+
+  // legendary
+  return (
+    <>
+      <span
+        aria-hidden
+        className="ach-spin absolute inset-[-18%]"
+        style={
+          {
+            "--dur": "12s",
+            background:
+              "repeating-conic-gradient(from 0deg, rgba(255,190,40,0.55) 0deg 7deg, transparent 7deg 20deg)",
+            maskImage: "radial-gradient(circle, transparent 38%, black 46%, transparent 70%)",
+            WebkitMaskImage: "radial-gradient(circle, transparent 38%, black 46%, transparent 70%)",
+          } as CSSProperties
+        }
+      />
+      <span
+        aria-hidden
+        className="ach-flicker absolute inset-[-4%] rounded-full blur-lg"
+        style={{ background: "radial-gradient(circle, rgba(255,150,20,0.85), rgba(255,80,0,0.35) 55%, transparent 72%)" }}
+      />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="ach-ember absolute bottom-[14%] size-[6%] rounded-full"
+          style={
+            {
+              left: `${[22, 38, 52, 64, 76][i]}%`,
+              background: i % 2 ? "#ffcf4a" : "#ff8a1f",
+              boxShadow: "0 0 8px 2px rgba(255,150,30,0.85)",
+              "--dur": `${1.8 + (i % 3) * 0.5}s`,
+              "--delay": `${i * 0.35}s`,
+              "--dx": `${i % 2 ? 6 : -6}px`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </>
+  );
+}
+
+/** How far toward a locked achievement, as a ring around the medallion. */
+function ProgressRing({ percent }: { percent: number }) {
+  const r = 47;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
+      <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="3" className="text-white/10" />
+      <circle
+        cx="50"
+        cy="50"
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        className="text-primary transition-[stroke-dashoffset] duration-700"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - percent / 100)}
+      />
+    </svg>
   );
 }

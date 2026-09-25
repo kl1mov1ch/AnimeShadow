@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { AchievementWatcher } from "@/components/achievement-watcher";
+import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
 import { CookieConsent } from "@/components/cookie-consent";
 import { SlowNetworkNotice } from "@/components/slow-network-notice";
 import { SearchCommandMount } from "@/components/layout/search-command-mount";
@@ -33,6 +34,8 @@ export function AppShell() {
       <AchievementWatcher />
       <CookieConsent />
       <SlowNetworkNotice />
+      {/* Every plain `title` hint on the site, drawn as the site's tooltip. */}
+      <GlobalTitleTooltips />
       <ScrollRestoration />
     </TooltipProvider>
   );

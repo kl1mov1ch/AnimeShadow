@@ -202,7 +202,7 @@ export function LayoutEditor({ layout, onClose }: { layout: ProfileLayout; onClo
 
   const save = () =>
     update.mutate(
-      { layout: { order, hidden: [...hidden], autoAccent } },
+      { layout: { ...layout, order, hidden: [...hidden], autoAccent } },
       {
         onSuccess: () => {
           toast.success(t("profile.blocks.saved"));

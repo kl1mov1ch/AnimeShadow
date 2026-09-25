@@ -154,6 +154,12 @@ export const profileLayoutSchema = z.object({
   hidden: z.array(profileBlockSchema),
   /** Take the accent from the avatar instead of a picked colour. */
   autoAccent: z.boolean().default(false),
+  /** How the progress bar under the name looks. */
+  progressStyle: z
+    .enum(["classic", "fire", "shadow", "sparks", "neon", "sakura", "ice"])
+    .default("classic"),
+  /** What that bar measures. */
+  progressMetric: z.enum(["rank", "episodes", "titles", "achievements"]).default("rank"),
 });
 export type ProfileLayout = z.infer<typeof profileLayoutSchema>;
 
@@ -161,6 +167,8 @@ export const DEFAULT_PROFILE_LAYOUT: ProfileLayout = {
   order: [...PROFILE_BLOCKS],
   hidden: [],
   autoAccent: false,
+  progressStyle: "classic",
+  progressMetric: "rank",
 };
 
 /** Who may see one part of a profile. "users" means signed-in accounts. */

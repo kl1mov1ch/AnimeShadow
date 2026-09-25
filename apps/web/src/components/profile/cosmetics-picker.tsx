@@ -9,7 +9,7 @@ import { useT } from "@/i18n";
 import { useAchievements, useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { FramePreview } from "./profile-cosmetics";
+import { FramePreview, ProfileTitleBadge } from "./profile-cosmetics";
 
 /**
  * Frames and titles — what the account has earned, and what it hasn't yet.
@@ -73,7 +73,7 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
               onPick={() => update.mutate({ profileTitle: title.id })}
               chip
             >
-              {t(`profile.cosmetics.titleNames.${title.id}` as "profile.cosmetics.titleNames.newcomer")}
+              <ProfileTitleBadge title={title.id} />
             </CosmeticChoice>
           ))}
         </div>
@@ -131,11 +131,9 @@ function CosmeticChoice({
       className={cn(
         "relative transition-all disabled:cursor-not-allowed",
         chip
-          ? "rounded-lg border px-2.5 py-1 text-xs"
+          ? "rounded-full p-0.5"
           : "grid size-12 place-items-center rounded-full",
-        chip && selected
-          ? "border-primary bg-primary/15 text-primary"
-          : chip && "border-primary/20 text-muted-foreground",
+        chip && selected && "ring-2 ring-primary ring-offset-2 ring-offset-card",
         !chip && selected && "ring-2 ring-primary ring-offset-2 ring-offset-card",
         unlocked ? "hover:scale-105" : "opacity-40",
       )}

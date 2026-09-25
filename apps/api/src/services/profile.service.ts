@@ -715,5 +715,7 @@ function normalizeLayout(layout: ProfileLayout): ProfileLayout {
     order,
     hidden: [...new Set(layout.hidden)].filter((b) => PROFILE_BLOCKS.includes(b)),
     autoAccent: layout.autoAccent ?? false,
+    progressStyle: layout.progressStyle ?? "classic",
+    progressMetric: layout.progressMetric ?? "rank",
   };
 }

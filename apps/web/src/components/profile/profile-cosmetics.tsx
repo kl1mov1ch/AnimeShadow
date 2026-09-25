@@ -1,39 +1,31 @@
 import type { PublicProfile } from "@animeshadow/shared";
-import type { LucideIcon } from "lucide-react";
+import {
+  CheckCheckIcon,
+  CompassIcon,
+  FootprintsIcon,
+  GemIcon,
+  LibraryIcon,
+  type LucideIcon,
+  MoonStarIcon,
+  ShieldIcon,
+  SparklesIcon,
+  SproutIcon,
+  SwordIcon,
+  TvIcon,
+  ZapIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
-import { PlasmaRing } from "@/components/profile/plasma-ring";
-import { PLASMA_THEMES } from "@/components/profile/plasma-themes";
+import { FrameFx, FrameRing, frameGlow, hasFrame } from "@/components/profile/frame-fx";
 import { useT } from "@/i18n";
 import { useCountUp } from "@/lib/use-count-up";
 import { cn } from "@/lib/utils";
 
 /**
- * A frame is a ring of moving light — see `plasma-ring` for how one is
- * built. Everything here is layout: where that ring sits relative to the
- * avatar, and how the picker shows it at thumbnail size.
+ * A frame is a thin turning rim plus what moves on the avatar — see
+ * `frame-fx`. Everything here is layout: where the two layers sit relative
+ * to the avatar, and how the picker shows them at thumbnail size.
  */
-
-function FrameArt({ frame }: { frame: string }) {
-  const theme = PLASMA_THEMES[frame];
-  if (!theme) return null;
-  return (
-    // The ring is drawn outside the avatar's own circle, so its box hangs
-    // past it on negative insets. The avatar keeps its natural size, which
-    // is what stops the layout shifting when a frame is put on or taken off.
-    <span aria-hidden className="pointer-events-none absolute -inset-[14%]">
-      {/* The glow is a blurred copy of the same ring underneath, not a
-          drop-shadow: a shadow follows the shape after the noise has torn
-          it, which is exactly the edge that should be soft. */}
-      <PlasmaRing
-        theme={theme}
-        className="absolute inset-0 opacity-70 blur-[6px]"
-        style={{ color: theme.glow }}
-      />
-      <PlasmaRing theme={theme} className="absolute inset-0" />
-    </span>
-  );
-}
 
 /**
  * Wraps whatever avatar the caller draws in the frame the account wears.
@@ -63,8 +55,7 @@ export function AvatarFrameRing({
   badge?: FrameBadge;
   children: ReactNode;
 }) {
-  const theme = frame ? PLASMA_THEMES[frame] : undefined;
-  if (!theme) {
+  if (!frame || !hasFrame(frame)) {
     return (
       <div className={cn("rounded-full ring-4 ring-offset-2 ring-offset-card", fallback)}>
         {children}
@@ -73,8 +64,9 @@ export function AvatarFrameRing({
   }
   return (
     <div className="relative isolate">
-      <FrameArt frame={frame!} />
+      <FrameRing frame={frame} />
       <div className="relative rounded-full ring-2 ring-card">{children}</div>
+      <FrameFx frame={frame} />
 
       {/* Centred on the avatar's own edge — which is where the ring runs —
           so the mark reads as set into the frame rather than parked above
@@ -83,12 +75,12 @@ export function AvatarFrameRing({
       <span
         aria-hidden
         className="frame-cap-mark absolute left-1/2 top-0 z-20 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-card bg-card text-[color:var(--cap)] shadow-lg"
-        style={{ "--cap": theme.glow } as React.CSSProperties}
+        style={{ "--cap": frameGlow(frame) } as React.CSSProperties}
       >
         <LogoGlyph className="size-4" />
       </span>
 
-      {badge && <FrameCapBadge badge={badge} colour={theme.glow} />}
+      {badge && <FrameCapBadge badge={badge} colour={frameGlow(frame)} />}
     </div>
   );
 }
@@ -113,7 +105,7 @@ function FrameCapBadge({ badge, colour }: { badge: FrameBadge; colour: string })
 /** The swatch in the picker: the same ring at thumbnail size, with the card
  *  colour standing in for the avatar. */
 export function FramePreview({ frame, className }: { frame: string; className?: string }) {
-  if (!PLASMA_THEMES[frame]) {
+  if (!hasFrame(frame)) {
     return (
       <span
         className={cn(
@@ -125,16 +117,39 @@ export function FramePreview({ frame, className }: { frame: string; className?: 
   }
   return (
     <span className={cn("relative isolate block rounded-full", className)}>
-      <FrameArt frame={frame} />
+      <FrameRing frame={frame} />
       <span className="relative block size-full rounded-full bg-card" />
+      <FrameFx frame={frame} small />
     </span>
   );
 }
 
 /**
- * The line under the name. Fixed, earned, and hideable — picking nothing is
- * a real choice, which is why it is a nullable field and not a checkbox
- * bolted onto one.
+ * How each title looks: its own mark, its two colours, and how it moves.
+ * "shimmer" runs a gradient across the text, "neon" flickers, "glitch"
+ * jitters, "aurora" drifts slowly — so two titles never look alike.
+ */
+const TITLE_STYLE: Record<
+  string,
+  { icon: LucideIcon; c1: string; c2: string; fx: "shimmer" | "neon" | "glitch" | "aurora" }
+> = {
+  newcomer: { icon: SproutIcon, c1: "#34d399", c2: "#d1fae5", fx: "shimmer" },
+  "first-steps": { icon: FootprintsIcon, c1: "#38bdf8", c2: "#e0f2fe", fx: "shimmer" },
+  "night-watch": { icon: MoonStarIcon, c1: "#818cf8", c2: "#e0e7ff", fx: "neon" },
+  "serial-viewer": { icon: TvIcon, c1: "#fb7185", c2: "#ffe4e6", fx: "shimmer" },
+  marathoner: { icon: ZapIcon, c1: "#facc15", c2: "#fff7c2", fx: "neon" },
+  "sharp-tongue": { icon: SwordIcon, c1: "#f43f5e", c2: "#fecdd3", fx: "glitch" },
+  archivist: { icon: LibraryIcon, c1: "#d6a35c", c2: "#fdf0d5", fx: "shimmer" },
+  "genre-sage": { icon: CompassIcon, c1: "#a78bfa", c2: "#22d3ee", fx: "aurora" },
+  completionist: { icon: CheckCheckIcon, c1: "#10b981", c2: "#67e8f9", fx: "aurora" },
+  "old-guard": { icon: ShieldIcon, c1: "#f59e0b", c2: "#fff1c1", fx: "shimmer" },
+  patron: { icon: GemIcon, c1: "#f472b6", c2: "#60a5fa", fx: "aurora" },
+};
+
+/**
+ * The line under the name, as a small animated badge — each title with its
+ * own mark, colours and motion. Fixed, earned, and hideable: picking
+ * nothing is a real choice.
  */
 export function ProfileTitleBadge({
   title,
@@ -145,14 +160,29 @@ export function ProfileTitleBadge({
 }) {
   const t = useT();
   if (!title) return null;
+  const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
+  const Icon = style.icon;
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary",
+        "title-badge inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-wide",
+        `title-${style.fx}`,
         className,
       )}
+      style={
+        {
+          "--t1": style.c1,
+          "--t2": style.c2,
+          "--title-glow": `color-mix(in srgb, ${style.c1} 55%, transparent)`,
+          borderColor: `color-mix(in srgb, ${style.c1} 55%, transparent)`,
+          background: `color-mix(in srgb, ${style.c1} 14%, transparent)`,
+        } as React.CSSProperties
+      }
     >
-      {t(`profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer")}
+      <Icon className="size-3" style={{ color: style.c1 }} />
+      <span className="title-text">
+        {t(`profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer")}
+      </span>
     </span>
   );
 }

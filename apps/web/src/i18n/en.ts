@@ -1000,6 +1000,29 @@ export const en = {
     signedOutBody: "Sign in to search anime by frame.",
   },
   profile: {
+    progressBar: {
+      title: "Progress bar",
+      shows: "Shows:",
+      toEpisodes: "To {n} episodes",
+      toTitles: "To {n} finished titles",
+      achievements: "Achievements unlocked",
+      hoursShort: "h",
+      styles: {
+        classic: "Classic",
+        fire: "Fire",
+        shadow: "Shadow",
+        sparks: "Sparks",
+        neon: "Neon",
+        sakura: "Sakura",
+        ice: "Ice",
+      },
+      metrics: {
+        rank: "Rank",
+        episodes: "Episodes",
+        titles: "Titles",
+        achievements: "Achievements",
+      },
+    },
     studio: {
       open: "Customise",
       title: "Customise profile",
@@ -1184,7 +1207,9 @@ export const en = {
       },
     },
     memberSince: "since {date}",
+    proMark: "AnimeShadow Premium account",
     modal: {
+      open: "Open profile",
       commentLikes: "Comment likes",
       commenterRank: "{likes} · #{rank} of {total}",
     },
@@ -1360,6 +1385,7 @@ export const en = {
     filterAll: "All",
     filterEarned: "Earned",
     filterInProgress: "In progress",
+    filterLocked: "Still locked",
     earnedOn: "Earned {date}",
     noneInFilter: "Nothing here yet.",
     toast: "New achievement: {name}",

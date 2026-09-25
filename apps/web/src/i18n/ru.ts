@@ -1001,6 +1001,29 @@ export const ru: Dict = {
     signedOutBody: "Войдите, чтобы искать аниме по кадру.",
   },
   profile: {
+    progressBar: {
+      title: "Полоса прогресса",
+      shows: "Показывает:",
+      toEpisodes: "До {n} серий",
+      toTitles: "До {n} досмотренных тайтлов",
+      achievements: "Открыто достижений",
+      hoursShort: "ч",
+      styles: {
+        classic: "Классика",
+        fire: "Огонь",
+        shadow: "Тень",
+        sparks: "Искры",
+        neon: "Неон",
+        sakura: "Сакура",
+        ice: "Лёд",
+      },
+      metrics: {
+        rank: "Ранг",
+        episodes: "Серии",
+        titles: "Тайтлы",
+        achievements: "Достижения",
+      },
+    },
     studio: {
       open: "Настроить",
       title: "Настройка профиля",
@@ -1185,7 +1208,9 @@ export const ru: Dict = {
       },
     },
     memberSince: "с {date}",
+    proMark: "Премиум-аккаунт AnimeShadow",
     modal: {
+      open: "Открыть профиль",
       commentLikes: "Лайков к комментариям",
       commenterRank: "{likes} · #{rank} из {total}",
     },
@@ -1361,6 +1386,7 @@ export const ru: Dict = {
     filterAll: "Все",
     filterEarned: "Получено",
     filterInProgress: "В процессе",
+    filterLocked: "Ещё не открыты",
     earnedOn: "Получено {date}",
     noneInFilter: "Здесь пока пусто.",
     toast: "Новое достижение: {name}",

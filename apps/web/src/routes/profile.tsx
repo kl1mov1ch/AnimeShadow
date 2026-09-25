@@ -85,6 +85,7 @@ import {
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { ProfileBanner } from "@/components/profile/profile-banner";
+import { ProMark } from "@/components/common/pro-mark";
 import { PresenceDot } from "@/components/profile/identity-extras";
 import {
   AvatarEditOverlay,
@@ -100,7 +101,8 @@ import { ProfileBlocks } from "@/components/profile/profile-blocks";
 import { useSettingsMatch } from "@/components/profile/profile-settings-extras";
 import { AchievementsCard, FavoriteGenresCard } from "@/components/profile/profile-side";
 import { ProfileStudio } from "@/components/profile/profile-studio";
-import { useImagePalette } from "@/hooks/use-image-palette";
+import { ProfileProgress } from "@/components/profile/profile-progress";
+import { useProfileAccentStyle } from "@/components/profile/profile-accent";
 
 export function Component() {
   const t = useT();
@@ -139,25 +141,7 @@ function ProfileShell({
   children: React.ReactNode;
   profile?: { accentColor: string | null; avatarUrl: string | null; layout: { autoAccent: boolean } };
 }) {
-  const palette = useImagePalette(
-    profile?.layout.autoAccent && profile.avatarUrl ? imageSrc(profile.avatarUrl) : undefined,
-  );
-  // The owner's colour, scoped to their profile: every accent-derived token
-  // is re-declared here, because the derived ones were resolved at :root
-  // and would otherwise keep the site's colour inside this subtree.
-  const accent = profile?.layout.autoAccent && palette ? `rgb(${palette.rgb})` : profile?.accentColor ?? null;
-  const style = accent
-    ? ({
-        "--primary": accent,
-        "--accent": accent,
-        "--ring": accent,
-        "--accent-ink": accent,
-        "--accent-line": `color-mix(in srgb, ${accent} 45%, transparent)`,
-        "--accent-line-soft": `color-mix(in srgb, ${accent} 20%, transparent)`,
-        "--accent-surface": `color-mix(in srgb, ${accent} 7%, transparent)`,
-        "--accent-surface-strong": `color-mix(in srgb, ${accent} 14%, transparent)`,
-      } as CSSProperties)
-    : undefined;
+  const style = useProfileAccentStyle(profile);
   return (
     <div style={style} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 sm:gap-6">
       {children}
@@ -357,17 +341,6 @@ function ProfileHero({
     .filter((a): a is EarnedAchievement => a != null);
   const [opened, setOpened] = useState<EarnedAchievement | null>(null);
 
-  // The same thresholds the server ranks by, so the bar is a real position
-  // between two real numbers rather than a decorative fill. No invented
-  // "XP": the only thing that moves this is hours actually watched.
-  const rankIndex = RANK_STEPS.findIndex((step) => step.rank === profile.rank);
-  const current = RANK_STEPS[rankIndex] ?? RANK_STEPS[0]!;
-  const next = RANK_STEPS[rankIndex + 1];
-  const hours = stats.hoursWatched;
-  const percent = next
-    ? Math.min(100, Math.max(2, ((hours - current.from) / (next.from - current.from)) * 100))
-    : 100;
-
   const avatar = (
     <div className="relative shrink-0">
       {/* The rank ring is the fallback, so an account that never opens the
@@ -398,26 +371,24 @@ function ProfileHero({
   return (
     <>
       <header className="reveal-group relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] backdrop-blur-sm">
-        <div className="relative">
-          {/* Half what it was: a 224px band of artwork pushed everything
-              that matters below the fold for no information gained. */}
-          <ProfileBanner
-            url={profile.bannerUrl}
-            accent={profile.accentColor}
-            editable={false}
-            className="h-28 sm:h-44"
-          />
+        {/* The picture fills the whole header, top to bottom and edge to
+            edge — the identity sits on it, not under a strip cut out of it.
+            A GIF plays here as uploaded. */}
+        <ProfileBanner
+          url={profile.bannerUrl}
+          accent={profile.accentColor}
+          editable={false}
+          className="absolute inset-0 h-full"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent"
+        />
+        <div className="relative h-28 sm:h-40">
           {/* Sized to the band, not to the band it used to be: at 13rem
               over an 7rem strip the mark was twice the height of the thing
               it sat on, so all anyone saw was a cropped blob. */}
           <SlicedGlyph className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[3.5rem] leading-none text-white/[0.06] sm:text-[4.5rem]" />
-          {/* Legibility for whatever the banner happens to be, and the seam
-              between picture and card in one gradient. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/45 to-transparent"
-          />
-
           {/* On the real background, not on a preview of it inside a
               settings form — change it, roll one, or take it off. */}
           {editable && (
@@ -438,16 +409,13 @@ function ProfileHero({
                 of the name being squeezed to a few characters. */}
             <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1 pb-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-2xl leading-tight [overflow-wrap:anywhere] sm:text-3xl">
-                  {profile.displayName}
+                {/* The body face, not the wide display one: a nickname set
+                    in it ran half across the header. */}
+                <h1 className="flex min-w-0 items-center gap-1.5 text-2xl font-bold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-[1.75rem]">
+                  <span className="min-w-0">{profile.displayName}</span>
+                  {profile.isPro && <ProMark />}
                 </h1>
                 <ProfileTitleBadge title={profile.profileTitle} />
-                {profile.isPro && (
-                  <span className="flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-primary">
-                    <SparklesIcon className="size-3" />
-                    PRO
-                  </span>
-                )}
               </div>
               {profile.username && (
                 <p className="truncate text-sm text-muted-foreground">
@@ -494,36 +462,9 @@ function ProfileHero({
               </InfoTooltip>
             </div>
 
-            <div className="flex min-w-[12rem] flex-1 flex-col gap-1">
-              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                <span className="truncate">
-                  {next
-                    ? t("profile.card.nextRank", {
-                        rank: t(`profile.rank.${next.rank.toLowerCase()}` as "profile.rank.novice"),
-                      })
-                    : t("profile.card.maxRank")}
-                </span>
-                {next && (
-                  <span className="shrink-0 tabular-nums">
-                    {t("profile.card.hoursLeft", {
-                      hours: Math.max(1, Math.ceil(next.from - hours)),
-                    })}
-                  </span>
-                )}
-              </div>
-              {/* The fill grows into place on first paint, and a band of
-                  light crosses it afterwards — the same sweep the buttons
-                  and cards elsewhere on the site use, not a new effect. */}
-              <div className="h-2.5 overflow-hidden rounded-full bg-foreground/10">
-                <div
-                  className={cn(
-                    "rank-bar relative h-full rounded-full bg-gradient-to-r",
-                    RANK_BAR[profile.rank],
-                  )}
-                  style={{ "--fill": `${percent}%` } as CSSProperties}
-                />
-              </div>
-            </div>
+            {/* The bar under the name — styled and measured the way the
+                owner chose in the studio. */}
+            <ProfileProgress profile={profile} />
 
             <p className="shrink-0 text-[11px] text-muted-foreground/70">
               {t("profile.memberSince", { date: memberSince })}
@@ -571,21 +512,7 @@ function ProfileHero({
   );
 }
 
-/** Hours of watching each rank starts at — the same thresholds the server
- *  uses in `rankOf`, mirrored here so the bar can show a real position. */
-const RANK_STEPS: Array<{ rank: Rank; from: number }> = [
-  { rank: "NOVICE", from: 0 },
-  { rank: "ADVANCED", from: 10 },
-  { rank: "EXPERT", from: 100 },
-  { rank: "LEGEND", from: 500 },
-];
 
-const RANK_BAR: Record<Rank, string> = {
-  NOVICE: "from-muted-foreground/60 to-emerald-500",
-  ADVANCED: "from-emerald-500 to-sky-500",
-  EXPERT: "from-sky-500 to-amber-400",
-  LEGEND: "from-amber-400 to-amber-300",
-};
 
 
 
@@ -1616,42 +1543,26 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
   const [filter, setFilter] = useState<AchFilter>("all");
   const [opened, setOpened] = useState<EarnedAchievement | null>(null);
 
-  const order = { legendary: 0, epic: 1, rare: 2, common: 3 };
-  const sorted = [...achievements].sort((a, b) => {
-    if (a.earned !== b.earned) return a.earned ? -1 : 1;
-    return order[a.rarity] - order[b.rarity];
-  });
+  const tiers = ["legendary", "epic", "rare", "common"] as const;
   const earned = achievements.filter((a) => a.earned).length;
   const total = achievements.length || 1;
   const pct = Math.round((earned / total) * 100);
-
-  const shown = sorted.filter((a) =>
-    filter === "all"
-      ? true
-      : filter === "earned"
-        ? a.earned
-        : !a.earned && a.progress != null,
-  );
+  const keep = (a: EarnedAchievement) =>
+    filter === "all" ? true : filter === "earned" ? a.earned : !a.earned;
 
   return (
-    <section className="flex flex-col gap-4">
-      {/* collection header: count, completion, filters — one block, not three */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h2 className="font-display text-lg">{t("achievements.heading")}</h2>
-          <span className="text-sm tabular-nums text-muted-foreground">
-            {t("achievements.earnedOfTotal", { earned, total: achievements.length })}
-            {" · "}
-            {pct}%
+    <section className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="font-display text-2xl tabular-nums">
+            {earned}
+            <span className="text-base text-muted-foreground"> / {achievements.length}</span>
+          </span>
+          <span className="h-1.5 w-56 overflow-hidden rounded-full bg-primary/10">
+            <span className="block h-full rounded-full bg-gradient-to-r from-primary/60 to-primary shadow-[0_0_12px_-2px_var(--primary)]" style={{ width: `${pct}%` }} />
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary/70 via-primary to-primary shadow-[0_0_12px_-2px_var(--primary)] transition-[width] duration-700 ease-out"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex rounded-lg border border-primary/25 bg-primary/5 p-0.5">
           {(["all", "earned", "progress"] as const).map((f) => (
             <button
               key={f}
@@ -1659,49 +1570,62 @@ function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] 
               aria-pressed={filter === f}
               onClick={() => setFilter(f)}
               className={cn(
-                "group relative overflow-hidden rounded-lg border px-3 py-1 text-xs transition-all duration-200",
-                filter === f
-                  ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
-                  : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
+                "rounded-md px-3 py-1 text-xs font-semibold transition-colors",
+                filter === f ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-primary",
               )}
             >
-              {t(
-                f === "all"
-                  ? "achievements.filterAll"
-                  : f === "earned"
-                    ? "achievements.filterEarned"
-                    : "achievements.filterInProgress",
-              )}
+              {t(f === "all" ? "achievements.filterAll" : f === "earned" ? "achievements.filterEarned" : "achievements.filterLocked")}
             </button>
           ))}
         </div>
       </div>
 
-      {shown.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border/70 bg-card/20 px-6 py-10 text-center text-sm text-muted-foreground">
-          {t("achievements.noneInFilter")}
-        </p>
-      ) : (
-        <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
-          {shown.map((a) => (
-            <HoloAchievementBadge
-              key={a.id}
-              id={a.id}
-              rarity={a.rarity}
-              earned={a.earned}
-              earnedAt={a.earnedAt}
-              progress={a.progress}
-              onClick={() => setOpened(a)}
-              className="w-[calc(50%-0.375rem)] sm:w-[220px]"
-            />
-          ))}
-        </div>
-      )}
+      {tiers.map((tier) => {
+        const list = achievements.filter((a) => a.rarity === tier && keep(a));
+        if (list.length === 0) return null;
+        const got = achievements.filter((a) => a.rarity === tier && a.earned).length;
+        const all = achievements.filter((a) => a.rarity === tier).length;
+        return (
+          <div key={tier} className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                {t(`achievements.rarity.${tier}` as "achievements.rarity.common")}
+              </span>
+              <span className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {got}/{all}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {list
+                .sort((x, y) => Number(y.earned) - Number(x.earned))
+                .map((a) => (
+                  <div
+                    key={a.id}
+                    className={cn(
+                      "flex justify-center rounded-2xl border p-3 transition-colors",
+                      a.earned
+                        ? "border-[var(--accent-line-soft)] bg-[var(--accent-surface)] hover:border-primary/50"
+                        : "border-border/40 bg-card/30",
+                    )}
+                  >
+                    <HoloAchievementBadge
+                      id={a.id}
+                      rarity={a.rarity}
+                      earned={a.earned}
+                      earnedAt={a.earnedAt}
+                      progress={a.progress}
+                      onClick={() => setOpened(a)}
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+        );
+      })}
 
-      <AchievementDetailDialog
-        achievement={opened}
-        onOpenChange={(open) => !open && setOpened(null)}
-      />
+      <AchievementDetailDialog achievement={opened} onOpenChange={(open) => !open && setOpened(null)} />
     </section>
   );
 }

@@ -18,6 +18,12 @@ import {
 } from "@/components/profile/profile-settings-extras";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useT } from "@/i18n";
+import {
+  PROGRESS_METRICS,
+  PROGRESS_STYLES,
+  ProgressBar,
+} from "@/components/profile/profile-progress";
+import { useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 type StudioTab = "look" | "blocks" | "privacy" | "account" | "list";
@@ -94,6 +100,7 @@ export function ProfileStudio({
                     {t("profile.studio.mediaHint")}
                   </p>
                   <CosmeticsPicker profile={profile} />
+                  <ProgressPicker profile={profile} />
                   <AccentSection profile={profile} />
                 </div>
               )}
@@ -111,5 +118,63 @@ export function ProfileStudio({
         </SettingsSearchProvider>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The progress bar under the name: which of the seven styles it burns in,
+ * and what it counts. Every style is shown live at the same fill, so the
+ * choice is made by looking, not by reading names.
+ */
+function ProgressPicker({ profile }: { profile: MyProfile }) {
+  const t = useT();
+  const update = useUpdateProfile();
+  const layout = profile.layout;
+  const set = (patch: Partial<typeof layout>) => update.mutate({ layout: { ...layout, ...patch } });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("profile.progressBar.title")}
+      </span>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {PROGRESS_STYLES.map((style) => (
+          <button
+            key={style}
+            type="button"
+            onClick={() => set({ progressStyle: style })}
+            aria-pressed={layout.progressStyle === style}
+            className={cn(
+              "flex flex-col gap-2.5 rounded-xl border px-3 pb-3 pt-2.5 text-left transition-all active:scale-[0.98]",
+              layout.progressStyle === style
+                ? "border-primary bg-primary/10 shadow-md shadow-primary/20"
+                : "border-primary/15 bg-card/40 hover:border-primary/50",
+            )}
+          >
+            <span className="text-xs font-semibold">{t(`profile.progressBar.styles.${style}` as "profile.progressBar.styles.classic")}</span>
+            <ProgressBar percent={64} style={style} />
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">{t("profile.progressBar.shows")}</span>
+        <div className="flex flex-wrap rounded-lg border border-primary/25 bg-primary/5 p-0.5">
+          {PROGRESS_METRICS.map((metric) => (
+            <button
+              key={metric}
+              type="button"
+              onClick={() => set({ progressMetric: metric })}
+              aria-pressed={layout.progressMetric === metric}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                layout.progressMetric === metric ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary",
+              )}
+            >
+              {t(`profile.progressBar.metrics.${metric}` as "profile.progressBar.metrics.rank")}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

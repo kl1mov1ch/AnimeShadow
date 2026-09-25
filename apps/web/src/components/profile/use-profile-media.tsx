@@ -109,7 +109,15 @@ export function useProfileMedia(profile: Pick<PublicProfile, "bannerUrl">): Prof
     }
     // Read once here so a file that cannot be read fails before a dialog
     // opens on top of it.
-    await readDataUrl(file).catch(() => undefined);
+    const dataUrl = await readDataUrl(file).catch(() => undefined);
+    // The cropper redraws onto a canvas, and a canvas holds one frame — a
+    // cropped GIF came back as a still. GIFs go up as they are; the page
+    // fits them with object-cover instead.
+    if (file.type === "image/gif" && dataUrl) {
+      if (kind === "banner") saveBanner(dataUrl);
+      else saveAvatar(dataUrl);
+      return;
+    }
     setCropping({ kind, file });
   };
 

@@ -19,7 +19,6 @@ import {
   UserProfileModal,
 } from "@/components/user-profile-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -40,6 +39,7 @@ import {
   useEditComment,
   useVoteComment,
 } from "@/lib/query";
+import { ProMark } from "@/components/common/pro-mark";
 import { cn } from "@/lib/utils";
 
 const MODES: CommentMode[] = ["PUBLIC", "ANON", "SUPPORTER"];
@@ -430,11 +430,7 @@ function CommentItem({
               {comment.author.displayName}
             </span>
           )}
-          {comment.author.isPro && (
-            <Badge className="h-4 border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-1.5 text-[10px] font-semibold tracking-wide text-primary-foreground shadow-sm shadow-primary/25">
-              PRO
-            </Badge>
-          )}
+          {comment.author.isPro && <ProMark className="text-sm" />}
           <UserTitleBadge
             prefix={comment.author.titlePrefix}
             icon={comment.author.titleIcon}

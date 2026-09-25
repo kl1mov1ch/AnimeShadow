@@ -1290,3 +1290,135 @@ html.light .home-theme {
     opacity: 0;
   }
 }
+
+/*
+  Achievement medallions. Each rarity has its own motion, so the four read
+  apart before any colour or text does: a slow shine on bronze, a pulse
+  and an orbiting spark on rare, a turning aura on epic, fire and embers on
+  legendary. `.ach-still` turns all of it off for grids of many badges.
+*/
+@keyframes ach-spin { to { rotate: 360deg; } }
+@keyframes ach-spin-back { to { rotate: -360deg; } }
+@keyframes ach-pulse {
+  0%, 100% { opacity: 0.45; scale: 0.92; }
+  50% { opacity: 0.9; scale: 1.06; }
+}
+@keyframes ach-shine {
+  0%, 60% { translate: -130% 0; }
+  100% { translate: 130% 0; }
+}
+@keyframes ach-ember {
+  0% { translate: 0 0; opacity: 0; scale: 0.5; }
+  20% { opacity: 1; }
+  100% { translate: var(--dx, 0px) -46px; opacity: 0; scale: 1; }
+}
+@keyframes ach-flicker {
+  0%, 100% { opacity: 0.85; scale: 1; }
+  30% { opacity: 1; scale: 1.05; }
+  60% { opacity: 0.7; scale: 0.97; }
+}
+@keyframes ach-pop {
+  0% { scale: 0.6; opacity: 0; }
+  60% { scale: 1.08; opacity: 1; }
+  100% { scale: 1; }
+}
+
+.ach-spin { animation: ach-spin var(--dur, 9s) linear infinite; }
+.ach-spin-back { animation: ach-spin-back var(--dur, 14s) linear infinite; }
+.ach-pulse { animation: ach-pulse 2.6s ease-in-out infinite; }
+.ach-shine { animation: ach-shine 3.8s ease-in-out infinite; }
+.ach-ember { animation: ach-ember var(--dur, 2.4s) ease-out var(--delay, 0s) infinite; }
+.ach-flicker { animation: ach-flicker 1.6s ease-in-out infinite; }
+.ach-pop { animation: ach-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+.ach-still .ach-spin,
+.ach-still .ach-spin-back,
+.ach-still .ach-pulse,
+.ach-still .ach-shine,
+.ach-still .ach-ember,
+.ach-still .ach-flicker {
+  animation: none;
+}
+.ach-still .ach-ember,
+.ach-still .ach-shine {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ach-spin, .ach-spin-back, .ach-pulse, .ach-shine, .ach-ember, .ach-flicker, .ach-pop {
+    animation: none;
+  }
+  .ach-ember, .ach-shine { opacity: 0; }
+}
+
+/*
+  Profile titles. Each title animates in its own way: a moving gradient
+  across the text (shimmer), a neon flicker, a jittering glitch, or a slow
+  aurora. The badge's own border glow breathes with it.
+*/
+@keyframes title-shimmer { to { background-position: -200% 0; } }
+@keyframes title-neon {
+  0%, 100% { opacity: 1; }
+  42% { opacity: 1; }
+  44% { opacity: 0.55; }
+  46% { opacity: 1; }
+  80% { opacity: 0.85; }
+}
+@keyframes title-glitch {
+  0%, 88%, 100% { translate: 0 0; }
+  90% { translate: -1px 1px; }
+  92% { translate: 1px -1px; }
+  94% { translate: -1px 0; }
+}
+@keyframes title-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 var(--title-glow, transparent); }
+  50% { box-shadow: 0 0 14px 1px var(--title-glow, transparent); }
+}
+
+.title-text {
+  background-image: linear-gradient(90deg, var(--t1), var(--t2), var(--t1));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: title-shimmer 3.2s linear infinite;
+}
+.title-neon .title-text { animation: title-shimmer 3.2s linear infinite, title-neon 3.6s steps(1) infinite; }
+.title-glitch .title-text { animation: title-shimmer 2.4s linear infinite, title-glitch 2.8s steps(1) infinite; }
+.title-aurora .title-text { animation-duration: 6s; }
+.title-badge { animation: title-breathe 3s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .title-text, .title-badge { animation: none !important; }
+}
+
+/* Frame effects — everything moves inside the frame's own circle. */
+@keyframes fx-rise {
+  0% { translate: 0 0; opacity: 0; scale: 0.7; }
+  20% { opacity: 1; }
+  100% { translate: var(--dx, 0px) calc(var(--travel, 30px) * -1); opacity: 0; scale: 0.25; }
+}
+@keyframes fx-fall {
+  0% { translate: 0 0; rotate: 0deg; opacity: 0; }
+  12% { opacity: 0.95; }
+  85% { opacity: 0.9; }
+  100% { translate: var(--dx, 10px) var(--travel, 60px); rotate: var(--spin, 280deg); opacity: 0; }
+}
+@keyframes fx-flash {
+  0%, 78%, 100% { opacity: 0; }
+  80% { opacity: 1; }
+  84% { opacity: 0.15; }
+  88% { opacity: 1; }
+  92% { opacity: 0; }
+}
+.fx-rise { animation: fx-rise var(--dur, 2s) ease-out var(--delay, 0s) infinite; opacity: 0; }
+.fx-fall { animation: fx-fall var(--dur, 5s) linear var(--delay, 0s) infinite; opacity: 0; }
+.fx-flash { animation: fx-flash var(--dur, 3s) linear var(--delay, 0s) infinite; opacity: 0; }
+
+/* The premium seal after a nickname: the scalloped edge turns, slowly. */
+@keyframes pro-seal { to { rotate: 360deg; } }
+.pro-seal { animation: pro-seal 12s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-rise, .fx-fall, .fx-flash, .pro-seal { animation: none; }
+}
