@@ -12,7 +12,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { apiRequest, setAuthToken } from "@/lib/api";
+import { apiRequest, setAuthToken, ApiRequestError } from "@/lib/api";
 import { queryClient } from "@/lib/query";
 import type { TelegramAuthData } from "@/lib/telegram-auth";
 
@@ -105,9 +105,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(session.user);
     setStatus("authenticated");
 
-    apiRequest<{ user: PublicUser }>("/auth/me")
-      .then(({ user: fresh }) => applySession({ ...session, user: fresh }))
-      .catch(() => clearSession());
+    // Only the server saying "this token is no good" ends a session. A
+    // network error or a 5xx — the API restarting, a proxy hiccup, a bad
+    // connection — used to land in the same catch and sign people out,
+    // which is how a two-second deploy logged everyone out of the site.
+    // Those keep the stored session and simply try again.
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = (attempt: number) => {
+      apiRequest<{ user: PublicUser }>("/auth/me")
+        .then(({ user: fresh }) => {
+          if (!cancelled) applySession({ ...session, user: fresh });
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          const status = error instanceof ApiRequestError ? error.status : 0;
+          if (status === 401 || status === 403) {
+            clearSession();
+            return;
+          }
+          if (attempt < 5) timer = setTimeout(() => check(attempt + 1), 2_000 * (attempt + 1));
+        });
+    };
+    check(0);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [applySession, clearSession]);
 
   const login = useCallback(
