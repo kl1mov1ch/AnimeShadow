@@ -238,6 +238,25 @@ model WatchSession {
 /// keeps in localStorage — never an IP address, so anonymous traffic is
 /// tracked without storing anything personally identifying. Powers the
 /// admin traffic overview (volume over time, top pages, top referrers).
+/// Time with the player open, from someone who isn't signed in. Kept apart
+/// from WatchSession on purpose: that table belongs to accounts (profiles,
+/// hours watched, achievements) and cascades with them; this one is only
+/// ever counted. `visitorId` is the same random browser id the pageview
+/// beacon uses — never an IP, never tied to a person.
+model GuestWatchSession {
+  id        String   @id @default(cuid())
+  visitorId String
+  animeId   Int
+  episode   Int      @default(1)
+  seconds   Int
+  startedAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([animeId, createdAt])
+  @@index([visitorId, createdAt])
+}
+
 model PageView {
   id        String   @id @default(cuid())
   path      String

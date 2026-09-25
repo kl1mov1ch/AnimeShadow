@@ -1,0 +1,21 @@
+# Prometheus for AnimeShadow — scrapes the API's /metrics.
+#
+# The API runs on the host (systemd in production, `pnpm dev` locally), and
+# Prometheus in a container next to it, so the target is the host as seen
+# from inside Docker. docker-compose maps host.docker.internal to the host
+# gateway on Linux; Docker Desktop provides it on Windows and macOS.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: animeshadow-api
+    metrics_path: /metrics
+    # METRICS_TOKEN from the API's .env, written to this file by
+    # deploy/prometheus/write-token.sh. An empty file is fine while
+    # METRICS_TOKEN is empty (local dev).
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics-token
+    static_configs:
+      - targets: ["host.docker.internal:4000"]

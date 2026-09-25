@@ -18,5 +18,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # Metrics: scrapes the API's /metrics every 15s and keeps 30 days. Bound to
+  # localhost only — the admin dashboard reads it through the API
+  # (PROMETHEUS_URL), and nothing outside this machine needs to reach it.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: animeshadow-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/metrics-token:/etc/prometheus/metrics-token:ro
+      - animeshadow-prometheus:/prometheus
+
 volumes:
   animeshadow-pgdata:
+  animeshadow-prometheus:

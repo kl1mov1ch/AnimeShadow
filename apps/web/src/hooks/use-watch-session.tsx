@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useLogSession } from "@/lib/query";
+import { logGuestSession, useLogSession } from "@/lib/query";
+import { getVisitorId } from "@/lib/visitor";
 
 /**
- * Records a coarse viewing session while the player is mounted for a signed-in
- * user. The embed is a third-party iframe we can't read playback from, so this
+ * Records a coarse viewing session while the player is mounted — on the
+ * account for a signed-in viewer, against the random browser id for a guest
+ * (counted for the admin dashboard, tied to nobody). The embed is a third-party iframe we can't read playback from, so this
  * measures "time with the player open on this page" — enough for the hours-watched
  * and average-session stats. Flushes on unmount, tab hide and page unload.
  */
@@ -23,7 +25,7 @@ export function useWatchSession({
   const startRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!authed || !active) return;
+    if (!active || status === "loading") return;
 
     startRef.current = Date.now();
 
@@ -33,12 +35,14 @@ export function useWatchSession({
       const seconds = Math.round((Date.now() - start) / 1000);
       startRef.current = Date.now(); // reset so a resume doesn't double-count
       if (seconds < 15) return;
-      log.mutate({
+      const input = {
         animeId,
         episode,
         seconds: Math.min(seconds, 86_400),
         startedAt: new Date(start).toISOString(),
-      });
+      };
+      if (authed) log.mutate(input);
+      else void logGuestSession({ ...input, visitorId: getVisitorId() }).catch(() => undefined);
     };
 
     const onVisibility = () => {
@@ -55,5 +59,5 @@ export function useWatchSession({
       window.removeEventListener("beforeunload", flush);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed, active, animeId, episode]);
+  }, [authed, status, active, animeId, episode]);
 }

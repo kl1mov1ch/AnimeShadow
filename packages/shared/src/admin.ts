@@ -27,7 +27,33 @@ export const ADMIN_LIBRARY_STATUSES = [
   "DROPPED",
 ] as const;
 
+/** One audience's activity over one window. */
+export const adminAudienceStatsSchema = z.object({
+  /** Distinct browsers (the random visitor id) that opened any page. */
+  visitors: count,
+  pageviews: count,
+  /** Pageviews of a title page — /anime/… */
+  animeViews: count,
+  /** Distinct titles those views landed on. */
+  titles: count,
+  watchSessions: count,
+  watchSeconds: count,
+});
+export type AdminAudienceStats = z.infer<typeof adminAudienceStatsSchema>;
+
+export const ADMIN_WINDOWS = ["today", "7d", "30d"] as const;
+export type AdminWindow = (typeof ADMIN_WINDOWS)[number];
+
 export const adminOverviewSchema = z.object({
+  /** Signed-in visitors next to guests, for each window — the two columns
+   *  the dashboard is built around. */
+  split: z.array(
+    z.object({
+      window: z.enum(ADMIN_WINDOWS),
+      registered: adminAudienceStatsSchema,
+      guests: adminAudienceStatsSchema,
+    }),
+  ),
   kpis: z.object({
     users: adminKpiSchema,
     visitors: adminKpiSchema,
@@ -43,6 +69,9 @@ export const adminOverviewSchema = z.object({
       visitors: count,
       registrations: count,
       watchMinutes: count,
+      /** The guest share of the day's pageviews and watch time. */
+      guestPageviews: count,
+      guestWatchMinutes: count,
     }),
   ),
   /** Pageviews by UTC hour over the last 7 days — always 24 entries. */
@@ -59,7 +88,17 @@ export const adminOverviewSchema = z.object({
   libraryStatus: z.array(z.object({ status: z.enum(ADMIN_LIBRARY_STATUSES), count })),
   topGenres: z.array(z.object({ name: z.string(), count })),
   topAnime: z.array(
-    z.object({ anime: z.custom<AnimeSummary>(), views: count, watchers: count }),
+    z.object({
+      anime: z.custom<AnimeSummary>(),
+      views: count,
+      watchers: count,
+      /** Title-page opens over the last 30 days, by audience. */
+      viewsRegistered: count,
+      viewsGuests: count,
+      /** Player time over the last 30 days, by audience. */
+      watchSecondsRegistered: count,
+      watchSecondsGuests: count,
+    }),
   ),
   recentUsers: z.array(
     z.object({
@@ -238,3 +277,52 @@ export type AdminUserDetail = z.infer<typeof adminUserDetailSchema>;
 /** A new password chosen by an admin; same rules as signing up. */
 export const adminSetPasswordInputSchema = z.object({ password: passwordSchema });
 export type AdminSetPasswordInput = z.infer<typeof adminSetPasswordInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Monitoring — /admin/monitoring, read from Prometheus
+// ---------------------------------------------------------------------------
+
+export const ADMIN_MONITORING_RANGES = ["1h", "6h", "24h", "7d"] as const;
+export type AdminMonitoringRange = (typeof ADMIN_MONITORING_RANGES)[number];
+
+export const adminMonitoringQuerySchema = z.object({
+  range: z.enum(ADMIN_MONITORING_RANGES).default("24h"),
+});
+
+export const ADMIN_MONITORING_PANELS = [
+  "requests",
+  "latency",
+  "errors",
+  "pageviews",
+  "watch",
+  "active",
+  "signups",
+  "memory",
+  "cpu",
+] as const;
+export type AdminMonitoringPanel = (typeof ADMIN_MONITORING_PANELS)[number];
+
+export const adminMonitoringSchema = z.object({
+  /** False when Prometheus could not be reached — the panels are then empty
+   *  and `error` says why. */
+  available: z.boolean(),
+  error: z.string().nullable(),
+  range: z.enum(ADMIN_MONITORING_RANGES),
+  /** Whether Prometheus itself reports the API target as up. */
+  targetUp: z.boolean().nullable(),
+  lastScrape: z.string().nullable(),
+  panels: z.array(
+    z.object({
+      id: z.enum(ADMIN_MONITORING_PANELS),
+      series: z.array(
+        z.object({
+          /** A stable key the page labels ("registered", "guests", "p95"…). */
+          key: z.string(),
+          /** [unix seconds, value] */
+          points: z.array(z.tuple([z.number(), z.number()])),
+        }),
+      ),
+    }),
+  ),
+});
+export type AdminMonitoring = z.infer<typeof adminMonitoringSchema>;

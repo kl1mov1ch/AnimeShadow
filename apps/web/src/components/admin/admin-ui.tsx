@@ -139,14 +139,14 @@ export function Panel({
       style={{ animationDelay: `${delay}ms` }}
       className={cn(
         ENTER,
-        "flex min-w-0 flex-col gap-4 rounded-2xl border border-border/60 bg-card/70 p-4 shadow-sm backdrop-blur sm:p-5",
+        "flex min-w-0 flex-col gap-4 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5",
         className,
       )}
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {icon && (
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary [&_svg]:size-4.5">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary [&_svg]:size-4.5">
               {icon}
             </span>
           )}
@@ -254,7 +254,7 @@ export function KpiCard({
       style={{ animationDelay: `${delay}ms`, "--kpi": color } as CSSProperties}
       className={cn(
         ENTER,
-        "group relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-4 shadow-sm backdrop-blur transition-[border-color,transform] hover:-translate-y-0.5 hover:border-border motion-reduce:hover:translate-y-0",
+        "group relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40 motion-reduce:hover:translate-y-0",
       )}
     >
       <span
@@ -392,7 +392,7 @@ export function AnimeThumb({
 
 export function TableShell({ toolbar, children }: { toolbar: ReactNode; children: ReactNode }) {
   return (
-    <div className={cn(ENTER, "overflow-hidden rounded-2xl border border-border/60 bg-card/70 shadow-sm backdrop-blur")}>
+    <div className={cn(ENTER, "overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)]")}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-muted/20 p-3 sm:p-4">
         {toolbar}
       </div>

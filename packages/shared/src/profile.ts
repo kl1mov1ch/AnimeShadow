@@ -319,6 +319,13 @@ export const logSessionInputSchema = z.object({
 });
 export type LogSessionInput = z.infer<typeof logSessionInputSchema>;
 
+/** The same session from a visitor who isn't signed in, tied only to the
+ *  random browser id the pageview beacon already uses. */
+export const guestSessionInputSchema = logSessionInputSchema.extend({
+  visitorId: z.string().min(8).max(64),
+});
+export type GuestSessionInput = z.infer<typeof guestSessionInputSchema>;
+
 /** One day on the year heatmap. */
 export const yearDaySchema = z.object({ day: z.string(), episodes: z.number().int() });
 

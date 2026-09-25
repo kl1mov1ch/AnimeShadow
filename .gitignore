@@ -37,3 +37,6 @@ apps/api/uploads/
 # local agent tooling (not part of the app)
 .agents/
 skills-lock.json
+
+# Prometheus scrape token (copied from METRICS_TOKEN)
+deploy/prometheus/metrics-token

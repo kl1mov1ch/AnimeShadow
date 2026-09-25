@@ -8,6 +8,8 @@ import { KodikClient } from "@animeshadow/kodik";
 import { ShikimoriClient } from "@animeshadow/shikimori";
 import { join } from "node:path";
 import type { FastifyBaseLogger } from "fastify";
+import { setGaugeSource } from "../lib/metrics.js";
+import { env } from "../config/env.js";
 import { AchievementService } from "./achievement.service.js";
 import { AdminService } from "./admin.service.js";
 import { AnalyticsService } from "./analytics.service.js";
@@ -195,7 +197,14 @@ export function createServices(deps: ContainerDeps): Services {
 
   const recommendations = new RecommendationService({ prisma: deps.prisma });
   const analytics = new AnalyticsService({ prisma: deps.prisma });
-  const admin = new AdminService({ prisma: deps.prisma, logger: deps.logger });
+  const admin = new AdminService({
+    prisma: deps.prisma,
+    logger: deps.logger,
+    prometheusUrl: env.PROMETHEUS_URL,
+  });
+  // The DB-backed Prometheus gauges (accounts, active visitors…) read
+  // through the admin service's queries.
+  setGaugeSource(() => admin.gaugeSnapshot());
 
   return {
     catalog,

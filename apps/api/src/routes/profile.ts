@@ -1,6 +1,7 @@
 import {
   libraryImportInputSchema,
   libraryStatusSchema,
+  guestSessionInputSchema,
   logSessionInputSchema,
   setUsernameInputSchema,
   updateProfileInputSchema,
@@ -90,6 +91,23 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
     "/me/achievements",
     { preHandler: fastify.authenticate },
     async (request) => achievements.list(request.userId!),
+  );
+
+  // Guests: the same session, keyed by the random browser id only. If the
+  // caller is signed in after all, it belongs on their account instead.
+  fastify.post(
+    "/guest/session",
+    {
+      preHandler: fastify.optionalAuth,
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const input = parse(guestSessionInputSchema, request.body);
+      if (request.userId) await profile.logSession(request.userId, input);
+      else await profile.logGuestSession(input);
+      reply.code(204);
+      return null;
+    },
   );
 
   fastify.post(

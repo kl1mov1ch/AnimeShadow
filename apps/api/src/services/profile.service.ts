@@ -1,5 +1,6 @@
 import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@animeshadow/db";
 import type {
+  GuestSessionInput,
   MyProfile,
   ProfileLayout,
   ProfilePrivacy,
@@ -421,8 +422,25 @@ export class ProfileService {
     // Same numbers, mirrored into an in-memory counter — Prometheus scrapes
     // this later at no extra DB cost, so "total minutes watched right now"
     // is a Grafana panel instead of an aggregate query against Postgres.
-    watchSecondsTotal.inc(input.seconds);
-    watchSessionsTotal.inc();
+    watchSecondsTotal.inc({ audience: "registered" }, input.seconds);
+    watchSessionsTotal.inc({ audience: "registered" });
+  }
+
+  /** Player time from a visitor who isn't signed in — counted, never tied
+   *  to a person: the only key is the random browser id. */
+  async logGuestSession(input: GuestSessionInput): Promise<void> {
+    if (input.seconds < 15) return;
+    await this.prisma.guestWatchSession.create({
+      data: {
+        visitorId: input.visitorId,
+        animeId: input.animeId,
+        episode: input.episode,
+        seconds: input.seconds,
+        startedAt: new Date(input.startedAt),
+      },
+    });
+    watchSecondsTotal.inc({ audience: "guest" }, input.seconds);
+    watchSessionsTotal.inc({ audience: "guest" });
   }
 
   // ---- internals ----

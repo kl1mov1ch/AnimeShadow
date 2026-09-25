@@ -1,29 +1,32 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import {
+  GaugeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
   MessageSquareIcon,
   RefreshCwIcon,
+  ShieldCheckIcon,
   UsersIcon,
 } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { AdminComments } from "@/components/admin/admin-comments";
-import { AdminDashboard } from "@/components/admin/admin-dashboard";
-import { ENTER, LiveDot } from "@/components/admin/admin-ui";
+import { AdminMonitoringTab } from "@/components/admin/admin-monitoring";
+import { AdminOverviewTab } from "@/components/admin/admin-overview";
+import { LiveDot } from "@/components/admin/admin-ui";
 import { AdminUsers } from "@/components/admin/admin-users";
-import { Button } from "@/components/ui/button";
+import { PageHero } from "@/components/common/page-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { useAdminOverview } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
-const TABS = ["dashboard", "users", "comments"] as const;
+const TABS = ["overview", "monitoring", "users", "comments"] as const;
 type AdminTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
-  dashboard: LayoutDashboardIcon,
+  overview: LayoutDashboardIcon,
+  monitoring: GaugeIcon,
   users: UsersIcon,
   comments: MessageSquareIcon,
 };
@@ -34,26 +37,26 @@ function isAdminTab(value: string | null): value is AdminTab {
 
 export function Component() {
   const { status, user } = useAuth();
-
-  if (status === "loading") return <AdminSkeleton />;
-  // Cosmetic only — every /admin/* endpoint re-checks the role server-side.
-  if (status !== "authenticated" || user?.role !== "ADMIN") {
-    return <Navigate to="/" replace />;
+  if (status === "loading") {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-2xl" />
+        <Skeleton className="h-96 w-full rounded-2xl" />
+      </div>
+    );
   }
-
+  // Cosmetic only — every /admin/* endpoint re-checks the role server-side.
+  if (status !== "authenticated" || user?.role !== "ADMIN") return <Navigate to="/" replace />;
   return <AdminPanel />;
 }
 
-function AdminSkeleton() {
-  return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
-      <Skeleton className="h-28 w-full rounded-3xl" />
-      <Skeleton className="h-12 w-full rounded-2xl" />
-      <Skeleton className="h-96 w-full rounded-2xl" />
-    </div>
-  );
-}
-
+/**
+ * The admin page, rebuilt: the site's own hero on top, the sections as one
+ * sticky tab strip under it (it was a sidebar that took a sixth of the width
+ * away from the tables), and the overview and monitoring written around the
+ * split that matters now — signed-in visitors next to guests.
+ */
 function AdminPanel() {
   const t = useT();
   const { locale } = useLocale();
@@ -61,120 +64,90 @@ function AdminPanel() {
   const refreshing = useIsFetching({ queryKey: ["admin"] }) > 0;
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab: AdminTab = isAdminTab(tabParam) ? tabParam : "dashboard";
-
+  const tab: AdminTab = isAdminTab(tabParam) ? tabParam : "overview";
   const overview = useAdminOverview();
+
   const counts: Partial<Record<AdminTab, number>> = overview.data
-    ? {
-        users: overview.data.kpis.users.total,
-        comments: overview.data.kpis.comments.total,
-      }
+    ? { users: overview.data.kpis.users.total, comments: overview.data.kpis.comments.total }
     : {};
+  const today = overview.data?.split.find((s) => s.window === "today");
   const updatedAt = overview.dataUpdatedAt
-    ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(
-        overview.dataUpdatedAt,
-      )
+    ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(overview.dataUpdatedAt)
     : null;
 
-  const select = (next: AdminTab) =>
-    setSearchParams(next === "dashboard" ? {} : { tab: next }, { replace: true });
+  const select = (next: AdminTab) => setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
-      <header
-        className={cn(
-          ENTER,
-          "relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-3xl border border-border/60 bg-card/70 px-5 py-4 shadow-sm backdrop-blur sm:px-6",
-        )}
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(55% 120% at 0% 0%, color-mix(in oklab, var(--chart-1) 14%, transparent), transparent 70%)",
-          }}
-        />
-        <div className="relative flex min-w-0 items-center gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/15 text-2xl text-primary ring-1 ring-primary/25">
-            <SlicedGlyph />
-          </span>
-          <div className="min-w-0">
-            <h1 className="font-display text-xl leading-tight sm:text-2xl">{t("admin.title")}</h1>
-            <p className="text-xs text-muted-foreground sm:text-sm">{t("admin.subtitle")}</p>
-          </div>
-        </div>
-        <div className="relative flex flex-wrap items-center gap-2">
-          {overview.data && (
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-              <LiveDot />
-              {t("admin.activeToday", { count: overview.data.audience.activeToday })}
-            </span>
+      <PageHero icon={ShieldCheckIcon} eyebrow={t("admin.x.eyebrow")} title={t("admin.title")} lead={t("admin.subtitle")}>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {today && (
+            <>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                <LiveDot />
+                {t("admin.x.todayRegistered", { n: today.registered.visitors })}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-600 dark:text-sky-300">
+                <span className="size-2 rounded-full bg-sky-400" />
+                {t("admin.x.todayGuests", { n: today.guests.visitors })}
+              </span>
+            </>
           )}
           {updatedAt && (
-            <span className="hidden items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-1.5 text-xs text-muted-foreground sm:inline-flex">
-              {t("admin.updated")}
-              <span className="tabular-nums text-foreground">{updatedAt}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("admin.updated")} <span className="tabular-nums text-foreground">{updatedAt}</span>
             </span>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-lg"
+          <button
+            type="button"
             disabled={refreshing}
             onClick={() => void client.invalidateQueries({ queryKey: ["admin"] })}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-60"
           >
-            <RefreshCwIcon className={cn(refreshing && "animate-spin")} />
-            <span className="hidden sm:inline">{t("admin.refresh")}</span>
-          </Button>
+            <RefreshCwIcon className={cn("size-3.5", refreshing && "animate-spin")} />
+            {t("admin.refresh")}
+          </button>
         </div>
-      </header>
+      </PageHero>
 
-      {/* Sections: a sidebar on wide screens, a scrolling strip on phones. */}
-      <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
-        <nav
-          aria-label={t("admin.title")}
-          className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 lg:sticky lg:top-20 lg:mx-0 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-border/60 lg:bg-card/60 lg:p-2 lg:backdrop-blur"
-        >
-          {TABS.map((value) => {
-            const Icon = TAB_ICONS[value];
-            const count = counts[value];
-            const active = tab === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => select(value)}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "group flex shrink-0 items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-all lg:py-2.5",
-                  active
-                    ? "border-primary/30 bg-primary/15 text-primary"
-                    : "border-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                <span className="flex min-w-0 flex-col">
-                  <span className="font-medium">{t(`admin.tabs.${value}`)}</span>
-                  <span className="hidden text-[11px] leading-tight text-muted-foreground lg:block">
-                    {t(`admin.tabHints.${value}`)}
-                  </span>
+      <nav
+        aria-label={t("admin.title")}
+        className="sticky top-14 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-[var(--accent-line-soft)] bg-background/95 p-1 [scrollbar-width:none]"
+      >
+        {TABS.map((value) => {
+          const Icon = TAB_ICONS[value];
+          const active = tab === value;
+          const count = counts[value];
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => select(value)}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all",
+                active
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+                  : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
+              )}
+            >
+              <Icon className="size-4" />
+              {t(`admin.tabs.${value}` as "admin.tabs.users")}
+              {count != null && (
+                <span className={cn("rounded px-1.5 text-[10px] tabular-nums", active ? "bg-black/20" : "bg-primary/10 text-primary")}>
+                  {count.toLocaleString()}
                 </span>
-                {count != null && (
-                  <span className="ml-auto rounded-full bg-foreground/10 px-1.5 py-px text-[10px] tabular-nums">
-                    {count.toLocaleString()}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
-        <main className="min-w-0">
-          {tab === "dashboard" && <AdminDashboard />}
-          {tab === "users" && <AdminUsers />}
-          {tab === "comments" && <AdminComments />}
-        </main>
+      <div key={tab} className="min-w-0 animate-in fade-in-0 duration-300">
+        {tab === "overview" && <AdminOverviewTab />}
+        {tab === "monitoring" && <AdminMonitoringTab />}
+        {tab === "users" && <AdminUsers />}
+        {tab === "comments" && <AdminComments />}
       </div>
     </div>
   );

@@ -126,6 +126,10 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().optional(),
   ),
+
+  // ---- Where the admin dashboard reads the live curves from. Server-side
+  // only — the browser never talks to Prometheus.
+  PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090"),
 });
 
 const parsed = envSchema.safeParse(process.env);

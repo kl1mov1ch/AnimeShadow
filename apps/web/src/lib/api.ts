@@ -31,6 +31,8 @@ export interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   query?: Record<string, string | number | boolean | undefined | null>;
+  /** Let the request outlive the page — for the last flush on tab close. */
+  keepalive?: boolean;
 }
 
 export async function apiRequest<T>(
@@ -54,6 +56,7 @@ export async function apiRequest<T>(
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
+      keepalive: options.keepalive,
     });
   } catch {
     throw new ApiRequestError(

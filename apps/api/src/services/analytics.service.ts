@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@animeshadow/db";
 import type { PageViewInput } from "@animeshadow/shared";
+import { animeViewsTotal, pageviewsTotal } from "../lib/metrics.js";
 
 export interface AnalyticsServiceDeps {
   prisma: PrismaClient;
@@ -21,6 +22,9 @@ export class AnalyticsService {
         userId: userId ?? null,
       },
     });
+    const audience = userId ? "registered" : "guest";
+    pageviewsTotal.inc({ audience });
+    if (input.path.startsWith("/anime/")) animeViewsTotal.inc({ audience });
     if (userId) {
       // At most one write a minute per user: "last seen" needs minutes of
       // precision, not a row update on every click.

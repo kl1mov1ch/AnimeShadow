@@ -1,5 +1,6 @@
 import {
   adminCommentQuerySchema,
+  adminMonitoringQuerySchema,
   adminSetPasswordInputSchema,
   adminUpdateUserInputSchema,
   adminUserQuerySchema,
@@ -17,6 +18,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const guard = { preHandler: [fastify.authenticate, fastify.requireAdmin] };
 
   fastify.get("/admin/overview", guard, async () => admin.overview());
+
+  // Live curves, read server-side from Prometheus — fixed panels only.
+  fastify.get("/admin/monitoring", guard, async (request) => {
+    const { range } = parse(adminMonitoringQuerySchema, request.query);
+    return admin.monitoring(range);
+  });
 
   fastify.get("/admin/users", guard, async (request) => {
     const query = parse(adminUserQuerySchema, request.query);

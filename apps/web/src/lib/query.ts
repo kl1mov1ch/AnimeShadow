@@ -1,6 +1,8 @@
 import type {
   AdminCommentQuery,
   AdminCommentSummary,
+  AdminMonitoring,
+  AdminMonitoringRange,
   AdminOverview,
   AdminUpdateUserInput,
   AdminUserQuery,
@@ -601,8 +603,19 @@ export function useLogSession() {
       episode: number;
       seconds: number;
       startedAt: string;
-    }) => apiRequest<void>("/me/session", { method: "POST", body: input }),
+    }) => apiRequest<void>("/me/session", { method: "POST", body: input, keepalive: true }),
   });
+}
+
+/** Player time from a visitor who isn't signed in — see GuestWatchSession. */
+export function logGuestSession(input: {
+  animeId: number;
+  episode: number;
+  seconds: number;
+  startedAt: string;
+  visitorId: string;
+}): Promise<void> {
+  return apiRequest<void>("/guest/session", { method: "POST", body: input, keepalive: true });
 }
 
 // -- signup confirmation + password reset ----------------------------------
@@ -852,6 +865,19 @@ export function useAdminOverview(enabled = true) {
     enabled,
     queryFn: ({ signal }) => apiRequest<AdminOverview>("/admin/overview", { signal }),
     staleTime: 30_000,
+  });
+}
+
+/** Live curves from Prometheus, via the API. Refreshed every 30 seconds
+ *  while the tab is open; the previous range stays on screen while the next
+ *  one loads. */
+export function useAdminMonitoring(range: AdminMonitoringRange) {
+  return useQuery({
+    queryKey: ["admin", "monitoring", range],
+    queryFn: ({ signal }) => apiRequest<AdminMonitoring>("/admin/monitoring", { signal, query: { range } }),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+    placeholderData: (previous) => previous,
   });
 }
 

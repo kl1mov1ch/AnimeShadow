@@ -6,6 +6,11 @@ import {
 } from "@animeshadow/db";
 import {
   ADMIN_LIBRARY_STATUSES,
+  type AdminAudienceStats,
+  type AdminMonitoring,
+  type AdminMonitoringPanel,
+  type AdminMonitoringRange,
+  type AdminWindow,
   type AdminCommentQuery,
   type AdminCommentSummary,
   type AdminKpi,
@@ -18,11 +23,74 @@ import {
   type Paginated,
 } from "@animeshadow/shared";
 import bcrypt from "bcryptjs";
+import { TtlCache } from "../lib/cache.js";
 import { BadRequestError, NotFoundError } from "../lib/errors.js";
+import type { GaugeSnapshot } from "../lib/metrics.js";
 
 export interface AdminServiceDeps {
   prisma: PrismaClient;
   logger?: { info: (obj: unknown, msg?: string) => void };
+  /** Where Prometheus answers queries. Server-side only. */
+  prometheusUrl?: string;
+}
+
+/** Title pages are /anime/<id>[-slug]; the id is what we group by. */
+const ANIME_PATH = "^/anime/([0-9]+)";
+
+/**
+ * The monitoring tab's panels as fixed PromQL — the browser picks a panel
+ * and a range, never a query, so an admin session can't be turned into an
+ * open window onto Prometheus. `$w` is the rate window, `$s` the step.
+ */
+const PANELS: Record<AdminMonitoringPanel, Array<{ key: string; query: string; byLabel?: string }>> = {
+  requests: [{ key: "total", query: "sum(rate(http_requests_total[$w]))" }],
+  latency: [
+    {
+      key: "p50",
+      query: "histogram_quantile(0.5, sum by (le) (rate(http_request_duration_seconds_bucket[$w])))",
+    },
+    {
+      key: "p95",
+      query: "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[$w])))",
+    },
+  ],
+  errors: [
+    { key: "5xx", query: 'sum(rate(http_requests_total{status=~"5.."}[$w])) or vector(0)' },
+    { key: "4xx", query: 'sum(rate(http_requests_total{status=~"4.."}[$w])) or vector(0)' },
+  ],
+  pageviews: [
+    { key: "audience", byLabel: "audience", query: "sum by (audience) (increase(animeshadow_pageviews_total[$s]))" },
+  ],
+  watch: [
+    {
+      key: "audience",
+      byLabel: "audience",
+      query: "sum by (audience) (increase(animeshadow_watch_seconds_total[$s])) / 60",
+    },
+  ],
+  active: [{ key: "audience", byLabel: "audience", query: "sum by (audience) (animeshadow_active_visitors)" }],
+  signups: [
+    { key: "registrations", query: "sum(increase(animeshadow_registrations_total[$s])) or vector(0)" },
+    { key: "logins", query: "sum(increase(animeshadow_logins_total[$s])) or vector(0)" },
+  ],
+  memory: [
+    { key: "rss", query: "sum(process_resident_memory_bytes)" },
+    { key: "heap", query: "sum(nodejs_heap_size_used_bytes)" },
+  ],
+  cpu: [{ key: "cpu", query: "sum(rate(process_cpu_seconds_total[$w])) * 100" }],
+};
+
+const RANGES: Record<AdminMonitoringRange, { seconds: number; step: string; stepSeconds: number; window: string }> = {
+  "1h": { seconds: 3600, step: "1m", stepSeconds: 60, window: "2m" },
+  "6h": { seconds: 6 * 3600, step: "5m", stepSeconds: 300, window: "5m" },
+  "24h": { seconds: 24 * 3600, step: "15m", stepSeconds: 900, window: "15m" },
+  "7d": { seconds: 7 * 24 * 3600, step: "1h", stepSeconds: 3600, window: "1h" },
+};
+
+interface PromMatrix {
+  status: string;
+  error?: string;
+  data?: { result: Array<{ metric: Record<string, string>; values: Array<[number, string]> }> };
 }
 
 /** Same cost as AuthService uses at signup, so an admin-set password is
@@ -106,10 +174,13 @@ interface Windows {
 }
 
 export class AdminService {
+  private readonly prometheusUrl: string;
+  private readonly monitoringCache = new TtlCache<AdminMonitoring>(20_000, 8);
   private readonly logger: AdminServiceDeps["logger"];
   private readonly prisma: PrismaClient;
 
   constructor(deps: AdminServiceDeps) {
+    this.prometheusUrl = (deps.prometheusUrl ?? "http://127.0.0.1:9090").replace(/\/$/, "");
     this.prisma = deps.prisma;
     this.logger = deps.logger;
   }
@@ -127,6 +198,7 @@ export class AdminService {
     };
 
     const [
+      split,
       kpis,
       timeline,
       hourly,
@@ -139,6 +211,7 @@ export class AdminService {
       recentUsers,
       recentComments,
     ] = await Promise.all([
+      this.split(w),
       this.kpis(w),
       this.timeline(w),
       this.hourly(w),
@@ -153,6 +226,7 @@ export class AdminService {
     ]);
 
     return {
+      split,
       kpis,
       timeline,
       hourly,
@@ -168,6 +242,158 @@ export class AdminService {
   }
 
   // -- overview pieces ---------------------------------------------------
+
+  /** Signed-in visitors and guests, side by side, for today / 7 / 30 days. */
+  private async split(w: Windows): Promise<AdminOverview["split"]> {
+    const windows: Array<[AdminWindow, Date]> = [
+      ["today", w.todayStart],
+      ["7d", w.last7],
+      ["30d", w.last30],
+    ];
+    return Promise.all(
+      windows.map(async ([window, since]) => {
+        const [traffic, registeredWatch, guestWatch] = await Promise.all([
+          this.prisma.$queryRaw<
+            Array<{ registered: boolean; visitors: number; pageviews: number; anime: number; titles: number }>
+          >`
+            SELECT
+              ("userId" IS NOT NULL) AS registered,
+              COUNT(DISTINCT "visitorId")::int AS visitors,
+              COUNT(*)::int AS pageviews,
+              COUNT(*) FILTER (WHERE path ~ ${ANIME_PATH})::int AS anime,
+              COUNT(DISTINCT substring(path from ${ANIME_PATH}))::int AS titles
+            FROM "PageView"
+            WHERE "createdAt" >= ${since}
+            GROUP BY 1
+          `,
+          this.prisma.watchSession.aggregate({
+            where: { startedAt: { gte: since } },
+            _count: { _all: true },
+            _sum: { seconds: true },
+          }),
+          this.prisma.guestWatchSession.aggregate({
+            where: { startedAt: { gte: since } },
+            _count: { _all: true },
+            _sum: { seconds: true },
+          }),
+        ]);
+        const side = (registered: boolean, watch: typeof registeredWatch): AdminAudienceStats => {
+          const row = traffic.find((r) => r.registered === registered);
+          return {
+            visitors: row?.visitors ?? 0,
+            pageviews: row?.pageviews ?? 0,
+            animeViews: row?.anime ?? 0,
+            titles: row?.titles ?? 0,
+            watchSessions: watch._count._all,
+            watchSeconds: watch._sum.seconds ?? 0,
+          };
+        };
+        return { window, registered: side(true, registeredWatch), guests: side(false, guestWatch) };
+      }),
+    );
+  }
+
+  /** The numbers the Prometheus gauges report — read here, once per scrape
+   *  at most every 30 seconds (see lib/metrics). */
+  async gaugeSnapshot(): Promise<GaugeSnapshot> {
+    const since = new Date(Date.now() - 5 * 60_000);
+    const [users, proUsers, comments, active] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { proSince: { not: null } } }),
+      this.prisma.comment.count(),
+      this.prisma.$queryRaw<Array<{ registered: boolean; count: number }>>`
+        SELECT ("userId" IS NOT NULL) AS registered, COUNT(DISTINCT "visitorId")::int AS count
+        FROM "PageView"
+        WHERE "createdAt" >= ${since}
+        GROUP BY 1
+      `,
+    ]);
+    return {
+      users,
+      proUsers,
+      comments,
+      activeRegistered: active.find((r) => r.registered)?.count ?? 0,
+      activeGuests: active.find((r) => !r.registered)?.count ?? 0,
+    };
+  }
+
+  /**
+   * The monitoring tab, read from Prometheus: every panel for one range,
+   * queried in parallel and cached for 20 seconds so several admins with
+   * the tab open cost one set of queries.
+   */
+  async monitoring(range: AdminMonitoringRange): Promise<AdminMonitoring> {
+    return this.monitoringCache.wrap(range, async () => {
+      const spec = RANGES[range];
+      const end = Math.floor(Date.now() / 1000);
+      const start = end - spec.seconds;
+      const empty = (error: string): AdminMonitoring => ({
+        available: false,
+        error,
+        range,
+        targetUp: null,
+        lastScrape: null,
+        panels: [],
+      });
+
+      let target: { up: boolean | null; lastScrape: string | null };
+      try {
+        target = await this.promTarget();
+      } catch (error) {
+        return empty(error instanceof Error ? error.message : String(error));
+      }
+
+      const panels = await Promise.all(
+        (Object.keys(PANELS) as AdminMonitoringPanel[]).map(async (id) => {
+          const series = (
+            await Promise.all(
+              PANELS[id].map(async ({ key, query, byLabel }) => {
+                const q = query.replaceAll("$w", spec.window).replaceAll("$s", spec.step);
+                const result = await this.promRange(q, start, end, spec.stepSeconds).catch(() => []);
+                return result.map((r) => ({
+                  key: byLabel ? (r.metric[byLabel] ?? "unknown") : key,
+                  points: r.values
+                    .map(([t, v]) => [t, Number(v)] as [number, number])
+                    .filter(([, v]) => Number.isFinite(v)),
+                }));
+              }),
+            )
+          ).flat();
+          return { id, series };
+        }),
+      );
+
+      return { available: true, error: null, range, targetUp: target.up, lastScrape: target.lastScrape, panels };
+    });
+  }
+
+  private async promRange(query: string, start: number, end: number, step: number) {
+    const url = new URL(`${this.prometheusUrl}/api/v1/query_range`);
+    url.searchParams.set("query", query);
+    url.searchParams.set("start", String(start));
+    url.searchParams.set("end", String(end));
+    url.searchParams.set("step", String(step));
+    const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    const body = (await response.json()) as PromMatrix;
+    if (body.status !== "success") throw new Error(body.error ?? `prometheus ${response.status}`);
+    return body.data?.result ?? [];
+  }
+
+  /** Is Prometheus reachable, and does it see the API as up? */
+  private async promTarget(): Promise<{ up: boolean | null; lastScrape: string | null }> {
+    const response = await fetch(`${this.prometheusUrl}/api/v1/targets?state=active`, {
+      signal: AbortSignal.timeout(5_000),
+    }).catch(() => {
+      throw new Error(`Prometheus is not reachable at ${this.prometheusUrl}`);
+    });
+    if (!response.ok) throw new Error(`Prometheus answered ${response.status}`);
+    const body = (await response.json()) as {
+      data?: { activeTargets?: Array<{ labels: Record<string, string>; health: string; lastScrape: string }> };
+    };
+    const target = body.data?.activeTargets?.find((t) => t.labels.job === "animeshadow-api");
+    if (!target) return { up: null, lastScrape: null };
+    return { up: target.health === "up", lastScrape: target.lastScrape };
+  }
 
   private async kpis(w: Windows): Promise<AdminOverview["kpis"]> {
     const current = { gte: w.last30 };
@@ -237,12 +463,13 @@ export class AdminService {
   }
 
   private async timeline(w: Windows): Promise<AdminOverview["timeline"]> {
-    const [traffic, registrations, watch] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ day: string; pageviews: number; visitors: number }>>`
+    const [traffic, registrations, watch, guestWatch] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ day: string; pageviews: number; visitors: number; guests: number }>>`
         SELECT
           to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
           COUNT(*)::int AS pageviews,
-          COUNT(DISTINCT "visitorId")::int AS visitors
+          COUNT(DISTINCT "visitorId")::int AS visitors,
+          COUNT(*) FILTER (WHERE "userId" IS NULL)::int AS guests
         FROM "PageView"
         WHERE "createdAt" >= ${w.timelineStart}
         GROUP BY 1
@@ -261,7 +488,16 @@ export class AdminService {
         WHERE "startedAt" >= ${w.timelineStart}
         GROUP BY 1
       `,
+      this.prisma.$queryRaw<Array<{ day: string; seconds: number }>>`
+        SELECT
+          to_char(date_trunc('day', "startedAt"), 'YYYY-MM-DD') AS day,
+          COALESCE(SUM(seconds), 0)::int AS seconds
+        FROM "GuestWatchSession"
+        WHERE "startedAt" >= ${w.timelineStart}
+        GROUP BY 1
+      `,
     ]);
+    const guestWatchByDay = new Map(guestWatch.map((r) => [r.day, r.seconds]));
 
     const trafficByDay = new Map(traffic.map((r) => [r.day, r]));
     const registrationsByDay = new Map(registrations.map((r) => [r.day, r.count]));
@@ -275,6 +511,8 @@ export class AdminService {
         visitors: trafficByDay.get(date)?.visitors ?? 0,
         registrations: registrationsByDay.get(date) ?? 0,
         watchMinutes: Math.round((watchByDay.get(date) ?? 0) / 60),
+        guestPageviews: trafficByDay.get(date)?.guests ?? 0,
+        guestWatchMinutes: Math.round((guestWatchByDay.get(date) ?? 0) / 60),
       };
     });
   }
@@ -362,28 +600,73 @@ export class AdminService {
     `;
   }
 
+  /**
+   * The most-opened titles of the last 30 days, counted from title-page
+   * views of both audiences, with player time split the same way. Topped
+   * up from the all-time view counter when there isn't a month of traffic.
+   */
   private async topAnime(): Promise<AdminOverview["topAnime"]> {
-    const rows = await this.prisma.anime.findMany({
-      where: { viewCount: { gt: 0 } },
-      orderBy: { viewCount: "desc" },
-      take: 12,
-      include: ANIME_WITH_GENRES_INCLUDE,
-    });
-    if (rows.length === 0) return [];
+    const since = new Date(Date.now() - 30 * DAY_MS);
+    const recent = await this.prisma.$queryRaw<Array<{ id: number; registered: number; guests: number }>>`
+      SELECT
+        (substring(path from ${ANIME_PATH}))::int AS id,
+        COUNT(*) FILTER (WHERE "userId" IS NOT NULL)::int AS registered,
+        COUNT(*) FILTER (WHERE "userId" IS NULL)::int AS guests
+      FROM "PageView"
+      WHERE "createdAt" >= ${since} AND path ~ ${ANIME_PATH}
+      GROUP BY 1
+      ORDER BY COUNT(*) DESC
+      LIMIT 12
+    `;
+    const ids = recent.map((r) => r.id);
+    if (ids.length < 12) {
+      const extra = await this.prisma.anime.findMany({
+        where: { viewCount: { gt: 0 }, id: { notIn: ids } },
+        orderBy: { viewCount: "desc" },
+        take: 12 - ids.length,
+        select: { id: true },
+      });
+      ids.push(...extra.map((e) => e.id));
+    }
+    if (ids.length === 0) return [];
 
-    const pairs = await this.prisma.watchSession.groupBy({
-      by: ["animeId", "userId"],
-      where: { animeId: { in: rows.map((r) => r.id) } },
-      _count: { _all: true },
-    });
+    const [rows, pairs, regWatch, guestWatch] = await Promise.all([
+      this.prisma.anime.findMany({ where: { id: { in: ids } }, include: ANIME_WITH_GENRES_INCLUDE }),
+      this.prisma.watchSession.groupBy({
+        by: ["animeId", "userId"],
+        where: { animeId: { in: ids } },
+        _count: { _all: true },
+      }),
+      this.prisma.watchSession.groupBy({
+        by: ["animeId"],
+        where: { animeId: { in: ids }, startedAt: { gte: since } },
+        _sum: { seconds: true },
+      }),
+      this.prisma.guestWatchSession.groupBy({
+        by: ["animeId"],
+        where: { animeId: { in: ids }, startedAt: { gte: since } },
+        _sum: { seconds: true },
+      }),
+    ]);
     const watchers = new Map<number, number>();
     for (const p of pairs) watchers.set(p.animeId, (watchers.get(p.animeId) ?? 0) + 1);
+    const regSeconds = new Map(regWatch.map((r) => [r.animeId, r._sum.seconds ?? 0]));
+    const guestSeconds = new Map(guestWatch.map((r) => [r.animeId, r._sum.seconds ?? 0]));
+    const recentById = new Map(recent.map((r) => [r.id, r]));
+    const byId = new Map(rows.map((r) => [r.id, r]));
 
-    return rows.map((row) => ({
-      anime: toSummaryDto(row),
-      views: row.viewCount,
-      watchers: watchers.get(row.id) ?? 0,
-    }));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((row): row is NonNullable<typeof row> => row != null)
+      .map((row) => ({
+        anime: toSummaryDto(row),
+        views: row.viewCount,
+        watchers: watchers.get(row.id) ?? 0,
+        viewsRegistered: recentById.get(row.id)?.registered ?? 0,
+        viewsGuests: recentById.get(row.id)?.guests ?? 0,
+        watchSecondsRegistered: regSeconds.get(row.id) ?? 0,
+        watchSecondsGuests: guestSeconds.get(row.id) ?? 0,
+      }));
   }
 
   private async recentUsers(): Promise<AdminOverview["recentUsers"]> {
