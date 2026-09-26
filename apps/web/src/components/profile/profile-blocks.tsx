@@ -18,6 +18,7 @@ import {
   type LucideIcon,
   PencilIcon,
   PlayIcon,
+  PlusIcon,
   RadioIcon,
   SparklesIcon,
   StarIcon,
@@ -59,16 +60,6 @@ const BLOCK_ICON: Record<ProfileBlock, LucideIcon> = {
   compare: SparklesIcon,
 };
 
-/** Width of each block in the profile's 12-column bento grid, paired so
- *  the default order fills rows: 7+5, 8+4, then full width. */
-const BLOCK_SPAN: Record<ProfileBlock, string> = {
-  showcase: "lg:col-span-7",
-  watching: "lg:col-span-5",
-  year: "lg:col-span-8",
-  activity: "lg:col-span-4",
-  compare: "lg:col-span-12",
-};
-
 function Block({
   block,
   action,
@@ -86,7 +77,6 @@ function Block({
     <section
       className={cn(
         "relative flex min-w-0 animate-in flex-col gap-2.5 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5 fade-in-0 slide-in-from-bottom-2 duration-500 sm:p-4",
-        BLOCK_SPAN[block],
         className,
       )}
     >
@@ -132,12 +122,10 @@ function SmallButton({
   );
 }
 
+/** A one-line "nothing here yet" — not a tall dashed box that makes an
+ *  empty block look bigger than a full one. */
 function Empty({ text }: { text: string }) {
-  return (
-    <p className="rounded-xl border border-dashed border-primary/25 bg-primary/5 px-3 py-6 text-center text-xs text-muted-foreground">
-      {text}
-    </p>
-  );
+  return <p className="rounded-lg bg-card/40 px-3 py-2 text-xs text-muted-foreground">{text}</p>;
 }
 
 function relative(iso: string, locale: string): string {
@@ -160,7 +148,17 @@ function relative(iso: string, locale: string): string {
  * is no "this is private" placeholder taking up a slot. The owner gets a
  * "customise" switch that turns the same column into its own editor.
  */
-export function ProfileBlocks({ profile, own }: { profile: PublicProfile; own: boolean }) {
+export function ProfileBlocks({
+  profile,
+  own,
+  only,
+}: {
+  profile: PublicProfile;
+  own: boolean;
+  /** Just these blocks (in the profile's own order) — the page places
+   *  them in its columns. */
+  only?: ProfileBlock[];
+}) {
   const { user, status } = useAuth();
 
   const visible = (block: ProfileBlock) => {
@@ -175,16 +173,16 @@ export function ProfileBlocks({ profile, own }: { profile: PublicProfile; own: b
 
   return (
     <>
-      {profile.layout.order.filter(visible).map((block) => {
+      {profile.layout.order.filter((b) => (!only || only.includes(b)) && visible(b)).map((block) => {
         switch (block) {
           case "showcase":
             return <ShowcaseBlock key={block} profile={profile} own={own} />;
           case "watching":
-            return <WatchingBlock key={block} userId={profile.id} own={own} />;
+            return <WatchingBlock key={block} profile={profile} own={own} />;
           case "year":
             return <YearBlock key={block} userId={profile.id} />;
           case "activity":
-            return <ActivityBlock key={block} userId={profile.id} />;
+            return <ActivityBlock key={block} profile={profile} />;
           case "compare":
             return <CompareBlock key={block} userId={profile.id} name={profile.displayName} />;
           default:
@@ -317,7 +315,11 @@ function ShowcaseBlock({ profile, own }: { profile: PublicProfile; own: boolean 
       action={own ? <SmallButton icon={PencilIcon} label={t("common.edit")} onClick={() => setPicking(true)} /> : undefined}
     >
       {profile.favorites.length === 0 ? (
-        <Empty text={t("profile.blocks.showcaseEmpty")} />
+        own ? (
+          <QuickFavorites profile={profile} onPick={() => setPicking(true)} />
+        ) : (
+          <Empty text={t("profile.blocks.showcaseEmpty")} />
+        )
       ) : (
         <ol className="reveal-group grid grid-cols-5 gap-2">
           {profile.favorites.map((anime, i) => (
@@ -451,11 +453,100 @@ function ShowcasePicker({
 /* Now watching                                                              */
 /* ------------------------------------------------------------------------ */
 
-function WatchingBlock({ userId, own }: { userId: string; own: boolean }) {
+/**
+ * An empty top five used to be a tall dashed box. Now it's a line of text
+ * and, when the owner has scored anything, their best-rated titles — one
+ * tap puts all of them in, or one at a time.
+ */
+function QuickFavorites({ profile, onPick }: { profile: PublicProfile; onPick: () => void }) {
+  const t = useT();
+  const update = useUpdateProfile();
+  const picks = profile.stats.topRated;
+  const add = (ids: number[]) =>
+    update.mutate(
+      { favoriteAnimeIds: [...new Set(ids)].slice(0, 5) },
+      { onSuccess: () => toast.success(t("profile.blocks.saved")) },
+    );
+  return (
+    <div className="flex flex-col gap-2.5">
+      <p className="text-xs text-muted-foreground">{t("profile.blocks.showcaseEmpty")}</p>
+      {picks.length > 0 && (
+        <>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("profile.blocks.quickFromRated")}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {picks.map((a) => (
+              <button
+                key={a.animeId}
+                type="button"
+                disabled={update.isPending}
+                onClick={() => add([a.animeId])}
+                className="group flex items-center gap-2 rounded-lg border border-primary/25 bg-card/60 p-1 pr-2.5 text-left transition-colors hover:border-primary"
+              >
+                <span className="h-10 w-7 shrink-0 overflow-hidden rounded bg-muted">
+                  {a.imageUrl && <img src={imageSrc(a.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="max-w-[9rem] truncate text-xs font-medium">{a.title}</span>
+                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+                    <StarIcon className="size-2.5 fill-current" />
+                    {a.score}
+                  </span>
+                </span>
+                <PlusIcon className="size-3.5 text-primary opacity-60 group-hover:opacity-100" />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {picks.length > 1 && (
+          <SmallButton icon={SparklesIcon} label={t("profile.blocks.quickAll")} active onClick={() => add(picks.map((a) => a.animeId))} />
+        )}
+        <SmallButton icon={PencilIcon} label={t("profile.blocks.quickChoose")} onClick={onPick} />
+      </div>
+    </div>
+  );
+}
+
+/** Best-rated titles — fills the space under a short "watching now". */
+function TopRatedList({ profile }: { profile: PublicProfile }) {
+  const t = useT();
+  const items = profile.stats.topRated;
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-auto flex flex-col gap-1.5 border-t border-[var(--accent-line-soft)] pt-2.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("profile.blocks.topRated")}
+      </span>
+      {items.map((a, i) => (
+        <Link
+          key={a.animeId}
+          to={animeHref({ id: a.animeId, slug: a.slug })}
+          viewTransition
+          className="group flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-primary/10"
+        >
+          <span className="w-3 font-display text-xs text-muted-foreground">{i + 1}</span>
+          <span className="h-8 w-6 shrink-0 overflow-hidden rounded bg-muted">
+            {a.imageUrl && <img src={imageSrc(a.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium transition-colors group-hover:text-primary">{a.title}</span>
+          <span className="flex items-center gap-0.5 text-xs font-semibold tabular-nums text-amber-500">
+            <StarIcon className="size-3 fill-current" />
+            {a.score}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function WatchingBlock({ profile, own }: { profile: PublicProfile; own: boolean }) {
   const t = useT();
   const labels = useLabels();
   const { locale } = useLocale();
-  const { data, isPending } = useUserWatching(userId);
+  const { data, isPending } = useUserWatching(profile.id);
 
   return (
     <Block block="watching">
@@ -515,6 +606,7 @@ function WatchingBlock({ userId, own }: { userId: string; own: boolean }) {
           })}
         </div>
       )}
+      {!isPending && (data?.length ?? 0) < 3 && !profile.hidden.stats && <TopRatedList profile={profile} />}
     </Block>
   );
 }
@@ -659,11 +751,59 @@ const FEED_ICON: Record<FeedEvent["kind"], { icon: LucideIcon; tone: string }> =
   achievement: { icon: TrophyIcon, tone: "text-amber-400" },
 };
 
-function ActivityBlock({ userId }: { userId: string }) {
+/**
+ * The last two weeks at a glance, from numbers the profile already has:
+ * a bar per day, the record day and the average sitting. Fills the bottom
+ * of the activity block, which is taller than its feed next to the year.
+ */
+function Rhythm({ profile }: { profile: PublicProfile }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const days = profile.stats.dailyActivity;
+  // Two quiet weeks would be fourteen empty bars — say nothing instead.
+  if (profile.hidden.stats || !days.some((d) => d.minutes > 0 || d.episodes > 0)) return null;
+  const max = Math.max(1, ...days.map((d) => d.minutes));
+  const total = days.reduce((sum, d) => sum + d.episodes, 0);
+  const record = profile.stats.mostProductiveDay;
+  return (
+    <div className="mt-auto flex flex-col gap-2 border-t border-[var(--accent-line-soft)] pt-2.5">
+      <span className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("profile.rhythm.title")}
+        <span className="normal-case tracking-normal">{t("profile.rhythm.episodes", { n: total })}</span>
+      </span>
+      <div className="flex h-12 items-end gap-[3px]">
+        {days.map((d) => (
+          <span
+            key={d.day}
+            title={`${new Date(`${d.day}T00:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "short" })}: ${d.episodes} · ${d.minutes} ${t("profile.rhythm.min")}`}
+            className={cn("flex-1 rounded-sm", d.minutes > 0 ? "bg-primary" : "bg-primary/10")}
+            style={{ height: `${d.minutes > 0 ? Math.max(12, (d.minutes / max) * 100) : 8}%` }}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+        <span className="rounded-md bg-card/60 px-2 py-1">
+          <span className="block text-muted-foreground">{t("profile.rhythm.record")}</span>
+          <span className="font-semibold">
+            {record ? new Date(`${record}T00:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "long" }) : "—"}
+          </span>
+        </span>
+        <span className="rounded-md bg-card/60 px-2 py-1">
+          <span className="block text-muted-foreground">{t("profile.rhythm.session")}</span>
+          <span className="font-semibold">
+            {profile.stats.avgSessionMinutes != null ? `${Math.round(profile.stats.avgSessionMinutes)} ${t("profile.rhythm.min")}` : "—"}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityBlock({ profile }: { profile: PublicProfile }) {
   const t = useT();
   const labels = useLabels();
   const { locale } = useLocale();
-  const { data, isPending } = useUserFeed(userId);
+  const { data, isPending } = useUserFeed(profile.id);
   const [kind, setKind] = useState<FeedEvent["kind"] | "all">("all");
   const [more, setMore] = useState(false);
 
@@ -731,6 +871,7 @@ function ActivityBlock({ userId }: { userId: string }) {
           {more ? t("profile.feed.less") : t("profile.feed.more", { n: Math.min(items.length, 15) - 5 })}
         </button>
       )}
+      <Rhythm profile={profile} />
     </Block>
   );
 }

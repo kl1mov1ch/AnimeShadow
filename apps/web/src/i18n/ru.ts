@@ -1119,6 +1119,13 @@ export const ru: Dict = {
     signedOutBody: "Войдите, чтобы искать аниме по кадру.",
   },
   profile: {
+    rhythm: {
+      title: "Ритм · 14 дней",
+      episodes: "{n} серий",
+      record: "Рекордный день",
+      session: "Средний сеанс",
+      min: "мин",
+    },
     hall: {
       title: "Зал трофеев",
       showcase: "Витрина",
@@ -1208,6 +1215,10 @@ export const ru: Dict = {
       next: "Ближе всего к открытию",
     },
     blocks: {
+      quickFromRated: "Из ваших высших оценок",
+      quickAll: "Добавить все",
+      quickChoose: "Выбрать вручную",
+      topRated: "Высшие оценки",
       showcase: "Моя пятёрка",
       watching: "Сейчас смотрит",
       year: "Год в аниме",

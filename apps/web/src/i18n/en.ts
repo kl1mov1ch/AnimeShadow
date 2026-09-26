@@ -1118,6 +1118,13 @@ export const en = {
     signedOutBody: "Sign in to search anime by frame.",
   },
   profile: {
+    rhythm: {
+      title: "Rhythm · 14 days",
+      episodes: "{n} episodes",
+      record: "Record day",
+      session: "Average sitting",
+      min: "min",
+    },
     hall: {
       title: "Trophy hall",
       showcase: "Showcase",
@@ -1207,6 +1214,10 @@ export const en = {
       next: "Closest to unlocking",
     },
     blocks: {
+      quickFromRated: "From your top scores",
+      quickAll: "Add them all",
+      quickChoose: "Choose by hand",
+      topRated: "Top scores",
       showcase: "My five",
       watching: "Watching now",
       year: "The year in anime",

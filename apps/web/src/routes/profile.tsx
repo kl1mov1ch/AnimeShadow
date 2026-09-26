@@ -203,12 +203,21 @@ function ProfilePage({
       {/* Trophies and taste, side by side under the numbers — full blocks of
           their own rather than a narrow column that stuck to the screen and
           slid along beside everything else. */}
-      {/* One bento grid: blocks of different widths in pairs, instead of
-          a stack of full-width slabs. */}
-      <div className="grid grid-flow-row-dense grid-cols-1 gap-4 lg:grid-cols-12">
-        <TrophyHall profile={profile} own={own} className="lg:col-span-7" />
-        <TasteDna profile={profile} own={own} className="lg:col-span-5" />
-        <ProfileBlocks profile={profile} own={own} />
+      {/* Two independent columns, masonry-style: each block is as tall as
+          its own content and the next one follows right under it. A grid of
+          pairs stretched every block to its neighbour's height and left the
+          shorter one with an empty bottom. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-4">
+          <TrophyHall profile={profile} own={own} />
+          <ProfileBlocks profile={profile} own={own} only={["showcase", "year"]} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <TasteDna profile={profile} own={own} />
+          {/* The comparison only exists on someone else's profile — which
+              is also where this column tends to run short. */}
+          <ProfileBlocks profile={profile} own={own} only={["watching", "activity", "compare"]} />
+        </div>
       </div>
     </ProfileShell>
   );
