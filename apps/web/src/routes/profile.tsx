@@ -203,11 +203,13 @@ function ProfilePage({
       {/* Trophies and taste, side by side under the numbers — full blocks of
           their own rather than a narrow column that stuck to the screen and
           slid along beside everything else. */}
-      <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <TrophyHall profile={profile} own={own} />
-        <TasteDna profile={profile} own={own} />
+      {/* One bento grid: blocks of different widths in pairs, instead of
+          a stack of full-width slabs. */}
+      <div className="grid grid-flow-row-dense grid-cols-1 gap-4 lg:grid-cols-12">
+        <TrophyHall profile={profile} own={own} className="lg:col-span-7" />
+        <TasteDna profile={profile} own={own} className="lg:col-span-5" />
+        <ProfileBlocks profile={profile} own={own} />
       </div>
-      <ProfileBlocks profile={profile} own={own} />
     </ProfileShell>
   );
 }

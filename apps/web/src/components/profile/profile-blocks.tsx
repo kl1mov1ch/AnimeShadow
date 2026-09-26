@@ -59,6 +59,16 @@ const BLOCK_ICON: Record<ProfileBlock, LucideIcon> = {
   compare: SparklesIcon,
 };
 
+/** Width of each block in the profile's 12-column bento grid, paired so
+ *  the default order fills rows: 7+5, 8+4, then full width. */
+const BLOCK_SPAN: Record<ProfileBlock, string> = {
+  showcase: "lg:col-span-7",
+  watching: "lg:col-span-5",
+  year: "lg:col-span-8",
+  activity: "lg:col-span-4",
+  compare: "lg:col-span-12",
+};
+
 function Block({
   block,
   action,
@@ -75,14 +85,15 @@ function Block({
   return (
     <section
       className={cn(
-        "relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 fade-in-0 slide-in-from-bottom-2 duration-500 sm:p-5",
+        "relative flex min-w-0 animate-in flex-col gap-2.5 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5 fade-in-0 slide-in-from-bottom-2 duration-500 sm:p-4",
+        BLOCK_SPAN[block],
         className,
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2.5 font-display text-base tracking-tight sm:text-lg">
-          <span className="grid size-7 place-items-center rounded-lg bg-primary/15 text-primary">
-            <Icon className="size-4" />
+        <h2 className="flex items-center gap-2 font-display text-base tracking-tight">
+          <span className="grid size-6 place-items-center rounded-md bg-primary/15 text-primary">
+            <Icon className="size-3.5" />
           </span>
           {t(`profile.blocks.${block}` as "profile.blocks.showcase")}
         </h2>
@@ -163,7 +174,7 @@ export function ProfileBlocks({ profile, own }: { profile: PublicProfile; own: b
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
       {profile.layout.order.filter(visible).map((block) => {
         switch (block) {
           case "showcase":
@@ -180,7 +191,7 @@ export function ProfileBlocks({ profile, own }: { profile: PublicProfile; own: b
             return null;
         }
       })}
-    </div>
+    </>
   );
 }
 
@@ -308,11 +319,11 @@ function ShowcaseBlock({ profile, own }: { profile: PublicProfile; own: boolean 
       {profile.favorites.length === 0 ? (
         <Empty text={t("profile.blocks.showcaseEmpty")} />
       ) : (
-        <ol className="reveal-group grid grid-cols-3 gap-3 sm:grid-cols-5">
+        <ol className="reveal-group grid grid-cols-5 gap-2">
           {profile.favorites.map((anime, i) => (
             <li key={anime.id} className="reveal" style={{ "--i": i } as CSSProperties}>
               <Link to={animeHref(anime)} viewTransition className="group relative block">
-                <span className="relative block aspect-[2/3] overflow-hidden rounded-xl border-2 border-primary/30 shadow-lg shadow-primary/10 transition-all duration-500 group-hover:-translate-y-1 group-hover:border-primary">
+                <span className="relative block aspect-[2/3] overflow-hidden rounded-lg border border-primary/30 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-primary">
                   {anime.imageUrl && (
                     <img
                       src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
@@ -322,11 +333,11 @@ function ShowcaseBlock({ profile, own }: { profile: PublicProfile; own: boolean 
                     />
                   )}
                   <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                  <span className="absolute left-2 top-1 font-display text-4xl text-white/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]">
+                  <span className="absolute left-1.5 top-0.5 font-display text-2xl text-white/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                     {i + 1}
                   </span>
                 </span>
-                <span className="mt-1.5 line-clamp-2 block text-xs font-medium leading-snug transition-colors group-hover:text-primary">
+                <span className="mt-1 line-clamp-2 block text-[11px] font-medium leading-snug transition-colors group-hover:text-primary">
                   {labels.title(anime)}
                 </span>
               </Link>
@@ -457,8 +468,8 @@ function WatchingBlock({ userId, own }: { userId: string; own: boolean }) {
       ) : !data || data.length === 0 ? (
         <Empty text={t("profile.blocks.watchingEmpty")} />
       ) : (
-        <div className={cn("reveal-group grid gap-3", data.length > 1 && "sm:grid-cols-2")}>
-          {data.map((w, i) => {
+        <div className="reveal-group flex flex-col gap-2">
+          {data.slice(0, 3).map((w, i) => {
             const percent = Math.min(100, Math.round((w.positionSeconds / 1440) * 100));
             const art = w.anime.imageLargeUrl ?? w.anime.imageUrl;
             return (
@@ -467,7 +478,7 @@ function WatchingBlock({ userId, own }: { userId: string; own: boolean }) {
                 to={`${animeHref(w.anime)}#watch`}
                 viewTransition
                 style={{ "--i": i } as CSSProperties}
-                className="reveal group relative flex gap-3 overflow-hidden rounded-xl border border-primary/25 bg-card/60 p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary"
+                className="reveal group relative flex gap-2.5 overflow-hidden rounded-lg border border-primary/25 bg-card/60 p-2 transition-colors duration-300 hover:border-primary"
               >
                 {art && (
                   <img
@@ -477,14 +488,14 @@ function WatchingBlock({ userId, own }: { userId: string; own: boolean }) {
                     className="absolute inset-0 size-full scale-125 object-cover opacity-20 blur-xl"
                   />
                 )}
-                <span className="relative h-24 w-16 shrink-0 overflow-hidden rounded-lg">
+                <span className="relative h-16 w-11 shrink-0 overflow-hidden rounded-md">
                   {art && <img src={imageSrc(art)} alt="" loading="lazy" className="size-full object-cover" />}
                   <span className="absolute inset-0 grid place-items-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
                     <PlayIcon className="size-6 fill-white text-white" />
                   </span>
                 </span>
                 <span className="relative flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="line-clamp-2 text-sm font-medium leading-snug">{labels.title(w.anime)}</span>
+                  <span className="line-clamp-1 text-sm font-medium leading-snug">{labels.title(w.anime)}</span>
                   <span className="text-xs text-primary">
                     {t("detail.episodeNumber", { n: w.episode })}
                     {w.completed && " ✓"}
@@ -576,14 +587,14 @@ function YearBlock({ userId }: { userId: string }) {
         <span className="h-40 animate-pulse rounded-xl bg-primary/10" />
       ) : (
         <>
-          <div className="reveal-group grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <div className="reveal-group grid grid-cols-3 gap-1.5 sm:grid-cols-6">
             {tiles.map(({ icon: Icon, value, label }, i) => (
               <div
                 key={label}
                 style={{ "--i": i } as CSSProperties}
-                className="reveal flex flex-col gap-0.5 rounded-xl border border-primary/20 bg-card/50 p-2.5"
+                className="reveal flex flex-col rounded-lg border border-primary/20 bg-card/50 px-2 py-1.5"
               >
-                <span className="flex items-center gap-1 truncate font-display text-base tabular-nums">
+                <span className="flex items-center gap-1 truncate font-display text-sm tabular-nums">
                   <Icon className="size-3.5 shrink-0 text-primary" />
                   {value}
                 </span>
@@ -595,17 +606,17 @@ function YearBlock({ userId }: { userId: string }) {
               edge to edge instead of stopping two thirds of the way. */}
           <div className="overflow-x-auto pb-1 [scrollbar-width:thin]">
             <div
-              className="grid min-w-[40rem] gap-[3px]"
+              className="grid min-w-[30rem] gap-[2px]"
               style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}
             >
               {weeks.map((week, wi) => (
-                <div key={wi} className="flex flex-col gap-[3px]">
+                <div key={wi} className="flex flex-col gap-[2px]">
                   {week.map((day, di) =>
                     day ? (
                       <span
                         key={day.day}
                         title={`${new Date(`${day.day}T00:00:00Z`).toLocaleDateString(locale, { day: "numeric", month: "long" })}: ${t("profile.year.cell", { n: day.episodes })}`}
-                        className={cn("aspect-square w-full rounded-[3px] transition-transform hover:scale-150", heat(day.episodes))}
+                        className={cn("aspect-square w-full rounded-[2px]", heat(day.episodes))}
                       />
                     ) : (
                       <span key={`x${di}`} className="aspect-square w-full" />
@@ -657,18 +668,18 @@ function ActivityBlock({ userId }: { userId: string }) {
   const [more, setMore] = useState(false);
 
   const items = (data ?? []).filter((e) => kind === "all" || e.kind === kind);
-  const shown = more ? items : items.slice(0, 8);
+  const shown = more ? items.slice(0, 15) : items.slice(0, 5);
 
   return (
     <Block block="activity">
       <div className="flex flex-wrap gap-1">
-        {(["all", "episode", "completed", "rated", "added", "achievement"] as const).map((k) => (
+        {(["all", "episode", "completed", "achievement"] as const).map((k) => (
           <button
             key={k}
             type="button"
             onClick={() => setKind(k)}
             className={cn(
-              "rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors",
+              "rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
               k === kind ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary hover:bg-primary/20",
             )}
           >
@@ -681,30 +692,32 @@ function ActivityBlock({ userId }: { userId: string }) {
       ) : shown.length === 0 ? (
         <Empty text={t("profile.overview.activityEmpty")} />
       ) : (
-        <ol className="relative flex flex-col gap-1 before:absolute before:bottom-2 before:left-[1.35rem] before:top-2 before:w-px before:bg-primary/20">
+        <ol
+          className={cn(
+            "relative flex flex-col gap-0.5 before:absolute before:bottom-2 before:left-[1.05rem] before:top-2 before:w-px before:bg-primary/20",
+            more && "max-h-80 overflow-y-auto pr-1 [scrollbar-width:thin]",
+          )}
+        >
           {shown.map((event, i) => {
             const { icon: Icon, tone } = FEED_ICON[event.kind];
             const title = event.anime
               ? labels.title(event.anime)
               : t(`achievements.items.${event.value}.title` as "achievements.items.critic.title");
             return (
-              <li key={`${event.kind}-${event.at}-${i}`} className="relative flex animate-in items-center gap-3 rounded-xl p-1.5 fade-in-0 slide-in-from-left-2 duration-300" style={{ animationDelay: `${Math.min(i, 10) * 30}ms`, animationFillMode: "both" }}>
-                <span className="relative z-10 grid size-8 shrink-0 place-items-center rounded-full border border-primary/25 bg-background">
-                  <Icon className={cn("size-4", tone, event.kind === "rated" && "fill-current")} />
+              <li key={`${event.kind}-${event.at}-${i}`} className="relative flex items-center gap-2 rounded-lg p-1">
+                <span className="relative z-10 grid size-6 shrink-0 place-items-center rounded-full border border-primary/25 bg-background">
+                  <Icon className={cn("size-3", tone, event.kind === "rated" && "fill-current")} />
                 </span>
-                {event.anime?.imageUrl && (
-                  <img src={imageSrc(event.anime.imageUrl)} alt="" loading="lazy" className="h-10 w-7 shrink-0 rounded object-cover" />
-                )}
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[10px] leading-tight text-muted-foreground">
                     {t(`profile.feed.${event.kind}` as "profile.feed.episode", { n: event.value ?? "" })}
                   </span>
                   {event.anime ? (
-                    <Link to={animeHref(event.anime)} viewTransition className="truncate text-sm font-medium transition-colors hover:text-primary">
+                    <Link to={animeHref(event.anime)} viewTransition className="truncate text-xs font-medium transition-colors hover:text-primary">
                       {title}
                     </Link>
                   ) : (
-                    <span className="truncate text-sm font-medium">{title}</span>
+                    <span className="truncate text-xs font-medium">{title}</span>
                   )}
                 </span>
                 <span className="shrink-0 text-[10px] text-muted-foreground">{relative(event.at, locale)}</span>
@@ -713,9 +726,9 @@ function ActivityBlock({ userId }: { userId: string }) {
           })}
         </ol>
       )}
-      {items.length > 8 && (
-        <button type="button" onClick={() => setMore((m) => !m)} className="self-center text-xs font-semibold text-primary hover:underline">
-          {more ? t("profile.feed.less") : t("profile.feed.more", { n: items.length - 8 })}
+      {items.length > 5 && (
+        <button type="button" onClick={() => setMore((m) => !m)} className="self-center text-[11px] font-semibold text-primary hover:underline">
+          {more ? t("profile.feed.less") : t("profile.feed.more", { n: Math.min(items.length, 15) - 5 })}
         </button>
       )}
     </Block>

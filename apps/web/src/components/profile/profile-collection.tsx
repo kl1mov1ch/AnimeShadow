@@ -42,14 +42,14 @@ function Block({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col gap-4 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5",
+        "flex min-w-0 flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5 sm:p-4",
         className,
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight">
-          <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
-            <Icon className="size-4" />
+        <h2 className="flex items-center gap-2 font-display text-base tracking-tight">
+          <span className="grid size-6 place-items-center rounded-md bg-primary/15 text-primary">
+            <Icon className="size-3.5" />
           </span>
           {title}
         </h2>
@@ -81,7 +81,7 @@ type HallTab = "showcase" | "next" | "all";
  * medallion is pinned to the name — the three shown next to it in comments
  * — straight from here.
  */
-export function TrophyHall({ profile, own }: { profile: PublicProfile; own: boolean }) {
+export function TrophyHall({ profile, own, className }: { profile: PublicProfile; own: boolean; className?: string }) {
   const t = useT();
   const update = useUpdateProfile();
   const [tab, setTab] = useState<HallTab>("showcase");
@@ -116,6 +116,7 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
 
   return (
     <Block
+      className={className}
       icon={TrophyIcon}
       title={t("profile.hall.title")}
       aside={
@@ -130,11 +131,11 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
           const total = all.filter((a) => a.rarity === rarity).length;
           const got = earned.filter((a) => a.rarity === rarity).length;
           return (
-            <div key={rarity} className={cn("flex flex-col gap-1 rounded-xl border px-3 py-2", RARITY_CHIP[rarity])}>
-              <span className="text-[11px] font-semibold uppercase tracking-wide">
+            <div key={rarity} className={cn("flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5", RARITY_CHIP[rarity])}>
+              <span className="text-[10px] font-semibold uppercase tracking-wide">
                 {t(`achievements.rarity.${rarity}` as "achievements.rarity.common")}
               </span>
-              <span className="font-display text-xl tabular-nums text-foreground">
+              <span className="font-display text-base tabular-nums text-foreground">
                 {got}
                 <span className="text-sm text-muted-foreground"> / {total}</span>
               </span>
@@ -180,7 +181,7 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
             {t("profile.hall.empty")}
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-2 min-[480px]:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-4 gap-1.5 min-[480px]:grid-cols-5 sm:grid-cols-6">
             {showcase.map((a) => {
               const isPinned = pinnedSet.has(a.id);
               return (
@@ -192,8 +193,8 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
                   )}
                 >
                   <button type="button" onClick={() => setOpened(a)} className="flex flex-col items-center gap-1">
-                    <HoloAchievementBadge id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" className="size-12" />
-                    <span className="line-clamp-2 text-[11px] font-medium leading-tight">{title(a.id)}</span>
+                    <HoloAchievementBadge id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" className="size-10" />
+                    <span className="line-clamp-2 text-[10px] font-medium leading-tight">{title(a.id)}</span>
                   </button>
                   {own && (
                     <button
@@ -227,11 +228,11 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
               <li
                 key={a.id}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl border p-2.5",
+                  "flex items-center gap-2.5 rounded-lg border p-2",
                   i === 0 ? "border-primary/50 bg-primary/10" : "border-[var(--accent-line-soft)] bg-card/50",
                 )}
               >
-                <HoloAchievementBadge id={a.id} rarity={a.rarity} earned={false} progress={p} variant="circle" className="size-11 shrink-0" />
+                <HoloAchievementBadge id={a.id} rarity={a.rarity} earned={false} progress={p} variant="circle" className="size-9 shrink-0" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
                     {i === 0 && <TargetIcon className="size-3.5 shrink-0 text-primary" />}
@@ -251,7 +252,7 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
       )}
 
       {tab === "all" && (
-        <div className="grid grid-cols-3 gap-2 min-[480px]:grid-cols-4 lg:grid-cols-6">
+        <div className="grid max-h-72 grid-cols-4 gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin] min-[480px]:grid-cols-5 sm:grid-cols-6">
           {[...all]
             .sort((a, b) => Number(b.earned) - Number(a.earned) || RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity))
             .map((a) => (
@@ -271,9 +272,9 @@ export function TrophyHall({ profile, own }: { profile: PublicProfile; own: bool
                   earnedAt={a.earnedAt}
                   progress={a.progress}
                   variant="circle"
-                  className="size-12"
+                  className="size-10"
                 />
-                <span className="line-clamp-2 text-[11px] font-medium leading-tight">{title(a.id)}</span>
+                <span className="line-clamp-2 text-[10px] font-medium leading-tight">{title(a.id)}</span>
               </button>
             ))}
         </div>
@@ -343,7 +344,7 @@ function tasteMatch(a: PublicProfile["stats"]["topGenres"], b: PublicProfile["st
  * catalogue of their top genres — and, on someone else's profile, how
  * close their taste is to yours.
  */
-export function TasteDna({ profile, own }: { profile: PublicProfile; own: boolean }) {
+export function TasteDna({ profile, own, className }: { profile: PublicProfile; own: boolean; className?: string }) {
   const t = useT();
   const labels = useLabels();
   const { status } = useAuth();
@@ -365,21 +366,21 @@ export function TasteDna({ profile, own }: { profile: PublicProfile; own: boolea
   const match = me && !own ? tasteMatch(profile.stats.topGenres, me.stats.topGenres) : null;
 
   return (
-    <Block icon={DnaIcon} title={t("profile.taste.title")}>
-      <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 p-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-xl font-display text-lg text-white" style={{ background: SLOT_COLORS[0] }}>
+    <Block className={className} icon={DnaIcon} title={t("profile.taste.title")}>
+      <div className="flex items-center gap-2.5 rounded-lg border border-primary/30 bg-primary/10 p-2.5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg font-display text-base text-white" style={{ background: SLOT_COLORS[0] }}>
           {labels.genreLabel(top[0]!.name).charAt(0)}
         </span>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("profile.taste.persona")}</p>
-          <p className="truncate font-display text-lg leading-tight">
+          <p className="truncate font-display text-base leading-tight">
             {t(`profile.taste.personas.${persona}` as "profile.taste.personas.seeker")}
           </p>
         </div>
       </div>
 
       {/* The strand: every top genre's share, side by side. */}
-      <div className="flex h-3 overflow-hidden rounded-full">
+      <div className="flex h-2 overflow-hidden rounded-full">
         {top.map((g, i) => (
           <span
             key={g.name}
@@ -390,7 +391,7 @@ export function TasteDna({ profile, own }: { profile: PublicProfile; own: boolea
         ))}
       </div>
 
-      <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+      <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
         {top.map((g, i) => {
           const id = idOf(g.name);
           return (
@@ -398,7 +399,7 @@ export function TasteDna({ profile, own }: { profile: PublicProfile; own: boolea
               <Link
                 to={id != null ? `/browse?genres=${id}` : "/browse"}
                 viewTransition
-                className="group flex items-center gap-2 text-sm"
+                className="group flex items-center gap-2 text-xs"
               >
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: SLOT_COLORS[i] }} />
                 <span className="min-w-0 flex-1 truncate font-medium transition-colors group-hover:text-primary">
@@ -412,7 +413,7 @@ export function TasteDna({ profile, own }: { profile: PublicProfile; own: boolea
       </ul>
 
       {match != null && (
-        <div className="flex items-center gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-3">
+        <div className="flex items-center gap-2.5 rounded-lg border border-[var(--accent-line-soft)] bg-card/50 p-2.5">
           <HeartHandshakeIcon className="size-5 shrink-0 text-primary" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex items-center justify-between gap-2 text-sm font-semibold">
@@ -433,7 +434,7 @@ export function TasteDna({ profile, own }: { profile: PublicProfile; own: boolea
         <Link
           to={`/browse?genres=${mixIds.join(",")}&orderBy=score`}
           viewTransition
-          className="btn-sheen group mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 active:scale-95"
+          className="btn-sheen group mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/25 active:scale-95"
         >
           {own ? t("profile.taste.mixOwn") : t("profile.taste.mixTheirs")}
           <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
