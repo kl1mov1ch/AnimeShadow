@@ -2,6 +2,14 @@ import type {
   AdminCommentQuery,
   AdminCommentSummary,
   AdminMonitoring,
+  CollectionComment,
+  CollectionDetail,
+  CollectionInput,
+  CollectionLimit,
+  CollectionQuery,
+  CollectionStats,
+  CollectionSummary,
+  MyCollectionsStats,
   AdminMonitoringRange,
   AdminOverview,
   AdminUpdateUserInput,
@@ -1018,4 +1026,132 @@ export function useImportLibrary() {
       void client.invalidateQueries({ queryKey: ["user"] });
     },
   });
+}
+
+// -- collections ---------------------------------------------------------
+
+type CollectionListParams = Partial<Omit<CollectionQuery, "page">> & { page?: number };
+
+export function useCollections(params: CollectionListParams) {
+  return useQuery({
+    queryKey: ["collections", "list", params],
+    queryFn: ({ signal }) =>
+      apiRequest<Paginated<CollectionSummary>>("/collections", { signal, query: { ...params } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useCollection(id: string | undefined) {
+  return useQuery({
+    queryKey: ["collections", "one", id],
+    enabled: Boolean(id),
+    queryFn: ({ signal }) => apiRequest<CollectionDetail>(`/collections/${id}`, { signal }),
+  });
+}
+
+export function useUserCollections(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["collections", "user", userId],
+    enabled: Boolean(userId),
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: CollectionSummary[]; limit: CollectionLimit | null }>(`/users/${userId}/collections`, { signal }),
+  });
+}
+
+export function useMyCollectionsStats(enabled = true) {
+  return useQuery({
+    queryKey: ["collections", "my-stats"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<MyCollectionsStats>("/me/collections/stats", { signal }),
+  });
+}
+
+export function useCollectionStats(id: string | undefined) {
+  return useQuery({
+    queryKey: ["collections", "stats", id],
+    enabled: Boolean(id),
+    queryFn: ({ signal }) => apiRequest<CollectionStats>(`/collections/${id}/stats`, { signal }),
+  });
+}
+
+/** Create (no id) or replace (with id) a collection. */
+export function useSaveCollection() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: CollectionInput }) =>
+      apiRequest<CollectionDetail>(id ? `/collections/${id}` : "/collections", {
+        method: id ? "PUT" : "POST",
+        body: input,
+      }),
+    onSuccess: (saved) => {
+      client.setQueryData(["collections", "one", saved.id], saved);
+      void client.invalidateQueries({ queryKey: ["collections", "list"] });
+      void client.invalidateQueries({ queryKey: ["collections", "user"] });
+      void client.invalidateQueries({ queryKey: ["collections", "my-stats"] });
+    },
+  });
+}
+
+export function useDeleteCollection() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiRequest<void>(`/collections/${id}`, { method: "DELETE" }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["collections"] }),
+  });
+}
+
+export function useRateCollection(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (value: number) =>
+      apiRequest<{ ratingAvg: number | null; ratingCount: number; myRating: number }>(`/collections/${id}/rating`, {
+        method: "PUT",
+        body: { value },
+      }),
+    onSuccess: (r) =>
+      client.setQueryData<CollectionDetail>(["collections", "one", id], (old) => (old ? { ...old, ...r } : old)),
+  });
+}
+
+export function useCollectionComments(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["collections", "comments", id],
+    enabled: Boolean(id) && enabled,
+    queryFn: ({ signal }) => apiRequest<CollectionComment[]>(`/collections/${id}/comments`, { signal }),
+  });
+}
+
+export function useAddCollectionComment(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      apiRequest<CollectionComment>(`/collections/${id}/comments`, { method: "POST", body: { body } }),
+    onSuccess: (comment) => {
+      client.setQueryData<CollectionComment[]>(["collections", "comments", id], (old) => [comment, ...(old ?? [])]);
+      client.setQueryData<CollectionDetail>(["collections", "one", id], (old) =>
+        old ? { ...old, commentCount: old.commentCount + 1 } : old,
+      );
+    },
+  });
+}
+
+export function useDeleteCollectionComment(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: string) =>
+      apiRequest<void>(`/collections/${id}/comments/${commentId}`, { method: "DELETE" }),
+    onSuccess: (_, commentId) => {
+      client.setQueryData<CollectionComment[]>(["collections", "comments", id], (old) =>
+        (old ?? []).filter((c) => c.id !== commentId),
+      );
+      client.setQueryData<CollectionDetail>(["collections", "one", id], (old) =>
+        old ? { ...old, commentCount: Math.max(0, old.commentCount - 1) } : old,
+      );
+    },
+  });
+}
+
+/** Counted once per visitor per day on the server. */
+export function recordCollectionView(id: string, visitorId: string): Promise<void> {
+  return apiRequest<void>(`/collections/${id}/view`, { method: "POST", body: { visitorId } });
 }

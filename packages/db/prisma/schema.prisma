@@ -102,6 +102,9 @@ model User {
   likedAnime    UserLikedAnime[]
   pageViews     PageView[]
   verificationCodes VerificationCode[]
+  collections        Collection[]
+  collectionRatings  CollectionRating[]
+  collectionComments CollectionComment[]
 }
 
 enum VerificationPurpose {
@@ -553,4 +556,77 @@ model GuessScore {
   updatedAt DateTime @updatedAt
 
   @@index([best])
+}
+
+/// A user's collection: a titled article about a set of anime — text and
+/// anime cards interleaved (`blocks`), picked criteria (`tags`), rated and
+/// commented on by others. Free accounts keep up to three; PRO, any number.
+model Collection {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  title        String
+  summary      String   @default("")
+  /// [{ type: "text", text } | { type: "anime", animeId, note }]
+  blocks       Json
+  tags         String[] @default([])
+  /// The anime in `blocks`, in order — for the cover and for search.
+  animeIds     Int[]    @default([])
+  published    Boolean  @default(true)
+  viewCount    Int      @default(0)
+  ratingSum    Int      @default(0)
+  ratingCount  Int      @default(0)
+  commentCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ratings  CollectionRating[]
+  comments CollectionComment[]
+  views    CollectionView[]
+
+  @@index([userId, createdAt])
+  @@index([published, createdAt])
+  @@index([published, ratingSum])
+  @@index([published, viewCount])
+}
+
+model CollectionRating {
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  /// 1–5
+  value        Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@id([collectionId, userId])
+}
+
+model CollectionComment {
+  id           String     @id @default(cuid())
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  body         String
+  createdAt    DateTime   @default(now())
+  deletedAt    DateTime?
+
+  @@index([collectionId, createdAt])
+}
+
+/// One row per visitor per day per collection — the stats page counts
+/// these; `Collection.viewCount` is the running total.
+model CollectionView {
+  id           String     @id @default(cuid())
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId String
+  visitorId    String
+  userId       String?
+  day          DateTime   @db.Date
+  createdAt    DateTime   @default(now())
+
+  @@unique([collectionId, visitorId, day])
+  @@index([collectionId, day])
 }

@@ -2,6 +2,7 @@ import {
   BookmarkIcon,
   CompassIcon,
   LanguagesIcon,
+  LayersIcon,
   LayoutGridIcon,
   LogInIcon,
   LogOutIcon,
@@ -144,6 +145,7 @@ export function SiteHeader() {
   const nav = [
     { to: "/", label: t("nav.discover"), end: true, Icon: CompassIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
+    { to: "/collections", label: t("nav.collections"), end: false, Icon: LayersIcon },
     ...(status === "authenticated"
       ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
       : []),

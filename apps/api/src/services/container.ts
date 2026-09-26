@@ -12,6 +12,7 @@ import { setGaugeSource } from "../lib/metrics.js";
 import { env } from "../config/env.js";
 import { AchievementService } from "./achievement.service.js";
 import { AdminService } from "./admin.service.js";
+import { CollectionService } from "./collection.service.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
@@ -75,6 +76,7 @@ export interface Services {
   admin: AdminService;
   episodeInfo: EpisodeInfoService;
   insights: ProfileInsightsService;
+  collections: CollectionService;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -222,5 +224,6 @@ export function createServices(deps: ContainerDeps): Services {
     admin,
     episodeInfo,
     insights,
+    collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
   };
 }

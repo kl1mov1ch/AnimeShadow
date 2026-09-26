@@ -4,6 +4,8 @@ import {
   ArrowRightIcon,
   DnaIcon,
   HeartHandshakeIcon,
+  LayersIcon,
+  PlusIcon,
   PinIcon,
   PinOffIcon,
   TargetIcon,
@@ -16,7 +18,8 @@ import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
-import { useGenres, useMyProfile, useUpdateProfile } from "@/lib/query";
+import { useGenres, useMyProfile, useUpdateProfile, useUserCollections } from "@/lib/query";
+import { CollectionCard } from "@/components/collections/collection-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -438,6 +441,59 @@ export function TasteDna({ profile, own, className }: { profile: PublicProfile; 
         >
           {own ? t("profile.taste.mixOwn") : t("profile.taste.mixTheirs")}
           <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      )}
+    </Block>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Collections                                                                */
+/* -------------------------------------------------------------------------- */
+
+/** The owner's collections (drafts too, on their own profile) and, for
+ *  them, the way to write another — with how many are left on a free
+ *  account. Hidden on someone else's profile when they have none. */
+export function CollectionsShelf({ profile, own }: { profile: PublicProfile; own: boolean }) {
+  const t = useT();
+  const { data } = useUserCollections(profile.id);
+  const items = data?.items ?? [];
+  if (!own && items.length === 0) return null;
+  const limit = data?.limit;
+  const atLimit = limit?.max != null && limit.used >= limit.max;
+  return (
+    <Block
+      icon={LayersIcon}
+      title={t("collections.shelf")}
+      aside={
+        own ? (
+          <Link
+            to={atLimit ? "/support" : "/collections/new"}
+            className="inline-flex items-center gap-1 rounded-md border border-primary/35 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+          >
+            <PlusIcon className="size-3.5" />
+            {t("collections.create")}
+            {limit?.max != null && (
+              <span className="tabular-nums opacity-70">
+                {limit.used}/{limit.max}
+              </span>
+            )}
+          </Link>
+        ) : undefined
+      }
+    >
+      {items.length === 0 ? (
+        <p className="rounded-lg bg-card/40 px-3 py-2 text-xs text-muted-foreground">{t("collections.shelfEmpty")}</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {items.slice(0, 4).map((c) => (
+            <CollectionCard key={c.id} collection={c} />
+          ))}
+        </div>
+      )}
+      {own && items.length > 0 && (
+        <Link to="/collections/stats" className="self-start text-xs font-semibold text-primary hover:underline">
+          {t("collections.myStats")} →
         </Link>
       )}
     </Block>

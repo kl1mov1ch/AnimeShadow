@@ -103,7 +103,7 @@ import { ProfileStudio } from "@/components/profile/profile-studio";
 import { ProfileProgress } from "@/components/profile/profile-progress";
 import { useProfileAccentStyle } from "@/components/profile/profile-accent";
 import { FEATURES } from "@/lib/features";
-import { TasteDna, TrophyHall } from "@/components/profile/profile-collection";
+import { CollectionsShelf, TasteDna, TrophyHall } from "@/components/profile/profile-collection";
 
 export function Component() {
   const t = useT();
@@ -211,6 +211,7 @@ function ProfilePage({
         <div className="flex min-w-0 flex-col gap-4">
           <TrophyHall profile={profile} own={own} />
           <ProfileBlocks profile={profile} own={own} only={["showcase", "year"]} />
+          <CollectionsShelf profile={profile} own={own} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <TasteDna profile={profile} own={own} />
