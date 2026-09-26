@@ -847,6 +847,23 @@ export class CatalogService {
     detail.studioLogos = logos;
   }
 
+  /**
+   * Every screenshot Shikimori has for a title, as absolute URLs — for the
+   * guess game's frame deck. Empty on any failure: a title without frames
+   * simply isn't dealt.
+   */
+  async fetchScreenshots(id: number): Promise<string[]> {
+    try {
+      const shots = await this.shikimori.getScreenshots(id);
+      return shots
+        .map((s) => s.original?.split("?")[0])
+        .filter((u): u is string => Boolean(u) && !u!.includes("missing"))
+        .map((u) => (u.startsWith("http") ? u : `https://shikimori.io${u}`));
+    } catch {
+      return [];
+    }
+  }
+
   /** The same rating gate as the detail page, for callers that only need a
    *  title's genres and shouldn't pay for its whole payload. */
   ensureViewable(rating: string | null, allowAdult: boolean): void {

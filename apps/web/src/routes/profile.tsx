@@ -99,11 +99,11 @@ import {
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { ProfileBlocks } from "@/components/profile/profile-blocks";
 import { useSettingsMatch } from "@/components/profile/profile-settings-extras";
-import { AchievementsCard, FavoriteGenresCard } from "@/components/profile/profile-side";
 import { ProfileStudio } from "@/components/profile/profile-studio";
 import { ProfileProgress } from "@/components/profile/profile-progress";
 import { useProfileAccentStyle } from "@/components/profile/profile-accent";
 import { FEATURES } from "@/lib/features";
+import { TasteDna, TrophyHall } from "@/components/profile/profile-collection";
 
 export function Component() {
   const t = useT();
@@ -200,17 +200,14 @@ function ProfilePage({
           achievementsEarned={profile.achievements.filter((a) => a.earned).length}
         />
       )}
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <ProfileBlocks profile={profile} own={own} />
-        <aside className="flex flex-col gap-5 lg:sticky lg:top-20">
-          <AchievementsCard
-            profile={profile}
-            own={own}
-            renderAll={() => <AchievementsGrid achievements={profile.achievements} />}
-          />
-          <FavoriteGenresCard profile={profile} />
-        </aside>
+      {/* Trophies and taste, side by side under the numbers — full blocks of
+          their own rather than a narrow column that stuck to the screen and
+          slid along beside everything else. */}
+      <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <TrophyHall profile={profile} own={own} />
+        <TasteDna profile={profile} own={own} />
       </div>
+      <ProfileBlocks profile={profile} own={own} />
     </ProfileShell>
   );
 }
@@ -1536,102 +1533,6 @@ function arraysMatchAsSets(a: number[], b: number[]): boolean {
   return a.every((v) => set.has(v));
 }
 
-
-/* ---------------- achievements ---------------- */
-
-type AchFilter = "all" | "earned" | "progress";
-
-function AchievementsGrid({ achievements }: { achievements: EarnedAchievement[] }) {
-  const t = useT();
-  const [filter, setFilter] = useState<AchFilter>("all");
-  const [opened, setOpened] = useState<EarnedAchievement | null>(null);
-
-  const tiers = ["legendary", "epic", "rare", "common"] as const;
-  const earned = achievements.filter((a) => a.earned).length;
-  const total = achievements.length || 1;
-  const pct = Math.round((earned / total) * 100);
-  const keep = (a: EarnedAchievement) =>
-    filter === "all" ? true : filter === "earned" ? a.earned : !a.earned;
-
-  return (
-    <section className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="font-display text-2xl tabular-nums">
-            {earned}
-            <span className="text-base text-muted-foreground"> / {achievements.length}</span>
-          </span>
-          <span className="h-1.5 w-56 overflow-hidden rounded-full bg-primary/10">
-            <span className="block h-full rounded-full bg-gradient-to-r from-primary/60 to-primary shadow-[0_0_12px_-2px_var(--primary)]" style={{ width: `${pct}%` }} />
-          </span>
-        </div>
-        <div className="flex rounded-lg border border-primary/25 bg-primary/5 p-0.5">
-          {(["all", "earned", "progress"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              aria-pressed={filter === f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs font-semibold transition-colors",
-                filter === f ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-primary",
-              )}
-            >
-              {t(f === "all" ? "achievements.filterAll" : f === "earned" ? "achievements.filterEarned" : "achievements.filterLocked")}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {tiers.map((tier) => {
-        const list = achievements.filter((a) => a.rarity === tier && keep(a));
-        if (list.length === 0) return null;
-        const got = achievements.filter((a) => a.rarity === tier && a.earned).length;
-        const all = achievements.filter((a) => a.rarity === tier).length;
-        return (
-          <div key={tier} className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                {t(`achievements.rarity.${tier}` as "achievements.rarity.common")}
-              </span>
-              <span className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {got}/{all}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {list
-                .sort((x, y) => Number(y.earned) - Number(x.earned))
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    className={cn(
-                      "flex justify-center rounded-2xl border p-3 transition-colors",
-                      a.earned
-                        ? "border-[var(--accent-line-soft)] bg-[var(--accent-surface)] hover:border-primary/50"
-                        : "border-border/40 bg-card/30",
-                    )}
-                  >
-                    <HoloAchievementBadge
-                      id={a.id}
-                      rarity={a.rarity}
-                      earned={a.earned}
-                      earnedAt={a.earnedAt}
-                      progress={a.progress}
-                      onClick={() => setOpened(a)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
-            </div>
-          </div>
-        );
-      })}
-
-      <AchievementDetailDialog achievement={opened} onOpenChange={(open) => !open && setOpened(null)} />
-    </section>
-  );
-}
 
 function ProfileSkeleton() {
   return (

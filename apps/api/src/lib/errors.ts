@@ -23,6 +23,12 @@ export class BadRequestError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(message = "Too many requests") {
+    super(429, "RATE_LIMITED", message);
+  }
+}
+
 export class ValidationError extends AppError {
   constructor(fields: Record<string, string[]>, message = "Some fields need attention") {
     super(422, "VALIDATION", message, fields);

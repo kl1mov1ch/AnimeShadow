@@ -3,6 +3,7 @@ import {
   CheckIcon,
   CrownIcon,
   FlameIcon,
+  LockIcon,
   type LucideIcon,
   MedalIcon,
   RotateCcwIcon,
@@ -87,8 +88,8 @@ export function AnimeCorner() {
     <div className="flex flex-col gap-10">
       <section className="flex flex-col gap-3">
         <SectionHeading title={t("home.corner.guess")} subtitle={t("home.corner.subtitle")} />
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
-          <GuessGame />
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <GameGate />
           <Leaderboard />
         </div>
       </section>
@@ -134,6 +135,42 @@ function preload(url: string | undefined) {
   img.src = url;
 }
 
+/** Signed in: the game. Signed out: why to sign in — the game itself only
+ *  runs for accounts, so a guest costs no rounds and no frames. */
+function GameGate() {
+  const t = useT();
+  const { status } = useAuth();
+  if (status === "loading") {
+    return <article className={cn(PANEL, "aspect-video animate-pulse p-3")} />;
+  }
+  if (status !== "authenticated") {
+    return (
+      <article className={cn(PANEL, "items-center justify-center gap-3 p-6 text-center sm:p-8")}>
+        <span className="grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20">
+          <LockIcon className="size-6" />
+        </span>
+        <p className="font-display text-lg">{t("home.game.lockedTitle")}</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{t("home.game.lockedBody")}</p>
+        <div className="flex flex-wrap justify-center gap-2 pt-1">
+          <Link
+            to="/login"
+            className="btn-sheen inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+          >
+            {t("common.signIn")}
+          </Link>
+          <Link
+            to="/register"
+            className="inline-flex h-10 items-center rounded-lg border border-primary/35 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+          >
+            {t("common.createAccount")}
+          </Link>
+        </div>
+      </article>
+    );
+  }
+  return <GuessGame />;
+}
+
 /**
  * Guess the show from a frame of it, as a run: a right answer rolls
  * straight into the next frame, and the run lasts until the first miss.
@@ -147,8 +184,6 @@ function preload(url: string | undefined) {
 function GuessGame() {
   const t = useT();
   const { locale } = useLocale();
-  const { status } = useAuth();
-  const authed = status === "authenticated";
   const queryClient = useQueryClient();
 
   const [round, setRound] = useState<GuessRound | null>(null);
@@ -217,6 +252,26 @@ function GuessGame() {
     } catch {
       setError(true);
       setPicked(null);
+    }
+  };
+
+  // The frame failed to load — ask for another in its place. The server
+  // allows a few of these an hour without ending the run.
+  const replacing = useRef(false);
+  const replaceFrame = async () => {
+    if (!round || replacing.current || picked != null) return;
+    replacing.current = true;
+    try {
+      const r = await apiRequest<GuessRound>("/games/guess/replace", {
+        method: "POST",
+        body: { roundId: round.roundId },
+      });
+      setRound(r);
+      setLoaded(false);
+    } catch {
+      setError(true);
+    } finally {
+      replacing.current = false;
     }
   };
 
@@ -293,8 +348,9 @@ function GuessGame() {
             key={round.frame}
             src={imageSrc(round.frame)}
             alt=""
+            decoding="async"
             onLoad={() => setLoaded(true)}
-            onError={() => setLoaded(true)}
+            onError={() => void replaceFrame()}
             className={cn(
               "size-full object-cover transition-all duration-500 ease-out",
               revealed ? "scale-100 blur-0" : "scale-105 blur-[3px]",
@@ -317,7 +373,6 @@ function GuessGame() {
             <div className="flex flex-col items-center gap-2 px-4 text-center text-white">
               <TrophyIcon className="size-8 text-amber-400" />
               <p className="font-display text-lg">{t("home.game.over", { n: streak })}</p>
-              {!authed && <p className="text-xs text-white/70">{t("home.game.signInForBoard")}</p>}
               <button
                 type="button"
                 onClick={restart}
@@ -429,11 +484,18 @@ function Leaderboard() {
     staleTime: 30_000,
   });
 
-  const mine = data?.top.slice(0, 5).some((row) => row.userId === user?.id) ?? false;
+  const mine = data?.top.some((row) => row.userId === user?.id) ?? false;
 
   return (
     <article className={cn(PANEL, "gap-2 p-3 sm:p-3")}>
-      <PanelLabel icon={CrownIcon}>{t("home.game.board")}</PanelLabel>
+      <div className="flex items-center justify-between gap-2">
+        <PanelLabel icon={CrownIcon}>{t("home.game.board")}</PanelLabel>
+        {data && data.top.length > 0 && (
+          <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
+            {t("home.game.boardCount", { n: data.top.length })}
+          </span>
+        )}
+      </div>
 
       {isPending ? (
         <div className="flex flex-col gap-1.5">
@@ -446,8 +508,8 @@ function Leaderboard() {
           {t("home.game.boardEmpty")}
         </p>
       ) : (
-        <ol className="reveal-group flex flex-col gap-1">
-          {data.top.slice(0, 5).map((row, i) => {
+        <ol className="-mr-1.5 flex max-h-[22rem] flex-col gap-1 overflow-y-auto pr-1.5 [scrollbar-width:thin]">
+          {data.top.map((row, i) => {
             const me = row.userId === user?.id;
             const content = (
               <>
@@ -477,7 +539,7 @@ function Leaderboard() {
               me ? "border-primary bg-primary/15" : "border-transparent hover:border-primary/40 hover:bg-primary/10",
             );
             return (
-              <li key={row.userId} style={{ "--i": i } as CSSProperties} className="reveal">
+              <li key={row.userId}>
                 {row.username ? (
                   <Link to={`/profile/${row.username}`} viewTransition className={rowClass}>
                     {content}

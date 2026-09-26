@@ -388,6 +388,9 @@ model Anime {
   bannerImage     String? // wide key-visual banner (AniList) — spotlight backdrop only
   accentColor     String? // dominant colour of the cover art (AniList), as #rrggbb
   screenshots     String[]
+  /// Extra frames for the guess game, fetched in the background — kept apart
+  /// from `screenshots`, which the detail sync overwrites.
+  gameFrames String[] @default([])
   type            AnimeType      @default(UNKNOWN)
   airing          AnimeAiring    @default(UNKNOWN)
   episodes        Int?
@@ -542,6 +545,11 @@ model GuessScore {
   current   Int      @default(0)
   played    Int      @default(0)
   bestAt    DateTime?
+  /// This player's own order through the frame deck (see games route), and
+  /// how far into it they are. A frame comes round again only after the
+  /// whole deck has been dealt.
+  deckSeed  Int?
+  deckPos   Int      @default(0)
   updatedAt DateTime @updatedAt
 
   @@index([best])
