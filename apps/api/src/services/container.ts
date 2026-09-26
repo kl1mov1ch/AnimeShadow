@@ -13,6 +13,7 @@ import { env } from "../config/env.js";
 import { AchievementService } from "./achievement.service.js";
 import { AdminService } from "./admin.service.js";
 import { CollectionService } from "./collection.service.js";
+import { FactsService } from "./facts.service.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
@@ -77,6 +78,7 @@ export interface Services {
   episodeInfo: EpisodeInfoService;
   insights: ProfileInsightsService;
   collections: CollectionService;
+  facts: FactsService;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -225,5 +227,6 @@ export function createServices(deps: ContainerDeps): Services {
     episodeInfo,
     insights,
     collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
+    facts: new FactsService({ prisma: deps.prisma }),
   };
 }

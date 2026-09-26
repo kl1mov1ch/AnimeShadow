@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
+import { dealFx } from "@/lib/fx";
 import { cn } from "@/lib/utils";
 
 const RARITY_ICON = {
@@ -13,6 +14,14 @@ const RARITY_ICON = {
   rare: MedalIcon,
   epic: StarIcon,
   legendary: CrownIcon,
+} as const;
+
+/** The tag's text colour per tier, for the gradient the hover effects copy. */
+const RARITY_INK = {
+  common: "var(--muted-foreground)",
+  rare: "#0ea5e9",
+  epic: "#a78bfa",
+  legendary: "#f59e0b",
 } as const;
 
 const RARITY_CLASS = {
@@ -64,17 +73,22 @@ export function AchievementBadge({
     );
   }
 
+  const ink = RARITY_INK[def.rarity];
   return (
     <span
       title={title}
+      onPointerEnter={dealFx}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+        "fx-tag title-still inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
         RARITY_CLASS[def.rarity],
         className,
       )}
+      style={{ "--t1": ink, "--t2": ink } as React.CSSProperties}
     >
       <Icon className="size-3" />
-      {title}
+      <span className="title-text" data-text={title}>
+        {title}
+      </span>
     </span>
   );
 }

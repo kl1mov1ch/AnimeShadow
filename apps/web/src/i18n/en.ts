@@ -96,6 +96,7 @@ export const en = {
     viewDetails: "View details",
   },
   collections: {
+    random: "Random collection",
     votes: "{n} votes",
     yourRating: "Your rating — you can change it",
     rateHint: "Hover a star",
@@ -491,6 +492,16 @@ export const en = {
     willAppearWhenOut: "The player will appear here once it starts airing.",
   },
   library: {
+    side: {
+      filters: "Filters",
+      reset: "Reset",
+      airing: "Airing now",
+      scored: "Scored by me",
+      withNotes: "With notes",
+      type: "Type",
+      genres: "Genres",
+      more: "More…",
+    },
     title: "My list",
     searchPlaceholder: "Search by title…",
     noSearchResults: "Nothing found",
@@ -1662,7 +1673,82 @@ export const en = {
     earnedOn: "Earned {date}",
     noneInFilter: "Nothing here yet.",
     toast: "New achievement: {name}",
+    category: {
+      watch: "Watching",
+      curator: "Collections",
+      community: "Community",
+      game: "Guess the anime",
+      special: "Special",
+    },
     items: {
+      "five-hundred-episodes": {
+        title: "500 episodes",
+        desc: "Watch 500 episodes in total.",
+      },
+      "curator-first": {
+        title: "Curator",
+        desc: "Publish your first collection.",
+      },
+      "curator-trio": {
+        title: "Three collections",
+        desc: "Put together three anime collections.",
+      },
+      "curator-views": {
+        title: "Noticed",
+        desc: "Reach 100 views on your collections.",
+      },
+      "curator-famous": {
+        title: "Famous",
+        desc: "Reach 1000 views on your collections.",
+      },
+      "curator-liked": {
+        title: "People's choice",
+        desc: "Get 25 ratings on your collections.",
+      },
+      "curator-acclaimed": {
+        title: "Acclaimed",
+        desc: "Average 4.5+ on your collections with 10+ votes.",
+      },
+      "curator-talk": {
+        title: "Talking point",
+        desc: "Collect 50 comments under your collections.",
+      },
+      "collection-reader": {
+        title: "Reader",
+        desc: "Open 10 collections by others.",
+      },
+      "collection-judge": {
+        title: "Jury",
+        desc: "Rate 20 collections by other authors.",
+      },
+      "discussant": {
+        title: "Conversationalist",
+        desc: "Leave 20 comments under collections.",
+      },
+      "guess-rookie": {
+        title: "Player",
+        desc: "Play 25 rounds of Guess the anime.",
+      },
+      "guess-streak": {
+        title: "Sharp eye",
+        desc: "Guess 10 frames in a row.",
+      },
+      "guess-sharp": {
+        title: "Walking encyclopedia",
+        desc: "Guess 25 frames in a row.",
+      },
+      "guess-top50": {
+        title: "On the board",
+        desc: "Reach the top 50 in Guess the anime.",
+      },
+      "guess-top10": {
+        title: "Top ten",
+        desc: "Reach the top 10 in Guess the anime.",
+      },
+      "guess-champion": {
+        title: "Champion",
+        desc: "Take first place in Guess the anime.",
+      },
       "first-episode": {
         title: "First episode",
         desc: "Watch your very first episode.",

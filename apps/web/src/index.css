@@ -1515,3 +1515,153 @@ body:has([role="dialog"][data-state="open"]) main * {
 .ach-still .scene-star {
   animation: none !important;
 }
+
+/* Hero thumbnails: the current slide's time left, as its border filling
+   in clockwise and a soft glow growing behind the card. */
+@property --slide-p {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+@keyframes slide-ring-fill {
+  from { --slide-p: 0%; }
+  to { --slide-p: 100%; }
+}
+@keyframes slide-glow-grow {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent); }
+  to { box-shadow: 0 0 22px 2px color-mix(in srgb, var(--primary) 45%, transparent); }
+}
+.slide-ring {
+  padding: 2px;
+  background: conic-gradient(from 0deg, var(--primary) var(--slide-p), transparent var(--slide-p));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: slide-ring-fill var(--slide-dur, 9s) linear forwards;
+}
+.slide-glow {
+  animation: slide-glow-grow var(--slide-dur, 9s) ease-in forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-ring { animation: none; --slide-p: 100%; }
+  .slide-glow { animation: none; }
+}
+
+/* Achievement meters: the fill sweeps in once, then sits still — a bright
+   tip marks where it stops. */
+@keyframes ach-meter-in {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.ach-meter-fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 35%, transparent), var(--primary));
+  box-shadow: 0 0 10px -2px var(--primary);
+  transform-origin: left;
+  animation: ach-meter-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ach-meter-fill::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.75));
+}
+
+/* Titles and achievement tags under a name: still at rest; under the
+   pointer each plays one short effect — a different one each time
+   (data-fx is dealt on pointerenter). Everything here runs once, on
+   transform / clip-path / filter of one small element. */
+.fx-tag { position: relative; }
+.fx-tag .title-text { position: relative; display: inline-block; }
+.fx-tag[data-fx] .title-text::before,
+.fx-tag[data-fx] .title-text::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(90deg, var(--t1), var(--t2), var(--t1));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0;
+}
+
+/* glitch: two shifted, tinted copies jump around for a moment */
+@keyframes fx-glitch-a {
+  0% { opacity: 1; clip-path: inset(0 0 60% 0); transform: translate(-2px, -1px); }
+  25% { clip-path: inset(40% 0 20% 0); transform: translate(2px, 0); }
+  50% { clip-path: inset(10% 0 70% 0); transform: translate(-1px, 1px); }
+  75% { clip-path: inset(70% 0 5% 0); transform: translate(1px, -1px); }
+  100% { opacity: 0; clip-path: inset(0); transform: none; }
+}
+@keyframes fx-glitch-b {
+  0% { opacity: 1; clip-path: inset(55% 0 0 0); transform: translate(2px, 1px); }
+  33% { clip-path: inset(15% 0 55% 0); transform: translate(-2px, 0); }
+  66% { clip-path: inset(80% 0 0 0); transform: translate(1px, 1px); }
+  100% { opacity: 0; clip-path: inset(0); transform: none; }
+}
+@keyframes fx-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-1px); } 40% { transform: translateX(1px) skewX(-6deg); } 60% { transform: translateX(-1px); } 80% { transform: translateX(1px); } }
+.fx-tag[data-fx="glitch"]:hover .title-text { animation: fx-shake 0.4s steps(2) 1 !important; }
+.fx-tag[data-fx="glitch"]:hover .title-text::before { text-shadow: -1px 0 #22d3ee; animation: fx-glitch-a 0.45s steps(1) 1 !important; }
+.fx-tag[data-fx="glitch"]:hover .title-text::after { text-shadow: 1px 0 #f43f5e; animation: fx-glitch-b 0.45s steps(1) 1 !important; }
+
+/* blur: the name dissolves and pulls back into focus */
+@keyframes fx-blur { 0% { filter: blur(0); letter-spacing: 0; } 35% { filter: blur(3px); letter-spacing: 0.12em; opacity: 0.6; } 100% { filter: blur(0); letter-spacing: 0; opacity: 1; } }
+.fx-tag[data-fx="blur"]:hover .title-text { animation: fx-blur 0.6s ease-out 1 !important; }
+
+/* slice: cut along the middle, the halves slide apart and snap back */
+@keyframes fx-slice-top { 0% { opacity: 1; transform: none; } 40% { opacity: 1; transform: translateX(-5px); } 100% { opacity: 1; transform: none; } }
+@keyframes fx-slice-bottom { 0% { opacity: 1; transform: none; } 40% { opacity: 1; transform: translateX(5px); } 100% { opacity: 1; transform: none; } }
+.fx-tag[data-fx="slice"]:hover .title-text { background-image: none !important; }
+.fx-tag[data-fx="slice"]:hover .title-text::before { clip-path: inset(0 0 50% 0); animation: fx-slice-top 0.5s cubic-bezier(0.3, 0, 0.2, 1) 1 both !important; }
+.fx-tag[data-fx="slice"]:hover .title-text::after { clip-path: inset(50% 0 0 0); animation: fx-slice-bottom 0.5s cubic-bezier(0.3, 0, 0.2, 1) 1 both !important; }
+
+/* scan: a bright line runs over the text once */
+@keyframes fx-scan { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.fx-tag[data-fx="scan"]:hover .title-text::before {
+  opacity: 1;
+  background: linear-gradient(100deg, transparent 40%, rgb(255 255 255 / 0.95) 50%, transparent 60%) no-repeat;
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: fx-scan 0.7s ease-in-out 1 both !important;
+}
+
+/* flip: the tag turns over once on its horizontal axis */
+@keyframes fx-flip { from { transform: perspective(200px) rotateX(0); } to { transform: perspective(200px) rotateX(360deg); } }
+.fx-tag[data-fx="flip"]:hover { animation: fx-flip 0.6s cubic-bezier(0.4, 0, 0.2, 1) 1 !important; }
+
+/* chroma: the colours split apart and come back together */
+@keyframes fx-chroma { 0%, 100% { text-shadow: none; } 30% { text-shadow: -2px 0 rgb(34 211 238 / 0.8), 2px 0 rgb(244 63 94 / 0.8); } 60% { text-shadow: 1px 0 rgb(34 211 238 / 0.6), -1px 0 rgb(244 63 94 / 0.6); } }
+.fx-tag[data-fx="chroma"]:hover .title-text::before { opacity: 1; color: transparent; animation: fx-chroma 0.55s ease-out 1 !important; }
+
+/* pop: a quick squash and bounce */
+@keyframes fx-pop { 0% { transform: scale(1); } 30% { transform: scale(1.12, 0.9); } 60% { transform: scale(0.96, 1.05); } 100% { transform: scale(1); } }
+.fx-tag[data-fx="pop"]:hover { animation: fx-pop 0.45s ease-out 1 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-tag, .fx-tag *, .fx-tag .title-text::before, .fx-tag .title-text::after, .ach-meter-fill { animation: none !important; }
+}
+
+/* Collection cards: the fan of posters opens under the pointer. */
+.cc-fan {
+  transform: translateX(calc(-50% + var(--x))) translateY(var(--y)) rotate(var(--r));
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.group\/cc:hover .cc-fan {
+  transform: translateX(calc(-50% + var(--x-open))) translateY(calc(var(--y) - 8px)) rotate(var(--r-open));
+}
+.cc-rank {
+  color: transparent;
+  -webkit-text-stroke: 1.5px color-mix(in srgb, var(--primary) 80%, white);
+  text-shadow: 0 4px 18px rgb(0 0 0 / 0.6);
+}
+/* The dice on the collections page: one roll per click. */
+@keyframes dice-roll { from { transform: rotate(0) scale(1); } 50% { transform: rotate(200deg) scale(1.2); } to { transform: rotate(360deg) scale(1); } }
+.dice-roll { animation: dice-roll 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-fan, .dice-roll { transition: none; animation: none; }
+}

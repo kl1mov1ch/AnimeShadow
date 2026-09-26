@@ -24,6 +24,23 @@ interface Snapshot {
   hasNightActivity: boolean;
   maxStreakDays: number;
   createdAt: Date;
+  // Collections the user wrote, and what they got back.
+  collections: number;
+  collectionViews: number;
+  ratingsReceived: number;
+  ratingAverage: number;
+  commentsReceived: number;
+  // Collections of others the user read, rated, discussed.
+  collectionsRated: number;
+  collectionComments: number;
+  collectionsRead: number;
+  // Guess the anime.
+  guessPlayed: number;
+  guessBest: number;
+  /** 1-based place on the board, null when not on it. */
+  guessRank: number | null;
+  /** The best needed to reach the 50th / 10th / 1st place right now. */
+  guessNeed: { top50: number; top10: number; top1: number };
 }
 
 export class AchievementService {
@@ -78,6 +95,7 @@ export class AchievementService {
       return {
         id: def.id,
         rarity: def.rarity,
+        category: def.category,
         manual: def.manual ?? false,
         earned: at != null || evalResult.earned,
         earnedAt: at?.toISOString() ?? null,
@@ -132,6 +150,43 @@ export class AchievementService {
         };
       case "veteran":
         return p(s.totalHours, 1000);
+      case "five-hundred-episodes":
+        return p(s.episodesWatched, 500);
+      case "curator-first":
+        return p(s.collections, 1);
+      case "curator-trio":
+        return p(s.collections, 3);
+      case "curator-views":
+        return p(s.collectionViews, 100);
+      case "curator-famous":
+        return p(s.collectionViews, 1000);
+      case "curator-liked":
+        return p(s.ratingsReceived, 25);
+      case "curator-acclaimed":
+        // Ten votes at least, and an average of 4.5 or better.
+        return s.ratingAverage >= 4.5 || s.ratingsReceived < 10
+          ? p(s.ratingsReceived, 10)
+          : { earned: false, progress: { current: Math.round(s.ratingAverage * 10), target: 45 } };
+      case "curator-talk":
+        return p(s.commentsReceived, 50);
+      case "collection-reader":
+        return p(s.collectionsRead, 10);
+      case "collection-judge":
+        return p(s.collectionsRated, 20);
+      case "discussant":
+        return p(s.collectionComments, 20);
+      case "guess-rookie":
+        return p(s.guessPlayed, 25);
+      case "guess-streak":
+        return p(s.guessBest, 10);
+      case "guess-sharp":
+        return p(s.guessBest, 25);
+      case "guess-top50":
+        return s.guessRank != null && s.guessRank <= 50 ? p(1, 1) : p(s.guessBest, s.guessNeed.top50);
+      case "guess-top10":
+        return s.guessRank != null && s.guessRank <= 10 ? p(1, 1) : p(s.guessBest, s.guessNeed.top10);
+      case "guess-champion":
+        return s.guessRank === 1 ? p(1, 1) : p(s.guessBest, s.guessNeed.top1);
       default:
         return { earned: false, progress: null };
     }
@@ -146,6 +201,11 @@ export class AchievementService {
       anonCommentCount,
       plannedCount,
       completedEntries,
+      authored,
+      collectionsRated,
+      collectionComments,
+      collectionsRead,
+      guess,
     ] = await Promise.all([
       this.prisma.watchProgress.findMany({
         where: { userId, completed: true },
@@ -169,7 +229,35 @@ export class AchievementService {
         where: { userId, status: "COMPLETED" },
         select: { anime: { select: { episodes: true } } },
       }),
+      this.prisma.collection.aggregate({
+        where: { userId },
+        _count: true,
+        _sum: { viewCount: true, ratingSum: true, ratingCount: true, commentCount: true },
+      }),
+      this.prisma.collectionRating.count({ where: { userId } }),
+      this.prisma.collectionComment.count({ where: { userId, deletedAt: null } }),
+      this.prisma.collectionView
+        .groupBy({ by: ["collectionId"], where: { userId } })
+        .then((rows) => rows.length),
+      this.prisma.guessScore.findUnique({ where: { userId }, select: { best: true, played: true } }),
     ]);
+
+    // Where the board stands: the best of the 50th, 10th and 1st of the
+    // others — beat it and the place is yours.
+    const guessBest = guess?.best ?? 0;
+    const [guessRank, board] = await Promise.all([
+      guessBest > 0
+        ? this.prisma.guessScore.count({ where: { best: { gt: guessBest } } }).then((n) => n + 1)
+        : Promise.resolve(null),
+      this.prisma.guessScore.findMany({
+        where: { best: { gt: 0 }, userId: { not: userId } },
+        orderBy: [{ best: "desc" }, { bestAt: "asc" }],
+        take: 50,
+        select: { best: true },
+      }),
+    ]);
+    const need = (place: number) => (board.length >= place ? board[place - 1]!.best + 1 : 1);
+    const ratingCount = authored._sum.ratingCount ?? 0;
 
     const episodesWatched = completedProgress.length;
     const sessionSeconds = sessionAgg._sum.seconds ?? 0;
@@ -241,6 +329,18 @@ export class AchievementService {
       hasNightActivity,
       maxStreakDays,
       createdAt: user.createdAt,
+      collections: authored._count,
+      collectionViews: authored._sum.viewCount ?? 0,
+      ratingsReceived: ratingCount,
+      ratingAverage: ratingCount > 0 ? (authored._sum.ratingSum ?? 0) / ratingCount : 0,
+      commentsReceived: authored._sum.commentCount ?? 0,
+      collectionsRated,
+      collectionComments,
+      collectionsRead,
+      guessPlayed: guess?.played ?? 0,
+      guessBest,
+      guessRank,
+      guessNeed: { top50: need(50), top10: need(10), top1: need(1) },
     };
   }
 }

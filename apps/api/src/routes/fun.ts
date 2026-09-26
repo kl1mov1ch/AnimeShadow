@@ -31,4 +31,12 @@ export const funRoutes: FastifyPluginAsync = async (fastify) => {
     reply.header("cache-control", "no-store");
     return { url, category };
   });
+
+  // "Did you know": facts read off the catalogue, dealt at random.
+  fastify.get("/fun/facts", async (request, reply) => {
+    const raw = Number((request.query as { count?: string }).count);
+    const count = Number.isFinite(raw) ? Math.min(12, Math.max(1, Math.floor(raw))) : 4;
+    reply.header("cache-control", "no-store");
+    return fastify.services.facts.random(count);
+  });
 };

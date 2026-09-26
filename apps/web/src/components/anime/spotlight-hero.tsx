@@ -6,7 +6,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ListVideoIcon,
-  PauseIcon,
   PlayIcon,
   StarIcon,
   TrendingUpIcon,
@@ -44,8 +43,10 @@ const VIDEO_DELAY_MS = 1_500;
  * one on screen lit and filling as its time runs out — so you can see what
  * is coming and jump to it, not just that there are six of something.
  *
- * It turns itself, stops while a pointer is over it, and can be paused
- * outright; the arrow keys step through it when it has focus.
+ * It turns itself, always — the line under the current thumbnail fills
+ * as its time runs out. It used to stop while the pointer was over it,
+ * which on this page is most of the time, so the line just sat there full
+ * and nothing moved. The arrows and the keys still step through it.
  */
 export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const t = useT();
@@ -54,16 +55,13 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const slides = items.slice(0, 6);
   const count = slides.length;
   const [index, setIndex] = useState(0);
-  const [hovered, setHovered] = useState(false);
-  const [stopped, setStopped] = useState(false);
   const [wantsVideo, setWantsVideo] = useState(false);
-  const paused = hovered || stopped;
 
   useEffect(() => {
-    if (count < 2 || paused) return;
+    if (count < 2) return;
     const timer = setTimeout(() => setIndex((i) => (i + 1) % count), ROTATE_MS);
     return () => clearTimeout(timer);
-  }, [count, paused, index]);
+  }, [count, index]);
 
   useEffect(() => {
     setWantsVideo(false);
@@ -86,8 +84,6 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         if (e.key === "ArrowLeft") step(-1);
         if (e.key === "ArrowRight") step(1);
       }}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
       className="full-bleed relative isolate overflow-hidden border-b border-border/60 bg-card outline-none"
     >
       {/* Every slide's art stays mounted and cross-fades, so changing slides
@@ -115,7 +111,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         {!slow && (
           <OpeningVideo
             animeId={current.id}
-            active={wantsVideo && !paused}
+            active={wantsVideo}
             className="absolute inset-0"
           />
         )}
@@ -139,7 +135,6 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
           <SlideQueue
             slides={slides}
             index={index}
-            paused={paused}
             onPick={setIndex}
             label={(a) => labels.title(a)}
           />
@@ -150,13 +145,6 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         <div className="mx-auto flex w-full max-w-[1400px] items-center gap-2 px-4 pb-6 sm:px-6">
           <HeroControl label={t("common.previous")} onClick={() => step(-1)}>
             <ChevronLeftIcon className="size-4" />
-          </HeroControl>
-          <HeroControl
-            label={stopped ? t("home.heroPlay") : t("home.heroPause")}
-            onClick={() => setStopped((s) => !s)}
-            pressed={stopped}
-          >
-            <MorphIcon on={stopped} off={PauseIcon} onIcon={PlayIcon} className="size-4" />
           </HeroControl>
           <HeroControl label={t("common.next")} onClick={() => step(1)}>
             <ChevronRightIcon className="size-4" />
@@ -367,13 +355,11 @@ function KeepButton({ anime, title }: { anime: AnimeDetail; title: string }) {
 function SlideQueue({
   slides,
   index,
-  paused,
   onPick,
   label,
 }: {
   slides: AnimeDetail[];
   index: number;
-  paused: boolean;
   onPick: (i: number) => void;
   label: (anime: AnimeDetail) => string;
 }) {
@@ -391,10 +377,16 @@ function SlideQueue({
               className={cn(
                 "group/q relative flex w-44 items-center gap-2.5 overflow-hidden rounded-xl border p-1.5 pr-3 text-left transition-all duration-300 lg:w-full",
                 active
-                  ? "border-primary/60 bg-background/85 shadow-lg shadow-primary/15"
+                  ? "slide-glow border-primary/20 bg-background/85"
                   : "border-border/50 bg-background/45 hover:border-primary/40 hover:bg-background/70",
               )}
+              style={active ? ({ "--slide-dur": `${ROTATE_MS}ms` } as React.CSSProperties) : undefined}
+              // Restart the ring and the glow on every new slide.
+              key={active ? `on-${index}` : "off"}
             >
+              {/* The time left on this slide, drawn as the card's border
+                  filling in clockwise, with a glow that grows behind it. */}
+              {active && <span aria-hidden className="slide-ring pointer-events-none absolute inset-0 z-10 rounded-[inherit]" />}
               <span className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-muted">
                 {slide.imageUrl && (
                   <img
@@ -421,18 +413,6 @@ function SlideQueue({
                   {label(slide)}
                 </span>
               </span>
-              {active && (
-                <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-primary/15">
-                  <span
-                    key={`${index}-${paused}`}
-                    className="block h-full w-full origin-left bg-primary"
-                    style={{
-                      animation: paused ? "none" : `home-slide-progress ${ROTATE_MS}ms linear forwards`,
-                      width: paused ? "100%" : undefined,
-                    }}
-                  />
-                </span>
-              )}
             </button>
           </li>
         );

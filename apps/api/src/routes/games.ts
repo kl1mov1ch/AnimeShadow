@@ -267,6 +267,10 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
         ...(newBest > (row?.best ?? 0) ? { bestAt: new Date() } : {}),
       },
     });
+    // A new record or the 25th round can unlock a game achievement.
+    if (newBest > (row?.best ?? 0) || saved.played === 25) {
+      void fastify.services.achievements.recompute(userId).catch(() => undefined);
+    }
     return { correct, answerId: round.answerId, streak: saved.current, best: saved.best };
   });
 

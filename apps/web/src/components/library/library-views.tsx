@@ -323,7 +323,7 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
         {entries.map((entry) => (
           <div
             key={entry.anime.id}
-            className="group/cont relative flex w-64 shrink-0 snap-start items-center gap-2.5 overflow-hidden rounded-xl border border-border/60 bg-card/50 p-1.5 pr-2 transition-colors hover:border-emerald-500/40"
+            className="group/cont relative flex w-64 shrink-0 snap-start items-center gap-2.5 overflow-hidden rounded-xl border border-border/60 bg-card/50 p-1.5 pr-2 transition-colors hover:border-foreground/25"
           >
             <Link to={animeHref(entry.anime)} className="shrink-0">
               <Poster entry={entry} className="h-16 w-11 rounded-lg" />
@@ -346,7 +346,7 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
               onClick={() => edit.step(entry, 1)}
               aria-label={t("library.plusOne")}
               title={t("library.plusOne")}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500 transition-all hover:bg-emerald-500 hover:text-white active:scale-90"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-foreground transition-all hover:bg-primary hover:text-primary-foreground active:scale-90"
             >
               <PlusIcon className="size-4" />
             </button>

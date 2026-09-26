@@ -55,7 +55,9 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const input = parse(collectionInputSchema, request.body);
       reply.code(201);
-      return collections.create(request.userId!, input);
+      const created = await collections.create(request.userId!, input);
+      void fastify.services.achievements.recompute(request.userId!).catch(() => undefined);
+      return created;
     },
   );
 
@@ -79,7 +81,9 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put("/collections/:id/rating", { preHandler: fastify.authenticate }, async (request) => {
     const { id } = parse(idParams, request.params);
     const { value } = parse(collectionRatingSchema, request.body);
-    return collections.rate(request.userId!, id, value);
+    const result = await collections.rate(request.userId!, id, value);
+    void fastify.services.achievements.recompute(request.userId!).catch(() => undefined);
+    return result;
   });
 
   fastify.get("/collections/:id/comments", { preHandler: fastify.optionalAuth }, async (request) => {
@@ -94,7 +98,9 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = parse(idParams, request.params);
       const { body, parentId } = parse(collectionCommentInputSchema, request.body);
       reply.code(201);
-      return collections.addComment(request.userId!, id, body, parentId);
+      const comment = await collections.addComment(request.userId!, id, body, parentId);
+      void fastify.services.achievements.recompute(request.userId!).catch(() => undefined);
+      return comment;
     },
   );
 

@@ -19,6 +19,7 @@ import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { FrameFx, FrameRing, frameGlow, hasFrame } from "@/components/profile/frame-fx";
 import { useT } from "@/i18n";
 import { useCountUp } from "@/lib/use-count-up";
+import { dealFx } from "@/lib/fx";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
 
@@ -163,10 +164,12 @@ export function ProfileTitleBadge({
   if (!title) return null;
   const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
   const Icon = style.icon;
+  const label = t(`profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer");
   return (
     <span
+      onPointerEnter={dealFx}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-wide",
+        "fx-tag inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-wide",
         FEATURES.richEffects ? ["title-badge", `title-${style.fx}`] : "title-still",
         className,
       )}
@@ -181,8 +184,8 @@ export function ProfileTitleBadge({
       }
     >
       <Icon className="size-3" style={{ color: style.c1 }} />
-      <span className="title-text">
-        {t(`profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer")}
+      <span className="title-text" data-text={label}>
+        {label}
       </span>
     </span>
   );

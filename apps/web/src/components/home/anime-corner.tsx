@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { apiRequest } from "@/lib/api";
-import { imageSrc } from "@/lib/format";
+import { animeHref, imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------------ */
@@ -595,66 +595,120 @@ function dayNumber(): number {
   return Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86_400_000);
 }
 
+interface ApiFact {
+  id: string;
+  title: string;
+  text: string;
+  anime: { id: number; slug: string; title: string; image: string | null } | null;
+}
+
 /**
- * Things worth knowing about anime, as their own strip: four at a time,
- * a different four each day, and a shuffle for the rest. Every one is a
- * documented, checkable fact.
+ * "Did you know": four facts at a time, dealt at random from a pool of
+ * several thousand the API reads off the catalogue itself (ranks, scores,
+ * audiences, studios, seasons, running time). The shuffle deals four new
+ * ones; the hand-written eight stand in if the API is unreachable.
  */
 function FactsStrip() {
   const t = useT();
+  const [deal, setDeal] = useState(0);
   const [offset, setOffset] = useState(() => (dayNumber() * 4) % FACT_KEYS.length);
-  const [spin, setSpin] = useState(0);
-  const shown = useMemo(
-    () => Array.from({ length: 4 }, (_, i) => FACT_KEYS[(offset + i) % FACT_KEYS.length]!),
-    [offset],
+  const facts = useQuery({
+    queryKey: ["fun-facts", deal],
+    queryFn: ({ signal }) => apiRequest<{ facts: ApiFact[]; total: number }>("/fun/facts", { signal, query: { count: 4 } }),
+    staleTime: Infinity,
+    gcTime: 60_000,
+    retry: 1,
+    placeholderData: (prev) => prev,
+  });
+
+  const fallback = useMemo(
+    () =>
+      Array.from({ length: 4 }, (_, i): ApiFact => {
+        const key = FACT_KEYS[(offset + i) % FACT_KEYS.length]!;
+        return {
+          id: key,
+          title: t(`home.facts.${key}.title` as "home.facts.sazae.title"),
+          text: t(`home.facts.${key}.body` as "home.facts.sazae.body"),
+          anime: null,
+        };
+      }),
+    [offset, t],
   );
+  const shown = facts.data?.facts.length ? facts.data.facts : facts.isError ? fallback : null;
 
   return (
     <section className="flex flex-col gap-3">
       <SectionHeading
         title={t("home.corner.facts")}
+        subtitle={facts.data ? `${facts.data.total.toLocaleString("ru-RU")} фактов из каталога` : undefined}
         aside={
           <button
             type="button"
             onClick={() => {
+              setDeal((d) => d + 1);
               setOffset((o) => (o + 4) % FACT_KEYS.length);
-              setSpin((s) => s + 1);
             }}
             className="btn-sheen inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
           >
             <ShuffleIcon
               className="size-3.5 transition-transform duration-500"
-              style={{ transform: `rotate(${spin * 180}deg)` }}
+              style={{ transform: `rotate(${deal * 180}deg)` }}
             />
             {t("home.facts.more")}
           </button>
         }
       />
       <div className="reveal-group grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {shown.map((key, i) => (
-          <article
-            key={`${key}-${offset}`}
-            style={{ "--i": i } as CSSProperties}
-            className={cn(
-              PANEL,
-              "reveal group min-h-36 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
-            )}
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -right-3 -top-6 font-display text-8xl leading-none text-primary/10 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110"
-            >
-              ?
-            </span>
-            <p className="relative font-display text-sm leading-snug">
-              {t(`home.facts.${key}.title` as "home.facts.sazae.title")}
-            </p>
-            <p className="relative text-xs leading-relaxed text-muted-foreground">
-              {t(`home.facts.${key}.body` as "home.facts.sazae.body")}
-            </p>
-          </article>
-        ))}
+        {shown
+          ? shown.map((fact, i) => <FactCard key={`${fact.id}-${deal}`} fact={fact} index={i} />)
+          : Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className={cn(PANEL, "min-h-40 animate-pulse")} />
+            ))}
       </div>
     </section>
+  );
+}
+
+function FactCard({ fact, index }: { fact: ApiFact; index: number }) {
+  const body = (
+    <>
+      {fact.anime?.image ? (
+        <img
+          aria-hidden
+          src={imageSrc(fact.anime.image)}
+          alt=""
+          loading="lazy"
+          className="pointer-events-none absolute -right-6 -top-4 h-40 w-28 rotate-12 rounded-lg object-cover opacity-15 transition-[transform,opacity] duration-500 group-hover:rotate-6 group-hover:scale-105 group-hover:opacity-30"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-3 -top-6 font-display text-8xl leading-none text-primary/10 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110"
+        >
+          ?
+        </span>
+      )}
+      <p className="relative pr-10 font-display text-base leading-tight text-primary">{fact.title}</p>
+      <p className="relative text-xs leading-relaxed text-muted-foreground">{fact.text}</p>
+      {fact.anime && (
+        <span className="relative mt-auto truncate pt-1 text-[11px] font-medium text-foreground/70 transition-colors group-hover:text-primary">
+          {fact.anime.title} →
+        </span>
+      )}
+    </>
+  );
+  const className = cn(
+    PANEL,
+    "reveal group min-h-40 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
+  );
+  const style = { "--i": index } as CSSProperties;
+  return fact.anime ? (
+    <Link to={animeHref(fact.anime)} viewTransition style={style} className={className}>
+      {body}
+    </Link>
+  ) : (
+    <article style={style} className={className}>
+      {body}
+    </article>
   );
 }

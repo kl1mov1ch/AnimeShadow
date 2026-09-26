@@ -1,8 +1,12 @@
-import type { AchievementRarity, EarnedAchievement, PublicProfile } from "@animeshadow/shared";
-import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
+import type { AchievementCategory, AchievementRarity, EarnedAchievement, PublicProfile } from "@animeshadow/shared";
+import { ACHIEVEMENT_CATEGORIES, MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import {
   ArrowRightIcon,
   DnaIcon,
+  Gamepad2Icon,
+  MessagesSquareIcon,
+  SparklesIcon,
+  TvIcon,
   HeartHandshakeIcon,
   LayersIcon,
   PlusIcon,
@@ -77,6 +81,68 @@ const RARITY_CHIP: Record<AchievementRarity, string> = {
 
 type HallTab = "showcase" | "next" | "all";
 
+const CATEGORY_ICON: Record<AchievementCategory, typeof TrophyIcon> = {
+  watch: TvIcon,
+  curator: LayersIcon,
+  community: MessagesSquareIcon,
+  game: Gamepad2Icon,
+  special: SparklesIcon,
+};
+
+/**
+ * A progress bar that reads at a glance: a soft track, a fill that sweeps
+ * in once when it appears, a bright tip where it stops, and — for small
+ * goals — notches, one per step, so "3 of 5" looks like three of five.
+ */
+export function AchievementMeter({
+  current,
+  target,
+  className,
+}: {
+  current: number;
+  target: number;
+  className?: string;
+}) {
+  const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+  const steps = target > 1 && target <= 12 ? target : 0;
+  return (
+    <span
+      className={cn("relative block h-2 overflow-hidden rounded-full bg-foreground/[0.07] ring-1 ring-inset ring-white/[0.04]", className)}
+      role="progressbar"
+      aria-valuenow={Math.round(pct)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <span className="ach-meter-fill absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }} />
+      {steps > 1 &&
+        Array.from({ length: steps - 1 }, (_, i) => (
+          <span
+            key={i}
+            aria-hidden
+            className="absolute inset-y-0 w-[2px] bg-[var(--accent-surface)]"
+            style={{ left: `calc(${((i + 1) / steps) * 100}% - 1px)` }}
+          />
+        ))}
+    </span>
+  );
+}
+
+/** A small ring filled to a share — one per category. */
+function CategoryRing({ share, icon: Icon }: { share: number; icon: typeof TrophyIcon }) {
+  return (
+    <span
+      className="relative grid size-9 shrink-0 place-items-center rounded-full"
+      style={{
+        background: `conic-gradient(var(--primary) ${share * 100}%, color-mix(in srgb, var(--foreground) 10%, transparent) 0)`,
+      }}
+    >
+      <span className="grid size-7 place-items-center rounded-full bg-[var(--accent-surface)]">
+        <Icon className={cn("size-3.5", share >= 1 ? "text-primary" : "text-muted-foreground")} />
+      </span>
+    </span>
+  );
+}
+
 /**
  * Achievements as a trophy hall: how many of each rarity, then three views
  * — the showcase (what's been won, pinned first), what's next (the closest
@@ -89,6 +155,7 @@ export function TrophyHall({ profile, own, className }: { profile: PublicProfile
   const update = useUpdateProfile();
   const [tab, setTab] = useState<HallTab>("showcase");
   const [opened, setOpened] = useState<EarnedAchievement | null>(null);
+  const [activeCategory, setCategory] = useState<AchievementCategory | "any">("any");
 
   const all = profile.achievements;
   const earned = all
@@ -123,29 +190,60 @@ export function TrophyHall({ profile, own, className }: { profile: PublicProfile
       icon={TrophyIcon}
       title={t("profile.hall.title")}
       aside={
-        <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+        <span className="flex items-center gap-2 text-xs font-semibold tabular-nums text-muted-foreground">
+          <AchievementMeter current={earned.length} target={all.length} className="hidden w-24 sm:block" />
           {earned.length} / {all.length} · {percent}%
         </span>
       }
     >
-      {/* Rarity counters: earned out of all, per tier. */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* What the achievements say about you: how far along each kind of
+          activity you are — watching, writing collections, talking, the game. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        {ACHIEVEMENT_CATEGORIES.map((category) => {
+          const inCat = all.filter((a) => a.category === category);
+          if (inCat.length === 0) return null;
+          const got = inCat.filter((a) => a.earned).length;
+          return (
+            <button
+              key={category}
+              type="button"
+              onClick={() => {
+                setTab("all");
+                setCategory(category);
+              }}
+              className={cn(
+                "group flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors",
+                category === activeCategory && tab === "all"
+                  ? "border-primary/50 bg-primary/10"
+                  : "border-[var(--accent-line-soft)] bg-card/40 hover:border-primary/35",
+              )}
+            >
+              <CategoryRing share={got / inCat.length} icon={CATEGORY_ICON[category]} />
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[11px] font-semibold text-muted-foreground group-hover:text-foreground">
+                  {t(`achievements.category.${category}` as "achievements.category.watch")}
+                </span>
+                <span className="font-display text-sm tabular-nums">
+                  {got}
+                  <span className="text-xs text-muted-foreground"> / {inCat.length}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         {RARITIES.map((rarity) => {
           const total = all.filter((a) => a.rarity === rarity).length;
           const got = earned.filter((a) => a.rarity === rarity).length;
           return (
-            <div key={rarity} className={cn("flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5", RARITY_CHIP[rarity])}>
-              <span className="text-[10px] font-semibold uppercase tracking-wide">
-                {t(`achievements.rarity.${rarity}` as "achievements.rarity.common")}
+            <span key={rarity} className="inline-flex items-center gap-1.5">
+              <span className={cn("size-2 rounded-full border", RARITY_CHIP[rarity])} style={{ background: "currentColor" }} />
+              {t(`achievements.rarity.${rarity}` as "achievements.rarity.common")}
+              <span className="tabular-nums text-foreground/80">
+                {got}/{total}
               </span>
-              <span className="font-display text-base tabular-nums text-foreground">
-                {got}
-                <span className="text-sm text-muted-foreground"> / {total}</span>
-              </span>
-              <span className="h-1 overflow-hidden rounded-full bg-foreground/10">
-                <span className="block h-full rounded-full bg-current" style={{ width: `${total ? (got / total) * 100 : 0}%` }} />
-              </span>
-            </div>
+            </span>
           );
         })}
       </div>
@@ -241,11 +339,12 @@ export function TrophyHall({ profile, own, className }: { profile: PublicProfile
                     {i === 0 && <TargetIcon className="size-3.5 shrink-0 text-primary" />}
                     <span className="truncate">{title(a.id)}</span>
                   </span>
-                  <span className="h-1.5 overflow-hidden rounded-full bg-primary/10">
-                    <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (p.current / p.target) * 100)}%` }} />
-                  </span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
-                    {p.current} / {p.target} · {t("profile.hall.left", { n: left })}
+                  <AchievementMeter current={p.current} target={p.target} />
+                  <span className="flex justify-between gap-2 text-[11px] tabular-nums text-muted-foreground">
+                    <span>
+                      {p.current} / {p.target} · {t("profile.hall.left", { n: left })}
+                    </span>
+                    <span className="font-semibold text-primary">{Math.floor((p.current / p.target) * 100)}%</span>
                   </span>
                 </div>
               </li>
@@ -255,8 +354,30 @@ export function TrophyHall({ profile, own, className }: { profile: PublicProfile
       )}
 
       {tab === "all" && (
+        <div className="flex flex-wrap gap-1">
+          {(["any", ...ACHIEVEMENT_CATEGORIES] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCategory(c)}
+              aria-pressed={activeCategory === c}
+              className={cn(
+                "rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                activeCategory === c
+                  ? "border-primary/50 bg-primary/15 text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {c === "any" ? t("achievements.filterAll") : t(`achievements.category.${c}` as "achievements.category.watch")}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === "all" && (
         <div className="grid max-h-72 grid-cols-4 gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin] min-[480px]:grid-cols-5 sm:grid-cols-6">
-          {[...all]
+          {all
+            .filter((a) => activeCategory === "any" || a.category === activeCategory)
             .sort((a, b) => Number(b.earned) - Number(a.earned) || RARITIES.indexOf(a.rarity) - RARITIES.indexOf(b.rarity))
             .map((a) => (
               <button

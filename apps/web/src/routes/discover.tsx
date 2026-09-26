@@ -8,7 +8,6 @@ import {
 } from "@/components/anime/spotlight-hero";
 import { GenreCards } from "@/components/anime/genre-cards";
 import { HomeActions } from "@/components/anime/home-actions";
-import { PlansSection } from "@/components/anime/plans-section";
 import { AnimeCorner } from "@/components/home/anime-corner";
 import { ErrorState } from "@/components/common/states";
 import { useAuth } from "@/hooks/use-auth";
@@ -196,9 +195,6 @@ export function Component() {
         loading={isPending}
         href="/browse?orderBy=score"
       />
-      </div>
-      <div className="cv-auto">
-        <PlansSection />
       </div>
 
     </div>
