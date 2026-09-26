@@ -14,6 +14,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AnimeGridSkeleton } from "@/components/anime/anime-grid";
+import { PaginationBar } from "@/components/common/pagination-bar";
+import { SIDE_ASIDE, SIDE_CARD, SideItem, SideSelect, SideStat, SideToggle } from "@/components/common/side-panel";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { STATUSES, STATUS_META } from "@/components/library/library-meta";
 import {
@@ -46,6 +48,9 @@ type SortKey = (typeof SORTS)[number];
 type ViewMode = "grid" | "list";
 
 const ALL_GENRES = "__all";
+
+/** Titles per page: a grid shows more at once than the list. */
+const PER_PAGE = { grid: 42, list: 40 } as const;
 
 function readStored<T extends string>(key: string, fallback: T, valid: readonly T[]): T {
   try {
@@ -214,6 +219,36 @@ export function Component() {
     }
   }, [all, activeStatus, genre, type, airingOnly, withNotes, scoredOnly, query, sortBy, labels]);
 
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE[view]));
+  const page = Math.min(pageCount, Math.max(1, Number(searchParams.get("page")) || 1));
+  const pageItems = filtered.slice((page - 1) * PER_PAGE[view], page * PER_PAGE[view]);
+
+  // Any change to what is shown starts again from page one.
+  const signature = JSON.stringify([query, genre, type, airingOnly, withNotes, scoredOnly, sortBy, activeStatus, view]);
+  const lastSignature = useRef(signature);
+  useEffect(() => {
+    if (lastSignature.current === signature) return;
+    lastSignature.current = signature;
+    if (searchParams.has("page")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("page");
+      setSearchParams(next, { replace: true });
+    }
+  }, [signature, searchParams, setSearchParams]);
+
+  // A new page starts at the top of the list.
+  useEffect(() => {
+    if (page > 1) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
+
+  const pageHref = (n: number) => {
+    const next = new URLSearchParams(searchParams);
+    if (n <= 1) next.delete("page");
+    else next.set("page", String(n));
+    const qs = next.toString();
+    return qs ? `/library?${qs}` : "/library";
+  };
+
   const continuing = useMemo(
     () =>
       all
@@ -283,12 +318,12 @@ export function Component() {
   ];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start xl:gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start xl:gap-6">
       {/* ------------------------------------------------------------ */}
       {/* The side panel: what is in the list, and every way to cut it. */}
       {/* ------------------------------------------------------------ */}
-      <aside className="flex flex-col gap-3 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pr-1 lg:[scrollbar-width:thin]">
-        <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-3.5">
+      <aside className={SIDE_ASIDE}>
+        <div className={SIDE_CARD}>
           <div className="flex items-baseline justify-between gap-2">
             <h1 className="font-display text-xl">{t("library.title")}</h1>
             <span className="text-xs tabular-nums text-muted-foreground">{total}</span>
@@ -296,10 +331,10 @@ export function Component() {
           {total === 0 && !isPending && <p className="text-sm text-muted-foreground">{t("library.nothingTracked")}</p>}
           {total > 0 && (
             <dl className="grid grid-cols-4 gap-1 rounded-xl bg-foreground/[0.03] p-2 text-center lg:grid-cols-2 lg:gap-2">
-              <Stat value={stats.episodes} label={t("library.stats.episodes")} />
-              <Stat value={stats.hours} label={t("library.stats.hours")} />
-              <Stat value={stats.completed} label={t("library.stats.completed")} />
-              <Stat value={stats.avgScore ?? "—"} label={t("library.stats.avgScore")} />
+              <SideStat value={stats.episodes} label={t("library.stats.episodes")} />
+              <SideStat value={stats.hours} label={t("library.stats.hours")} />
+              <SideStat value={stats.completed} label={t("library.stats.completed")} />
+              <SideStat value={stats.avgScore ?? "—"} label={t("library.stats.avgScore")} />
             </dl>
           )}
 
@@ -361,7 +396,7 @@ export function Component() {
         </div>
 
         {total > 0 && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-3.5">
+          <div className={cn(SIDE_CARD, "lg:flex-1")}>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <SlidersHorizontalIcon className="size-3.5" />
@@ -375,47 +410,28 @@ export function Component() {
               )}
             </div>
 
-            <div className="flex flex-col gap-1">
-              <Toggle icon={RadioIcon} label={t("library.side.airing")} on={airingOnly} onClick={() => setAiringOnly((v) => !v)} />
-              <Toggle icon={StarIcon} label={t("library.side.scored")} on={scoredOnly} onClick={() => setScoredOnly((v) => !v)} />
-              <Toggle icon={NotebookPenIcon} label={t("library.side.withNotes")} on={withNotes} onClick={() => setWithNotes((v) => !v)} />
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+              <SideSelect
+                label={t("library.side.genres")}
+                value={genre === ALL_GENRES ? null : genre}
+                anyLabel={t("library.allGenres")}
+                options={genres.map((g) => ({ value: g.name, label: labels.genreLabel(g.name), count: g.count }))}
+                onPick={(v) => setGenre(v ?? ALL_GENRES)}
+              />
+              <SideSelect
+                label={t("library.side.type")}
+                value={type}
+                anyLabel={t("browse.anyShort")}
+                options={types.map(([k, n]) => ({ value: k, label: labels.typeLabel(k), count: n }))}
+                onPick={(v) => setType(v as AnimeType | null)}
+              />
             </div>
 
-            {types.length > 1 && (
-              <FilterGroup title={t("library.side.type")}>
-                {types.map(([k, n]) => (
-                  <Chip key={k} active={type === k} onClick={() => setType(type === k ? null : k)}>
-                    {labels.typeLabel(k)} <span className="text-muted-foreground">{n}</span>
-                  </Chip>
-                ))}
-              </FilterGroup>
-            )}
-
-            {genres.length > 1 && (
-              <FilterGroup title={t("library.side.genres")}>
-                {genres.slice(0, 10).map((g) => (
-                  <Chip key={g.name} active={genre === g.name} onClick={() => setGenre(genre === g.name ? ALL_GENRES : g.name)}>
-                    {labels.genreLabel(g.name)} <span className="text-muted-foreground">{g.count}</span>
-                  </Chip>
-                ))}
-                {genres.length > 10 && (
-                  <Select value={genre} onValueChange={setGenre}>
-                    <SelectTrigger className="h-7! w-auto gap-1 rounded-md border-dashed px-2 text-[11px]" aria-label={t("library.allGenres")}>
-                      <SelectValue placeholder={t("library.side.more")} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                      <SelectItem value={ALL_GENRES}>{t("library.allGenres")}</SelectItem>
-                      {genres.map((g) => (
-                        <SelectItem key={g.name} value={g.name}>
-                          {labels.genreLabel(g.name)}
-                          <span className="ml-1 text-muted-foreground">{g.count}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </FilterGroup>
-            )}
+            <div className="flex flex-col gap-0.5">
+              <SideToggle icon={RadioIcon} label={t("library.side.airing")} on={airingOnly} onClick={() => setAiringOnly((v) => !v)} />
+              <SideToggle icon={StarIcon} label={t("library.side.scored")} on={scoredOnly} onClick={() => setScoredOnly((v) => !v)} />
+              <SideToggle icon={NotebookPenIcon} label={t("library.side.withNotes")} on={withNotes} onClick={() => setWithNotes((v) => !v)} />
+            </div>
           </div>
         )}
       </aside>
@@ -521,102 +537,23 @@ export function Component() {
           />
         ) : view === "grid" ? (
           <div className="grid grid-cols-3 gap-x-2.5 gap-y-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-            {filtered.map((entry, i) => (
+            {pageItems.map((entry, i) => (
               <LibraryTile key={entry.anime.id} entry={entry} edit={edit} index={i} />
             ))}
           </div>
         ) : (
           <div className="flex flex-col rounded-2xl border border-border/60 bg-card/30 p-1.5">
             <LibraryRowHeader />
-            {filtered.map((entry, i) => (
+            {pageItems.map((entry, i) => (
               <LibraryRow key={entry.anime.id} entry={entry} edit={edit} index={i} />
             ))}
           </div>
         )}
+
+        {!isPending && !isError && pageCount > 1 && (
+          <PaginationBar page={page} hasNextPage={page < pageCount} totalPages={pageCount} buildHref={pageHref} />
+        )}
       </div>
     </div>
-  );
-}
-
-function Stat({ value, label }: { value: number | string; label: string }) {
-  return (
-    <div className="flex min-w-0 flex-col items-center">
-      <dd className="font-display text-base tabular-nums leading-none">{value}</dd>
-      <dt className="mt-1 truncate text-[10px] leading-none text-muted-foreground">{label}</dt>
-    </div>
-  );
-}
-
-function SideItem({
-  label,
-  count,
-  active,
-  dot,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  dot?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "relative flex h-8 shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors lg:w-full",
-        active ? "bg-foreground/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
-      )}
-    >
-      {active && <span aria-hidden className="absolute inset-y-1.5 left-0 hidden w-[3px] rounded-full bg-foreground/70 lg:block" />}
-      <span className={cn("size-2 shrink-0 rounded-full", dot ?? "border border-muted-foreground/60")} />
-      <span className="truncate">{label}</span>
-      <span className="ml-auto pl-2 text-xs tabular-nums text-muted-foreground">{count}</span>
-    </button>
-  );
-}
-
-function Toggle({ icon: Icon, label, on, onClick }: { icon: typeof StarIcon; label: string; on: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-    >
-      <Icon className="size-3.5 shrink-0" />
-      <span className="flex-1 truncate">{label}</span>
-      <span className={cn("relative h-4 w-7 shrink-0 rounded-full transition-colors", on ? "bg-primary" : "bg-foreground/15")}>
-        <span className={cn("absolute top-0.5 size-3 rounded-full bg-white shadow transition-transform", on ? "translate-x-3.5" : "translate-x-0.5")} />
-      </span>
-    </button>
-  );
-}
-
-function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-medium text-muted-foreground">{title}</span>
-      <div className="flex flex-wrap gap-1">{children}</div>
-    </div>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-md border px-2 py-0.5 text-[11px] transition-colors",
-        active ? "border-foreground/40 bg-foreground/10 text-foreground" : "border-border/60 text-foreground/80 hover:border-foreground/25",
-      )}
-    >
-      {children}
-    </button>
   );
 }

@@ -29,7 +29,7 @@ function PaginationContent({
     <ul
       data-slot="pagination-content"
       className={cn(
-        "flex flex-row items-center gap-1 rounded-full border border-border/60 bg-card/80 p-1",
+        "flex flex-row items-center gap-1 rounded-xl border border-border/60 bg-card/50 p-1",
         className
       )}
       {...props}
@@ -68,8 +68,8 @@ function PaginationLink({
         "group relative inline-flex items-center justify-center overflow-hidden rounded-lg text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring",
         size === "icon" ? "size-9" : "h-9 px-3",
         isActive
-          ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40"
-          : "border border-primary/20 bg-primary/5 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/60 hover:bg-primary/15 hover:text-primary",
+          ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+          : "text-muted-foreground hover:bg-foreground/[0.07] hover:text-foreground",
         "aria-disabled:pointer-events-none aria-disabled:opacity-40 aria-disabled:hover:translate-y-0",
         className
       )}
@@ -95,13 +95,13 @@ function PaginationPrevious({
 }: React.ComponentProps<typeof PaginationLink>) {
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label="Предыдущая страница"
       size="default"
       className={cn("gap-1 px-2.5 sm:pl-2.5", className)}
       {...props}
     >
       <ChevronLeftIcon className="size-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
-      <span className="hidden sm:block">Previous</span>
+      <span className="hidden sm:block">Назад</span>
     </PaginationLink>
   )
 }
@@ -112,12 +112,12 @@ function PaginationNext({
 }: React.ComponentProps<typeof PaginationLink>) {
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label="Следующая страница"
       size="default"
       className={cn("gap-1 px-2.5 sm:pr-2.5", className)}
       {...props}
     >
-      <span className="hidden sm:block">Next</span>
+      <span className="hidden sm:block">Далее</span>
       <ChevronRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
     </PaginationLink>
   )

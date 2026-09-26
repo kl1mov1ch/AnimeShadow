@@ -3,7 +3,8 @@ import {
   ArrowDownIcon,
   ClapperboardIcon,
   DicesIcon,
-  FlameIcon,
+  CompassIcon,
+  type LucideIcon,
   LayoutGridIcon,
   ListIcon,
   Loader2Icon,
@@ -20,8 +21,10 @@ import { toast } from "sonner";
 import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
 import {
   BrowseFilters,
+  BrowseSearch,
   type FilterPatch,
 } from "@/components/anime/browse-filters";
+import { SIDE_ASIDE, SIDE_CARD, SideCollapse, SideItem } from "@/components/common/side-panel";
 import {
   AnimeGrid,
   AnimeGridSkeleton,
@@ -112,56 +115,90 @@ export function Component() {
     [searchParams],
   );
 
-  const filters = (fill: boolean) => (
+  const filters = (
     <BrowseFilters
       params={params}
       genres={genres}
       onChange={(changes) => patch(changes)}
       onReset={reset}
       showReset={hasActiveFilters(params)}
-      fill={fill}
     />
   );
+  const total = useBrowse(params, !isSearch).data?.meta.total;
+  const activePreset = PRESETS.find((p) => p.active(params));
+  const anyPreset = Boolean(activePreset);
+
+  const mobileFilters = (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 text-sm font-medium transition-colors hover:border-foreground/30 lg:hidden"
+        >
+          <SlidersHorizontalIcon className="size-4" />
+          {t("browse.filters")}
+        </button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-[22rem] overflow-y-auto bg-background">
+        <SheetHeader>
+          <SheetTitle className="font-display">{t("browse.filters")}</SheetTitle>
+          <SheetDescription>{t("browse.filtersHint")}</SheetDescription>
+        </SheetHeader>
+        <div className="px-4 pb-8">{filters}</div>
+      </SheetContent>
+    </Sheet>
+  );
+  const chips = <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />;
 
   return (
-    <div className="flex flex-col gap-6">
-      <CatalogHeader
-        title={isSearch ? `«${params.q}»` : t("browse.title")}
-        description={isSearch ? t("search.groupTitle") : t("browse.subtitle")}
-        genreCount={genres.length}
-        actions={
-          <Sheet>
-            <SheetTrigger asChild>
-              <button
-                type="button"
-                className="btn-sheen inline-flex items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95 lg:hidden"
-              >
-                <SlidersHorizontalIcon className="size-4" />
-                {t("browse.filters")}
-              </button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[22rem] overflow-y-auto border-primary/30 bg-background">
-              <SheetHeader>
-                <SheetTitle className="font-display">{t("browse.filters")}</SheetTitle>
-                <SheetDescription>{t("browse.filtersHint")}</SheetDescription>
-              </SheetHeader>
-              <div className="px-4 pb-8">{filters(false)}</div>
-            </SheetContent>
-          </Sheet>
-        }
-      />
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start xl:gap-6">
+      {/* The side panel: the catalogue's name and size, search, quick
+          lists, and — on a wide screen — every filter, as tall as the screen. */}
+      <aside className={SIDE_ASIDE}>
+        <div className={SIDE_CARD}>
+          <div className="flex items-baseline justify-between gap-2">
+            <h1 className="font-display text-xl">{t("browse.title")}</h1>
+            {total != null && <span className="text-xs tabular-nums text-muted-foreground">{total.toLocaleString("ru-RU")}</span>}
+          </div>
+          <BrowseSearch params={params} onChange={(changes) => patch(changes)} />
+          <SideCollapse
+            label={t("browse.listLabel")}
+            icon={ListIcon}
+            summary={activePreset ? t(`browse.presets.${activePreset.key}` as "browse.presets.airing") : t("browse.everything")}
+          >
+          <nav aria-label={t("browse.title")} className="flex flex-col gap-0.5">
+            <SideItem
+              label={t("browse.everything")}
+              icon={CompassIcon}
+              active={!anyPreset && !isSearch}
+              onClick={() => patch(Object.assign({}, ...PRESETS.map((p) => undo(p.patch)), { q: null }))}
+            />
+            {PRESETS.map(({ key, icon, patch: presetPatch, active }) => {
+              const on = active(params);
+              return (
+                <SideItem
+                  key={key}
+                  label={t(`browse.presets.${key}` as "browse.presets.airing")}
+                  icon={icon}
+                  active={on}
+                  onClick={() => patch(on ? undo(presetPatch) : presetPatch)}
+                />
+              );
+            })}
+          </nav>
+          </SideCollapse>
+        </div>
+        <div className={cn(SIDE_CARD, "hidden lg:flex lg:flex-1")}>{filters}</div>
+      </aside>
 
-      <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />
-
-      <div className="flex gap-8">
-        {/* As tall as the screen under the header, and it rides along with
-            the page: the filters never scroll on their own. */}
-        <aside className="hidden w-72 shrink-0 lg:block">
-          <div className="sticky top-20 h-[calc(100dvh-6rem)] pb-2">{filters(true)}</div>
-        </aside>
-
-        <div className="min-w-0 flex-1">
-          {isSearch ? (
+      <div className="min-w-0">
+        {isSearch ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="mr-auto font-display text-xl">«{params.q}»</h2>
+              {chips}
+              {mobileFilters}
+            </div>
             <SearchResults
               query={search}
               params={params}
@@ -169,16 +206,18 @@ export function Component() {
               view={view}
               onRetry={() => void search.refetch()}
             />
-          ) : (
-            <CatalogResults
-              params={params}
-              view={view}
-              onView={changeView}
-              onChange={(changes) => patch(changes)}
-              buildHref={goToPage}
-            />
-          )}
-        </div>
+          </div>
+        ) : (
+          <CatalogResults
+            params={params}
+            view={view}
+            onView={changeView}
+            onChange={(changes) => patch(changes)}
+            buildHref={goToPage}
+            chips={chips}
+            mobileFilters={mobileFilters}
+          />
+        )}
       </div>
     </div>
   );
@@ -309,7 +348,7 @@ function groupTitle(
 
 interface Preset {
   key: string;
-  icon: typeof FlameIcon;
+  icon: LucideIcon;
   patch: FilterPatch;
   active: (p: BrowseParams) => boolean;
 }
@@ -370,12 +409,16 @@ function CatalogResults({
   onView,
   onChange,
   buildHref,
+  chips,
+  mobileFilters,
 }: {
   params: ReturnType<typeof parseBrowseParams>;
   view: AnimeViewMode;
   onView: (view: string) => void;
   onChange: (patch: FilterPatch) => void;
   buildHref: (page: number) => string;
+  chips: React.ReactNode;
+  mobileFilters: React.ReactNode;
 }) {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -419,67 +462,48 @@ function CatalogResults({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {PRESETS.map(({ key, icon: Icon, patch, active }) => {
-          const on = active(params);
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={on}
-              onClick={() => onChange(on ? undo(patch) : patch)}
-              className={cn(
-                "btn-sheen inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all duration-200 active:scale-95",
-                on
-                  ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30"
-                  : "border-primary/25 bg-primary/10 text-primary hover:-translate-y-0.5 hover:border-primary",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {t(`browse.presets.${key}` as "browse.presets.airing")}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Stays under the header while the grid scrolls, so the count, the
-          order and the view are always one reach away. */}
-      <div className="sticky top-14 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-background/95 px-2.5 py-2 shadow-sm">
-        <p className="mr-auto text-xs text-muted-foreground">
+      {/* Stays under the header while the grid scrolls: the count, what is
+          applied, the order and the view are always one reach away. */}
+      <div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-background/95 px-2.5 py-2 shadow-sm">
+        <p className="text-sm text-muted-foreground">
           {first.data ? (
             <span className="tabular-nums">
-              {t("browse.shown", { shown: shown.toLocaleString(), total: total.toLocaleString() })}
+              <span className="font-semibold text-foreground">{shown.toLocaleString("ru-RU")}</span> / {total.toLocaleString("ru-RU")}
             </span>
           ) : (
             <Loader2Icon className="size-3.5 animate-spin" />
           )}
         </p>
-        <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => onChange({ orderBy: value })}>
-          <SelectTrigger className="h-8 w-44 rounded-lg border-primary/25 bg-primary/5 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_VALUES.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(`sort.${value}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => void random()}
-              aria-label={t("browse.random")}
-              className="btn-sheen grid size-8 place-items-center rounded-lg border border-primary/25 bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-90"
-            >
-              <DicesIcon className={cn("size-4 transition-transform duration-500", rolling && "animate-spin")} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{t("browse.random")}</TooltipContent>
-        </Tooltip>
-        <ViewSwitch view={view} onView={onView} />
+        {chips}
+        <div className="ml-auto flex items-center gap-2">
+          {mobileFilters}
+          <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => onChange({ orderBy: value })}>
+            <SelectTrigger className="h-9! w-40 rounded-lg bg-card/50 text-sm sm:w-44" aria-label={t("browse.sortBy")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_VALUES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`sort.${value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => void random()}
+                aria-label={t("browse.random")}
+                className="grid size-9 place-items-center rounded-lg border border-border/60 bg-card/50 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground active:scale-90"
+              >
+                <DicesIcon className={cn("size-4 transition-transform duration-500", rolling && "animate-spin")} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("browse.random")}</TooltipContent>
+          </Tooltip>
+          <ViewSwitch view={view} onView={onView} />
+        </div>
       </div>
 
       {first.isError ? (
@@ -501,7 +525,7 @@ function CatalogResults({
             <button
               type="button"
               onClick={() => setExtra((n) => n + 1)}
-              className="btn-sheen group mx-auto inline-flex items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-5 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-lg hover:shadow-primary/25 active:scale-95"
+              className="group mx-auto inline-flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 active:scale-95"
             >
               <ArrowDownIcon className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
               {t("browse.loadMore")}
@@ -538,55 +562,6 @@ function MorePage({
   );
 }
 
-/**
- * The top of the catalogue: its name on the site's accent surface, with
- * how big the thing being filtered is. It replaces the stock page header,
- * which was the one block on the page that looked like a default.
- */
-function CatalogHeader({
-  title,
-  description,
-  genreCount,
-  actions,
-}: {
-  title: string;
-  description: string;
-  genreCount: number;
-  actions?: React.ReactNode;
-}) {
-  const { t } = useI18n();
-  return (
-    <header className="relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-5 py-6 sm:px-7 sm:py-8">
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 120% at 100% 0%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 70%)",
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-6 -top-10 select-none font-display text-[10rem] leading-none text-primary/[0.07]"
-      >
-        影
-      </span>
-      <div className="relative flex flex-wrap items-end justify-between gap-4">
-        <div className="flex max-w-2xl flex-col gap-2">
-          <h1 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
-          {genreCount > 0 && (
-            <p className="text-xs font-medium text-primary">
-              {t("browse.headerGenres", { count: genreCount })}
-            </p>
-          )}
-        </div>
-        {actions}
-      </div>
-    </header>
-  );
-}
-
 /** Grid or wide cards — the site's segmented control, not a stock toggle. */
 function ViewSwitch({ view, onView }: { view: AnimeViewMode; onView: (view: string) => void }) {
   const { t } = useI18n();
@@ -595,32 +570,23 @@ function ViewSwitch({ view, onView }: { view: AnimeViewMode; onView: (view: stri
     { value: "list", icon: ListIcon, label: t("library.viewList") },
   ] as const;
   return (
-    <div className="relative flex rounded-lg border border-primary/25 bg-primary/5 p-0.5">
-      <span
-        aria-hidden
-        className={cn(
-          "absolute inset-y-0.5 w-8 rounded-md bg-primary shadow-md shadow-primary/30 transition-transform duration-300 ease-out",
-          view === "list" ? "translate-x-8" : "translate-x-0",
-        )}
-      />
+    <div role="radiogroup" className="hidden h-9 items-center sm:flex gap-0.5 rounded-lg border border-border/60 bg-card/50 p-0.5">
       {options.map(({ value, icon: Icon, label }) => (
-        <Tooltip key={value}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => onView(value)}
-              aria-pressed={view === value}
-              aria-label={label}
-              className={cn(
-                "relative z-10 grid size-8 place-items-center rounded-md transition-colors duration-200",
-                view === value ? "text-primary-foreground" : "text-muted-foreground hover:text-primary",
-              )}
-            >
-              <Icon className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{label}</TooltipContent>
-        </Tooltip>
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={view === value}
+          aria-label={label}
+          title={label}
+          onClick={() => onView(value)}
+          className={cn(
+            "grid size-7 place-items-center rounded-md transition-colors",
+            view === value ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Icon className="size-3.5" />
+        </button>
       ))}
     </div>
   );

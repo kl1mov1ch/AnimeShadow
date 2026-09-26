@@ -1,4 +1,6 @@
-import { ChevronsLeftIcon, ChevronsRightIcon } from "lucide-react";
+import { ChevronsLeftIcon, ChevronsRightIcon, CornerDownLeftIcon } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Pagination,
   PaginationContent,
@@ -60,13 +62,21 @@ export function PaginationBar({
   totalPages,
   buildHref,
 }: PaginationBarProps) {
+  const navigate = useNavigate();
+  const [jump, setJump] = useState("");
   if (totalPages <= 1) return null;
   const items = pageWindow(page, totalPages);
   const atStart = page <= 1;
   const atEnd = page >= totalPages;
 
+  const go = () => {
+    const n = Number.parseInt(jump, 10);
+    if (Number.isFinite(n)) navigate(buildHref(Math.min(totalPages, Math.max(1, n))));
+    setJump("");
+  };
+
   return (
-    <Pagination>
+    <Pagination className="flex-wrap items-center gap-2">
       <PaginationContent>
         {/* Jump to the first page — kept on every breakpoint, so phones get it too. */}
         <PaginationItem>
@@ -143,6 +153,35 @@ export function PaginationBar({
           </PaginationLink>
         </PaginationItem>
       </PaginationContent>
+
+      {/* Straight to any page: type it, Enter. Only worth it on long lists. */}
+      {totalPages > 8 && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            go();
+          }}
+          className="hidden h-11 items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 pl-3 pr-1 text-xs text-muted-foreground sm:flex"
+        >
+          <span>Стр.</span>
+          <input
+            value={jump}
+            onChange={(e) => setJump(e.target.value.replace(/[^0-9]/g, "").slice(0, 5))}
+            inputMode="numeric"
+            placeholder={String(page)}
+            aria-label="Перейти на страницу"
+            className="h-8 w-12 rounded-md border border-border/60 bg-background/60 text-center text-sm tabular-nums text-foreground outline-none focus:border-foreground/40"
+          />
+          <span className="tabular-nums">из {totalPages}</span>
+          <button
+            type="submit"
+            aria-label="Перейти"
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground"
+          >
+            <CornerDownLeftIcon className="size-3.5" />
+          </button>
+        </form>
+      )}
     </Pagination>
   );
 }

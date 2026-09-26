@@ -96,6 +96,7 @@ export const en = {
     viewDetails: "View details",
   },
   collections: {
+    theme: "Theme",
     random: "Random collection",
     votes: "{n} votes",
     yourRating: "Your rating — you can change it",
@@ -193,6 +194,9 @@ export const en = {
     },
   },
   browse: {
+    moreFilters: "More filters",
+    listLabel: "Show",
+    everything: "Everything",
     anyShort: "Any",
     withPlayerShort: "With player",
     anyLength: "Any",

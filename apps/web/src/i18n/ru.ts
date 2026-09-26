@@ -98,6 +98,7 @@ export const ru: Dict = {
     viewDetails: "Подробнее",
   },
   collections: {
+    theme: "Тема",
     random: "Случайная подборка",
     votes: "{n} голосов",
     yourRating: "Ваша оценка — можно изменить",
@@ -195,6 +196,9 @@ export const ru: Dict = {
     },
   },
   browse: {
+    moreFilters: "Ещё фильтры",
+    listLabel: "Показать",
+    everything: "Весь каталог",
     anyShort: "Любой",
     withPlayerShort: "С плеером",
     anyLength: "Любая",
