@@ -13,7 +13,7 @@ import {
   StarIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
@@ -189,6 +189,12 @@ function PanelTab({
  * filtering, so the episodes around it — the thing that tells you where
  * you landed — stay on screen.
  */
+/** One row's height in px (h-11 row + 4px gap) — fixed, so the list can be
+ *  windowed by arithmetic instead of measuring a thousand rows. */
+const ROW = 48;
+/** Rows drawn above and below what's on screen. */
+const OVERSCAN = 8;
+
 function EpisodeList({
   total,
   episode,
@@ -213,23 +219,47 @@ function EpisodeList({
   const t = useT();
   const [query, setQuery] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [height, setHeight] = useState(480);
 
-  const scrollTo = (n: number, behavior: ScrollBehavior) => {
+  // Stable handlers for the memoised rows: a long show's list is a thousand
+  // rows, and a new function on every render re-rendered all of them each
+  // time an episode was picked.
+  const openRef = useRef(onEpisodeChange);
+  const toggleRef = useRef(onToggleWatched);
+  openRef.current = onEpisodeChange;
+  toggleRef.current = onToggleWatched;
+  const open = useCallback((n: number) => openRef.current(n), []);
+  const toggle = useCallback((n: number) => toggleRef.current(n), []);
+
+  const scrollTo = useCallback((n: number, behavior: ScrollBehavior) => {
     const list = listRef.current;
-    const row = list?.querySelector<HTMLElement>(`[data-episode="${n}"]`);
-    if (!list || !row) return;
-    list.scrollTo({
-      top: row.offsetTop - list.clientHeight / 2 + row.offsetHeight / 2,
-      behavior,
-    });
-  };
+    if (!list) return;
+    list.scrollTo({ top: (n - 1) * ROW - list.clientHeight / 2 + ROW / 2, behavior });
+  }, []);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    setHeight(list.clientHeight);
+    const observer = new ResizeObserver(() => setHeight(list.clientHeight));
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, []);
 
   // Opens on the episode that is loaded, not at the top — on a long show
-  // those are hundreds of rows apart. Without animating, so it reads as
-  // where the list already was.
+  // those are hundreds of rows apart. Only when it's off screen: picking a
+  // visible episode shouldn't yank the list under the pointer.
+  // Decided from the scroll position already in state: reading it back
+  // from the DOM right after a render forced a synchronous relayout of the
+  // whole page.
+  const viewRef = useRef({ scrollTop, height });
+  viewRef.current = { scrollTop, height };
   useEffect(() => {
-    scrollTo(episode, "auto");
-  }, [episode, total]);
+    const { scrollTop: top0, height: h } = viewRef.current;
+    const top = (episode - 1) * ROW;
+    if (top < top0 || top + ROW > top0 + h) scrollTo(episode, "auto");
+  }, [episode, total, scrollTo]);
 
   const jump = () => {
     const parsed = Number.parseInt(query.trim(), 10);
@@ -238,6 +268,12 @@ function EpisodeList({
     onEpisodeChange(clamped);
     scrollTo(clamped, "smooth");
   };
+
+  // Only the rows on screen (and a few either side) exist in the DOM.
+  const first = Math.max(1, Math.floor(scrollTop / ROW) + 1 - OVERSCAN);
+  const last = Math.min(total, Math.ceil((scrollTop + height) / ROW) + OVERSCAN);
+  const rows: number[] = [];
+  for (let n = first; n <= last; n++) rows.push(n);
 
   return (
     <>
@@ -262,22 +298,26 @@ function EpisodeList({
 
       <div
         ref={listRef}
-        className="flex min-h-0 flex-1 animate-in flex-col gap-1 overflow-y-auto p-2 pt-0 fade-in-0 duration-300 [scrollbar-width:thin]"
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2 [scrollbar-width:thin]"
       >
-        {Array.from({ length: total }, (_, i) => i + 1).map((n) => (
-          <EpisodeRow
-            key={n}
-            n={n}
-            info={catalog.info.get(n)}
-            fallbackDuration={fallbackDuration}
-            current={n === episode}
-            inDub={currentEpisodes == null || currentEpisodes.has(n)}
-            state={watched.get(n)}
-            canMark={canMark}
-            onOpen={() => onEpisodeChange(n)}
-            onToggleWatched={() => onToggleWatched(n)}
-          />
-        ))}
+        <div className="relative" style={{ height: total * ROW }}>
+          {rows.map((n) => (
+            <div key={n} className="absolute inset-x-0" style={{ top: (n - 1) * ROW, height: ROW - 4 }}>
+              <EpisodeRow
+                n={n}
+                info={catalog.info.get(n)}
+                fallbackDuration={fallbackDuration}
+                current={n === episode}
+                inDub={currentEpisodes == null || currentEpisodes.has(n)}
+                state={watched.get(n)}
+                canMark={canMark}
+                onOpen={open}
+                onToggleWatched={toggle}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </>
   );
@@ -294,7 +334,7 @@ function EpisodeList({
  * dub does — but dimmed, and clicking it still works: the player switches
  * to a source that carries it.
  */
-function EpisodeRow({
+const EpisodeRow = memo(function EpisodeRow({
   n,
   info,
   fallbackDuration,
@@ -312,8 +352,8 @@ function EpisodeRow({
   inDub: boolean;
   state: EpisodeState | undefined;
   canMark: boolean;
-  onOpen: () => void;
-  onToggleWatched: () => void;
+  onOpen: (n: number) => void;
+  onToggleWatched: (n: number) => void;
 }) {
   const t = useT();
   const [broken, setBroken] = useState(false);
@@ -327,7 +367,7 @@ function EpisodeRow({
     <div
       data-episode={n}
       className={cn(
-        "group flex shrink-0 items-center gap-2 rounded-lg border p-1 pr-1.5 transition-all duration-200",
+        "group flex h-full items-center gap-2 rounded-lg border p-1 pr-1.5 transition-colors duration-150",
         current
           ? "border-primary bg-primary/10 shadow-sm shadow-primary/10"
           : done
@@ -338,7 +378,7 @@ function EpisodeRow({
     >
       <button
         type="button"
-        onClick={onOpen}
+        onClick={() => onOpen(n)}
         aria-current={current}
         title={info?.title ?? numberLabel}
         className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -351,7 +391,7 @@ function EpisodeRow({
               loading="lazy"
               decoding="async"
               onError={() => setBroken(true)}
-              className="size-full object-cover transition-transform duration-500 group-hover:scale-110"
+              className="size-full object-cover"
             />
           ) : (
             <span className="grid size-full place-items-center font-display text-xs tabular-nums text-muted-foreground">
@@ -403,7 +443,7 @@ function EpisodeRow({
       {canMark && (
         <button
           type="button"
-          onClick={onToggleWatched}
+          onClick={() => onToggleWatched(n)}
           aria-pressed={done}
           aria-label={t("detail.episodeMark")}
           title={t("detail.episodeMark")}
@@ -419,7 +459,7 @@ function EpisodeRow({
       )}
     </div>
   );
-}
+});
 
 /**
  * The (i) on each episode: everything any provider told us about it.

@@ -1,5 +1,5 @@
 import type { AnimeDetail, Character } from "@animeshadow/shared";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
   BookOpenIcon,
   CalendarIcon,
@@ -365,27 +365,27 @@ function AnimeDetailView({ param }: { param: string }) {
           this row pairs the synopsis with the facts about the title
           instead of repeating a list that is already on screen. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <AboutBlock anime={data} oneLiner={oneLiner} />
-        <InfoSidebar anime={data} className="h-full" />
+        <AboutBlockM anime={data} oneLiner={oneLiner} />
+        <InfoSidebarM anime={data} className="h-full" />
       </div>
 
       {/* Everything below the player loads when it's about to be seen —
           its requests included — not all at once when the page opens. */}
       <WhenNear>
-        <CharactersPanel animeId={data.id} />
+        <CharactersPanelM animeId={data.id} />
       </WhenNear>
 
       <WhenNear minHeight={200}>
-        <FranchisePanel anime={data} />
+        <FranchisePanelM anime={data} />
       </WhenNear>
 
       <WhenNear>
-        <RelatedSection anime={data} />
+        <RelatedSectionM anime={data} />
       </WhenNear>
 
       <WhenNear minHeight={400}>
         <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
-          <CommentsSection animeId={data.id} />
+          <CommentsSectionM animeId={data.id} />
         </Panel>
       </WhenNear>
     </article>
@@ -1060,3 +1060,17 @@ function DetailSkeleton() {
     </div>
   );
 }
+
+/*
+ * The page keeps the current episode in its own state, so picking an
+ * episode re-rendered everything on it — characters, franchise, similar
+ * titles, comments — none of which depends on the episode. On a long show
+ * that turned every switch into a full-page re-render and relayout. These
+ * only take the title, which doesn't change when the episode does.
+ */
+const AboutBlockM = memo(AboutBlock);
+const InfoSidebarM = memo(InfoSidebar);
+const CharactersPanelM = memo(CharactersPanel);
+const FranchisePanelM = memo(FranchisePanel);
+const RelatedSectionM = memo(RelatedSection);
+const CommentsSectionM = memo(CommentsSection);
