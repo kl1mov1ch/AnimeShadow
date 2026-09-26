@@ -610,10 +610,17 @@ model CollectionComment {
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId       String
   body         String
+  /// The comment this one answers, if any — one level of threads.
+  parent       CollectionComment?  @relation("CollectionCommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId     String?
+  replies      CollectionComment[] @relation("CollectionCommentReplies")
+  /// The exact comment answered (may be a reply inside the thread).
+  replyToId    String?
   createdAt    DateTime   @default(now())
   deletedAt    DateTime?
 
   @@index([collectionId, createdAt])
+  @@index([parentId])
 }
 
 /// One row per visitor per day per collection — the stats page counts

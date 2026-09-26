@@ -112,6 +112,8 @@ export interface CollectionDetail extends CollectionSummary {
   anime: Record<number, AnimeSummary>;
   /** The viewer's own rating, 1–5, if they gave one. */
   myRating: number | null;
+  /** How many 1s … 5s. */
+  ratingDist: [number, number, number, number, number];
   canEdit: boolean;
 }
 
@@ -125,6 +127,8 @@ export const collectionRatingSchema = z.object({ value: z.number().int().min(1).
 
 export const collectionCommentInputSchema = z.object({
   body: z.string().trim().min(1).max(2000),
+  /** Answering another comment of the same collection. */
+  parentId: z.string().min(1).max(64).optional(),
 });
 
 export interface CollectionComment {
@@ -132,6 +136,13 @@ export interface CollectionComment {
   body: string;
   createdAt: string;
   author: CollectionAuthor;
+  /** The comment this answers (top-level of its thread), if any. */
+  parentId: string | null;
+  /** Who is being answered — shown as "→ name". */
+  replyTo: { id: string; displayName: string } | null;
+  /** Written by the collection's own author. */
+  byCollectionAuthor: boolean;
+  mine: boolean;
   canDelete: boolean;
 }
 

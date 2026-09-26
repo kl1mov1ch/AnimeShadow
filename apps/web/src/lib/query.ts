@@ -1124,10 +1124,11 @@ export function useCollectionComments(id: string | undefined, enabled = true) {
 export function useAddCollectionComment(id: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) =>
-      apiRequest<CollectionComment>(`/collections/${id}/comments`, { method: "POST", body: { body } }),
+    mutationFn: (input: { body: string; parentId?: string }) =>
+      apiRequest<CollectionComment>(`/collections/${id}/comments`, { method: "POST", body: input }),
     onSuccess: (comment) => {
-      client.setQueryData<CollectionComment[]>(["collections", "comments", id], (old) => [comment, ...(old ?? [])]);
+      // Comments come oldest first; the page orders threads itself.
+      client.setQueryData<CollectionComment[]>(["collections", "comments", id], (old) => [...(old ?? []), comment]);
       client.setQueryData<CollectionDetail>(["collections", "one", id], (old) =>
         old ? { ...old, commentCount: old.commentCount + 1 } : old,
       );

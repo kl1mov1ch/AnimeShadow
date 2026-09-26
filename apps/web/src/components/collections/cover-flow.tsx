@@ -18,10 +18,13 @@ import { cn } from "@/lib/utils";
 export function CoverFlow({
   items,
   size = "lg",
+  backdrop = true,
   className,
 }: {
   items: CollectionCoverItem[];
   size?: "lg" | "sm";
+  /** Draw the front poster, blurred, behind — off when the caller has its own. */
+  backdrop?: boolean;
   className?: string;
 }) {
   const [index, setIndex] = useState(Math.min(Math.floor(items.length / 2), items.length - 1));
@@ -83,7 +86,7 @@ export function CoverFlow({
       style={{ perspective: "1200px" }}
     >
       {/* The front poster, blurred, as the backdrop — drawn once per change. */}
-      {front.image && (
+      {backdrop && front.image && (
         <img
           key={front.id}
           aria-hidden
@@ -92,7 +95,9 @@ export function CoverFlow({
           className="absolute inset-0 -z-10 size-full scale-125 animate-in object-cover opacity-30 blur-2xl fade-in-0 duration-500"
         />
       )}
-      <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/40 to-background" />
+      {backdrop && (
+        <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-background/20 via-background/40 to-background" />
+      )}
 
       {items.map((item, i) => {
         const offset = i - index;

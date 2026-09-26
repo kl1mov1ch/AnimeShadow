@@ -32,6 +32,8 @@ export interface CollectionServiceDeps {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Prefix of a reply's stored body naming the comment it answers. */
+const REPLY_MARK = "\u0000reply:";
 /** Anime shown in a collection's cover. */
 const COVER_SIZE = 7;
 
@@ -182,7 +184,7 @@ export class CollectionService {
     const own = row.userId === viewerId;
     if (!row.published && !own && !isAdmin) throw new NotFoundError("Подборка не найдена.");
 
-    const [animeRows, mine] = await Promise.all([
+    const [animeRows, mine, dist] = await Promise.all([
       this.prisma.anime.findMany({
         where: withContentGuard({ id: { in: row.animeIds } }, allowAdult || own),
         include: ANIME_WITH_GENRES_INCLUDE,
@@ -193,14 +195,17 @@ export class CollectionService {
             select: { value: true },
           })
         : null,
+      this.prisma.collectionRating.groupBy({ by: ["value"], where: { collectionId: id }, _count: { _all: true } }),
     ]);
+    const ratingDist: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+    for (const r of dist) if (r.value >= 1 && r.value <= 5) ratingDist[r.value - 1] = r._count._all;
     const anime: Record<number, AnimeSummary> = {};
     for (const a of animeRows) anime[a.id] = toSummaryDto(a);
     const blocks = (row.blocks as unknown as CollectionBlock[]).filter(
       (b) => b.type === "text" || anime[b.animeId] != null,
     );
     const [summary] = await this.summaries([row], animeRows);
-    return { ...summary!, blocks, anime, myRating: mine?.value ?? null, canEdit: own || isAdmin };
+    return { ...summary!, blocks, anime, myRating: mine?.value ?? null, ratingDist, canEdit: own || isAdmin };
   }
 
   // ---------------------------------------------------------------- ratings
@@ -231,36 +236,75 @@ export class CollectionService {
 
   // ---------------------------------------------------------------- comments
 
+  /**
+   * Every comment, flat, oldest first — the page builds the threads. A
+   * reply knows its thread (parentId, always a top-level comment) and who
+   * it answers (replyTo), which may be another reply in that thread.
+   */
   async comments(id: string, viewerId?: string, isAdmin = false): Promise<CollectionComment[]> {
     const collection = await this.prisma.collection.findUnique({ where: { id }, select: { userId: true } });
     if (!collection) throw new NotFoundError("Подборка не найдена.");
     const rows = await this.prisma.collectionComment.findMany({
       where: { collectionId: id, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 200,
+      orderBy: { createdAt: "asc" },
+      take: 500,
       include: { user: { select: AUTHOR_SELECT } },
     });
-    return rows.map((c) => ({
-      id: c.id,
-      body: c.body,
-      createdAt: c.createdAt.toISOString(),
-      author: this.author(c.user),
-      canDelete: viewerId != null && (c.userId === viewerId || collection.userId === viewerId || isAdmin),
-    }));
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return rows.map((c) => this.toComment(c, byId, collection.userId, viewerId, isAdmin));
   }
 
-  async addComment(userId: string, id: string, body: string): Promise<CollectionComment> {
-    const collection = await this.prisma.collection.findUnique({ where: { id }, select: { published: true } });
+  async addComment(userId: string, id: string, body: string, replyToId?: string): Promise<CollectionComment> {
+    const collection = await this.prisma.collection.findUnique({ where: { id }, select: { published: true, userId: true } });
     if (!collection || !collection.published) throw new NotFoundError("Подборка не найдена.");
     if (isProfane(body)) throw new BadRequestError("Комментарий не прошёл фильтр — перефразируйте, пожалуйста.");
+
+    // A reply hangs off its thread's top comment however deep the one it
+    // answers is; that one is kept as replyToId for the "→ name" label.
+    let target: { id: string; parentId: string | null; user: { displayName: string } } | null = null;
+    if (replyToId) {
+      target = await this.prisma.collectionComment.findFirst({
+        where: { id: replyToId, collectionId: id, deletedAt: null },
+        select: { id: true, parentId: true, user: { select: { displayName: true } } },
+      });
+      if (!target) throw new BadRequestError("Комментарий, на который вы отвечаете, удалён.");
+    }
     const [row] = await this.prisma.$transaction([
       this.prisma.collectionComment.create({
-        data: { collectionId: id, userId, body },
+        data: {
+          collectionId: id,
+          userId,
+          body,
+          parentId: target ? (target.parentId ?? target.id) : null,
+          replyToId: target?.id ?? null,
+        },
         include: { user: { select: AUTHOR_SELECT } },
       }),
       this.prisma.collection.update({ where: { id }, data: { commentCount: { increment: 1 } } }),
     ]);
-    return { id: row.id, body: row.body, createdAt: row.createdAt.toISOString(), author: this.author(row.user), canDelete: true };
+    const byId = new Map(target ? [[target.id, target]] : []);
+    return this.toComment(row, byId, collection.userId, userId, false);
+  }
+
+  private toComment(
+    c: { id: string; userId: string; body: string; parentId: string | null; replyToId: string | null; createdAt: Date; user: Row["user"] },
+    byId: Map<string, { id: string; user: { displayName: string } }>,
+    collectionOwner: string,
+    viewerId: string | undefined,
+    isAdmin: boolean,
+  ): CollectionComment {
+    const target = c.replyToId ? byId.get(c.replyToId) : undefined;
+    return {
+      id: c.id,
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      author: this.author(c.user),
+      parentId: c.parentId,
+      replyTo: target ? { id: target.id, displayName: target.user.displayName } : null,
+      byCollectionAuthor: c.userId === collectionOwner,
+      mine: viewerId != null && c.userId === viewerId,
+      canDelete: viewerId != null && (c.userId === viewerId || collectionOwner === viewerId || isAdmin),
+    };
   }
 
   async removeComment(userId: string, commentId: string, isAdmin = false): Promise<void> {

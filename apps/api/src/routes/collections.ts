@@ -92,9 +92,9 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.authenticate, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const { id } = parse(idParams, request.params);
-      const { body } = parse(collectionCommentInputSchema, request.body);
+      const { body, parentId } = parse(collectionCommentInputSchema, request.body);
       reply.code(201);
-      return collections.addComment(request.userId!, id, body);
+      return collections.addComment(request.userId!, id, body, parentId);
     },
   );
 
