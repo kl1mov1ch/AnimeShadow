@@ -109,13 +109,13 @@ export function AnimeRail({
       <div
         ref={trackRef}
         onScroll={updateEdges}
-        className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto scroll-smooth px-4 pb-1 sm:gap-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {loading
           ? Array.from({ length: SKELETON_COUNT }, (_, i) => (
               <AnimeCardSkeleton
                 key={i}
-                className="w-[calc((100%-4*1rem)/2.8)] shrink-0 snap-start sm:w-[calc((100%-4*1rem)/4.7)] lg:w-[calc((100%-6*1rem)/7)]"
+                className="w-[calc((100%-4*1rem)/3.4)] shrink-0 snap-start sm:w-[calc((100%-4*1rem)/4.7)] lg:w-[calc((100%-6*1rem)/7)]"
               />
             ))
           : items.map((anime, i) => (
@@ -123,7 +123,7 @@ export function AnimeRail({
                 key={anime.id}
                 anime={anime}
                 priority={i < 6}
-                className="w-[calc((100%-4*1rem)/2.8)] shrink-0 snap-start sm:w-[calc((100%-4*1rem)/4.7)] lg:w-[calc((100%-6*1rem)/7)]"
+                className="w-[calc((100%-4*1rem)/3.4)] shrink-0 snap-start sm:w-[calc((100%-4*1rem)/4.7)] lg:w-[calc((100%-6*1rem)/7)]"
               />
             ))}
       </div>

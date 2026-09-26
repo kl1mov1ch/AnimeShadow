@@ -325,12 +325,12 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
       </div>
 
       <div className="flex flex-col gap-0.5">
-        <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground transition-colors group-hover:text-primary">
+        <h3 className="line-clamp-2 text-xs font-medium leading-snug sm:text-[13px] text-foreground transition-colors group-hover:text-primary">
           <Link to={animeHref(anime)} viewTransition className="outline-none">
             {title}
           </Link>
         </h3>
-        <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground">
+        <div className="flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground sm:text-[11px]">
           {/* A permanent "AIRING" tag here used to say the same thing on
               every card of every currently-airing title, all the time, and
               told you nothing about *when* the next episode actually lands.
