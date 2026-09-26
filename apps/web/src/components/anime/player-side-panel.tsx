@@ -14,9 +14,11 @@ import {
   XIcon,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { DubLogo } from "@/components/anime/dub-logo";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
+import { useDragScroll } from "@/lib/drag-scroll";
 import { type EpisodeCatalog, type EpisodeInfo, formatClock } from "@/lib/episodes";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +53,7 @@ export function PlayerSidePanel({
   onPickSource,
   onToggleFavourite,
   sourceLabel,
+  footer,
   className,
 }: {
   /** How many episodes the list shows — the real released count. */
@@ -72,6 +75,8 @@ export function PlayerSidePanel({
   onToggleFavourite: (title: string) => void;
   /** Rendering a source's name is the player's business, not this panel's. */
   sourceLabel: (source: WatchSource) => string;
+  /** What sits under the lists — the player's own switches. */
+  footer?: React.ReactNode;
   className?: string;
 }) {
   const t = useT();
@@ -146,6 +151,7 @@ export function PlayerSidePanel({
           sourceLabel={sourceLabel}
         />
       )}
+      {footer && <div className="shrink-0 border-t border-border/60 p-1.5">{footer}</div>}
     </aside>
   );
 }
@@ -219,6 +225,14 @@ function EpisodeList({
   const t = useT();
   const [query, setQuery] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
+  const drag = useDragScroll<HTMLDivElement>();
+  const setList = useCallback(
+    (el: HTMLDivElement | null) => {
+      listRef.current = el;
+      drag(el);
+    },
+    [drag],
+  );
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(480);
 
@@ -297,9 +311,9 @@ function EpisodeList({
       )}
 
       <div
-        ref={listRef}
+        ref={setList}
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-        className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2 [scrollbar-width:thin]"
+        className="relative min-h-0 flex-1 cursor-grab overflow-y-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div className="relative" style={{ height: total * ROW }}>
           {rows.map((n) => (
@@ -596,8 +610,12 @@ function DubList({
   sourceLabel: (source: WatchSource) => string;
 }) {
   const t = useT();
+  const drag = useDragScroll<HTMLDivElement>();
   return (
-    <div className="flex min-h-0 flex-1 animate-in flex-col gap-1 overflow-y-auto p-2 fade-in-0 duration-300 [scrollbar-width:thin]">
+    <div
+      ref={drag}
+      className="flex min-h-0 flex-1 animate-in cursor-grab flex-col gap-1 overflow-y-auto p-2 fade-in-0 duration-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {sources.map((source) => {
         const active = source.id === currentSourceId;
         const starred = favouriteDub === source.title;
@@ -617,12 +635,7 @@ function DubList({
               aria-current={active}
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              <MicIcon
-                className={cn(
-                  "size-3.5 shrink-0 transition-colors",
-                  active ? "text-primary" : "text-muted-foreground/60",
-                )}
-              />
+              <DubLogo name={source.title} active={active} />
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-xs font-medium",

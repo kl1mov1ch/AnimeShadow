@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { contentGuardWhere, resolveAllowAdult } from "../lib/content-guard.js";
 import { NotFoundError } from "../lib/errors.js";
+import { fetchSkipTimes } from "../lib/skip-times.js";
 import { parse } from "../lib/validation.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -136,6 +137,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/anime/:id/franchise", async (request) => {
     const { id } = parse(idParams, request.params);
     return { items: await catalog.getFranchise(id) };
+  });
+
+  // Where the opening and ending are in one episode, for auto-skip.
+  fastify.get("/anime/:id/skip-times", async (request, reply) => {
+    const { id } = parse(idParams, request.params);
+    const { episode } = parse(z.object({ episode: z.coerce.number().int().min(1).max(5000) }), request.query);
+    reply.header("cache-control", "public, max-age=86400");
+    return fetchSkipTimes(id, episode);
   });
 
   fastify.get("/anime/:id/watch", async (request) => {

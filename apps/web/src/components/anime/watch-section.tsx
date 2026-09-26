@@ -11,12 +11,15 @@ import {
   RotateCcwIcon,
   RotateCwIcon,
   SkipForwardIcon,
-  CheckIcon,
-  PaletteIcon,
+  FastForwardIcon,
+  HistoryIcon,
+  ListEndIcon,
+  XIcon,
   SparklesIcon,
   Volume2Icon,
   VolumeXIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -31,7 +34,10 @@ import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
+import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
+import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
+import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
@@ -1571,27 +1577,12 @@ function Player({
   // How our own player is dressed. A real preference — someone who wants
   // the glass bar wants it on every episode — so unlike the old theatre
   // toggle this one is remembered.
-  const [skin, setSkin] = useState<PlayerSkin>(() => readSkin());
-  const setSkinPersisted = (next: PlayerSkin) => {
-    setSkin(next);
-    try {
-      localStorage.setItem(SKIN_KEY, next);
-    } catch {
-      // Private browsing, blocked storage — it just won't stick.
-    }
-  };
+  const [skin] = useState<PlayerSkin>(() => readSkin());
   // Whether finishing an episode should load the next one. Remembered,
   // because that *is* a preference — and defaulting to on, since the whole
   // point of a series is that there is another one after this.
-  const [autoNext, setAutoNext] = useState(() => readAutoNext());
-  const setAutoNextPersisted = (value: boolean) => {
-    setAutoNext(value);
-    try {
-      localStorage.setItem(AUTO_NEXT_KEY, value ? "1" : "0");
-    } catch {
-      // Private browsing, blocked storage — the preference just won't stick.
-    }
-  };
+  const { prefs, toggle: togglePref } = usePlayerPrefs();
+  const autoNext = prefs.autoNext;
 
   const winner = data.sources.find((s) => s.id === winnerId) ?? null;
   // Shown in the info row even before a winner exists, so it isn't blank
@@ -1693,6 +1684,99 @@ function Player({
   const handleEnded = () => {
     if (autoNext && nextEpisode != null) onEpisodeChange(nextEpisode);
   };
+
+  // ---- Kodik: its player API tells us where it is, and takes a seek. ----
+  const frames = useRef(new Map<string, HTMLIFrameElement>());
+  const [kodikFrame, setKodikFrame] = useState<HTMLIFrameElement | null>(null);
+  const winnerSource = data.sources.find((s) => s.id === winnerId) ?? null;
+  const winnerIsKodik =
+    winnerSource != null && winnerSource.format !== "hls" && isKodikUrl(sourceUrlFor(winnerSource, episode) ?? winnerSource.embedUrl);
+  useEffect(() => {
+    setKodikFrame(winnerIsKodik && winnerId ? frames.current.get(winnerId) ?? null : null);
+  }, [winnerId, winnerIsKodik]);
+
+  // Where the opening and ending are: the provider's own data first, then
+  // AniSkip through our API.
+  const known = catalog.info.get(episode)?.opening ?? null;
+  const wantTimes = winnerIsKodik && (prefs.skipOpening || prefs.skipEnding);
+  const { data: skipTimes } = useQuery({
+    queryKey: ["skip-times", animeId, episode],
+    enabled: wantTimes,
+    staleTime: Infinity,
+    retry: false,
+    queryFn: ({ signal }) =>
+      apiRequest<{ opening: { start: number; stop: number } | null; ending: { start: number; stop: number } | null }>(
+        `/anime/${animeId}/skip-times`,
+        { signal, query: { episode } },
+      ),
+  });
+  const opening = known ?? skipTimes?.opening ?? null;
+  const ending = skipTimes?.ending ?? null;
+
+  // Once per episode each: resume, skip the opening, act on the ending.
+  const done = useRef({ episode, resumed: false, opening: false, ending: false });
+  if (done.current.episode !== episode) done.current = { episode, resumed: false, opening: false, ending: false };
+  const [notice, setNotice] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  const kodik = useKodikBridge(kodikFrame, {
+    onTime: (time) => {
+      const d = done.current;
+      const saved = episodeRecord?.completed ? 0 : (episodeRecord?.positionSeconds ?? 0);
+      if (prefs.resume && !d.resumed && time < 10 && saved > 30) {
+        d.resumed = true;
+        kodik.seek(saved);
+        setNotice(t("watch.resumed", { time: formatClock(saved) }));
+        return;
+      }
+      if (time > 10) d.resumed = true;
+      if (prefs.skipOpening && opening && !d.opening && time >= opening.start && time < opening.stop - 2) {
+        d.opening = true;
+        kodik.seek(opening.stop);
+        setNotice(t("watch.skippedOpening"));
+        return;
+      }
+      if (prefs.skipEnding && ending && !d.ending && time >= ending.start && time < ending.stop - 2) {
+        d.ending = true;
+        if (autoNext && nextEpisode != null) setCountdown(5);
+        else kodik.seek(ending.stop);
+      }
+    },
+    onEnded: () => {
+      if (autoNext && nextEpisode != null && countdown == null) setCountdown(5);
+    },
+  });
+
+  // The next episode starts after a short, cancellable count.
+  useEffect(() => {
+    if (countdown == null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      if (nextEpisode != null) onEpisodeChange(nextEpisode);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => (c == null ? null : c - 1)), 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
+  useEffect(() => setCountdown(null), [episode]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 2500);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  // Shift+N / Shift+P: next and previous episode, from anywhere on the page.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      if ((e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable=true]")) return;
+      if (e.code === "KeyN" && nextEpisode != null) onEpisodeChange(nextEpisode);
+      if (e.code === "KeyP" && episode > 1) onEpisodeChange(episode - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [episode, nextEpisode, onEpisodeChange]);
 
   // `exhausted` means the race tried everything it had and nothing
   // answered. Reported once per mount, which is enough: the parent
@@ -1854,30 +1938,6 @@ function Player({
               cross-origin embed brings its own everything and never tells us
               an episode ended. Rather than show dead controls, they appear
               only when the source in the picture is one we drive. */}
-          {displaySource.format === "hls" && nextEpisode != null && (
-            <button
-              type="button"
-              onClick={() => setAutoNextPersisted(!autoNext)}
-              aria-pressed={autoNext}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-                autoNext
-                  ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-border/60 bg-secondary/40 text-foreground/70 hover:text-foreground",
-              )}
-            >
-              <MorphIcon
-                on={autoNext}
-                off={SkipForwardIcon}
-                onIcon={CheckIcon}
-                className="size-3.5"
-              />
-              <span className="hidden sm:inline">{t("watch.autoNext")}</span>
-            </button>
-          )}
-          {displaySource.format === "hls" && (
-            <SkinPicker skin={skin} onChange={setSkinPersisted} />
-          )}
           {/* Kodik refuses some countries outright and says so inside its
               own frame, where we can't see it — so the explanation sits
               here, one hover away, for whoever gets that message. */}
@@ -1941,6 +2001,10 @@ function Player({
           return (
             <iframe
               key={source.id}
+              ref={(el) => {
+                if (el) frames.current.set(source.id, el);
+                else frames.current.delete(source.id);
+              }}
               src={sourceUrlFor(source, episode) ?? source.embedUrl}
               title={`${title} — ${source.title}`}
               // Autoplay permission only ever goes to the confirmed winner —
@@ -1959,6 +2023,34 @@ function Player({
             />
           );
         })}
+        {notice && (
+          <div className="pointer-events-none absolute left-3 top-3 z-20 animate-in rounded-lg bg-black/75 px-2.5 py-1 text-xs font-medium text-white fade-in-0 slide-in-from-top-1">
+            {notice}
+          </div>
+        )}
+        {countdown != null && nextEpisode != null && (
+          <div className="absolute bottom-14 right-3 z-20 flex animate-in items-center gap-2 rounded-xl border border-white/15 bg-black/80 py-1.5 pl-3 pr-1.5 text-xs text-white fade-in-0 slide-in-from-bottom-2">
+            <span>{t("watch.nextIn", { n: nextEpisode, s: countdown })}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setCountdown(null);
+                onEpisodeChange(nextEpisode);
+              }}
+              className="rounded-md bg-primary px-2 py-1 font-semibold text-primary-foreground"
+            >
+              {t("watch.nextNow")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCountdown(null)}
+              aria-label={t("common.cancel")}
+              className="grid size-6 place-items-center rounded-md text-white/70 hover:bg-white/15 hover:text-white"
+            >
+              <XIcon className="size-3.5" />
+            </button>
+          </div>
+        )}
         {searching && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
             <Loader2Icon className="size-6 animate-spin text-primary" />
@@ -1983,6 +2075,15 @@ function Player({
           onPickSource={pick}
           onToggleFavourite={toggleFavourite}
           sourceLabel={(source) => sourceLabel(source, t)}
+          footer={
+            <PlayerPrefsBar
+              prefs={prefs}
+              onToggle={togglePref}
+              supported={winnerIsKodik || displaySource.format === "hls"}
+              hasTimes={opening != null || ending != null || !wantTimes}
+              hasNext={nextEpisode != null}
+            />
+          }
           // Capped rather than free: the aside is a flex column whose list
           // scrolls, but its *intrinsic* height is still the whole list, so
           // without a ceiling a 1200-episode show would set the row height
@@ -1995,7 +2096,74 @@ function Player({
   );
 }
 
-const AUTO_NEXT_KEY = "as:auto-next";
+/**
+ * The player's own switches, under the episode and dub lists: skip the
+ * opening, go on at the ending, start the next episode, resume where you
+ * stopped. Each is remembered. They work through the provider's player API,
+ * so on a player without one they sit greyed out with the reason.
+ */
+function PlayerPrefsBar({
+  prefs,
+  onToggle,
+  supported,
+  hasTimes,
+  hasNext,
+}: {
+  prefs: PlayerPrefs;
+  onToggle: (key: keyof PlayerPrefs) => void;
+  supported: boolean;
+  hasTimes: boolean;
+  hasNext: boolean;
+}) {
+  const t = useT();
+  const items: Array<{ key: keyof PlayerPrefs; icon: typeof SkipForwardIcon; label: string; hint: string }> = [
+    { key: "skipOpening", icon: FastForwardIcon, label: t("watch.pref.skipOpening"), hint: t("watch.pref.skipOpeningHint") },
+    { key: "skipEnding", icon: ListEndIcon, label: t("watch.pref.skipEnding"), hint: t("watch.pref.skipEndingHint") },
+    { key: "autoNext", icon: SkipForwardIcon, label: t("watch.pref.autoNext"), hint: t("watch.pref.autoNextHint") },
+    { key: "resume", icon: HistoryIcon, label: t("watch.pref.resume"), hint: t("watch.pref.resumeHint") },
+  ];
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="grid grid-cols-2 gap-1">
+        {items.map(({ key, icon: Icon, label, hint }) => {
+          const on = prefs[key];
+          const off = !supported || (key === "autoNext" && !hasNext);
+          return (
+            <Tooltip key={key}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  aria-disabled={off}
+                  onClick={() => !off && onToggle(key)}
+                  className={cn(
+                    "flex h-8 min-w-0 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium transition-colors",
+                    off
+                      ? "cursor-not-allowed border-border/40 text-muted-foreground/50"
+                      : on
+                        ? "border-primary/50 bg-primary/12 text-foreground"
+                        : "border-border/60 text-muted-foreground hover:border-foreground/25 hover:text-foreground",
+                  )}
+                >
+                  <Icon className={cn("size-3.5 shrink-0", on && !off && "text-primary")} />
+                  <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+                  <span className={cn("size-1.5 shrink-0 rounded-full", on && !off ? "bg-primary" : "bg-foreground/20")} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-60">
+                {supported ? hint : t("watch.pref.unsupported")}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+      {supported && (prefs.skipOpening || prefs.skipEnding) && !hasTimes && (
+        <p className="px-1 text-[10px] leading-snug text-muted-foreground">{t("watch.pref.noTimes")}</p>
+      )}
+    </div>
+  );
+}
 const SKIN_KEY = "as:player-skin";
 
 /**
@@ -2062,13 +2230,6 @@ function readFavouriteDub(animeId: number): string | null {
   }
 }
 
-function readAutoNext(): boolean {
-  try {
-    return localStorage.getItem(AUTO_NEXT_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
 
 /**
  * Which sources we actually drive. A direct stream plays in our own picture
@@ -2163,40 +2324,6 @@ function PlayerSwitch({
         );
       })}
     </div>
-  );
-}
-
-/** Three site-derived looks for our own player — see `SKINS`. */
-function SkinPicker({
-  skin,
-  onChange,
-}: {
-  skin: PlayerSkin;
-  onChange: (skin: PlayerSkin) => void;
-}) {
-  const t = useT();
-  const options: PlayerSkin[] = ["shadow", "glass", "accent"];
-  return (
-    <span className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
-      <PaletteIcon className="ml-1 size-3.5 shrink-0 text-muted-foreground" />
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-          aria-pressed={skin === option}
-          title={t(`watch.skin.${option}`)}
-          className={cn(
-            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-            skin === option
-              ? "bg-primary/15 text-primary"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {t(`watch.skin.${option}`)}
-        </button>
-      ))}
-    </span>
   );
 }
 
