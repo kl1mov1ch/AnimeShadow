@@ -182,7 +182,9 @@ export default defineConfig(({ mode }) => {
     preview: { port: 5173 },
     build: {
       target: "es2022",
-      sourcemap: true,
+      // Off on the server (BUILD_SOURCEMAP=0 in deploy.sh): the maps double
+      // the build's memory, and a 2 GB VM was killed generating them.
+      sourcemap: env.BUILD_SOURCEMAP !== "0",
       chunkSizeWarningLimit: 700,
       rollupOptions: {
         output: {

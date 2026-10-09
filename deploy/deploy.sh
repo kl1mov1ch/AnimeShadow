@@ -18,7 +18,12 @@ APP_USER="kl1mov1ch.exe"
 NODE_HEAP_MB="${NODE_HEAP_MB:-1536}"
 AS_APP_USER="sudo -u $APP_USER COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NODE_OPTIONS=--max-old-space-size=$NODE_HEAP_MB bash -lc"
 
-step() { echo; echo "==> $1  [$(date +%H:%M:%S), +${SECONDS}s]"; }
+step() { CURRENT_STEP="$1"; echo; echo "==> $1  [$(date +%H:%M:%S), +${SECONDS}s]"; }
+
+# Say where it stopped. A step killed for memory used to end the script with
+# no message at all, leaving the old site up and no hint why.
+CURRENT_STEP="start"
+trap 'code=$?; echo; echo "!! deploy FAILED at step \"$CURRENT_STEP\" (exit $code)"; [ "$code" = 137 ] && echo "   exit 137 = killed for memory: free -m; dmesg | tail"; echo "   the live site was not changed by the failing step"' ERR
 
 step "memory"
 free -m | sed -n '1,3p'
@@ -86,9 +91,15 @@ $AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/api build"
 # into dist once put a new front end in front of an old API (a later step
 # failed before the API restarted): every new endpoint 404'd and the admin
 # page crashed. It's swapped in only after the new API answers.
+# The old Prometheus container (replaced by the host service below) only
+# takes memory the web build needs.
+if command -v docker >/dev/null 2>&1; then
+  docker rm -f animeshadow-prometheus >/dev/null 2>&1 || true
+fi
+
 WEB="$APP_DIR/apps/web"
 step "build web (into dist-next)"
-$AS_APP_USER "cd '$APP_DIR' && rm -rf '$WEB/dist-next' && pnpm --filter @animeshadow/web exec vite build --outDir dist-next --emptyOutDir"
+$AS_APP_USER "cd '$APP_DIR' && rm -rf '$WEB/dist-next' && BUILD_SOURCEMAP=0 pnpm --filter @animeshadow/web exec vite build --outDir dist-next --emptyOutDir"
 
 # Compressed once here, served as-is by Caddy (file_server precompressed),
 # instead of Caddy compressing the same files again on every request.

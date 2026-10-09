@@ -810,6 +810,7 @@ export const en = {
     empty: "No data yet",
     last30: "in 30 days",
     tabs: {
+      analytics: "Analytics",
       overview: "Overview",
       monitoring: "Monitoring",
       dashboard: "Dashboard",

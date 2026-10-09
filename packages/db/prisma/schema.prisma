@@ -268,10 +268,34 @@ model PageView {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId    String?
   createdAt DateTime @default(now())
+  /// The browser's own id for this one page view — the later "left the
+  /// page" beacon finds its row by it.
+  clientId    String?  @unique
+  /// A run of page views with no gap over 30 minutes (kept by the browser).
+  sessionId   String?
+  /// The first page view of its session.
+  entry       Boolean  @default(false)
+  /// document.referrer when the session started (external sites only).
+  sessionRef  String?
+  /// mobile | tablet | desktop | bot, from the user agent.
+  device      String?
+  browser     String?
+  os          String?
+  /// The browser's language, e.g. "ru".
+  lang        String?
+  /// Viewport width in CSS pixels.
+  screenW     Int?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  /// How long the page was on screen (visible), once it is left.
+  durationMs  Int?
 
   @@index([createdAt])
   @@index([path, createdAt])
   @@index([userId, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId])
 }
 
 /// An earned achievement. The catalogue itself is code-defined

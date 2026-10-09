@@ -12,6 +12,15 @@ const STORAGE_KEY = "animeshadow.cookie-consent.v1";
  */
 export const COOKIE_CHOICE_EVENT = "animeshadow:cookie-choice";
 
+/** The visitor said yes — third-party counters may load. */
+export function hasCookieConsent(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "accepted";
+  } catch {
+    return false;
+  }
+}
+
 /** Whether the visitor has already answered, in this browser. */
 export function hasCookieChoice(): boolean {
   try {

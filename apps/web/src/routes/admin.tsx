@@ -1,5 +1,6 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import {
+  ChartLineIcon,
   GaugeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
@@ -9,6 +10,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
+import { AdminAnalyticsTab } from "@/components/admin/admin-analytics";
 import { AdminComments } from "@/components/admin/admin-comments";
 import { AdminMonitoringTab } from "@/components/admin/admin-monitoring";
 import { AdminOverviewTab } from "@/components/admin/admin-overview";
@@ -21,11 +23,12 @@ import { useLocale, useT } from "@/i18n";
 import { useAdminOverview } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-const TABS = ["overview", "monitoring", "users", "comments"] as const;
+const TABS = ["overview", "analytics", "monitoring", "users", "comments"] as const;
 type AdminTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   overview: LayoutDashboardIcon,
+  analytics: ChartLineIcon,
   monitoring: GaugeIcon,
   users: UsersIcon,
   comments: MessageSquareIcon,
@@ -145,6 +148,7 @@ function AdminPanel() {
 
       <div key={tab} className="min-w-0 animate-in fade-in-0 duration-300">
         {tab === "overview" && <AdminOverviewTab />}
+        {tab === "analytics" && <AdminAnalyticsTab />}
         {tab === "monitoring" && <AdminMonitoringTab />}
         {tab === "users" && <AdminUsers />}
         {tab === "comments" && <AdminComments />}

@@ -1,4 +1,10 @@
 import type {
+  AdminAnalytics,
+  AdminAnalyticsQuery,
+  AdminExternalAnalytics,
+  AdminVisitor,
+  AdminVisitorDetail,
+  AdminVisitorsQuery,
   AdminCommentQuery,
   AdminCommentSummary,
   AdminMonitoring,
@@ -845,6 +851,43 @@ export function useSimilarAnime(animeId: number, enabled = true) {
 // anyone whose role isn't ADMIN (see requireAdmin), so `enabled` is left to
 // the caller to gate on the viewer's own role.
 // ---------------------------------------------------------------------------
+
+/** The analytics tab, for one set of filters; the last answer stays on
+ *  screen while the next one loads, and the live count refreshes itself. */
+export function useAdminAnalytics(params: Partial<AdminAnalyticsQuery>) {
+  return useQuery({
+    queryKey: ["admin", "analytics", params],
+    queryFn: ({ signal }) => apiRequest<AdminAnalytics>("/admin/analytics", { signal, query: params }),
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useAdminVisitors(params: Partial<AdminVisitorsQuery>) {
+  return useQuery({
+    queryKey: ["admin", "visitors", params],
+    queryFn: ({ signal }) => apiRequest<Paginated<AdminVisitor>>("/admin/analytics/visitors", { signal, query: params }),
+    placeholderData: (previous) => previous,
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminVisitor(id: string | null) {
+  return useQuery({
+    queryKey: ["admin", "visitor", id],
+    enabled: id != null,
+    queryFn: ({ signal }) => apiRequest<AdminVisitorDetail>(`/admin/analytics/visitors/${encodeURIComponent(id!)}`, { signal }),
+  });
+}
+
+export function useAdminExternalAnalytics() {
+  return useQuery({
+    queryKey: ["admin", "external-analytics"],
+    queryFn: ({ signal }) => apiRequest<AdminExternalAnalytics>("/admin/analytics/external", { signal }),
+    staleTime: 5 * 60_000,
+  });
+}
 
 export function useAdminOverview(enabled = true) {
   return useQuery({

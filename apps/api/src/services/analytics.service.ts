@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@animeshadow/db";
-import type { PageViewInput } from "@animeshadow/shared";
+import type { PageLeaveInput, PageViewInput } from "@animeshadow/shared";
+import { parseUserAgent } from "../lib/user-agent.js";
 import { animeViewsTotal, pageviewsTotal } from "../lib/metrics.js";
 
 export interface AnalyticsServiceDeps {
@@ -13,15 +14,32 @@ export class AnalyticsService {
     this.prisma = deps.prisma;
   }
 
-  async record(input: PageViewInput, userId?: string): Promise<void> {
-    await this.prisma.pageView.create({
-      data: {
-        path: input.path,
-        referrer: input.referrer || null,
-        visitorId: input.visitorId,
-        userId: userId ?? null,
-      },
-    });
+  async record(input: PageViewInput, userId?: string, userAgent?: string): Promise<void> {
+    const agent = parseUserAgent(userAgent);
+    const data = {
+      path: input.path,
+      referrer: input.referrer || null,
+      visitorId: input.visitorId,
+      userId: userId ?? null,
+      clientId: input.clientId || null,
+      sessionId: input.sessionId || null,
+      entry: input.entry ?? false,
+      sessionRef: input.sessionRef || null,
+      device: agent.device,
+      browser: agent.browser,
+      os: agent.os,
+      lang: input.lang?.slice(0, 2).toLowerCase() || null,
+      screenW: input.screenW ?? null,
+      utmSource: input.utmSource || null,
+      utmMedium: input.utmMedium || null,
+      utmCampaign: input.utmCampaign || null,
+    };
+    try {
+      await this.prisma.pageView.create({ data });
+    } catch {
+      // A repeated clientId (a retried beacon): the view is already counted.
+      return;
+    }
     const audience = userId ? "registered" : "guest";
     pageviewsTotal.inc({ audience });
     if (input.path.startsWith("/anime/")) animeViewsTotal.inc({ audience });
@@ -36,5 +54,14 @@ export class AnalyticsService {
         data: { lastSeenAt: new Date() },
       });
     }
+  }
+
+  /** How long a page was looked at — only ever filled in once, and only by
+   *  the browser that reported the view. */
+  async leave(input: PageLeaveInput): Promise<void> {
+    await this.prisma.pageView.updateMany({
+      where: { clientId: input.clientId, visitorId: input.visitorId, durationMs: null },
+      data: { durationMs: input.durationMs },
+    });
   }
 }

@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useExternalAnalytics } from "@/hooks/use-external-analytics";
 import { usePageviewBeacon } from "@/hooks/use-pageview-beacon";
 
 export function AppShell() {
@@ -15,6 +16,7 @@ export function AppShell() {
   const { pathname } = useLocation();
   const routeKey = pathname.split("/").slice(0, 3).join("/");
   usePageviewBeacon();
+  useExternalAnalytics();
 
   return (
     <TooltipProvider delayDuration={200}>

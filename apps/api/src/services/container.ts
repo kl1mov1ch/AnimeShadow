@@ -14,6 +14,7 @@ import { AchievementService } from "./achievement.service.js";
 import { AdminService } from "./admin.service.js";
 import { CollectionService } from "./collection.service.js";
 import { FactsService } from "./facts.service.js";
+import { AdminAnalyticsService } from "./admin-analytics.service.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
@@ -79,6 +80,7 @@ export interface Services {
   insights: ProfileInsightsService;
   collections: CollectionService;
   facts: FactsService;
+  adminAnalytics: AdminAnalyticsService;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -228,5 +230,6 @@ export function createServices(deps: ContainerDeps): Services {
     insights,
     collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
     facts: new FactsService({ prisma: deps.prisma }),
+    adminAnalytics: new AdminAnalyticsService({ prisma: deps.prisma }),
   };
 }

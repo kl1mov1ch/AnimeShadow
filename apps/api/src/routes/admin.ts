@@ -1,12 +1,15 @@
 import {
+  adminAnalyticsQuerySchema,
   adminCommentQuerySchema,
   adminMonitoringQuerySchema,
   adminSetPasswordInputSchema,
   adminUpdateUserInputSchema,
   adminUserQuerySchema,
+  adminVisitorsQuerySchema,
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { externalAnalytics } from "../lib/external-analytics.js";
 import { parse } from "../lib/validation.js";
 
 const idParams = z.object({ id: z.string().min(1) });
@@ -14,10 +17,23 @@ const idParams = z.object({ id: z.string().min(1) });
 /** Every route here requires a fresh, DB-checked ADMIN role — see
  * requireAdmin in plugins/auth.ts. */
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
-  const { admin, comments } = fastify.services;
+  const { admin, comments, adminAnalytics } = fastify.services;
   const guard = { preHandler: [fastify.authenticate, fastify.requireAdmin] };
 
   fastify.get("/admin/overview", guard, async () => admin.overview());
+
+  // The analytics tab: any period, filtered, with the previous period beside it.
+  fastify.get("/admin/analytics", guard, async (request) =>
+    adminAnalytics.analytics(parse(adminAnalyticsQuerySchema, request.query)),
+  );
+  fastify.get("/admin/analytics/visitors", guard, async (request) =>
+    adminAnalytics.visitors(parse(adminVisitorsQuerySchema, request.query)),
+  );
+  fastify.get("/admin/analytics/visitors/:id", guard, async (request) => {
+    const { id } = parse(z.object({ id: z.string().min(1).max(100) }), request.params);
+    return adminAnalytics.visitor(id);
+  });
+  fastify.get("/admin/analytics/external", guard, async () => externalAnalytics());
 
   // Live curves, read server-side from Prometheus — fixed panels only.
   fastify.get("/admin/monitoring", guard, async (request) => {

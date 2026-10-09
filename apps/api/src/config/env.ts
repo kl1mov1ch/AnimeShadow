@@ -130,6 +130,14 @@ const envSchema = z.object({
   // ---- Where the admin dashboard reads the live curves from. Server-side
   // only — the browser never talks to Prometheus.
   PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090"),
+  // Third-party analytics. The VITE_* ids are public (they also go into the
+  // web build, which loads the counters); the token below is a secret and
+  // only ever used here, to show Yandex Metrica's numbers in the admin.
+  VITE_YM_ID: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  YM_OAUTH_TOKEN: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  VITE_GA_ID: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  VITE_UMAMI_ID: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  UMAMI_DASHBOARD_URL: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
 });
 
 const parsed = envSchema.safeParse(process.env);

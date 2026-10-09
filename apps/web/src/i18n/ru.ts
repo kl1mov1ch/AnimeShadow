@@ -811,6 +811,7 @@ export const ru: Dict = {
     empty: "Пока нет данных",
     last30: "за 30 дней",
     tabs: {
+      analytics: "Аналитика",
       overview: "Обзор",
       monitoring: "Мониторинг",
       dashboard: "Дашборд",

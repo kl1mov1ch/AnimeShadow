@@ -326,3 +326,157 @@ export const adminMonitoringSchema = z.object({
   ),
 });
 export type AdminMonitoring = z.infer<typeof adminMonitoringSchema>;
+
+/* ------------------------------------------------------------------------ */
+/* Analytics tab: everything about visits, for any period, filtered.        */
+/* ------------------------------------------------------------------------ */
+
+export const ANALYTICS_AUDIENCES = ["all", "guests", "users"] as const;
+export const ANALYTICS_DEVICES = ["all", "mobile", "tablet", "desktop"] as const;
+
+export const adminAnalyticsQuerySchema = z.object({
+  /** ISO date-time; defaults to 30 days back. */
+  from: z.string().datetime({ offset: true }).optional(),
+  to: z.string().datetime({ offset: true }).optional(),
+  audience: z.enum(ANALYTICS_AUDIENCES).default("all"),
+  device: z.enum(ANALYTICS_DEVICES).default("all"),
+  /** Only page views whose path contains this. */
+  path: z.string().trim().max(200).optional(),
+  /** Count crawlers too (off by default). */
+  bots: z.coerce.boolean().default(false),
+  /** IANA zone for days and hours, e.g. Europe/Moscow. */
+  tz: z
+    .string()
+    .regex(/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/)
+    .default("Europe/Moscow"),
+});
+export type AdminAnalyticsQuery = z.infer<typeof adminAnalyticsQuerySchema>;
+
+export interface AdminAnalyticsSummary {
+  visitors: number;
+  users: number;
+  newVisitors: number;
+  returningVisitors: number;
+  sessions: number;
+  pageviews: number;
+  /** Sessions with a single page view, 0–1. */
+  bounceRate: number;
+  pagesPerSession: number;
+  avgSessionSec: number;
+  avgPageSec: number;
+  registrations: number;
+  watchMinutes: number;
+}
+
+export interface AdminAnalyticsRow {
+  key: string;
+  /** A friendlier label when the key is an id (an anime title, say). */
+  label?: string;
+  href?: string;
+  pageviews: number;
+  visitors: number;
+  avgSec: number | null;
+}
+
+export interface AdminAnalytics {
+  range: { from: string; to: string; bucket: "hour" | "day" };
+  summary: AdminAnalyticsSummary;
+  previous: AdminAnalyticsSummary;
+  live: { visitors: number; pageviews: number };
+  series: Array<{
+    at: string;
+    visitors: number;
+    users: number;
+    newVisitors: number;
+    sessions: number;
+    pageviews: number;
+    registrations: number;
+  }>;
+  /** The period before, bucket for bucket — for the dashed line. */
+  previousSeries: AdminAnalytics["series"];
+  /** Day of week (0 = Sunday) × hour, in the chosen time zone. */
+  heatmap: Array<{ dow: number; hour: number; pageviews: number }>;
+  breakdowns: {
+    pages: AdminAnalyticsRow[];
+    sections: AdminAnalyticsRow[];
+    entryPages: AdminAnalyticsRow[];
+    anime: AdminAnalyticsRow[];
+    referrers: AdminAnalyticsRow[];
+    utmSources: AdminAnalyticsRow[];
+    utmCampaigns: AdminAnalyticsRow[];
+    devices: AdminAnalyticsRow[];
+    browsers: AdminAnalyticsRow[];
+    os: AdminAnalyticsRow[];
+    langs: AdminAnalyticsRow[];
+    screens: AdminAnalyticsRow[];
+  };
+  /** How many visitors who first came in a week came back in the weeks after. */
+  retention: Array<{ week: string; visitors: number; returned: number[] }>;
+}
+
+export const ANALYTICS_VISITOR_SORTS = ["last", "first", "pageviews", "sessions", "time"] as const;
+
+export const adminVisitorsQuerySchema = adminAnalyticsQuerySchema.extend({
+  q: z.string().trim().max(100).optional(),
+  sort: z.enum(ANALYTICS_VISITOR_SORTS).default("last"),
+  dir: z.enum(["asc", "desc"]).default("desc"),
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(10).max(100).default(30),
+});
+export type AdminVisitorsQuery = z.infer<typeof adminVisitorsQuerySchema>;
+
+export interface AdminVisitor {
+  visitorId: string;
+  user: { id: string; displayName: string; username: string | null; avatarUrl: string | null } | null;
+  firstSeen: string;
+  lastSeen: string;
+  pageviews: number;
+  sessions: number;
+  totalSec: number;
+  device: string | null;
+  browser: string | null;
+  os: string | null;
+  lang: string | null;
+  source: string | null;
+  /** First seen inside the chosen period. */
+  isNew: boolean;
+}
+
+export interface AdminVisitorDetail {
+  visitor: AdminVisitor;
+  views: Array<{
+    at: string;
+    path: string;
+    sessionId: string | null;
+    entry: boolean;
+    durationSec: number | null;
+    device: string | null;
+    browser: string | null;
+    os: string | null;
+    screenW: number | null;
+    source: string | null;
+    utm: string | null;
+  }>;
+}
+
+/** Third-party counters: which are on, where their dashboards are, and —
+ *  when the API token is configured — Yandex Metrica's own numbers. */
+export interface AdminExternalAnalytics {
+  yandex: {
+    counterId: string | null;
+    dashboardUrl: string | null;
+    /** null when no API token is set or the API didn't answer. */
+    stats: {
+      visits: number;
+      users: number;
+      pageviews: number;
+      bounceRate: number;
+      avgVisitSec: number;
+      sources: Array<{ name: string; visits: number }>;
+      searchPhrases: Array<{ name: string; visits: number }>;
+    } | null;
+    error: string | null;
+  };
+  google: { measurementId: string | null; dashboardUrl: string | null };
+  umami: { websiteId: string | null; dashboardUrl: string | null };
+}
