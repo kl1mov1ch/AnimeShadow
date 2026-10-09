@@ -43,21 +43,25 @@ fi
 # runs the machine out of memory, and nothing restarted it — so the next
 # deploy built fine and then died at the migrations with "can't reach
 # database server". Make sure it's up (and comes back on boot) first.
-step "postgres"
-systemctl enable postgresql >/dev/null 2>&1 || true
-if ! pg_isready -h localhost -p 5432 -q; then
-  echo "postgres is down — starting it"
-  systemctl start postgresql
-  # Debian/Ubuntu: the real service is the cluster unit behind the wrapper.
-  command -v pg_lsclusters >/dev/null && pg_lsclusters --no-header | while read -r ver name _; do
-    systemctl start "postgresql@${ver}-${name}" || true
+ensure_postgres() {
+  systemctl enable postgresql >/dev/null 2>&1 || true
+  if ! pg_isready -h localhost -p 5432 -q -t 10; then
+    echo "postgres is down — starting it"
+    systemctl start postgresql
+    # Debian/Ubuntu: the real service is the cluster unit behind the wrapper.
+    command -v pg_lsclusters >/dev/null && pg_lsclusters --no-header | while read -r ver name _; do
+      systemctl start "postgresql@${ver}-${name}" || true
+    done
+  fi
+  for i in $(seq 1 30); do
+    pg_isready -h localhost -p 5432 -q -t 5 && { echo "postgres is ready"; return 0; }
+    [ "$i" = 30 ] && { echo "!! postgres did not start — journalctl -u 'postgresql*' -n 80"; exit 1; }
+    sleep 2
   done
-fi
-for i in $(seq 1 15); do
-  pg_isready -h localhost -p 5432 -q && { echo "postgres is ready"; break; }
-  [ "$i" = 15 ] && { echo "!! postgres did not start — journalctl -u 'postgresql*' -n 80"; exit 1; }
-  sleep 2
-done
+}
+
+step "postgres"
+ensure_postgres
 
 step "git pull"
 # A rollback by hand (git checkout <commit>) leaves the repo off the branch,
@@ -127,34 +131,89 @@ else
 fi
 chown -R "$APP_USER" "$WEB/dist-next"
 
+# The new API is tried out on a spare port first, while the live one keeps
+# serving. On this 2 GB machine the first start right after the web build is
+# slow — everything was pushed out of memory, and Node, Prisma and the rest
+# have to come back off the disk: it once took 95 seconds, longer than the old
+# 60-second health check waited, so a perfectly good API was rolled back
+# twice. Here the slow, cold start happens beside the live site; the real
+# restart afterwards loads the same, now warm, files in a few seconds.
+step "postgres (again — builds are when it gets killed)"
+ensure_postgres
+
+step "try the new api on a spare port"
+PRE_PORT=4001
+PRE_ENV="$APP_DIR/.env.preflight"
+PRE_LOG="/tmp/animeshadow-preflight.log"
+# A copy of .env with only the port changed, readable by the app user alone.
+install -m 600 -o "$APP_USER" /dev/null "$PRE_ENV"
+grep -v -E '^[[:space:]]*API_PORT=' "$APP_DIR/.env" > "$PRE_ENV"
+echo "API_PORT=$PRE_PORT" >> "$PRE_ENV"
+install -m 644 -o "$APP_USER" /dev/null "$PRE_LOG"
+sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && exec env NODE_ENV=production /usr/bin/node --env-file='$PRE_ENV' dist/server.js >> '$PRE_LOG' 2>&1" &
+PRE_PID=$!
+pre_ok=""
+printf "waiting for it to answer (a cold start here can take a couple of minutes) "
+for i in $(seq 1 100); do
+  if curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:$PRE_PORT/api/health" 2>/dev/null; then
+    pre_ok=1
+    break
+  fi
+  kill -0 "$PRE_PID" 2>/dev/null || break # it exited: no point waiting
+  printf "."
+  sleep 3
+done
+echo
+kill "$PRE_PID" 2>/dev/null || true
+wait "$PRE_PID" 2>/dev/null || true
+rm -f "$PRE_ENV"
+if [ -z "$pre_ok" ]; then
+  echo "!! the new api did not start. Its log:"
+  echo "------------------------------------------------------------"
+  tail -n 60 "$PRE_LOG" || true
+  echo "------------------------------------------------------------"
+  echo "!! deploy stopped: the live site was not touched and still runs the old version."
+  [ -d "$API_DIST-prev" ] && { rm -rf "$API_DIST" && mv "$API_DIST-prev" "$API_DIST"; }
+  exit 1
+fi
+echo "the new api answers after ${SECONDS}s into the deploy — switching the live one over"
+
 step "sync systemd unit + restart api"
 cp "$APP_DIR/deploy/animeshadow-api.service" /etc/systemd/system/animeshadow-api.service
 systemctl daemon-reload
 systemctl restart animeshadow-api
 
 step "health"
-for i in $(seq 1 30); do
-  if curl -fsS -o /dev/null http://127.0.0.1:4000/api/health; then
-    echo "api is up"
+printf "waiting "
+api_ok=""
+for i in $(seq 1 60); do
+  if curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:4000/api/health 2>/dev/null; then
+    api_ok=1
     break
   fi
-  if [ "$i" = 30 ]; then
-    echo "!! the new api did not come up. Its log:"
-    echo "------------------------------------------------------------"
-    journalctl -u animeshadow-api -n 60 --no-pager || true
-    echo "------------------------------------------------------------"
-    if [ -d "$API_DIST-prev" ]; then
-      echo "!! putting the previous api back so the site stays up"
-      rm -rf "$API_DIST" && mv "$API_DIST-prev" "$API_DIST"
-      systemctl restart animeshadow-api
-      sleep 5
-      curl -fsS -o /dev/null http://127.0.0.1:4000/api/health && echo "previous api is up — the site works on the old version"
-    fi
-    echo "!! deploy stopped: the new version is NOT live. Send the log above."
-    exit 1
-  fi
-  sleep 2
+  printf "."
+  sleep 3
 done
+echo
+if [ -n "$api_ok" ]; then
+  echo "api is up"
+else
+  echo "!! the new api did not come up on the live port. Its log:"
+  echo "------------------------------------------------------------"
+  journalctl -u animeshadow-api -n 60 --no-pager || true
+  echo "------------------------------------------------------------"
+  if [ -d "$API_DIST-prev" ]; then
+    echo "!! putting the previous api back so the site stays up"
+    rm -rf "$API_DIST" && mv "$API_DIST-prev" "$API_DIST"
+    systemctl restart animeshadow-api
+    for i in $(seq 1 60); do
+      curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:4000/api/health 2>/dev/null && { echo "previous api is up — the site works on the old version"; break; }
+      sleep 3
+    done
+  fi
+  echo "!! deploy stopped: the new version is NOT live. Send the log above."
+  exit 1
+fi
 
 # Monitoring: Prometheus on this host, scraping the API we just restarted.
 # Never fails the deploy — the site matters more than its graphs.
