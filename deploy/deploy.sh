@@ -60,6 +60,14 @@ for i in $(seq 1 15); do
 done
 
 step "git pull"
+# A rollback by hand (git checkout <commit>) leaves the repo off the branch,
+# and then `git pull` has nothing to pull into — every later deploy would
+# quietly rebuild that old commit. Always deploy main.
+BRANCH="$(cd "$APP_DIR" && git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" != "main" ]; then
+  echo "repo was on '$BRANCH', not main — switching back to main"
+  $AS_APP_USER "cd '$APP_DIR' && git checkout main"
+fi
 BEFORE="$(cd "$APP_DIR" && git rev-parse --short HEAD)"
 $AS_APP_USER "cd '$APP_DIR' && git pull --ff-only"
 AFTER="$(cd "$APP_DIR" && git rev-parse --short HEAD)"
@@ -83,6 +91,11 @@ $AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/db migrate:deploy"
 
 step "build packages (one at a time)"
 $AS_APP_USER "cd '$APP_DIR' && pnpm --filter './packages/*' -r --workspace-concurrency=1 build"
+
+# Keep the running API's build: if the new one won't start, it goes back.
+API_DIST="$APP_DIR/apps/api/dist"
+rm -rf "$API_DIST-prev"
+[ -d "$API_DIST" ] && cp -a "$API_DIST" "$API_DIST-prev"
 
 step "build api"
 $AS_APP_USER "cd '$APP_DIR' && pnpm --filter @animeshadow/api build"
@@ -126,8 +139,18 @@ for i in $(seq 1 30); do
     break
   fi
   if [ "$i" = 30 ]; then
-    echo "!! api did not come up — the old web app stays live."
-    echo "   journalctl -u animeshadow-api -n 80"
+    echo "!! the new api did not come up. Its log:"
+    echo "------------------------------------------------------------"
+    journalctl -u animeshadow-api -n 60 --no-pager || true
+    echo "------------------------------------------------------------"
+    if [ -d "$API_DIST-prev" ]; then
+      echo "!! putting the previous api back so the site stays up"
+      rm -rf "$API_DIST" && mv "$API_DIST-prev" "$API_DIST"
+      systemctl restart animeshadow-api
+      sleep 5
+      curl -fsS -o /dev/null http://127.0.0.1:4000/api/health && echo "previous api is up — the site works on the old version"
+    fi
+    echo "!! deploy stopped: the new version is NOT live. Send the log above."
     exit 1
   fi
   sleep 2

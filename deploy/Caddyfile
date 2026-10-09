@@ -16,7 +16,10 @@ animeshadow.online {
 
 		# The entry points must always be re-checked, or a deploy would keep
 		# serving the old app to anyone who had it cached.
-		@entry path / /index.html /sw.js /registerSW.js /manifest.webmanifest
+		# Everything else — index.html under any route (/browse, /anime/…), the
+		# service worker, the manifest — is re-checked on every load, or a
+		# deploy would keep showing the old app to anyone who had it cached.
+		@entry not path /assets/*
 		header @entry Cache-Control "no-cache"
 
 		try_files {path} /index.html
