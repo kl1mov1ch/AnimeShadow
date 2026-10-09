@@ -122,6 +122,11 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
+# Monitoring: Prometheus on this host, scraping the API we just restarted.
+# Never fails the deploy — the site matters more than its graphs.
+step "prometheus"
+bash "$APP_DIR/deploy/prometheus/install-host.sh" || echo "!! prometheus setup failed — the site is unaffected; see above"
+
 step "swap in the new web app"
 rm -rf "$WEB/dist-prev"
 [ -d "$WEB/dist" ] && mv "$WEB/dist" "$WEB/dist-prev"

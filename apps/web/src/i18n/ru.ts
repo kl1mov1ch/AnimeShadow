@@ -426,6 +426,9 @@ export const ru: Dict = {
     },
   },
   watch: {
+    miniOn: "Свернуть в окно",
+    miniOff: "Развернуть обратно",
+    miniPlaceholder: "Плеер в окне — нажмите, чтобы вернуть",
     resumed: "Продолжаем с {time}",
     skippedOpening: "Опенинг пропущен",
     nextIn: "Серия {n} через {s}…",

@@ -404,12 +404,16 @@ function PlayerShell({
           )}
         </button>
 
-        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/40 lg:h-full lg:max-h-[34rem]">
+        {/* The list's own height never sets the row's: on a wide screen it
+            is pinned to the cell the video sizes, so the picture always keeps
+            its whole column. */}
+        <div className="relative min-w-0">
+        <aside className="flex max-h-[22rem] min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/40 lg:absolute lg:inset-0 lg:max-h-none">
           <div className="flex shrink-0 gap-1 border-b border-border/60 p-1">
             <span className="h-7 flex-1 rounded-lg bg-primary/15" />
             <span className="h-7 flex-1 rounded-lg bg-primary/5" />
           </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 [scrollbar-width:thin]">
+          <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {loading || !catalog || total <= 0
               ? Array.from({ length: 7 }, (_, i) => (
                   <span
@@ -469,6 +473,7 @@ function PlayerShell({
                 })}
           </div>
         </aside>
+        </div>
       </div>
     </div>
   );
@@ -1717,6 +1722,8 @@ function Player({
   const done = useRef({ episode, resumed: false, opening: false, ending: false });
   if (done.current.episode !== episode) done.current = { episode, resumed: false, opening: false, ending: false };
   const [notice, setNotice] = useState<string | null>(null);
+  // The player folded into a small window in the corner.
+  const [mini, setMini] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const kodik = useKodikBridge(kodikFrame, {
@@ -1975,6 +1982,37 @@ function Player({
           "-mx-5 sm:mx-0 sm:rounded-xl",
         )}
       >
+        {/* Folded away: the box keeps its place on the page and says where
+            the picture went. */}
+        {mini && (
+          <button
+            type="button"
+            onClick={() => setMini(false)}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
+          >
+            <PictureInPicture2Icon className="size-6 text-primary" />
+            {t("watch.miniPlaceholder")}
+          </button>
+        )}
+        {/* Everything that plays lives in this one box; folding the player
+            into a window only changes the box's position, never its
+            children, so the video keeps playing without a reload. */}
+        <div
+          className={cn(
+            mini
+              ? "fixed bottom-4 right-4 z-50 aspect-video w-[min(26rem,calc(100vw-2rem))] animate-in overflow-hidden rounded-xl border border-white/15 bg-black shadow-2xl shadow-black/60 fade-in-0 slide-in-from-bottom-4"
+              : "absolute inset-0",
+          )}
+        >
+        <button
+          type="button"
+          onClick={() => setMini((m) => !m)}
+          aria-label={mini ? t("watch.miniOff") : t("watch.miniOn")}
+          title={mini ? t("watch.miniOff") : t("watch.miniOn")}
+          className="absolute right-2 top-2 z-30 grid size-8 place-items-center rounded-lg bg-black/60 text-white/80 opacity-70 transition-opacity hover:bg-black/80 hover:text-white hover:opacity-100 focus-visible:opacity-100"
+        >
+          {mini ? <Maximize2Icon className="size-4" /> : <PictureInPicture2Icon className="size-4" />}
+        </button>
         {racePool.map((id) => {
           const source = data.sources.find((s) => s.id === id);
           if (!source) return null;
@@ -2058,7 +2096,9 @@ function Player({
           </div>
         )}
         </div>
+        </div>
 
+        <div className="relative min-w-0">
         <PlayerSidePanel
           total={episodesTotal ?? 0}
           episode={episode}
@@ -2084,13 +2124,12 @@ function Player({
               hasNext={nextEpisode != null}
             />
           }
-          // Capped rather than free: the aside is a flex column whose list
-          // scrolls, but its *intrinsic* height is still the whole list, so
-          // without a ceiling a 1200-episode show would set the row height
-          // and leave the video floating in the middle of it. 34rem is
-          // about where a 16:9 picture lands at this column split.
-          className="max-h-80 lg:h-full lg:max-h-[34rem]"
+          // On a wide screen the panel fills the cell the video sizes (the
+          // row's height is the picture's alone); stacked under it on a
+          // phone or a portrait tablet, it gets a height of its own.
+          className="max-h-[26rem] lg:absolute lg:inset-0 lg:max-h-none"
         />
+        </div>
       </div>
     </div>
   );

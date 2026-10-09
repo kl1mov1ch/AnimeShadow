@@ -90,12 +90,12 @@ export function PopularSection({ shelves }: { shelves: Record<PopularTab, AnimeS
         )}
         <ul
           key={current.key}
-          className="no-scrollbar -mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 lg:grid lg:grid-cols-5 lg:overflow-visible"
+          className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:gap-4 sm:px-0 lg:grid lg:grid-cols-5 lg:overflow-visible"
         >
           {items.slice(0, 5).map((anime, i) => (
             <li
               key={anime.id}
-              className="animate-in fade-in slide-in-from-bottom-3 w-[58vw] shrink-0 snap-start duration-500 sm:w-[38vw] md:w-[28vw] lg:w-auto"
+              className="animate-in fade-in slide-in-from-bottom-3 w-[calc((100vw-3rem)/3)] shrink-0 snap-start duration-500 sm:w-[38vw] md:w-[28vw] lg:w-auto"
               style={{ animationDelay: `${i * 70}ms`, animationFillMode: "both" }}
             >
               <PopularCard anime={anime} rank={i + 1} />
@@ -151,31 +151,31 @@ function PopularCard({ anime, rank }: { anime: AnimeSummary; rank: number }) {
       {/* The shelf position, drawn big and faint in the corner. */}
       <span
         aria-hidden
-        className="home-display pointer-events-none absolute -bottom-3 right-2 text-[5rem] leading-none text-[var(--hm-text)]/10 transition-all duration-500 group-hover:text-[var(--hm-accent)]/30"
+        className="home-display pointer-events-none absolute -bottom-2 right-1.5 text-[3rem] leading-none sm:-bottom-3 sm:right-2 sm:text-[5rem] text-[var(--hm-text)]/10 transition-all duration-500 group-hover:text-[var(--hm-accent)]/30"
       >
         {rank}
       </span>
       <Shine className="z-20" />
 
-      <span className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-        <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--hm-bg)]/70 px-2 py-1 text-[11px] font-semibold text-[var(--hm-text)]">
+      <span className="absolute inset-x-2 top-2 flex items-start justify-between gap-2 sm:inset-x-3 sm:top-3">
+        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--hm-bg)]/70 px-1.5 py-0.5 text-[10px] font-semibold sm:rounded-lg sm:px-2 sm:py-1 sm:text-[11px] text-[var(--hm-text)]">
           <StarIcon className="size-3 fill-[var(--hm-accent)] text-[var(--hm-accent)]" />
           <span className="tabular-nums">{anime.score != null ? anime.score.toFixed(1) : "—"}</span>
         </span>
         {badge && (
-          <span className="rounded-lg bg-[var(--hm-accent)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+          <span className="hidden rounded-lg bg-[var(--hm-accent)] px-2 py-1 text-[10px] font-semibold uppercase sm:inline tracking-wide text-white">
             {badge}
           </span>
         )}
       </span>
 
-      <span className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 p-3.5">
-        <span className="home-display line-clamp-2 text-[15px] leading-tight text-[var(--hm-text)] transition-colors duration-300 group-hover:text-[var(--hm-accent)]">
+      <span className="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-2 sm:gap-1.5 sm:p-3.5">
+        <span className="home-display line-clamp-2 text-xs leading-tight sm:text-[15px] text-[var(--hm-text)] transition-colors duration-300 group-hover:text-[var(--hm-accent)]">
           {title}
         </span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--hm-muted)]">
-          <span>{ageLabel(anime.rating)}</span>
-          <span className="size-1 rounded-full bg-[var(--hm-muted)]/50" />
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[var(--hm-muted)] sm:text-[11px]">
+          <span className="hidden sm:inline">{ageLabel(anime.rating)}</span>
+          <span className="hidden size-1 rounded-full bg-[var(--hm-muted)]/50 sm:inline-block" />
           <span className="tabular-nums">{anime.episodes ? `${anime.episodes} серий` : "—"}</span>
           {anime.year && (
             <>

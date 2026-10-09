@@ -424,6 +424,9 @@ export const en = {
     },
   },
   watch: {
+    miniOn: "Fold into a window",
+    miniOff: "Bring it back",
+    miniPlaceholder: "Playing in a window — click to bring it back",
     resumed: "Resuming from {time}",
     skippedOpening: "Opening skipped",
     nextIn: "Episode {n} in {s}…",
