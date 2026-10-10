@@ -12,6 +12,8 @@ interface HeadOptions {
   path?: string;
   /** A Schema.org object serialised into a JSON-LD <script>. */
   jsonLd?: Record<string, unknown>;
+  /** Keep the page out of search results. */
+  noindex?: boolean;
   type?: "website" | "article" | "video.tv_show";
 }
 
@@ -44,9 +46,14 @@ function setLink(rel: string, href: string) {
  * unmount so stale structured data never leaks onto another page.
  */
 export function useDocumentHead(opts: HeadOptions): void {
-  const { title, description, image, path, jsonLd, type = "website" } = opts;
+  const { title, description, image, path, jsonLd, type = "website", noindex = false } = opts;
 
   useEffect(() => {
+    // The first page of a visit arrives with its head already rendered by the
+    // server (title, description, canonical, structured data) — the version
+    // search engines index. Leave it exactly as it is; the app takes the head
+    // over from the first navigation on (see releaseServerHead).
+    if (serverHeadIsCurrent()) return;
     const prevTitle = document.title;
     document.title = title;
 
@@ -61,6 +68,7 @@ export function useDocumentHead(opts: HeadOptions): void {
     if (description) setMeta("property", "og:description", description);
     if (image) setMeta("property", "og:image", image);
 
+    setMeta("name", "robots", noindex ? "noindex, follow" : "index, follow");
     setMeta("name", "twitter:card", image ? "summary_large_image" : "summary");
     setMeta("name", "twitter:title", title);
     if (description) setMeta("name", "twitter:description", description);
@@ -79,7 +87,22 @@ export function useDocumentHead(opts: HeadOptions): void {
       document.title = prevTitle;
       ld?.remove();
     };
-  }, [title, description, image, path, type, jsonLd]);
+  }, [title, description, image, path, type, jsonLd, noindex]);
+}
+
+/** The server rendered the head for exactly this address (first page of the visit). */
+function serverHeadIsCurrent(): boolean {
+  const marker = document.head.querySelector<HTMLMetaElement>('meta[name="seo-path"]');
+  return marker != null && marker.content === window.location.pathname + window.location.search;
+}
+
+/**
+ * Called on the first in-app navigation: the server's head belonged to the
+ * page the visit started on, so its structured data and marker go, and the
+ * pages' own useDocumentHead take over.
+ */
+export function releaseServerHead(): void {
+  document.head.querySelectorAll('[data-seo-ssr], meta[name="seo-path"]').forEach((el) => el.remove());
 }
 
 /** Canonical, slug-based URL for an anime. */

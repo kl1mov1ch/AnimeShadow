@@ -138,6 +138,19 @@ const envSchema = z.object({
   VITE_GA_ID: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
   VITE_UMAMI_ID: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
   UMAMI_DASHBOARD_URL: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  // SEO. Where the built web app lives (its index.html is the template for
+  // the pages the API renders for search engines), the codes Yandex
+  // Webmaster / Google Search Console / Bing ask to put on the site, and the
+  // IndexNow key (any 8–128 letters/digits) for telling Yandex and Bing
+  // about new pages.
+  WEB_DIST_DIR: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  YANDEX_VERIFICATION: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  GOOGLE_SITE_VERIFICATION: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  BING_VERIFICATION: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  INDEXNOW_KEY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().regex(/^[A-Za-z0-9-]{8,128}$/).optional(),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);

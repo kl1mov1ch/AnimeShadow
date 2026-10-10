@@ -1,3 +1,4 @@
+import { genreHref } from "@/lib/format";
 import type { AnimeSummary, Genre } from "@animeshadow/shared";
 import {
   ArrowRightIcon,
@@ -118,7 +119,7 @@ function GenreTile({
 
   const tile = (
     <Link
-      to={`/browse?genres=${genre.id}`}
+      to={genreHref(genre.name)}
       viewTransition
       style={{ "--i": index } as CSSProperties}
       className="reveal group relative flex h-40 flex-col justify-between overflow-hidden rounded-2xl border border-border/60 bg-card p-3.5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"

@@ -15,6 +15,8 @@ export * from "./recommendations.js";
 export * from "./analytics.js";
 export * from "./admin.js";
 export * from "./collections.js";
+export * from "./genres.js";
+export * from "./landing.js";
 
 const DIACRITICS = /[̀-ͯ]/g;
 const NON_SLUG = /[^a-z0-9]+/g;

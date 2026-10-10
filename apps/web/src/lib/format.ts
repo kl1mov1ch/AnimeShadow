@@ -1,3 +1,4 @@
+import { genreSlug } from "@animeshadow/shared";
 import type { AnimeSummary } from "@animeshadow/shared";
 
 export function scoreLabel(score: number | null): string {
@@ -16,6 +17,12 @@ export function displayTitle(
 /** Canonical route for an anime detail page (id carries meaning, slug is cosmetic). */
 export function animeHref(anime: { id: number; slug: string }): string {
   return `/anime/${anime.slug || anime.id}`;
+}
+
+/** A genre's own page ("/genre/romance"), or the catalogue when it has no address. */
+export function genreHref(name: string): string {
+  const slug = genreSlug(name);
+  return slug ? `/genre/${slug}` : `/browse?q=${encodeURIComponent(name)}`;
 }
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");

@@ -1,3 +1,4 @@
+import { genreHref } from "@/lib/format";
 import type { AnimeSummary, Genre } from "@animeshadow/shared";
 import {
   BotIcon,
@@ -84,7 +85,7 @@ export function GenreSection({
               <li key={genre.id} className="w-32 shrink-0 snap-start lg:w-auto">
                 <Reveal delay={i * 60}>
                 <Link
-                  to={`/browse?genres=${genre.id}`}
+                  to={genreHref(genre.name)}
                   title={poster ? (poster.titleLocalized ?? poster.title) : undefined}
                   className="group group/card relative flex h-40 flex-col items-center justify-end overflow-hidden rounded-xl border border-[var(--hm-border)] bg-[var(--hm-card)] p-3 transition-all duration-300 hover:-translate-y-1.5 hover:border-[var(--hm-accent)]/60"
                   style={{ animationDelay: `${i * 60}ms` }}

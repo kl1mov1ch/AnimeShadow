@@ -1,3 +1,4 @@
+import { genreHref } from "@/lib/format";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import { memo, useEffect, useState } from "react";
 import {
@@ -257,7 +258,7 @@ function AnimeDetailView({ param }: { param: string }) {
             {data.genresDetailed.length > 0 && (
               <div className="flex max-h-[3.75rem] flex-wrap gap-1.5 overflow-hidden">
                 {data.genresDetailed.slice(0, 8).map((genre) => (
-                  <Link key={genre.id} to={`/browse?genres=${genre.id}`} viewTransition>
+                  <Link key={genre.id} to={genreHref(genre.name)} viewTransition>
                     <Badge
                       variant="secondary"
                       className="cursor-pointer font-normal transition-colors hover:border-[var(--accent-line)] hover:bg-[var(--accent-surface-strong)] hover:text-[var(--accent-ink)]"

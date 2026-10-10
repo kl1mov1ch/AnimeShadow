@@ -1,6 +1,7 @@
 import closeWithGrace from "close-with-grace";
 import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
+import { startIndexNow } from "./seo/indexnow.js";
 
 const app = await buildApp();
 
@@ -55,6 +56,8 @@ try {
   };
 
   setTimeout(() => void runWarm(), 4_000);
+  // Tell Yandex and Bing about new and changed pages (only with INDEXNOW_KEY).
+  startIndexNow(app.prisma, app.log);
   if (env.WATCH_WARM_INTERVAL_MS > 0) {
     // unref'd so a pending tick never keeps the process alive during shutdown.
     setInterval(() => void runWarm(), env.WATCH_WARM_INTERVAL_MS).unref();

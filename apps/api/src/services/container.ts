@@ -15,6 +15,8 @@ import { AdminService } from "./admin.service.js";
 import { CollectionService } from "./collection.service.js";
 import { FactsService } from "./facts.service.js";
 import { AdminAnalyticsService } from "./admin-analytics.service.js";
+import { LandingService } from "./landing.service.js";
+import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
@@ -81,6 +83,8 @@ export interface Services {
   collections: CollectionService;
   facts: FactsService;
   adminAnalytics: AdminAnalyticsService;
+  landing: LandingService;
+  seo: SeoRenderer;
 }
 
 /** Where uploaded avatars are written and served from (`/uploads/...`). */
@@ -212,6 +216,7 @@ export function createServices(deps: ContainerDeps): Services {
   // through the admin service's queries.
   setGaugeSource(() => admin.gaugeSnapshot());
 
+  const landing = new LandingService({ prisma: deps.prisma });
   return {
     catalog,
     auth,
@@ -231,5 +236,7 @@ export function createServices(deps: ContainerDeps): Services {
     collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
     facts: new FactsService({ prisma: deps.prisma }),
     adminAnalytics: new AdminAnalyticsService({ prisma: deps.prisma }),
+    landing,
+    seo: new SeoRenderer({ prisma: deps.prisma, landing }),
   };
 }

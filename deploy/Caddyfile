@@ -1,6 +1,14 @@
 animeshadow.online {
 	encode zstd gzip
 
+	# robots.txt, the sitemaps and the IndexNow key file are built by the API
+	# (routes/seo.ts), so they always match the catalogue and the domain.
+	@seofiles path /robots.txt /sitemap.xml /sitemap-*.xml /indexnow-*.txt
+	handle @seofiles {
+		rewrite * /api/seo-files{path}
+		reverse_proxy 127.0.0.1:4000
+	}
+
 	@backend path /api/* /uploads/*
 	handle @backend {
 		reverse_proxy 127.0.0.1:4000
@@ -9,24 +17,63 @@ animeshadow.online {
 	handle {
 		root * /var/www/animeshadow/apps/web/dist
 
-		# Hashed build output never changes under the same name: the browser
-		# keeps it for a year and never asks again.
-		@immutable path /assets/*
-		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		# Real files — the hashed scripts and styles, icons, the service
+		# worker, the manifest — straight from disk.
+		@file {
+			file
+			not path / /index.html
+		}
+		handle @file {
+			# Hashed build output never changes under the same name: the
+			# browser keeps it for a year and never asks again.
+			@immutable path /assets/*
+			header @immutable Cache-Control "public, max-age=31536000, immutable"
+			# Everything else is re-checked on every load, or a deploy would
+			# keep showing the old app to anyone who had it cached.
+			@entry not path /assets/*
+			header @entry Cache-Control "no-cache"
+			# deploy.sh writes .br/.gz next to every text file, so they are
+			# sent as they are instead of compressed on every request.
+			file_server {
+				precompressed br gzip
+			}
+		}
 
-		# The entry points must always be re-checked, or a deploy would keep
-		# serving the old app to anyone who had it cached.
-		# Everything else — index.html under any route (/browse, /anime/…), the
-		# service worker, the manifest — is re-checked on every load, or a
-		# deploy would keep showing the old app to anyone who had it cached.
-		@entry not path /assets/*
-		header @entry Cache-Control "no-cache"
+		# Every page (any other address): the same app, but with that page's
+		# own title, description, structured data and readable content filled
+		# in by the API — what search engines read. If the API answers with an
+		# error, the bare app shell is served instead, and it still works.
+		handle {
+			rewrite * /api/seo/page{uri}
+			reverse_proxy 127.0.0.1:4000 {
+				# An error, or an answer that isn't a page at all (an API from
+				# before this existed answers JSON): the bare shell instead.
+				@broken status 5xx
+				handle_response @broken {
+					root * /var/www/animeshadow/apps/web/dist
+					rewrite * /index.html
+					header Cache-Control "no-cache"
+					file_server
+				}
+				@notpage header Content-Type application/json*
+				handle_response @notpage {
+					root * /var/www/animeshadow/apps/web/dist
+					rewrite * /index.html
+					header Cache-Control "no-cache"
+					file_server
+				}
+			}
+		}
+	}
 
-		try_files {path} /index.html
-		# deploy.sh writes .br/.gz next to every text file, so the server
-		# sends those as they are instead of compressing on every request.
-		file_server {
-			precompressed br gzip
+	# The API not running at all (a restart): pages still get the app shell.
+	handle_errors {
+		@unavailable expression `{err.status_code} in [502, 503, 504]`
+		handle @unavailable {
+			root * /var/www/animeshadow/apps/web/dist
+			rewrite * /index.html
+			header Cache-Control "no-cache"
+			file_server
 		}
 	}
 }

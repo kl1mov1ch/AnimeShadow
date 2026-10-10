@@ -1,3 +1,4 @@
+import { genreHref } from "@/lib/format";
 import type { AnimeDetail } from "@animeshadow/shared";
 import {
   BookmarkCheckIcon,
@@ -259,7 +260,7 @@ function SlidePitch({
           {anime.genresDetailed.slice(0, 4).map((genre) => (
             <Link
               key={genre.id}
-              to={`/browse?genres=${genre.id}`}
+              to={genreHref(genre.name)}
               viewTransition
               className="rounded-lg border border-border/60 bg-background/92 px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
             >

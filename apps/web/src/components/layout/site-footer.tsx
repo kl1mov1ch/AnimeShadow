@@ -1,6 +1,13 @@
+import { landingPath, seasonNameRu, seasonOf } from "@animeshadow/shared";
 import {
   ArrowUpIcon,
   BookmarkIcon,
+  CalendarIcon,
+  ClapperboardIcon,
+  FlameIcon,
+  RadioIcon,
+  SparklesIcon,
+  TrophyIcon,
   CompassIcon,
   CrownIcon,
   InfoIcon,
@@ -17,6 +24,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Wordmark } from "@/components/brand/wordmark";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/i18n";
+import { genreHref } from "@/lib/format";
+import { useGenres } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 /* Edit these to your real handles. */
@@ -59,6 +68,8 @@ const SOCIALS: Array<{
 export function SiteFooter() {
   const { t } = useI18n();
   const year = new Date().getFullYear();
+  const season = seasonOf(new Date());
+  const { data: genres } = useGenres();
 
   return (
     <footer className="cv-auto relative mt-16 border-t border-border/60 bg-card/30">
@@ -72,7 +83,7 @@ export function SiteFooter() {
           short enough to sit side by side instead of stacking into one long
           column; only Brand and Legal (a real paragraph) get the full row.
           Desktop switches to its own explicit four-column layout. */}
-      <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-x-6 gap-y-9 px-4 py-12 lg:grid-cols-[1.6fr_1fr_1fr_1.4fr] lg:gap-x-10">
+      <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-x-6 gap-y-9 px-4 py-12 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1.3fr] lg:gap-x-10">
         {/* Brand */}
         <div className="col-span-2 flex flex-col gap-4 lg:col-span-1">
           <Wordmark size="lg" className="self-start" />
@@ -123,6 +134,20 @@ export function SiteFooter() {
           <FooterLink icon={BookmarkIcon} to="/library">{t("nav.library")}</FooterLink>
         </FooterColumn>
 
+        {/* The lists people come looking for, by name. */}
+        <FooterColumn icon={FlameIcon} title="Аниме">
+          <FooterLink icon={TrophyIcon} to="/top">Топ аниме</FooterLink>
+          <FooterLink icon={RadioIcon} to="/ongoing">Онгоинги</FooterLink>
+          <FooterLink icon={SparklesIcon} to="/popular">Популярные</FooterLink>
+          <FooterLink icon={ClapperboardIcon} to="/movies">Аниме-фильмы</FooterLink>
+          <FooterLink icon={CalendarIcon} to={landingPath({ kind: "season", ...season })}>
+            Аниме {seasonNameRu(season.season, "gen")} {season.year}
+          </FooterLink>
+          <FooterLink icon={CalendarIcon} to={landingPath({ kind: "year", year: season.year })}>
+            Аниме {season.year} года
+          </FooterLink>
+        </FooterColumn>
+
         {/* Project */}
         <FooterColumn icon={RocketIcon} title={t("footer.project")}>
           <FooterLink icon={InfoIcon} to="/about">{t("footer.about")}</FooterLink>
@@ -139,6 +164,20 @@ export function SiteFooter() {
           </p>
         </div>
       </div>
+
+      {genres && genres.length > 0 && (
+        <nav aria-label="Жанры" className="mx-auto flex max-w-[1400px] flex-wrap gap-x-3 gap-y-1.5 px-4 pb-8 text-xs text-muted-foreground">
+          <span className="font-semibold uppercase tracking-wide text-muted-foreground/70">Жанры:</span>
+          {[...genres]
+            .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
+            .slice(0, 24)
+            .map((g) => (
+              <Link key={g.id} to={genreHref(g.name)} className="transition-colors hover:text-foreground">
+                {g.name}
+              </Link>
+            ))}
+        </nav>
+      )}
 
       <div className="border-t border-border/50">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-1 px-4 py-5 text-xs text-muted-foreground/70 sm:flex-row sm:items-center sm:justify-between">

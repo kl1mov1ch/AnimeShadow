@@ -1,3 +1,4 @@
+import { genreHref } from "@/lib/format";
 import type { AnimeDetail } from "@animeshadow/shared";
 import {
   CalendarDaysIcon,
@@ -312,7 +313,7 @@ function SlideContent({
           {anime.genresDetailed.slice(0, 2).map((genre) => (
             <Link
               key={genre.id}
-              to={`/browse?genres=${genre.id}`}
+              to={genreHref(genre.name)}
               className="rounded-lg border border-white/10 bg-white/[0.07] px-2.5 py-1 text-xs text-foreground/75 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary"
             >
               {labels.genreLabel(genre.name)}

@@ -33,7 +33,15 @@ export const router = createBrowserRouter([
         children: [
           { index: true, lazy: () => import("@/routes/discover") },
           { path: "browse", lazy: () => import("@/routes/browse") },
-          { path: "genre/:name", lazy: () => import("@/routes/genre-redirect") },
+          // Landing pages for what people search for — one clean address each.
+          { path: "genre/:slug", lazy: () => import("@/routes/landing") },
+          { path: "top", lazy: () => import("@/routes/landing") },
+          { path: "popular", lazy: () => import("@/routes/landing") },
+          { path: "ongoing", lazy: () => import("@/routes/landing") },
+          { path: "announced", lazy: () => import("@/routes/landing") },
+          { path: "movies", lazy: () => import("@/routes/landing") },
+          { path: "season/:year/:season", lazy: () => import("@/routes/landing") },
+          { path: "year/:year", lazy: () => import("@/routes/landing") },
           { path: "anime/:id", lazy: () => import("@/routes/anime-detail") },
           { path: "anime/:id/:slug", lazy: () => import("@/routes/anime-detail") },
           { path: "library", lazy: () => import("@/routes/library") },

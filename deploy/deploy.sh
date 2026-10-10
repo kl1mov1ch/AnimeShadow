@@ -227,8 +227,16 @@ mv "$WEB/dist-next" "$WEB/dist"
 echo "previous build kept in apps/web/dist-prev"
 
 step "sync caddy config + reload"
-cp "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
-systemctl reload caddy
+# Checked before it replaces the running one: a broken Caddyfile would take
+# the whole site down.
+if caddy validate --adapter caddyfile --config "$APP_DIR/deploy/Caddyfile" >/tmp/caddy-validate.log 2>&1; then
+  cp "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
+  systemctl reload caddy
+  echo "caddy reloaded"
+else
+  echo "!! the new Caddyfile is invalid — kept the running one:"
+  tail -n 20 /tmp/caddy-validate.log
+fi
 
 echo
 echo "Deployed $AFTER in ${SECONDS}s"

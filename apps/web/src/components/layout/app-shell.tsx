@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useExternalAnalytics } from "@/hooks/use-external-analytics";
 import { usePageviewBeacon } from "@/hooks/use-pageview-beacon";
+import { useServerHeadHandoff } from "@/hooks/use-server-head-handoff";
 
 export function AppShell() {
   // Re-key the outlet per top-level path so the .route-fade animation replays.
@@ -17,6 +18,7 @@ export function AppShell() {
   const routeKey = pathname.split("/").slice(0, 3).join("/");
   usePageviewBeacon();
   useExternalAnalytics();
+  useServerHeadHandoff();
 
   return (
     <TooltipProvider delayDuration={200}>

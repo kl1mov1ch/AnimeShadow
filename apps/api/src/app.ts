@@ -29,11 +29,11 @@ import { healthRoutes } from "./routes/health.js";
 import { imageRoutes } from "./routes/image.js";
 import { libraryRoutes } from "./routes/library.js";
 import { metricsRoutes } from "./routes/metrics.js";
+import { seoRoutes } from "./routes/seo.js";
 import { profileRoutes } from "./routes/profile.js";
 import { progressRoutes } from "./routes/progress.js";
 import { recommendationRoutes } from "./routes/recommendations.js";
 import { searchRoutes } from "./routes/search.js";
-import { sitemapRoutes } from "./routes/sitemap.js";
 import { uploadsRoutes } from "./routes/uploads.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -75,6 +75,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     // image proxy or health checks eat into a user's request budget either.
     allowList: (request) =>
       request.url.startsWith("/api/health") ||
+      // Crawlers fetch pages in bursts from few addresses.
+      request.url.startsWith("/api/seo") ||
       request.url.startsWith("/api/img") ||
       request.url.startsWith("/uploads"),
   });
@@ -195,12 +197,13 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(collectionRoutes);
       await api.register(analyticsRoutes);
       await api.register(adminRoutes);
+      await api.register(seoRoutes);
     },
     { prefix: "/api" },
   );
 
-  // Served at the site root (not under /api) for crawlers and <img> tags.
-  await app.register(sitemapRoutes);
+  // Served at the site root (not under /api) for <img> tags. robots.txt and
+  // the sitemaps live in routes/seo.ts (/api/seo-files/…, mapped by Caddy).
   await app.register(uploadsRoutes);
   await app.register(metricsRoutes);
 
