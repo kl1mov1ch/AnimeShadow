@@ -40,6 +40,30 @@ window.addEventListener("vite:preloadError", () => {
   window.location.reload();
 });
 
+// The installed app (the service worker) keeps the last version it saw and
+// serves it, offline-first — so after a deploy, people kept seeing the old
+// site until they happened to hard-reload. Now: the worker is asked about a
+// new version on every open and every half hour, and the moment a new one
+// takes over, the page reloads into it once. Not on a first visit — there
+// was no old version then, only the first install.
+if ("serviceWorker" in navigator) {
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+  void navigator.serviceWorker.ready.then((registration) => {
+    const check = () => void registration.update().catch(() => undefined);
+    check();
+    window.setInterval(check, 30 * 60_000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") check();
+    });
+  });
+}
+
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing #root element");
 
