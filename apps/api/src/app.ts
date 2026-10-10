@@ -17,7 +17,6 @@ import servicesPlugin from "./plugins/services.js";
 import { adminRoutes } from "./routes/admin.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { animeRoutes } from "./routes/anime.js";
-import { audioRoutes } from "./routes/audio.js";
 import { authRoutes } from "./routes/auth.js";
 import { commentRoutes } from "./routes/comments.js";
 import { discoverRoutes } from "./routes/discover.js";
@@ -181,7 +180,6 @@ export async function buildApp(): Promise<FastifyInstance> {
     async (api) => {
       await api.register(healthRoutes);
       await api.register(imageRoutes);
-      await api.register(audioRoutes);
       await api.register(discoverRoutes);
       await api.register(animeRoutes);
       await api.register(searchRoutes);

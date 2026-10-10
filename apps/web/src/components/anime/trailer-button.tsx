@@ -27,7 +27,7 @@ export function TrailerButton({ url, title }: TrailerButtonProps) {
         <Button
           variant="outline"
           size="lg"
-          className="transition-all duration-200 hover:border-primary/40 hover:text-primary"
+          className="h-11 border-white/15 bg-black/30 transition-colors duration-200 hover:border-white/30 hover:bg-black/45"
         >
           <PlayCircleIcon data-icon="inline-start" />
           {t("trailer.open")}

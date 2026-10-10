@@ -1516,35 +1516,17 @@ body:has([role="dialog"][data-state="open"]) main * {
   animation: none !important;
 }
 
-/* Hero thumbnails: the current slide's time left, as its border filling
-   in clockwise and a soft glow growing behind the card. */
-@property --slide-p {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 0%;
+/* The homepage slider's progress: one line filling over a slide's time. */
+@keyframes hero-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
-@keyframes slide-ring-fill {
-  from { --slide-p: 0%; }
-  to { --slide-p: 100%; }
-}
-@keyframes slide-glow-grow {
-  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent); }
-  to { box-shadow: 0 0 22px 2px color-mix(in srgb, var(--primary) 45%, transparent); }
-}
-.slide-ring {
-  padding: 2px;
-  background: conic-gradient(from 0deg, var(--primary) var(--slide-p), transparent var(--slide-p));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: slide-ring-fill var(--slide-dur, 9s) linear forwards;
-}
-.slide-glow {
-  animation: slide-glow-grow var(--slide-dur, 9s) ease-in forwards;
+.hero-progress {
+  transform-origin: left center;
+  animation: hero-progress 8s linear forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .slide-ring { animation: none; --slide-p: 100%; }
-  .slide-glow { animation: none; }
+  .hero-progress { animation: none; transform: scaleX(1); }
 }
 
 /* Achievement meters: the fill sweeps in once, then sits still — a bright
@@ -1666,21 +1648,3 @@ body:has([role="dialog"][data-state="open"]) main * {
   .cc-fan, .dice-roll { transition: none; animation: none; }
 }
 
-/* The player block in fullscreen: the picture takes the screen, the site's
-   controls sit under it. */
-.player-stage:fullscreen {
-  background: #000;
-  gap: 0;
-  padding: 0;
-}
-.player-stage:fullscreen > .player-box {
-  aspect-ratio: auto;
-  flex: 1;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-}
-.player-stage:fullscreen > .player-controls {
-  border-radius: 0;
-  border-width: 1px 0 0;
-}

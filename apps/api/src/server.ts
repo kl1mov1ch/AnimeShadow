@@ -43,10 +43,19 @@ try {
     await app.services.catalog.prewarmBrowse().catch((error: unknown) =>
       app.log.warn({ err: error }, "catalogue prewarm failed"),
     );
-    // And the home page's rails, the one page everyone opens.
-    await app.services.catalog.getDiscover().catch((error: unknown) =>
-      app.log.warn({ err: error }, "home page prewarm failed"),
-    );
+    // And the home page's rails, the one page everyone opens — with the
+    // slider's pictures put in the image cache, so the first visitor after
+    // a deploy doesn't wait on a CDN for them.
+    const home = await app.services.catalog.getDiscover().catch((error: unknown) => {
+      app.log.warn({ err: error }, "home page prewarm failed");
+      return null;
+    });
+    for (const slide of home?.spotlights ?? []) {
+      const art =
+        slide.bannerImage ??
+        (slide.imageLargeUrl ?? slide.imageUrl)?.replace("/media/anime/cover/medium/", "/media/anime/cover/large/");
+      if (art) await app.inject({ method: "GET", url: `/api/img?u=${encodeURIComponent(art)}` }).catch(() => undefined);
+    }
     try {
       await app.services.watch.warm(env.WATCH_WARM_LIMIT);
     } catch (error) {

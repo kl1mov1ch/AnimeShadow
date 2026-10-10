@@ -9,7 +9,6 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { OpeningVideo } from "@/components/anime/opening-video";
 import { animeHref, fullSizeCover, imageSrc } from "@/lib/format";
 import { HomeButton, HomeContainer, Shine } from "./home-ui";
 
@@ -21,8 +20,6 @@ const PERKS = [
 
 /** How long one slide holds before the next. */
 const SLIDE_MS = 8000;
-/** A beat before the opening is even requested, so flicking past costs nothing. */
-const VIDEO_DELAY_MS = 1200;
 
 /** Our own artwork: the first slide, and the backdrop under every other one. */
 const BRAND_ART = "/home/hero.webp";
@@ -40,7 +37,6 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
   const count = items.length + 1;
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [wantsVideo, setWantsVideo] = useState(false);
 
   useEffect(() => {
     if (count < 2 || paused) return;
@@ -48,12 +44,6 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
     return () => clearInterval(timer);
   }, [count, paused]);
 
-  // A new slide starts as a still; the opening joins a moment later.
-  useEffect(() => {
-    setWantsVideo(false);
-    const timer = setTimeout(() => setWantsVideo(true), VIDEO_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [index]);
 
   const step = (direction: 1 | -1) => setIndex((i) => (i + direction + count) % count);
   const current = index === 0 ? undefined : items[index - 1];
@@ -82,12 +72,6 @@ export function HeroSection({ slides = [] }: { slides?: AnimeDetail[] }) {
             alt=""
             className="home-kenburns absolute inset-0 size-full animate-in fade-in object-cover object-center duration-700"
           />
-        )}
-        {/* The opening, once the slide has settled — it fades itself in only
-            when there are real frames, and refuses on touch or a metered
-            connection, so this is an upgrade or nothing. */}
-        {current && (
-          <OpeningVideo animeId={current.id} active={wantsVideo && !paused} className="absolute inset-0" />
         )}
         <div
           className="absolute inset-0"

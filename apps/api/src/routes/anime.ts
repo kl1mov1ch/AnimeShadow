@@ -120,19 +120,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     return { stats: await catalog.getAnimeStats(id) };
   });
 
-  /** The title's opening, used as background motion. `null` is a normal
-   *  answer — most titles in the catalogue are not in the archive. */
-  fastify.get("/anime/:id/opening", async (request) => {
-    const { id } = parse(idParams, request.params);
-    return { opening: await catalog.getOpening(id) };
-  });
-
-  /** Opening and ending together, for the theme player. Same cached upstream
-   *  record as /opening above. */
-  fastify.get("/anime/:id/themes", async (request) => {
-    const { id } = parse(idParams, request.params);
-    return catalog.getThemes(id);
-  });
 
   fastify.get("/anime/:id/franchise", async (request) => {
     const { id } = parse(idParams, request.params);

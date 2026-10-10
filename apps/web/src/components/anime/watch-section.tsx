@@ -37,7 +37,6 @@ import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
 import { setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
-import { KodikControls } from "@/components/anime/kodik-controls";
 import { PlayerSettingsMenu, type QualityChoice } from "@/components/anime/player-settings-menu";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
@@ -1871,7 +1870,6 @@ function Player({
   // The player folded into a small window in the corner of the page…
   const [mini, setMini] = useState(false);
   // …or into a real window of its own (pipWin, declared with the frames).
-  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
   const folded = mini || pipWin != null;
   // Where playback was: moving the player to another window reloads the
   // embed, which then picks up from here.
@@ -2266,9 +2264,9 @@ function Player({
           drops under the video with a height of its own — stacking it full
           height would push the next section off the screen entirely. */}
       <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-stretch">
-      {/* The picture with its controls under it: one block, so fullscreen
-          takes both. */}
-      <div ref={setStageEl} className="player-stage flex min-w-0 flex-col gap-2">
+      {/* Kodik keeps its own controls inside the picture; the site adds
+          nothing under it. Our own bar exists only in our own player. */}
+      <div className="flex min-w-0 flex-col">
       <div
         className={cn(
           "player-box relative aspect-video overflow-hidden border bg-black",
@@ -2289,20 +2287,8 @@ function Player({
         )}
         {pipWin ? (
           createPortal(
-            <div className="flex h-screen flex-col gap-1.5 bg-black p-1.5">
+            <div className="flex h-screen flex-col bg-black p-1.5">
               <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg">{stageContent}</div>
-              {winnerIsKodik && (
-                <KodikControls
-                  compact
-                  frame={kodikFrame}
-                  opening={opening}
-                  ending={ending}
-                  hasPrev={episode > 1}
-                  onPrev={() => onEpisodeChange(episode - 1)}
-                  hasNext={nextEpisode != null}
-                  onNext={() => nextEpisode != null && onEpisodeChange(nextEpisode)}
-                />
-              )}
             </div>,
             pipWin.document.body,
           )
@@ -2321,19 +2307,6 @@ function Player({
           </div>
         )}
       </div>
-      {!pipWin && winnerIsKodik && (
-        <KodikControls
-          className="player-controls"
-          frame={kodikFrame}
-          opening={opening}
-          ending={ending}
-          hasPrev={episode > 1}
-          onPrev={() => onEpisodeChange(episode - 1)}
-          hasNext={nextEpisode != null}
-          onNext={() => nextEpisode != null && onEpisodeChange(nextEpisode)}
-          fullscreenTarget={stageEl}
-        />
-      )}
       </div>
 
         <div className="relative min-w-0">

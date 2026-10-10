@@ -2,7 +2,7 @@ import type { Dict } from "./en";
 
 export const ru: Dict = {
   brand: { tagline: "Зал для просмотра аниме." },
-  nav: { collections: "Подборки", discover: "Обзор", browse: "Каталог", library: "Мой список", admin: "Админка" },
+  nav: { collections: "Подборки", discover: "Главная", browse: "Каталог", library: "Мой список", admin: "Админка" },
   cookies: {
     text: "Сайт использует куки, чтобы не разлогинивать вас и помнить настройки.",
     accept: "Принять",
@@ -196,6 +196,15 @@ export const ru: Dict = {
     },
   },
   browse: {
+    pageTitle: "Каталог аниме",
+    resetCount: "Сбросить ({count})",
+    genresPicked: "Выбрано жанров: {count}",
+    genreRemove: "Убрать жанр",
+    genreModeIn: "Нужны",
+    genreModeOut: "Исключить",
+    genresDone: "Готово",
+    showResults: "Показать {count}",
+    showResultsBare: "Показать",
     moreFilters: "Ещё фильтры",
     listLabel: "Показать",
     everything: "Весь каталог",
@@ -212,7 +221,7 @@ export const ru: Dict = {
     filters: "Фильтры",
     filtersHint: "Сузьте выборку.",
     search: "Поиск",
-    searchPlaceholder: "Ключевые слова названия",
+    searchPlaceholder: "Название, жанр, персонаж или настроение…",
     sortBy: "Сортировка",
     format: "Формат",
     anyFormat: "Любой формат",
@@ -468,7 +477,6 @@ export const ru: Dict = {
       quality: "Качество",
       qualityAuto: "Авто",
       qualitySingle: "У этой серии одно качество.",
-      qualityKodik: "Kodik выбирает качество сам, по скорости интернета. Сменить вручную можно в его меню — значок шестерёнки на самом видео.",
       keys: "Пробел — пауза · ← → — перемотка · M — звук · F — весь экран · Shift+< > — скорость · Shift+N — следующая серия",
     },
     tip: {

@@ -145,15 +145,15 @@ export function SearchBox() {
             for the clear button once there's something to clear. */}
         <div
           className={cn(
-            "group relative flex items-center rounded-lg border bg-card/70 transition-all duration-200",
-            "focus-within:border-primary/50 focus-within:bg-card focus-within:shadow-lg focus-within:shadow-primary/10 focus-within:ring-4 focus-within:ring-primary/15",
-            open ? "border-primary/30" : "border-border/60 hover:border-border",
+            "group relative flex items-center rounded-lg border bg-card/60 transition-[border-color,background-color,box-shadow] duration-200",
+            "focus-within:border-foreground/30 focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/20",
+            open ? "border-foreground/20" : "border-border/60 hover:border-foreground/20",
           )}
         >
           <SearchIcon
             className={cn(
               "pointer-events-none absolute left-3 size-4 transition-all duration-200",
-              "text-muted-foreground group-focus-within:scale-110 group-focus-within:text-primary",
+              "text-muted-foreground group-focus-within:text-foreground",
             )}
           />
           <input

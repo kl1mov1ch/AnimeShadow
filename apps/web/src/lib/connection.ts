@@ -23,13 +23,9 @@ function connection(): NetworkInformationLike | undefined {
   return (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
 }
 
-/** Below this the heavy extras cost more than they give. */
-const SLOW_DOWNLINK_MBPS = 1.5;
-
 /**
  * True when the heavy, optional parts of a page should be skipped: the
- * visitor asked to save data, the connection reports as 2G/3G, or measured
- * bandwidth is under 1.5Mbps.
+ * visitor asked to save data, or the connection reports as 2G.
  *
  * "Optional" is the important word. This decides whether to fetch a
  * widescreen banner or a 1080p poster or a background video — never whether
@@ -39,10 +35,10 @@ export function isSlowConnection(): boolean {
   const c = connection();
   if (!c) return false;
   if (c.saveData) return true;
-  if (c.effectiveType && /2g|3g/.test(c.effectiveType)) return true;
-  if (typeof c.downlink === "number" && c.downlink > 0 && c.downlink < SLOW_DOWNLINK_MBPS) {
-    return true;
-  }
+  // Only a genuine 2G link. Chrome calls plenty of ordinary connections
+  // "3g" (a distant server, a busy mobile cell), and treating those as slow
+  // hid the title banners and the large posters from far too many people.
+  if (c.effectiveType && /(^|-)2g$/.test(c.effectiveType)) return true;
   return false;
 }
 

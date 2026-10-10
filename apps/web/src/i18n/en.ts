@@ -194,6 +194,15 @@ export const en = {
     },
   },
   browse: {
+    pageTitle: "Anime catalogue",
+    resetCount: "Reset ({count})",
+    genresPicked: "Genres picked: {count}",
+    genreRemove: "Remove genre",
+    genreModeIn: "Include",
+    genreModeOut: "Exclude",
+    genresDone: "Done",
+    showResults: "Show {count}",
+    showResultsBare: "Show",
     moreFilters: "More filters",
     listLabel: "Show",
     everything: "Everything",
@@ -466,7 +475,6 @@ export const en = {
       quality: "Quality",
       qualityAuto: "Auto",
       qualitySingle: "This episode comes in one quality.",
-      qualityKodik: "Kodik picks the quality itself, from your connection. To change it by hand, use its own menu — the gear on the video.",
       keys: "Space — pause · ← → — seek · M — sound · F — fullscreen · Shift+< > — speed · Shift+N — next episode",
     },
     tip: {

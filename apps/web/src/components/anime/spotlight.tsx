@@ -17,7 +17,6 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import { OpeningVideo } from "@/components/anime/opening-video";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 // Overall score is hidden site-wide (not deleted) — see ScoreBadge's call
 // sites. The slider deliberately does not reintroduce it on its own.
@@ -169,8 +168,7 @@ export function SpotlightCarousel({ items }: { items: AnimeDetail[] }) {
 
 /**
  * One slide's artwork. Every slide stays mounted and fades, which is what
- * makes a change of slide read as a dissolve; only the active one is given
- * the video, so a rotation never leaves five streams running.
+ * makes a change of slide read as a dissolve.
  */
 function SlideArt({
   anime,
@@ -212,14 +210,6 @@ function SlideArt({
         />
       ) : (
         <PosterFallback title={anime.title} seed={anime.id} />
-      )}
-      {/* The show's own opening, rather than a clip cut out of episode one.
-          It is short, built to loop, and creditless, which is exactly what a
-          backdrop needs and what an arbitrary mid-episode excerpt never is. */}
-      {active && animate && (
-        <div className="absolute inset-0">
-          <OpeningVideo animeId={anime.id} active />
-        </div>
       )}
     </div>
   );

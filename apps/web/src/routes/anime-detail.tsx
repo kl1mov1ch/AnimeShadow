@@ -30,12 +30,10 @@ import { InfoSidebar } from "@/components/anime/episodes-panel";
 import { TitleTracker } from "@/components/library/title-tracker";
 import { TitleFacts } from "@/components/anime/title-facts";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
-import { OpeningVideo } from "@/components/anime/opening-video";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
 // import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
-import { ThemePlayer } from "@/components/anime/theme-player";
 import { PulseRings } from "@/components/common/pulse-rings";
 import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
@@ -207,7 +205,6 @@ function AnimeDetailView({ param }: { param: string }) {
     // teal on the next — and none of them looked like the rest of the site.
     <article className="relative isolate flex flex-col gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10">
       <TitleHeader
-        animeId={data.id}
         // The widescreen banner is decoration behind the header, and one of
         // the largest images on the page. On a slow link the header keeps its
         // tinted surface instead.
@@ -398,8 +395,7 @@ function AnimeDetailView({ param }: { param: string }) {
 /**
  * The title header, built the same way the homepage hero is: full-bleed key
  * art behind it, fading into the page's own background rather than into a
- * card colour, with the show's own opening playing over the still once it
- * has settled. Same gradients, same full-bleed edge-to-edge treatment, same
+ * card colour, Same gradients, same full-bleed edge-to-edge treatment, same
  * idea — this page and the homepage are one visual language, not two.
  *
  * When a title has no widescreen art of its own, the site mark and a slow
@@ -407,24 +403,13 @@ function AnimeDetailView({ param }: { param: string }) {
  * picture, not a smaller version of the same one.
  */
 function TitleHeader({
-  animeId,
   banner,
   children,
 }: {
-  animeId: number;
   /** AniList's own widescreen key visual, when the title has one. */
   banner: string | null;
   children: React.ReactNode;
 }) {
-  // A short dwell before the opening is even requested. Opening a title and
-  // immediately going back must not cost a video fetch, and the header is
-  // readable from the first frame either way — the motion is a reward for
-  // staying, not part of the page loading.
-  const [wantsOpening, setWantsOpening] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setWantsOpening(true), 1_500);
-    return () => clearTimeout(timer);
-  }, []);
 
   return (
     <div className="full-bleed relative isolate overflow-hidden border-b border-border/60 bg-card">
@@ -448,11 +433,6 @@ function TitleHeader({
           </>
         )}
 
-        {/* The show itself, over whatever still is behind it. OpeningVideo
-            fades in only once there are real frames and refuses outright on
-            a touch device or a metered connection, so this is either an
-            upgrade on the banner or nothing at all. */}
-        <OpeningVideo animeId={animeId} active={wantsOpening} className="absolute inset-0" />
 
         {/* The same fade the homepage hero uses — the page's own background
             colour, not the card's, so the header dissolves into the page
@@ -830,7 +810,6 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
           both are about the title rather than facts about its production,
           so they read better here than in the sidebar. */}
       <AudienceStats animeId={anime.id} />
-      <ThemePlayer animeId={anime.id} />
     </Panel>
   );
 }

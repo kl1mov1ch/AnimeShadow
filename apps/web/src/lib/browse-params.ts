@@ -82,3 +82,18 @@ export function hasActiveFilters(params: BrowseParams): boolean {
       (params.orderBy && params.orderBy !== "popularity"),
   );
 }
+
+/** How many filters are on — what the "Фильтры" button counts. */
+export function activeFilterCount(params: BrowseParams): number {
+  return [
+    Boolean(params.type),
+    Boolean(params.airing),
+    params.yearFrom != null || params.yearTo != null || Boolean(params.year),
+    Boolean(params.minScore || params.maxScore != null),
+    params.episodesMin != null || params.episodesMax != null,
+    Boolean(params.studio),
+    (params.genres?.length ?? 0) + (params.excludeGenres?.length ?? 0) > 0,
+    params.hasPlayer === true,
+    params.hideListed === true,
+  ].filter(Boolean).length;
+}

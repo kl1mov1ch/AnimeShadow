@@ -6,8 +6,8 @@ import { TIP_MOTION, TIP_SURFACE, TIP_TEXT } from "@/lib/tip-style"
 import { Tooltip as TooltipPrimitive } from "radix-ui"
 
 function TooltipProvider({
-  delayDuration = 200,
-  skipDelayDuration = 400,
+  delayDuration = 300,
+  skipDelayDuration = 500,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (

@@ -2,7 +2,6 @@ import { AllohaClient } from "@animeshadow/alloha";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
-import { AnimeThemesClient } from "@animeshadow/animethemes";
 import type { PrismaClient } from "@animeshadow/db";
 import type { JikanClient } from "@animeshadow/jikan";
 import { KodikClient } from "@animeshadow/kodik";
@@ -117,7 +116,6 @@ export function createServices(deps: ContainerDeps): Services {
   const anilistBackground = new AniListClient();
   // Same reasoning as AniList: one instance, so its own request queue is
   // actually shared rather than one queue per caller.
-  const animethemes = new AnimeThemesClient();
 
   const translator = deps.translate.enabled
     ? chainTranslators([
@@ -145,7 +143,6 @@ export function createServices(deps: ContainerDeps): Services {
     jikan: deps.jikan,
     anilist,
     anilistBackground,
-    animethemes,
     cacheTtlSeconds: deps.cacheTtlSeconds,
     logger: deps.logger,
     translation,

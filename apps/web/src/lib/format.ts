@@ -27,12 +27,15 @@ export function genreHref(name: string): string {
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PROXY_HOSTS =
-  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best)$/i;
+  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best|anilist\.co|myanimelist\.net|kitsu\.(app|io))$/i;
 
 /**
- * Shikimori, Kinopoisk and nekos.best all block hot-linking (Referer check /
- * Cloudflare bot rule), so route those images through the API's `/api/img`
- * proxy. Everything else is returned untouched.
+ * Pictures from the catalogues we draw on come through our own `/api/img`,
+ * which fetches each one once and keeps it on disk. Shikimori, Kinopoisk and
+ * nekos.best block hot-linking outright; AniList's, MyAnimeList's and
+ * Kitsu's CDNs are slow or patchy from Russia, which left posters and
+ * banners blank for a lot of visitors. From our own origin they arrive
+ * quickly and the same way for everyone. Anything else passes untouched.
  */
 export function imageSrc(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
@@ -47,19 +50,6 @@ export function imageSrc(url: string | null | undefined): string | undefined {
   }
 }
 
-/**
- * Routes a theme's audio through our own proxy.
- *
- * Not for hot-linking reasons — the archive allows that — but for CORS. Its
- * audio host sends no Access-Control-Allow-Origin, and a <audio> element read
- * by Web Audio without it produces a tainted stream: the analyser sees
- * silence and the sound itself stops. The proxy adds the header (and forwards
- * range requests, so seeking still works).
- */
-export function audioSrc(url: string | null | undefined): string | undefined {
-  if (!url) return undefined;
-  return `${API_BASE}/api/audio?u=${encodeURIComponent(url)}`;
-}
 
 /**
  * The full-size version of a card-sized AniList cover.

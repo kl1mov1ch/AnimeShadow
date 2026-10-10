@@ -2,7 +2,6 @@ import {
   type AniListClient,
   type AniListTrendingEntry,
 } from "@animeshadow/anilist";
-import type { AnimeThemesClient } from "@animeshadow/animethemes";
 import {
   ANIME_WITH_GENRES_INCLUDE,
   type Prisma,
@@ -26,9 +25,7 @@ import {
 } from "@animeshadow/shikimori";
 import {
   type AnimeDetail,
-  type AnimeOpening,
   type AnimeOrderBy,
-  type AnimeThemes,
   type AnimeQuery,
   animeQuerySchema,
   type AnimeStats,
@@ -83,7 +80,6 @@ export interface CatalogServiceDeps {
   anilist: AniListClient;
   /** Same API, its own request queue — see the note in container.ts. */
   anilistBackground: AniListClient;
-  animethemes: AnimeThemesClient;
   cacheTtlSeconds: number;
   logger: CatalogLogger;
   translation: TranslationService;
@@ -125,16 +121,11 @@ const TYPE_TO_SHIKI_KIND: Partial<Record<NonNullable<AnimeQuery["type"]>, string
  * row it fetches upstream, persists, and returns; if upstream is down it serves
  * whatever is cached so the product degrades gracefully.
  */
-/** How long a themes lookup may take before the route answers without it. */
 const GENRE_LIST_TTL_MS = 5 * 60_000;
-const THEMES_DEADLINE_MS = 4_000;
 /** How long the title page's watcher statistics may take before it renders without them. */
 const STATS_DEADLINE_MS = 4_000;
 /** Listings top up missing synopses this many titles at a time, at most. */
 const MAX_CONCURRENT_HEALS = 6;
-/** Failures in a row before the service stops asking the archive for a while. */
-const THEMES_FAILURES_BEFORE_BREAK = 3;
-const THEMES_BREAK_MS = 5 * 60_000;
 
 export class CatalogService {
   private readonly prisma: PrismaClient;
@@ -142,7 +133,6 @@ export class CatalogService {
   private readonly jikan: JikanClient;
   private readonly anilist: AniListClient;
   private readonly anilistBackground: AniListClient;
-  private readonly animethemes: AnimeThemesClient;
   private readonly ttlMs: number;
   private readonly logger: CatalogLogger;
   private readonly translation: TranslationService;
@@ -154,9 +144,6 @@ export class CatalogService {
   // the last build is served for up to a day and rebuilt in the background
   // once it is ten minutes old, and a fresh process builds it at start.
   private readonly discoverCache = new SwrCache<DiscoverResponse>(10 * 60_000, 24 * 60 * 60_000, 4);
-  /** Consecutive failed archive lookups, and until when to stop trying. */
-  private themesFailures = 0;
-  private themesBreakerUntil = 0;
 
   // Per-title and per-studio lookups: 256 slots filled within a few dozen
   // title pages and evicted what was about to be asked for again.
@@ -187,7 +174,6 @@ export class CatalogService {
     this.jikan = deps.jikan;
     this.anilist = deps.anilist;
     this.anilistBackground = deps.anilistBackground;
-    this.animethemes = deps.animethemes;
     this.ttlMs = deps.cacheTtlSeconds * 1000;
     this.logger = deps.logger;
     this.translation = deps.translation;
@@ -958,70 +944,6 @@ export class CatalogService {
    * any of them actually change at and keeps a popular title from re-querying
    * AniList on every single page view.
    */
-  /**
-   * A title's opening, for use as motion on the page. Cached because the
-   * answer never changes and because both the hero and any hovered card ask
-   * for it — a null (the archive simply has no opening for this title) is
-   * cached just as firmly as a hit, so a title without one stops costing a
-   * request per hover.
-   */
-  async getThemes(malId: number): Promise<AnimeThemes> {
-    const key = `themes:${malId}`;
-    const cached = this.auxCache.get(key) as AnimeThemes | undefined;
-    if (cached) return cached;
-
-    // The archive is out of our hands, and when it stops answering it stops
-    // answering for everything. Two guards, both about never leaving the
-    // browser waiting on us:
-    //
-    //  - a hard deadline, so this route always answers;
-    //  - a breaker, so once the archive has failed a few times in a row we
-    //    stop queueing behind it and say so immediately.
-    //
-    // Either way the answer carries `error`, which is what tells the browser
-    // to go and ask the archive itself (see the web app's themes query).
-    if (this.themesBreakerUntil > Date.now()) {
-      return { tracks: [], opening: null, error: "animethemes unreachable, retrying later" };
-    }
-
-    const result = await withTimeout(this.animethemes.getThemes(malId), THEMES_DEADLINE_MS, {
-      tracks: [],
-      opening: null,
-      error: `timed out after ${THEMES_DEADLINE_MS}ms`,
-    } satisfies AnimeThemes);
-
-    if (result.error) {
-      this.themesFailures += 1;
-      if (this.themesFailures >= THEMES_FAILURES_BEFORE_BREAK) {
-        this.themesBreakerUntil = Date.now() + THEMES_BREAK_MS;
-        this.themesFailures = 0;
-        this.logger.warn(
-          { minutes: THEMES_BREAK_MS / 60_000 },
-          "animethemes keeps failing — pausing lookups, the browser will ask it directly",
-        );
-      }
-    } else {
-      this.themesFailures = 0;
-    }
-
-    if (result.error) {
-      // Not cached, deliberately. A failed lookup used to be stored for the
-      // full hour exactly like a real "this title has no music" answer, so
-      // one blocked request hid the player for everyone for an hour with
-      // nothing in the logs to say why.
-      this.logger.warn({ malId, reason: result.error }, "animethemes lookup failed");
-      return result;
-    }
-    this.auxCache.set(key, result);
-    return result;
-  }
-
-  async getOpening(malId: number): Promise<AnimeOpening | null> {
-    // Same cached record as getThemes — the background-motion callers only
-    // want half of it, and asking twice would be a second round trip for
-    // something already in hand.
-    return (await this.getThemes(malId)).opening;
-  }
 
   /**
    * One cached AniList record per title. Both the artwork heal and the detail

@@ -1,8 +1,11 @@
-import { Readable } from "node:stream";
-import type { FastifyPluginAsync } from "fastify";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
+import { env } from "../config/env.js";
 
-// Shikimori (and a few others) block hot-linking by Referer. This proxies the
-// image server-side (no Referer), with a long cache, so the browser can show it.
+// Shikimori (and a few others) block hot-linking by Referer, so their images
+// are fetched here, server-side, and handed to the browser from our origin.
 const ALLOWED_HOSTS = [
   "shikimori.io",
   "shikimori.one",
@@ -16,7 +19,22 @@ const ALLOWED_HOSTS = [
   "kinopoiskapiunofficial.tech",
   "cdn.myanimelist.net",
   "nekos.best",
+  // Fast enough elsewhere, slow or patchy from Russia: kept here as well.
+  "s4.anilist.co",
+  "img.anili.st",
+  "media.kitsu.app",
+  "media.kitsu.io",
 ];
+
+/** Upstream fetches at once. A page of posters used to fire them all together,
+ *  and Shikimori answered a burst like that by refusing most of it. */
+const MAX_UPSTREAM = 10;
+/** A picture bigger than this is not a poster; it is not kept. */
+const MAX_BYTES = 8 * 1024 * 1024;
+/** How long "the source has no such picture" is believed before asking again. */
+const MISSING_TTL_MS = 60 * 60_000;
+
+const CACHE_DIR = env.IMAGE_CACHE_DIR ?? join(process.cwd(), "cache", "img");
 
 // nekos.best's Cloudflare rules block generic/default library user-agents
 // outright and require "APP_NAME (CONTACT_INFO)" — everything else here is
@@ -27,7 +45,124 @@ function userAgentFor(hostname: string): string {
     : "AnimeShadow/1.0 (image proxy)";
 }
 
+/** The picture's type from its first bytes — the cache keeps bytes only. */
+function sniff(buf: Buffer): string {
+  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  if (buf.subarray(0, 4).toString("ascii") === "GIF8") return "image/gif";
+  if (buf.subarray(4, 12).toString("ascii").includes("ftypavif")) return "image/avif";
+  return "image/jpeg";
+}
+
+type Fetched = { ok: true; buf: Buffer } | { ok: false; status: number };
+
+/** A small counting semaphore for the upstream fetches. */
+function limiter(max: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (active >= max) await new Promise<void>((resolve) => queue.push(resolve));
+    active += 1;
+    try {
+      return await task();
+    } finally {
+      active -= 1;
+      queue.shift()?.();
+    }
+  };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Keeps the cache under its size limit, oldest pictures out first. Run at
+ * start and every few hours; a full listing of a few thousand files is cheap.
+ */
+async function sweep(log: FastifyBaseLogger): Promise<void> {
+  const limit = env.IMAGE_CACHE_MAX_MB * 1024 * 1024;
+  try {
+    const names = await readdir(CACHE_DIR);
+    const files = await Promise.all(
+      names
+        .filter((name) => !name.endsWith(".tmp"))
+        .map(async (name) => {
+          const info = await stat(join(CACHE_DIR, name)).catch(() => null);
+          return info ? { name, size: info.size, at: info.mtimeMs } : null;
+        }),
+    );
+    const list = files.filter((f): f is NonNullable<typeof f> => f != null).sort((a, b) => a.at - b.at);
+    let total = list.reduce((sum, f) => sum + f.size, 0);
+    let removed = 0;
+    for (const file of list) {
+      if (total <= limit * 0.9) break;
+      await unlink(join(CACHE_DIR, file.name)).catch(() => undefined);
+      total -= file.size;
+      removed += 1;
+    }
+    if (removed > 0) log.info({ removed, mb: Math.round(total / 1024 / 1024) }, "image cache trimmed");
+  } catch {
+    // No cache yet — nothing to trim.
+  }
+}
+
+/**
+ * The image proxy.
+ *
+ * Every picture is fetched from its source once and then kept on disk: the
+ * next visitor — and every page after — gets it straight from here. Before,
+ * each request went to the source again, and a grid of posters meant dozens
+ * of simultaneous fetches; the source throttled the burst and the posters
+ * stayed empty. Now at most six fetches run at a time, the same picture is
+ * never fetched twice at once, a refusal is retried once, and a picture the
+ * source doesn't have is remembered as missing for an hour.
+ */
 export const imageRoutes: FastifyPluginAsync = async (fastify) => {
+  await mkdir(CACHE_DIR, { recursive: true }).catch(() => undefined);
+  const upstream = limiter(MAX_UPSTREAM);
+  const inflight = new Map<string, Promise<Fetched>>();
+  const missing = new Map<string, number>();
+
+  void sweep(fastify.log);
+  const timer = setInterval(() => void sweep(fastify.log), 6 * 60 * 60_000);
+  timer.unref();
+  fastify.addHook("onClose", async () => clearInterval(timer));
+
+  const fetchOnce = (target: URL, key: string): Promise<Fetched> =>
+    upstream(async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const response = await fetch(target, {
+            redirect: "follow",
+            headers: { "user-agent": userAgentFor(target.hostname), accept: "image/*" },
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (response.ok) {
+            const buf = Buffer.from(await response.arrayBuffer());
+            if (buf.length === 0 || buf.length > MAX_BYTES) return { ok: false, status: 502 };
+            const file = join(CACHE_DIR, key);
+            await writeFile(`${file}.tmp`, buf)
+              .then(() => rename(`${file}.tmp`, file))
+              .catch(() => undefined);
+            return { ok: true, buf };
+          }
+          if (response.status === 404 || response.status === 410) return { ok: false, status: 404 };
+          if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
+            await sleep(700);
+            continue;
+          }
+          return { ok: false, status: 502 };
+        } catch {
+          if (attempt === 0) {
+            await sleep(400);
+            continue;
+          }
+          return { ok: false, status: 502 };
+        }
+      }
+      return { ok: false, status: 502 };
+    });
+
   fastify.get("/img", async (request, reply) => {
     const raw = (request.query as { u?: string }).u;
     if (!raw) {
@@ -45,41 +180,45 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (
       target.protocol !== "https:" ||
-      !ALLOWED_HOSTS.some(
-        (host) => target.hostname === host || target.hostname.endsWith(`.${host}`),
-      )
+      !ALLOWED_HOSTS.some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`))
     ) {
       reply.code(400);
       return { error: { code: "BAD_REQUEST", message: "Host not allowed" } };
     }
 
-    let upstream: Response;
-    try {
-      upstream = await fetch(target, {
-        redirect: "follow",
-        headers: { "user-agent": userAgentFor(target.hostname) },
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch {
-      reply.code(502);
-      return { error: { code: "UPSTREAM_UNAVAILABLE", message: "Image fetch failed" } };
-    }
+    const key = createHash("sha1").update(target.toString()).digest("hex");
+    const send = (buf: Buffer, hit: boolean) =>
+      reply
+        .header("content-type", sniff(buf))
+        .header("cache-control", "public, max-age=2592000, immutable")
+        .header("cross-origin-resource-policy", "cross-origin")
+        // Lets the web app read pixels off these (canvas colour extraction).
+        .header("access-control-allow-origin", "*")
+        .header("x-cache", hit ? "HIT" : "MISS")
+        .send(buf);
 
-    if (!upstream.ok || !upstream.body) {
-      reply.code(upstream.status === 404 ? 404 : 502);
+    const cached = await readFile(join(CACHE_DIR, key)).catch(() => null);
+    if (cached && cached.length > 0) return send(cached, true);
+
+    const knownMissing = missing.get(key);
+    if (knownMissing && Date.now() - knownMissing < MISSING_TTL_MS) {
+      reply.code(404);
       return { error: { code: "NOT_FOUND", message: "Image not found" } };
     }
 
-    reply
-      .header(
-        "content-type",
-        upstream.headers.get("content-type") ?? "image/jpeg",
-      )
-      .header("cache-control", "public, max-age=604800, immutable")
-      .header("cross-origin-resource-policy", "cross-origin")
-      // Lets the web app read pixels off these (canvas colour extraction).
-      .header("access-control-allow-origin", "*");
+    let pending = inflight.get(key);
+    if (!pending) {
+      pending = fetchOnce(target, key).finally(() => inflight.delete(key));
+      inflight.set(key, pending);
+    }
+    const result = await pending;
+    if (result.ok) return send(result.buf, false);
 
-    return reply.send(Readable.fromWeb(upstream.body as never));
+    if (result.status === 404) {
+      if (missing.size > 5000) missing.clear();
+      missing.set(key, Date.now());
+    }
+    reply.code(result.status).header("cache-control", "no-store");
+    return { error: { code: result.status === 404 ? "NOT_FOUND" : "UPSTREAM_UNAVAILABLE", message: "Image fetch failed" } };
   });
 };

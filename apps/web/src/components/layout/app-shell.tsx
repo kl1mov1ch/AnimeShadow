@@ -21,7 +21,7 @@ export function AppShell() {
   useServerHeadHandoff();
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delayDuration={300} skipDelayDuration={500}>
       <div className="flex min-h-dvh flex-col">
         <SiteHeader />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:py-10">

@@ -33,6 +33,7 @@ apps/web/.vite/
 # misc
 coverage/
 apps/api/uploads/
+apps/api/cache/
 
 # local agent tooling (not part of the app)
 .agents/

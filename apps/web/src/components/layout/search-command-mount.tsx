@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { OPEN_SEARCH_EVENT } from "@/lib/search-events";
 
 /**
  * Owns the ⌘K shortcut; loads the palette itself only once it is asked for.
@@ -38,8 +39,17 @@ export function SearchCommandMount() {
       setLoaded(true);
       setOpen((wasOpen) => !wasOpen);
     };
+    // The header's search button on a phone.
+    const onOpen = () => {
+      setLoaded(true);
+      setOpen(true);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener(OPEN_SEARCH_EVENT, onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener(OPEN_SEARCH_EVENT, onOpen);
+    };
   }, []);
 
   if (!loaded) return null;

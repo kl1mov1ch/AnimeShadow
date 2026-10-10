@@ -29,9 +29,4 @@ export const FEATURES = {
    * theme to fetch and sync on every page.
    */
   lightTheme: false,
-  /**
-   * The title's opening playing behind headers and hero slides. Off: stills
-   * only — no /themes lookup and no video stream per page.
-   */
-  openingVideos: false,
 } as const;

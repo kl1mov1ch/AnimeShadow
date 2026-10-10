@@ -15,6 +15,9 @@ export const TIP_SURFACE =
 export const TIP_TEXT =
   "max-w-[min(18rem,80vw)] rounded-md px-2.5 py-1.5 text-xs font-normal leading-snug text-balance";
 
-/** Arrives with a short fade and a 4px drift from where it points; leaves faster. */
+/**
+ * A soft fade with a 4px drift from the side it points from, on a long
+ * ease-out; it leaves a little faster than it came, without the drift.
+ */
 export const TIP_MOTION =
-  "animate-in fade-in-0 duration-150 ease-out data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100";
+  "animate-in fade-in-0 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-150";

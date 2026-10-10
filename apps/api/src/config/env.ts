@@ -81,6 +81,10 @@ const envSchema = z.object({
     .transform((value) => value === "true"),
   // AniLibria's whole catalogue matched to ours, once a day: the site's own
   // player for every title AniLibria streams.
+  // Where proxied pictures (Shikimori, Kinopoisk posters) are kept on disk,
+  // and how big that may grow before the oldest go.
+  IMAGE_CACHE_DIR: z.string().min(1).optional(),
+  IMAGE_CACHE_MAX_MB: z.coerce.number().int().positive().default(2048),
   ANILIBRIA_CATALOG_SYNC: z
     .enum(["true", "false"])
     .default("true")

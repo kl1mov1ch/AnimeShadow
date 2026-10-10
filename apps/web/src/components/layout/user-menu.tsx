@@ -65,20 +65,10 @@ export function UserMenu() {
           </TooltipTrigger>
           <TooltipContent>{t("common.signIn")}</TooltipContent>
         </Tooltip>
-        <Button
-          asChild
-          size="sm"
-          className="group relative hidden h-8 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-md shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40 sm:inline-flex"
-        >
+        <Button asChild size="sm" className="h-9 px-3.5 font-semibold">
           <Link to="/register">
-            <UserPlusIcon className="relative z-10" />
-            <span className="relative z-10">{t("common.createAccount")}</span>
-            {/* Same band of light as the random-anime button, so the two
-                deliberate flourishes in the header read as one idea. */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-            />
+            <UserPlusIcon />
+            {t("common.createAccount")}
           </Link>
         </Button>
       </div>
@@ -94,7 +84,7 @@ export function UserMenu() {
           className="relative"
           aria-label={t("common.account")}
         >
-          <Avatar className="size-9 ring-2 ring-border ring-offset-2 ring-offset-background transition-shadow hover:ring-primary/50">
+          <Avatar className="size-9 ring-1 ring-border/70 ring-offset-2 ring-offset-background transition-shadow hover:ring-foreground/30">
             {user.avatarUrl && <AvatarImage src={imageSrc(user.avatarUrl)} alt="" />}
             <AvatarFallback className="text-xs font-semibold">
               {initials(user.displayName)}
