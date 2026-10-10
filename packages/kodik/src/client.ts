@@ -200,6 +200,7 @@ function serialiseListParams(params: KodikListParams): Record<string, unknown> {
   if (params.year) out.year = params.year;
   if (params.shikimori_rating) out.shikimori_rating = params.shikimori_rating;
   if (params.not_blocked_in) out.not_blocked_in = params.not_blocked_in;
+  if (params.has_field) out.has_field = params.has_field;
   return out;
 }
 

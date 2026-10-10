@@ -20,6 +20,7 @@ import {
   VolumeXIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
+import { KodikControls } from "@/components/anime/kodik-controls";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -1691,6 +1693,9 @@ function Player({
   };
 
   // ---- Kodik: its player API tells us where it is, and takes a seek. ----
+  // The player moved into a real window of its own, outside the browser
+  // (Document Picture-in-Picture: Chrome and Edge on a computer), if it is.
+  const [pipWin, setPipWin] = useState<Window | null>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [kodikFrame, setKodikFrame] = useState<HTMLIFrameElement | null>(null);
   const winnerSource = data.sources.find((s) => s.id === winnerId) ?? null;
@@ -1698,7 +1703,8 @@ function Player({
     winnerSource != null && winnerSource.format !== "hls" && isKodikUrl(sourceUrlFor(winnerSource, episode) ?? winnerSource.embedUrl);
   useEffect(() => {
     setKodikFrame(winnerIsKodik && winnerId ? frames.current.get(winnerId) ?? null : null);
-  }, [winnerId, winnerIsKodik]);
+    // pipWin: the frame is a new element once moved into (or out of) the window.
+  }, [winnerId, winnerIsKodik, pipWin]);
 
   // Where the opening and ending are: the provider's own data first, then
   // AniSkip through our API.
@@ -1722,12 +1728,59 @@ function Player({
   const done = useRef({ episode, resumed: false, opening: false, ending: false });
   if (done.current.episode !== episode) done.current = { episode, resumed: false, opening: false, ending: false };
   const [notice, setNotice] = useState<string | null>(null);
-  // The player folded into a small window in the corner.
+  // The player folded into a small window in the corner of the page…
   const [mini, setMini] = useState(false);
+  // …or into a real window of its own (pipWin, declared with the frames).
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
+  const folded = mini || pipWin != null;
+  // Where playback was: moving the player to another window reloads the
+  // embed, which then picks up from here.
+  const lastTime = useRef(0);
+  const resumeAt = useRef<number | null>(null);
+
+  const fold = async () => {
+    if (pipWin) {
+      pipWin.close();
+      return;
+    }
+    if (mini) {
+      setMini(false);
+      return;
+    }
+    const api = (window as unknown as { documentPictureInPicture?: DocumentPip }).documentPictureInPicture;
+    if (!api) {
+      setMini(true);
+      return;
+    }
+    try {
+      const win = await api.requestWindow({ width: 720, height: 470 });
+      copyStylesInto(win.document);
+      win.document.title = title;
+      resumeAt.current = lastTime.current;
+      win.addEventListener("pagehide", () => {
+        resumeAt.current = lastTime.current;
+        setPipWin(null);
+      });
+      setPipWin(win);
+    } catch {
+      setMini(true);
+    }
+  };
+  // Leaving the page closes the window too.
+  useEffect(() => () => pipWin?.close(), [pipWin]);
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const kodik = useKodikBridge(kodikFrame, {
     onTime: (time) => {
+      lastTime.current = time;
+      if (resumeAt.current != null) {
+        const at = resumeAt.current;
+        resumeAt.current = null;
+        if (at > 5 && time < at - 5) {
+          kodik.seek(at);
+          return;
+        }
+      }
       const d = done.current;
       const saved = episodeRecord?.completed ? 0 : (episodeRecord?.positionSeconds ?? 0);
       if (prefs.resume && !d.resumed && time < 10 && saved > 30) {
@@ -1898,6 +1951,102 @@ function Player({
 
 
 
+  const stageContent = (
+    <>
+        <button
+          type="button"
+          onClick={() => void fold()}
+          aria-label={folded ? t("watch.miniOff") : t("watch.miniOn")}
+          title={folded ? t("watch.miniOff") : t("watch.miniOn")}
+          className="absolute left-2 top-2 z-30 grid size-8 place-items-center rounded-lg bg-black/60 text-white/80 opacity-70 transition-opacity hover:bg-black/80 hover:text-white hover:opacity-100 focus-visible:opacity-100"
+        >
+          {folded ? <Maximize2Icon className="size-4" /> : <PictureInPicture2Icon className="size-4" />}
+        </button>
+        {racePool.map((id) => {
+          const source = data.sources.find((s) => s.id === id);
+          if (!source) return null;
+          const isWinner = id === winnerId;
+
+          if (source.format === "hls") {
+            const url = sourceUrlFor(source, episode);
+            if (!url) return null;
+            return (
+              <CustomHlsPlayer
+                key={source.id}
+                src={url}
+                skin={skin}
+                isWinner={isWinner}
+                onReady={() => handleLoad(id)}
+                onFailed={() => handleFailed(id)}
+                resumeFrom={episodeRecord?.positionSeconds ?? 0}
+                onEnded={handleEnded}
+                opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
+              />
+            );
+          }
+
+          return (
+            <iframe
+              key={source.id}
+              ref={(el) => {
+                if (el) frames.current.set(source.id, el);
+                else frames.current.delete(source.id);
+              }}
+              src={sourceUrlFor(source, episode) ?? source.embedUrl}
+              title={`${title} — ${source.title}`}
+              // Autoplay permission only ever goes to the confirmed winner —
+              // a racer that's still invisible has no business making sound
+              // even if its own page tries to.
+              allow={
+                isWinner
+                  ? "autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  : "encrypted-media; picture-in-picture"
+              }
+              referrerPolicy="no-referrer"
+              onLoad={() => handleLoad(id)}
+              className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
+              tabIndex={isWinner ? undefined : -1}
+              aria-hidden={isWinner ? undefined : true}
+            />
+          );
+        })}
+        {notice && (
+          <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 animate-in rounded-lg bg-black/75 px-2.5 py-1 text-xs font-medium text-white fade-in-0 slide-in-from-top-1">
+            {notice}
+          </div>
+        )}
+        {countdown != null && nextEpisode != null && (
+          <div className="absolute bottom-14 right-3 z-20 flex animate-in items-center gap-2 rounded-xl border border-white/15 bg-black/80 py-1.5 pl-3 pr-1.5 text-xs text-white fade-in-0 slide-in-from-bottom-2">
+            <span>{t("watch.nextIn", { n: nextEpisode, s: countdown })}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setCountdown(null);
+                onEpisodeChange(nextEpisode);
+              }}
+              className="rounded-md bg-primary px-2 py-1 font-semibold text-primary-foreground"
+            >
+              {t("watch.nextNow")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCountdown(null)}
+              aria-label={t("common.cancel")}
+              className="grid size-6 place-items-center rounded-md text-white/70 hover:bg-white/15 hover:text-white"
+            >
+              <XIcon className="size-3.5" />
+            </button>
+          </div>
+        )}
+        {searching && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
+            <Loader2Icon className="size-6 animate-spin text-primary" />
+            <p className="text-xs">{t("watch.findingSource")}</p>
+          </div>
+        )}
+    </>
+  );
+
   return (
     <div
       ref={containerRef}
@@ -1976,127 +2125,71 @@ function Player({
           drops under the video with a height of its own — stacking it full
           height would push the next section off the screen entirely. */}
       <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-stretch">
+      {/* The picture with its controls under it: one block, so fullscreen
+          takes both. */}
+      <div ref={setStageEl} className="player-stage flex min-w-0 flex-col gap-2">
       <div
         className={cn(
-          "relative aspect-video overflow-hidden border bg-black",
+          "player-box relative aspect-video overflow-hidden border bg-black",
           "-mx-5 sm:mx-0 sm:rounded-xl",
         )}
       >
-        {/* Folded away: the box keeps its place on the page and says where
-            the picture went. */}
-        {mini && (
+        {/* Folded away — into a window outside the browser, or a small one
+            in the corner: the box keeps its place and says where it went. */}
+        {folded && (
           <button
             type="button"
-            onClick={() => setMini(false)}
+            onClick={() => void fold()}
             className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-white/70 transition-colors hover:text-white"
           >
             <PictureInPicture2Icon className="size-6 text-primary" />
-            {t("watch.miniPlaceholder")}
+            {pipWin ? t("watch.pipPlaceholder") : t("watch.miniPlaceholder")}
           </button>
         )}
-        {/* Everything that plays lives in this one box; folding the player
-            into a window only changes the box's position, never its
-            children, so the video keeps playing without a reload. */}
-        <div
-          className={cn(
-            mini
-              ? "fixed bottom-4 right-4 z-50 aspect-video w-[min(26rem,calc(100vw-2rem))] animate-in overflow-hidden rounded-xl border border-white/15 bg-black shadow-2xl shadow-black/60 fade-in-0 slide-in-from-bottom-4"
-              : "absolute inset-0",
-          )}
-        >
-        <button
-          type="button"
-          onClick={() => setMini((m) => !m)}
-          aria-label={mini ? t("watch.miniOff") : t("watch.miniOn")}
-          title={mini ? t("watch.miniOff") : t("watch.miniOn")}
-          className="absolute right-2 top-2 z-30 grid size-8 place-items-center rounded-lg bg-black/60 text-white/80 opacity-70 transition-opacity hover:bg-black/80 hover:text-white hover:opacity-100 focus-visible:opacity-100"
-        >
-          {mini ? <Maximize2Icon className="size-4" /> : <PictureInPicture2Icon className="size-4" />}
-        </button>
-        {racePool.map((id) => {
-          const source = data.sources.find((s) => s.id === id);
-          if (!source) return null;
-          const isWinner = id === winnerId;
-
-          if (source.format === "hls") {
-            const url = sourceUrlFor(source, episode);
-            if (!url) return null;
-            return (
-              <CustomHlsPlayer
-                key={source.id}
-                src={url}
-                skin={skin}
-                isWinner={isWinner}
-                onReady={() => handleLoad(id)}
-                onFailed={() => handleFailed(id)}
-                resumeFrom={episodeRecord?.positionSeconds ?? 0}
-                onEnded={handleEnded}
-                opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
-              />
-            );
-          }
-
-          return (
-            <iframe
-              key={source.id}
-              ref={(el) => {
-                if (el) frames.current.set(source.id, el);
-                else frames.current.delete(source.id);
-              }}
-              src={sourceUrlFor(source, episode) ?? source.embedUrl}
-              title={`${title} — ${source.title}`}
-              // Autoplay permission only ever goes to the confirmed winner —
-              // a racer that's still invisible has no business making sound
-              // even if its own page tries to.
-              allow={
-                isWinner
-                  ? "autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  : "encrypted-media; picture-in-picture"
-              }
-              referrerPolicy="no-referrer"
-              onLoad={() => handleLoad(id)}
-              className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
-              tabIndex={isWinner ? undefined : -1}
-              aria-hidden={isWinner ? undefined : true}
-            />
-          );
-        })}
-        {notice && (
-          <div className="pointer-events-none absolute left-3 top-3 z-20 animate-in rounded-lg bg-black/75 px-2.5 py-1 text-xs font-medium text-white fade-in-0 slide-in-from-top-1">
-            {notice}
+        {pipWin ? (
+          createPortal(
+            <div className="flex h-screen flex-col gap-1.5 bg-black p-1.5">
+              <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg">{stageContent}</div>
+              {winnerIsKodik && (
+                <KodikControls
+                  compact
+                  frame={kodikFrame}
+                  opening={opening}
+                  ending={ending}
+                  hasNext={nextEpisode != null}
+                  onNext={() => nextEpisode != null && onEpisodeChange(nextEpisode)}
+                />
+              )}
+            </div>,
+            pipWin.document.body,
+          )
+        ) : (
+          // Everything that plays lives in this one box; folding it into the
+          // corner only changes the box's position, never its children, so
+          // the video keeps playing without a reload.
+          <div
+            className={cn(
+              mini
+                ? "fixed bottom-4 left-4 z-50 aspect-video w-[min(26rem,calc(100vw-2rem))] animate-in overflow-hidden rounded-xl border border-white/15 bg-black shadow-2xl shadow-black/60 fade-in-0 slide-in-from-bottom-4"
+                : "absolute inset-0",
+            )}
+          >
+            {stageContent}
           </div>
         )}
-        {countdown != null && nextEpisode != null && (
-          <div className="absolute bottom-14 right-3 z-20 flex animate-in items-center gap-2 rounded-xl border border-white/15 bg-black/80 py-1.5 pl-3 pr-1.5 text-xs text-white fade-in-0 slide-in-from-bottom-2">
-            <span>{t("watch.nextIn", { n: nextEpisode, s: countdown })}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setCountdown(null);
-                onEpisodeChange(nextEpisode);
-              }}
-              className="rounded-md bg-primary px-2 py-1 font-semibold text-primary-foreground"
-            >
-              {t("watch.nextNow")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCountdown(null)}
-              aria-label={t("common.cancel")}
-              className="grid size-6 place-items-center rounded-md text-white/70 hover:bg-white/15 hover:text-white"
-            >
-              <XIcon className="size-3.5" />
-            </button>
-          </div>
-        )}
-        {searching && (
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
-            <Loader2Icon className="size-6 animate-spin text-primary" />
-            <p className="text-xs">{t("watch.findingSource")}</p>
-          </div>
-        )}
-        </div>
-        </div>
+      </div>
+      {!pipWin && winnerIsKodik && (
+        <KodikControls
+          className="player-controls"
+          frame={kodikFrame}
+          opening={opening}
+          ending={ending}
+          hasNext={nextEpisode != null}
+          onNext={() => nextEpisode != null && onEpisodeChange(nextEpisode)}
+          fullscreenTarget={stageEl}
+        />
+      )}
+      </div>
 
         <div className="relative min-w-0">
         <PlayerSidePanel
@@ -2133,6 +2226,35 @@ function Player({
       </div>
     </div>
   );
+}
+
+/** The bit of the Document Picture-in-Picture API used here. */
+interface DocumentPip {
+  requestWindow(options: { width: number; height: number }): Promise<Window>;
+}
+
+/** The page's styles, copied into the picture-in-picture window. */
+function copyStylesInto(target: Document) {
+  target.documentElement.className = document.documentElement.className;
+  target.body.style.margin = "0";
+  target.body.style.background = "#000";
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      const style = target.createElement("style");
+      style.textContent = Array.from(sheet.cssRules)
+        .map((rule) => rule.cssText)
+        .join("\n");
+      target.head.appendChild(style);
+    } catch {
+      // A stylesheet from another origin can't be read — link it instead.
+      if (sheet.href) {
+        const link = target.createElement("link");
+        link.rel = "stylesheet";
+        link.href = sheet.href;
+        target.head.appendChild(link);
+      }
+    }
+  }
 }
 
 /**

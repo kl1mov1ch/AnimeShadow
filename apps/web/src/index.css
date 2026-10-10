@@ -1665,3 +1665,22 @@ body:has([role="dialog"][data-state="open"]) main * {
 @media (prefers-reduced-motion: reduce) {
   .cc-fan, .dice-roll { transition: none; animation: none; }
 }
+
+/* The player block in fullscreen: the picture takes the screen, the site's
+   controls sit under it. */
+.player-stage:fullscreen {
+  background: #000;
+  gap: 0;
+  padding: 0;
+}
+.player-stage:fullscreen > .player-box {
+  aspect-ratio: auto;
+  flex: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.player-stage:fullscreen > .player-controls {
+  border-radius: 0;
+  border-width: 1px 0 0;
+}

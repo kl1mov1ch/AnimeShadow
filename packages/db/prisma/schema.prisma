@@ -476,6 +476,13 @@ model Anime {
 /// Whether an embed player (Kodik / Alloha) has this title, cached so the
 /// catalogue can badge cards without a lookup per card. `hasPlayer` null means
 /// "not yet checked" or "every provider was unavailable".
+/// When a background job last finished, by name ("kodik-full", "kodik-recent").
+model SyncState {
+  key  String   @id
+  at   DateTime
+  note String?
+}
+
 model WatchAvailability {
   anime       Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
   animeId     Int      @id

@@ -424,7 +424,8 @@ export const en = {
     },
   },
   watch: {
-    miniOn: "Fold into a window",
+    pipPlaceholder: "Playing in a separate window — click to bring it back",
+    miniOn: "Watch in a separate window",
     miniOff: "Bring it back",
     miniPlaceholder: "Playing in a window — click to bring it back",
     resumed: "Resuming from {time}",

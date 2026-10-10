@@ -110,6 +110,8 @@ export interface KodikListParams {
   shikimori_rating?: number;
   limit?: number;
   not_blocked_in?: string;
+  /** Only rows that have this field filled, e.g. "shikimori_id". */
+  has_field?: string;
 }
 
 export interface KodikSearchParams extends KodikListParams {

@@ -1095,6 +1095,40 @@ export class CatalogService {
   }
 
   /**
+   * Titles that came in from Kodik's catalogue carry no synopsis, and their
+   * age rating is Kodik's rough one. This fills them in from Shikimori's
+   * detail endpoint, a batch per pass, most-voted first — the same data a
+   * detail page fetches when someone opens it, just ahead of time. Only
+   * Shikimori is asked (no AniList, Jikan or translation round trips), and
+   * a title Shikimori doesn't know is marked so it isn't asked again.
+   */
+  async warmDetails(limit: number): Promise<void> {
+    if (limit <= 0) return;
+    const targets = await this.prisma.anime.findMany({
+      where: { detailSyncedAt: null, watchAvailability: { hasPlayer: true } },
+      orderBy: [{ scoredBy: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+      take: limit,
+      select: { id: true },
+    });
+    if (targets.length === 0) return;
+    this.logger.info({ count: targets.length }, "warming anime details");
+    let done = 0;
+    for (const { id } of targets) {
+      try {
+        const full = await this.shikimori.getAnime(id);
+        await persistAnimeDetail(shikiToDetail(full));
+        done += 1;
+      } catch (error) {
+        if (error instanceof ShikimoriError && error.status === 404) {
+          await this.prisma.anime.update({ where: { id }, data: { detailSyncedAt: new Date() } }).catch(() => undefined);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+    this.logger.info({ checked: targets.length, filled: done }, "anime details warm done");
+  }
+
+  /**
    * Fills in artwork for titles nobody has opened yet, most-popular first.
    *
    * Without this the accent colour only ever arrived one detail-page visit at

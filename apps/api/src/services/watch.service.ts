@@ -193,6 +193,9 @@ export class WatchService {
           { watchAvailability: null },
           { watchAvailability: { checkedAt: { lt: staleBefore } } },
           { watchAvailability: { hasPlayer: null } },
+          // Known to be playable (the Kodik catalogue sync) but its dubs not
+          // resolved yet: doing it here makes the first open instant.
+          { watchAvailability: { hasPlayer: true }, playerSources: { none: {} } },
         ],
       },
       orderBy: [{ members: { sort: "desc", nulls: "last" } }],

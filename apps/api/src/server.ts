@@ -50,6 +50,12 @@ try {
       await app.services.catalog.warmArtwork(env.ARTWORK_WARM_LIMIT);
     } catch (error) {
       app.log.warn({ err: error }, "artwork warm failed");
+    }
+    try {
+      // Synopses and real ratings for titles that came in from Kodik.
+      await app.services.catalog.warmDetails(env.DETAIL_WARM_LIMIT);
+    } catch (error) {
+      app.log.warn({ err: error }, "detail warm failed");
     } finally {
       warming = false;
     }
@@ -58,6 +64,15 @@ try {
   setTimeout(() => void runWarm(), 4_000);
   // Tell Yandex and Bing about new and changed pages (only with INDEXNOW_KEY).
   startIndexNow(app.prisma, app.log);
+
+  // Every anime Kodik can play, into the catalogue: two minutes after start
+  // (well after the deploy's trial run on the spare port has been stopped),
+  // then every six hours. Weekly passes are full, the rest read only the
+  // most recently updated rows.
+  if (env.KODIK_CATALOG_SYNC) {
+    setTimeout(() => void app.services.kodikSync.runScheduled(), 120_000).unref();
+    setInterval(() => void app.services.kodikSync.runScheduled(), 6 * 60 * 60_000).unref();
+  }
   if (env.WATCH_WARM_INTERVAL_MS > 0) {
     // unref'd so a pending tick never keeps the process alive during shutdown.
     setInterval(() => void runWarm(), env.WATCH_WARM_INTERVAL_MS).unref();

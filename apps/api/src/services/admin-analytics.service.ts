@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@animeshadow/db";
+ import { Prisma, type PrismaClient } from "@animeshadow/db";
 import type {
   AdminAnalytics,
   AdminAnalyticsQuery,

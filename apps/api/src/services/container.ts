@@ -15,6 +15,7 @@ import { AdminService } from "./admin.service.js";
 import { CollectionService } from "./collection.service.js";
 import { FactsService } from "./facts.service.js";
 import { AdminAnalyticsService } from "./admin-analytics.service.js";
+import { KodikCatalogSync } from "./kodik-sync.service.js";
 import { LandingService } from "./landing.service.js";
 import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
@@ -84,6 +85,7 @@ export interface Services {
   facts: FactsService;
   adminAnalytics: AdminAnalyticsService;
   landing: LandingService;
+  kodikSync: KodikCatalogSync;
   seo: SeoRenderer;
 }
 
@@ -237,6 +239,7 @@ export function createServices(deps: ContainerDeps): Services {
     facts: new FactsService({ prisma: deps.prisma }),
     adminAnalytics: new AdminAnalyticsService({ prisma: deps.prisma }),
     landing,
+    kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing }),
   };
 }
