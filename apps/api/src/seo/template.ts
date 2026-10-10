@@ -17,7 +17,7 @@ let cached: { mtimeMs: number; html: string; checkedAt: number } | null = null;
 
 export function appShell(): string {
   const now = Date.now();
-  if (cached && now - cached.checkedAt < 10_000) return cached.html;
+  if (cached && now - cached.checkedAt < 2_000) return cached.html;
   try {
     const { mtimeMs } = statSync(FILE);
     if (!cached || cached.mtimeMs !== mtimeMs) {

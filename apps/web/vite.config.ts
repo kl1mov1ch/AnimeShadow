@@ -21,7 +21,19 @@ export default defineConfig(({ mode }) => {
         // instinct as the vite:preloadError reload in main.tsx, just for the
         // service worker itself.
         registerType: "autoUpdate",
-        injectRegister: "auto",
+        // Nothing registers a worker any more — a page that registered the
+        // self-destroying one below would reload itself on every visit.
+        injectRegister: false,
+        // The service worker is retired: the one already installed in people's
+        // browsers kept serving an old copy of the site, because installing a
+        // newer one meant downloading the whole app (2.6 MB, 61 files) and a
+        // single failed file cancelled it — /index.html answered 404 once the
+        // pages came from the API, so every update failed, for good.
+        // This version installs nothing, unregisters itself, empties its
+        // caches and reloads the page from the server. The app is still
+        // installable from the manifest; hashed files are cached by the
+        // browser for a year anyway.
+        selfDestroying: true,
         includeAssets: ["favicon.svg"],
         manifest: {
           id: "/",

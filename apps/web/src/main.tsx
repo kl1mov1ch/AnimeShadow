@@ -40,28 +40,22 @@ window.addEventListener("vite:preloadError", () => {
   window.location.reload();
 });
 
-// The installed app (the service worker) keeps the last version it saw and
-// serves it, offline-first — so after a deploy, people kept seeing the old
-// site until they happened to hard-reload. Now: the worker is asked about a
-// new version on every open and every half hour, and the moment a new one
-// takes over, the page reloads into it once. Not on a first visit — there
-// was no old version then, only the first install.
+// The site no longer uses a service worker. The one people already had kept
+// serving an old copy of the site after every deploy (see vite.config.ts);
+// /sw.js is now a worker that removes itself. Any registration still left in
+// this browser is dropped here too, with the caches it filled — the page
+// itself always comes from the server from now on.
 if ("serviceWorker" in navigator) {
-  const hadController = Boolean(navigator.serviceWorker.controller);
-  let reloading = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!hadController || reloading) return;
-    reloading = true;
-    window.location.reload();
-  });
-  void navigator.serviceWorker.ready.then((registration) => {
-    const check = () => void registration.update().catch(() => undefined);
-    check();
-    window.setInterval(check, 30 * 60_000);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") check();
-    });
-  });
+  void navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+    .catch(() => undefined);
+  if ("caches" in window) {
+    void caches
+      .keys()
+      .then((names) => Promise.all(names.map((name) => caches.delete(name))))
+      .catch(() => undefined);
+  }
 }
 
 const container = document.getElementById("root");

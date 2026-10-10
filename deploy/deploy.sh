@@ -141,6 +141,22 @@ if command -v brotli >/dev/null; then
 else
   echo "(brotli not installed — gzip only; 'apt install brotli' for smaller files)"
 fi
+
+# The scripts of the build being replaced stay reachable for a while: a tab
+# opened before the deploy still loads its pages' chunks by the old names,
+# and so does a page the API filled a moment before the swap. They keep their
+# own dates and drop out once two weeks old, so they don't pile up.
+step "keep the previous build's scripts"
+if [ -d "$WEB/dist/assets" ]; then
+  kept=0
+  while IFS= read -r -d '' f; do
+    if [ ! -e "$WEB/dist-next/assets/${f##*/}" ]; then
+      cp -p "$f" "$WEB/dist-next/assets/"
+      kept=$((kept + 1))
+    fi
+  done < <(find "$WEB/dist/assets" -maxdepth 1 -type f -mtime -14 -print0)
+  echo "$kept files of the previous build kept"
+fi
 chown -R "$APP_USER" "$WEB/dist-next"
 
 # The new API is tried out on a spare port first, while the live one keeps

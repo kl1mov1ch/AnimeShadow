@@ -34,6 +34,19 @@ export interface RenderedPage {
   redirect?: string;
 }
 
+/**
+ * A page before it goes into the app's shell — what is cached. The shell is
+ * put around it on every request: it names the build's scripts, and a page
+ * cached with the previous build's shell sent people to scripts a deploy
+ * had just moved away — the old site, or a blank one, for minutes.
+ */
+interface PagePart {
+  status: number;
+  head?: string;
+  body?: string;
+  redirect?: string;
+}
+
 interface PageModel {
   status?: number;
   title: string;
@@ -72,7 +85,7 @@ const PRIVATE = [
 export class SeoRenderer {
   private readonly prisma: PrismaClient;
   private readonly landing: LandingService;
-  private readonly cache = new TtlCache<RenderedPage>(5 * 60_000, 2000);
+  private readonly cache = new TtlCache<PagePart>(5 * 60_000, 2000);
 
   constructor(deps: SeoRendererDeps) {
     this.prisma = deps.prisma;
@@ -88,17 +101,21 @@ export class SeoRenderer {
       pathname = rawPath || "/";
     }
     const search = rawSearch ? `?${rawSearch}` : "";
-    return this.cache.wrap(`${pathname}${search}`, () => this.renderUncached(pathname, search, `${rawPath || "/"}${search}`));
+    const part = await this.cache.wrap(`${pathname}${search}`, () =>
+      this.renderUncached(pathname, search, `${rawPath || "/"}${search}`),
+    );
+    if (part.redirect) return { status: part.status, redirect: part.redirect };
+    return { status: part.status, html: fillShell(part.head ?? defaultHead(), part.body ?? "") };
   }
 
-  private async renderUncached(pathname: string, search: string, address: string): Promise<RenderedPage> {
+  private async renderUncached(pathname: string, search: string, address: string): Promise<PagePart> {
     try {
       const outcome = await this.route(pathname, search);
       if ("redirect" in outcome) return { status: 301, redirect: outcome.redirect };
-      return { status: outcome.status ?? 200, html: this.html(outcome, address) };
+      return { status: outcome.status ?? 200, head: this.head(outcome, address), body: outcome.body };
     } catch {
       // Never a broken page because of SEO: the bare shell still runs the app.
-      return { status: 200, html: fillShell(defaultHead(), "") };
+      return { status: 200 };
     }
   }
 
@@ -107,7 +124,10 @@ export class SeoRenderer {
   private async route(pathname: string, search: string): Promise<PageModel | { redirect: string }> {
     const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
     if (PRIVATE.some((re) => re.test(path))) return this.privatePage();
-    if (path === "/") return this.home();
+    // /index.html is the home page too: an installed copy of the app (the
+    // old service worker) fetches it by that name, and a 404 here failed
+    // every update of it — people kept the old site for good.
+    if (path === "/" || path === "/index.html") return this.home();
 
     const anime = /^\/anime\/([^/]+)(?:\/[^/]+)?$/.exec(path);
     if (anime) return this.anime(anime[1]!, path);
@@ -560,7 +580,7 @@ export class SeoRenderer {
 
   // -- the document --------------------------------------------------------
 
-  private html(page: PageModel, address: string): string {
+  private head(page: PageModel, address: string): string {
     const robots =
       page.robots === "noindex-nofollow"
         ? "noindex, nofollow"
@@ -591,7 +611,7 @@ export class SeoRenderer {
       ...(page.jsonLd ?? []).map((d) => `<script type="application/ld+json" data-seo-ssr="1">${jsonLd(d)}</script>`),
       SNAPSHOT_STYLE,
     ];
-    return fillShell(tags.filter(Boolean).join("\n    "), page.body);
+    return tags.filter(Boolean).join("\n    ");
   }
 }
 
