@@ -36,7 +36,7 @@ export function Component() {
         <div className="flex flex-wrap gap-2 pt-1">
           <Link
             to="/collections/new"
-            className="btn-sheen inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg"
           >
             <PlusIcon className="size-4" />
             {t("collections.create")}
@@ -54,7 +54,7 @@ export function Component() {
       {isPending || !data ? (
         <Skeleton className="h-80 rounded-2xl" />
       ) : data.collections.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-primary/30 p-10 text-center text-sm text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           {t("collections.statsEmpty")}
         </p>
       ) : (

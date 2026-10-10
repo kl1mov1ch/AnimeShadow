@@ -69,8 +69,8 @@ function Slider({
           data-slot="slider-thumb"
           key={index}
           className={cn(
-            "block size-4 shrink-0 cursor-grab rounded-full border-2 border-primary bg-background shadow-md shadow-primary/30",
-            "transition-[transform,box-shadow,border-color] duration-150 hover:scale-125 hover:shadow-lg hover:shadow-primary/40",
+            "block size-4 shrink-0 cursor-grab rounded-full border-2 border-primary bg-background shadow-md",
+            "transition-[transform,box-shadow,border-color] duration-150 hover:scale-125 hover:shadow-lg",
             "focus-visible:scale-125 focus-visible:ring-4 focus-visible:ring-primary/25 focus-visible:outline-hidden",
             "active:scale-110 active:cursor-grabbing",
             "disabled:pointer-events-none disabled:opacity-50"

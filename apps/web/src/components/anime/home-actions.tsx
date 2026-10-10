@@ -93,7 +93,7 @@ export function HomeActions() {
           </>
         );
         const shell =
-          "group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/50 p-3.5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5";
+          "group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/50 p-3.5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg";
 
         return (
           <Tooltip key={key}>

@@ -237,7 +237,7 @@ function Editor({
           <button
             type="button"
             onClick={() => setPublished((p) => !p)}
-            className="flex items-center gap-2 rounded-lg border border-primary/25 bg-card/60 px-3 py-2 text-left text-sm transition-colors hover:border-primary"
+            className="flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 py-2 text-left text-sm transition-colors hover:border-primary"
           >
             {published ? <EyeIcon className="size-4 text-primary" /> : <EyeOffIcon className="size-4 text-muted-foreground" />}
             <span className="flex-1">
@@ -260,7 +260,7 @@ function Editor({
             type="button"
             onClick={submit}
             disabled={!canSave}
-            className="btn-sheen inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-lg active:scale-95 disabled:opacity-50"
           >
             {save.isPending ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}
             {id ? t("collections.editor.update") : t("collections.editor.publish")}
@@ -315,7 +315,7 @@ function BlockEditor({
     );
   }
   return (
-    <div className="flex gap-3 rounded-2xl border border-primary/30 bg-[var(--accent-surface)] p-2.5">
+    <div className="flex gap-3 rounded-2xl border border-border/70 bg-[var(--accent-surface)] p-2.5">
       <span className="aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg bg-muted sm:w-24">
         {anime?.image && <img src={imageSrc(anime.image)} alt="" className="size-full object-cover" />}
       </span>
@@ -326,7 +326,7 @@ function BlockEditor({
           onChange={(note) => onChange({ note })}
           maxLength={1500}
           placeholder={t("collections.editor.notePh")}
-          className="min-h-16 flex-1 rounded-lg border border-primary/20 bg-card/60 p-2 text-sm"
+          className="min-h-16 flex-1 rounded-lg border border-border/70 bg-card/60 p-2 text-sm"
         />
       </div>
       {controls}
@@ -358,7 +358,7 @@ function IconBtn({
         "grid size-7 place-items-center rounded-md border transition-colors disabled:opacity-30",
         danger
           ? "border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
-          : "border-primary/25 text-muted-foreground hover:border-primary hover:text-primary",
+          : "border-border/70 text-muted-foreground hover:border-primary hover:text-primary",
       )}
     >
       <Icon className="size-3.5" />
@@ -409,7 +409,7 @@ function Inserter({ onText, onAnime }: { onText: () => void; onAnime: (a: AnimeC
         <button
           type="button"
           onClick={onText}
-          className="inline-flex items-center gap-1 rounded-md border border-primary/25 bg-card/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+          className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-card/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
         >
           <TextIcon className="size-3" />
           {t("collections.editor.addText")}
@@ -420,7 +420,7 @@ function Inserter({ onText, onAnime }: { onText: () => void; onAnime: (a: AnimeC
           aria-pressed={picking}
           className={cn(
             "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors",
-            picking ? "border-primary bg-primary text-primary-foreground" : "border-primary/25 bg-card/60 text-muted-foreground hover:border-primary hover:text-primary",
+            picking ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-card/60 text-muted-foreground hover:border-primary hover:text-primary",
           )}
         >
           <FilmIcon className="size-3" />
@@ -448,7 +448,7 @@ function AnimePicker({ onPick }: { onPick: (a: AnimeCard) => void }) {
   const search = useSmartSearch(term, term.length >= 2);
   const results = (search.data?.flat ?? []).slice(0, 8);
   return (
-    <div className="flex animate-in flex-col gap-2 rounded-xl border border-primary/40 bg-card p-2.5 fade-in-0 slide-in-from-top-1 duration-200">
+    <div className="flex animate-in flex-col gap-2 rounded-xl border border-border/70 bg-card p-2.5 fade-in-0 slide-in-from-top-1 duration-200">
       <div className="relative">
         <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -456,7 +456,7 @@ function AnimePicker({ onPick }: { onPick: (a: AnimeCard) => void }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t("collections.editor.searchAnime")}
-          className="h-9 w-full rounded-lg border border-primary/25 bg-background/80 pl-8 pr-8 text-sm outline-none focus:border-primary"
+          className="h-9 w-full rounded-lg border border-border/70 bg-background/80 pl-8 pr-8 text-sm outline-none focus:border-primary"
         />
         {search.isFetching && <Loader2Icon className="absolute right-2.5 top-1/2 size-4 -translate-y-1/2 animate-spin text-primary" />}
       </div>

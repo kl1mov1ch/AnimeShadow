@@ -379,7 +379,7 @@ function PlayerShell({
                     aria-hidden
                     className="absolute inset-0 animate-ping rounded-full bg-primary/30 [animation-duration:2.4s] motion-reduce:hidden"
                   />
-                  <span className="btn-sheen relative grid size-16 place-items-center rounded-full border border-primary/50 bg-primary text-primary-foreground shadow-2xl shadow-primary/40 transition-transform duration-300 group-hover:scale-110">
+                  <span className="relative grid size-16 place-items-center rounded-full border border-primary/50 bg-primary text-primary-foreground shadow-2xl transition-transform duration-300 group-hover:scale-110">
                     <PlayIcon className="size-7 translate-x-[2px] fill-current" />
                   </span>
                 </span>
@@ -1441,7 +1441,7 @@ function CustomHlsPlayer({
                   aria-hidden
                   className="absolute inset-0 animate-ping rounded-full bg-primary/25 [animation-duration:2.6s] motion-reduce:hidden"
                 />
-                <span className="btn-sheen relative flex size-16 items-center justify-center rounded-full border border-primary/50 bg-primary/90 text-primary-foreground shadow-lg shadow-primary/30 transition-transform duration-300 group-hover/play:scale-105 group-active/play:scale-95">
+                <span className="relative flex size-16 items-center justify-center rounded-full border border-primary/50 bg-primary/90 text-primary-foreground shadow-lg transition-transform duration-300 group-hover/play:scale-105 group-active/play:scale-95">
                   <PlayIcon className="size-7 translate-x-0.5 fill-current" />
                 </span>
               </span>
@@ -1461,7 +1461,7 @@ function CustomHlsPlayer({
                   if (video) video.currentTime = opening.stop;
                   wake();
                 }}
-                className="btn-sheen absolute bottom-20 right-4 z-10 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95"
+                className="absolute bottom-20 right-4 z-10 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95"
               >
                 <SkipForwardIcon className="size-3.5" />
                 {t("watch.skipOpening")}
@@ -1503,7 +1503,7 @@ function CustomHlsPlayer({
                 // extra pixel of height earns itself, since this is the
                 // control people actually aim at.
                 className={cn(
-                  "relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:shadow-primary/40 [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5",
+                  "relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5",
                   tone.range,
                 )}
               />

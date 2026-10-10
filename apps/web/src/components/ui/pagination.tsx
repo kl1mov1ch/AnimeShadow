@@ -68,7 +68,7 @@ function PaginationLink({
         "group relative inline-flex items-center justify-center overflow-hidden rounded-lg text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-ring",
         size === "icon" ? "size-9" : "h-9 px-3",
         isActive
-          ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+          ? "bg-primary text-primary-foreground shadow-md"
           : "text-muted-foreground hover:bg-foreground/[0.07] hover:text-foreground",
         "aria-disabled:pointer-events-none aria-disabled:opacity-40 aria-disabled:hover:translate-y-0",
         className

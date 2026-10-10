@@ -84,7 +84,7 @@ export function ProfileStudio({
                   className={cn(
                     "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                     tab === id
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                      ? "bg-primary text-primary-foreground shadow-md"
                       : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
                   )}
                 >
@@ -148,7 +148,7 @@ function ProgressPicker({ profile }: { profile: MyProfile }) {
             className={cn(
               "flex flex-col gap-2.5 rounded-xl border px-3 pb-3 pt-2.5 text-left transition-all active:scale-[0.98]",
               layout.progressStyle === style
-                ? "border-primary bg-primary/10 shadow-md shadow-primary/20"
+                ? "border-primary bg-primary/10 shadow-md"
                 : "border-primary/15 bg-card/40 hover:border-primary/50",
             )}
           >

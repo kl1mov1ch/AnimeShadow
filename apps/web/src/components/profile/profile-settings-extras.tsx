@@ -210,7 +210,7 @@ export function PortabilitySection() {
         <button
           type="button"
           onClick={() => void apiDownload("/me/library/export?format=json", "animeshadow-list.json")}
-          className="btn-sheen inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
         >
           <DownloadIcon className="size-3.5" />
           {t("profile.portability.exportJson")}
@@ -218,7 +218,7 @@ export function PortabilitySection() {
         <button
           type="button"
           onClick={() => void apiDownload("/me/library/export?format=mal", "animelist.xml")}
-          className="btn-sheen inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
         >
           <DownloadIcon className="size-3.5" />
           {t("profile.portability.exportMal")}
@@ -239,7 +239,7 @@ export function PortabilitySection() {
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={importer.isPending}
-          className="btn-sheen inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/25 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md disabled:opacity-60"
         >
           <UploadIcon className="size-3.5" />
           {t("profile.portability.import")}

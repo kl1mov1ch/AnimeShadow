@@ -3,11 +3,11 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The top of a standalone page, drawn the way the catalogue's is: the
- * site's accent surface, a glow from the upper right, 影 as a watermark,
- * a small eyebrow over a display-face title. About, support and frame
- * search each had their own grey card with a hairline on top; now they
- * open like the rest of the site.
+ * The top of a standalone page, the way the catalogue's reads: a small
+ * label, the page's name in the display face, a line of explanation, and
+ * whatever the page wants to offer right there. No card, no glow, no
+ * watermark — every page opens the same quiet way, and the content below
+ * is what carries the colour.
  */
 export function PageHero({
   icon: Icon,
@@ -21,7 +21,7 @@ export function PageHero({
 }: {
   icon: LucideIcon;
   eyebrow: string;
-  /** A small chip after the eyebrow ("beta"). */
+  /** A small tag after the label ("beta"). */
   badge?: string;
   title: string;
   lead?: ReactNode;
@@ -32,51 +32,27 @@ export function PageHero({
   className?: string;
 }) {
   return (
-    <header
-      className={cn(
-        "relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-5 py-7 sm:px-8 sm:py-10",
-        className,
-      )}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 120% at 100% 0%, color-mix(in srgb, var(--primary) 24%, transparent), transparent 70%), radial-gradient(40% 80% at 0% 100%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 70%)",
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-6 -top-10 select-none font-display text-[9rem] leading-none text-primary/[0.07] sm:text-[12rem]"
-      >
-        影
-      </span>
-
-      <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div className="flex max-w-2xl flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
-              <Icon className="size-3.5" />
-              {eyebrow}
+    <header className={cn("flex flex-col gap-6 md:flex-row md:items-end md:justify-between", className)}>
+      <div className="flex max-w-2xl flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Icon className="size-3.5" />
+          {eyebrow}
+          {badge && (
+            <span className="rounded-md border border-border/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground/70">
+              {badge}
             </span>
-            {badge && (
-              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-md shadow-primary/30">
-                {badge}
-              </span>
-            )}
-          </div>
-          <h1 className="font-display text-3xl leading-tight sm:text-4xl">{title}</h1>
-          {lead && <p className="max-w-prose text-sm leading-relaxed text-muted-foreground sm:text-base">{lead}</p>}
-          {children}
+          )}
         </div>
-        {aside && <div className="relative shrink-0">{aside}</div>}
+        <h1 className="font-display text-2xl leading-tight sm:text-3xl">{title}</h1>
+        {lead && <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">{lead}</p>}
+        {children}
       </div>
+      {aside && <div className="shrink-0">{aside}</div>}
     </header>
   );
 }
 
-/** A section heading in the same voice: an icon tile, a title, an optional note. */
+/** A section heading in the same voice: an icon, a title, an optional note. */
 export function SectionTitle({
   icon: Icon,
   title,
@@ -90,7 +66,7 @@ export function SectionTitle({
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-foreground/80">
         <Icon className="size-4.5" />
       </span>
       <div className="min-w-0">

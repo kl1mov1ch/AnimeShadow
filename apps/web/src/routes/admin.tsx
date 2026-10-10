@@ -130,7 +130,7 @@ function AdminPanel() {
               className={cn(
                 "flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all",
                 active
-                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+                  ? "bg-primary text-primary-foreground shadow-md"
                   : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
               )}
             >

@@ -220,7 +220,7 @@ export function SubmitButton({
     <Button
       type="submit"
       disabled={pending}
-      className="group relative h-11 w-full overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-lg shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 disabled:hover:translate-y-0"
+      className="group relative h-11 w-full overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary font-semibold shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl disabled:hover:translate-y-0"
     >
       {pending && <Spinner data-icon="inline-start" />}
       <span className="relative z-10">{children}</span>

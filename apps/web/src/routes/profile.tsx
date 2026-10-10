@@ -447,7 +447,7 @@ function ProfileHero({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                className="btn-sheen mb-1 inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95"
+                className="mb-1 inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5 active:scale-95"
               >
                 <Settings2Icon className="size-4" />
                 {t("profile.studio.open")}
@@ -818,7 +818,7 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
                   className={cn(
                     "group relative flex flex-col items-center gap-1.5 overflow-hidden rounded-2xl border px-2 py-3 text-xs font-medium transition-all duration-200",
                     active
-                      ? "border-transparent bg-gradient-to-br from-primary via-primary/85 to-primary text-primary-foreground shadow-md shadow-primary/25"
+                      ? "border-transparent bg-gradient-to-br from-primary via-primary/85 to-primary text-primary-foreground shadow-md"
                       : "border-border/60 bg-card/40 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
                   )}
                 >
@@ -1452,7 +1452,7 @@ function GenrePreferencesSection() {
                   genre: labels.genreLabel(g.name),
                 })}
                 className={cn(
-                  "group inline-flex items-center gap-1 rounded-lg border border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-2.5 py-1 text-xs text-primary-foreground shadow-sm shadow-primary/25 transition-all duration-200",
+                  "group inline-flex items-center gap-1 rounded-lg border border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary px-2.5 py-1 text-xs text-primary-foreground shadow-sm transition-all duration-200",
                   locked ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5",
                 )}
               >

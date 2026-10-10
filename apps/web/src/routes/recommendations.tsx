@@ -83,10 +83,10 @@ export function Component() {
       <div className="reveal-group mx-auto flex max-w-6xl flex-col gap-6 py-4 sm:py-6">
         {hero()}
         <section
-          className="reveal flex flex-col items-center gap-3 rounded-2xl border border-dashed border-primary/40 bg-[var(--accent-surface)] p-8 text-center sm:p-12"
+          className="reveal flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-[var(--accent-surface)] p-8 text-center sm:p-12"
           style={step(1)}
         >
-          <span className="grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20">
+          <span className="grid size-14 place-items-center rounded-2xl bg-foreground/[0.06] text-foreground/80 shadow-lg">
             <LockIcon className="size-6" />
           </span>
           <p className="font-display text-lg">{t("recommendations.signedOutTitle")}</p>
@@ -94,13 +94,13 @@ export function Component() {
           <div className="flex flex-wrap justify-center gap-2 pt-1">
             <Link
               to="/login"
-              className="btn-sheen inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+              className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg active:scale-95"
             >
               {t("common.signIn")}
             </Link>
             <Link
               to="/register"
-              className="inline-flex h-10 items-center rounded-lg border border-primary/35 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+              className="inline-flex h-10 items-center rounded-lg border border-border/70 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               {t("common.createAccount")}
             </Link>
@@ -209,7 +209,7 @@ function SearchField({
 }) {
   const t = useT();
   return (
-    <div className="group relative mt-1 flex max-w-xl items-center rounded-xl border border-primary/30 bg-background/80 transition-all duration-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
+    <div className="group relative mt-1 flex max-w-xl items-center rounded-xl border border-border/70 bg-background/80 transition-all duration-200 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
       <SearchIcon className="pointer-events-none absolute left-3.5 size-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
       <input
         value={value}
@@ -266,7 +266,7 @@ function Trail({
           const last = i === chain.length - 1;
           return (
             <li key={anime.id} className="flex shrink-0 items-center gap-1">
-              {i > 0 && <span aria-hidden className="h-0.5 w-5 rounded-full bg-gradient-to-r from-primary/30 to-primary" />}
+              {i > 0 && <span aria-hidden className="h-0.5 w-5 rounded-full bg-card/50" />}
               <button
                 type="button"
                 onClick={() => onPick(anime)}
@@ -275,7 +275,7 @@ function Trail({
                 className={cn(
                   "flex max-w-[12rem] items-center gap-2 rounded-lg border p-1 pr-2.5 text-xs transition-all duration-200",
                   last
-                    ? "border-primary bg-primary/15 font-semibold text-primary shadow-md shadow-primary/15"
+                    ? "border-primary bg-primary/15 font-semibold text-primary shadow-md"
                     : "border-[var(--accent-line-soft)] bg-card/60 text-muted-foreground hover:border-primary/50 hover:text-foreground",
                 )}
               >
@@ -311,13 +311,13 @@ function FocusCard({
   return (
     <article
       key={anime.id}
-      className="relative flex animate-in gap-4 overflow-hidden rounded-2xl border border-primary/40 p-3 fade-in-0 zoom-in-95 duration-300 sm:p-4"
+      className="relative flex animate-in gap-4 overflow-hidden rounded-2xl border border-border/70 p-3 fade-in-0 zoom-in-95 duration-300 sm:p-4"
     >
       {anime.imageUrl && (
         <img aria-hidden src={imageSrc(anime.imageUrl)} alt="" className="absolute inset-0 size-full scale-110 object-cover opacity-20 blur-2xl" />
       )}
       <span aria-hidden className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/60" />
-      <span className="relative h-32 w-[5.5rem] shrink-0 overflow-hidden rounded-xl border border-primary/30 shadow-lg shadow-primary/15 sm:h-36 sm:w-24">
+      <span className="relative h-32 w-[5.5rem] shrink-0 overflow-hidden rounded-xl border border-border/70 shadow-lg sm:h-36 sm:w-24">
         {anime.imageUrl ? (
           <img src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)} alt="" className="size-full object-cover" />
         ) : (
@@ -331,7 +331,7 @@ function FocusCard({
         {anime.genres.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {anime.genres.slice(0, 4).map((g) => (
-              <span key={g} className="rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span key={g} className="rounded-md border border-border/70 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                 {labels.genreLabel(g)}
               </span>
             ))}
@@ -345,8 +345,8 @@ function FocusCard({
             className={cn(
               "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-all active:scale-95",
               liked
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
-                : "border border-primary/35 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground",
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "border border-border/70 bg-foreground/[0.06] text-foreground/80 hover:bg-primary hover:text-primary-foreground",
             )}
           >
             <HeartIcon className={cn("size-3.5", liked && "fill-current")} />
@@ -389,7 +389,7 @@ function Section({
       {busy ? (
         <TileGridSkeleton />
       ) : empty ? (
-        <p className="rounded-2xl border border-dashed border-primary/30 p-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>
       ) : (
         children
       )}
@@ -427,7 +427,7 @@ function SavedColumn({
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-primary/30 p-4 text-xs leading-relaxed text-muted-foreground">
+        <p className="rounded-xl border border-dashed border-border p-4 text-xs leading-relaxed text-muted-foreground">
           {t("recommendations.likedEmpty")}
         </p>
       ) : (
@@ -510,7 +510,7 @@ function Tile({
     >
       <div
         className={cn(
-          "relative aspect-[2/3] overflow-hidden rounded-xl border bg-muted transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-hover:shadow-primary/15",
+          "relative aspect-[2/3] overflow-hidden rounded-xl border bg-muted transition-all duration-300 group-hover:shadow-lg",
           liked ? "border-primary/60" : "border-[var(--accent-line-soft)] group-hover:border-primary/50",
         )}
       >
@@ -536,7 +536,7 @@ function Tile({
           />
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex translate-y-1 items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground opacity-0 shadow-md shadow-primary/30 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
+            className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex translate-y-1 items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground opacity-0 shadow-md transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
           >
             {t("recommendations.showSimilar")}
             <ArrowRightIcon className="size-2.5" />
@@ -550,7 +550,7 @@ function Tile({
           aria-label={liked ? t("recommendations.unlike", { title }) : t("recommendations.like", { title })}
           className={cn(
             "absolute right-1.5 top-1.5 z-10 grid size-7 place-items-center rounded-lg transition-all duration-200 hover:scale-110 active:scale-90",
-            liked ? "bg-primary text-primary-foreground shadow-md shadow-primary/40" : "bg-black/65 text-white hover:bg-primary",
+            liked ? "bg-primary text-primary-foreground shadow-md" : "bg-black/65 text-white hover:bg-primary",
           )}
         >
           <MorphIcon on={liked} off={HeartIcon} onIcon={HeartIcon} className={cn("size-3.5", liked && "fill-current")} />

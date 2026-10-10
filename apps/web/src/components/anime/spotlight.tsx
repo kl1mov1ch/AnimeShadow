@@ -330,7 +330,7 @@ function SlideContent({
         <div className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:rounded-full [&_[data-slot=select-trigger]]:h-10! [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:bg-background/92 [&_[data-slot=select-trigger]]: [&_[data-slot=button]:not([data-size^=icon])]:h-10!">
           <Button
             asChild
-            className="group relative overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary px-5 font-semibold shadow-lg shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40"
+            className="group relative overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary px-5 font-semibold shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
           >
             <Link to={animeHref(anime)}>
               <PlayIcon className="relative z-10 size-3.5 fill-current" />

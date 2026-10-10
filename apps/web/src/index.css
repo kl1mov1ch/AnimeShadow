@@ -533,10 +533,13 @@ html body[data-scroll-locked] {
 :root,
 .dark {
   --accent-ink: color-mix(in oklab, var(--primary) 70%, var(--foreground));
-  --accent-line: color-mix(in srgb, var(--primary) 40%, transparent);
-  --accent-line-soft: color-mix(in srgb, var(--primary) 18%, transparent);
-  --accent-surface: color-mix(in srgb, var(--primary) 5%, transparent);
-  --accent-surface-strong: color-mix(in srgb, var(--primary) 12%, transparent);
+  /* Neutral on purpose: panels everywhere are framed the way the catalogue
+     is — a quiet hairline and a barely-there surface. The site colour is
+     kept for what is actually active or important, not for every edge. */
+  --accent-line: color-mix(in srgb, var(--foreground) 16%, transparent);
+  --accent-line-soft: color-mix(in srgb, var(--foreground) 9%, transparent);
+  --accent-surface: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  --accent-surface-strong: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 /* Four bars keeping time next to whichever theme is playing (see
@@ -1108,27 +1111,9 @@ html.light .home-theme {
 }
 
 .btn-sheen::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 35%;
-  translate: -160% 0;
-  skew: -12deg;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.22), transparent);
-  transition: translate 0.55s ease-out;
-}
-
-.btn-sheen:hover::after,
-.btn-sheen:focus-visible::after {
-  translate: 360% 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .btn-sheen::after {
-    display: none;
-  }
+  /* The band of light that used to sweep across buttons on hover is gone:
+     on every button of every page it was the opposite of calm. */
+  content: none;
 }
 
 /*

@@ -229,7 +229,7 @@ function ProfileModalBody({ profile }: { profile: PublicProfile }) {
             <Link
               to={href}
               viewTransition
-              className="btn-sheen inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/30 transition-transform active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md transition-transform active:scale-95"
             >
               {t("profile.modal.open")}
               <ArrowRightIcon className="size-3.5" />
@@ -251,7 +251,7 @@ function ModalStat({
   children: React.ReactNode;
 }) {
   return (
-    <div className="group flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-2.5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10">
+    <div className="group flex flex-col gap-1 rounded-2xl border border-border/60 bg-card/40 p-2.5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
       <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <Icon className="size-3 shrink-0 text-primary/70 transition-transform duration-300 group-hover:scale-110" />
         <span className="truncate">{label}</span>

@@ -50,7 +50,7 @@ export function ProgressRow({
       : null;
 
   return (
-    <article className="group flex gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 sm:gap-4">
+    <article className="group flex gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg sm:gap-4">
       <Link
         to={`/anime/${row.slug}`}
         className="relative h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border/50 transition-shadow duration-300 group-hover:ring-primary/30 sm:h-28 sm:w-20"

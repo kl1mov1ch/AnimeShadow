@@ -558,7 +558,7 @@ export function TasteDna({ profile, own, className }: { profile: PublicProfile; 
         <Link
           to={`/browse?genres=${mixIds.join(",")}&orderBy=score`}
           viewTransition
-          className="btn-sheen group mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/25 active:scale-95"
+          className="group mt-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-md active:scale-95"
         >
           {own ? t("profile.taste.mixOwn") : t("profile.taste.mixTheirs")}
           <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />

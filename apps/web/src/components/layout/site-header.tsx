@@ -23,6 +23,7 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { RandomRoll } from "@/components/layout/random-roll";
 import { SearchBox } from "@/components/layout/search-box";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -123,7 +124,6 @@ export function SiteHeader() {
   const navRef = useRef<HTMLElement | null>(null);
   const indicator = useNavIndicator(navRef);
   const scrolled = useScrolled();
-  const { roll, rolling } = useSurprise();
 
   const nav: NavItem[] = [
     { to: "/", label: t("nav.discover"), end: true, Icon: HouseIcon },
@@ -179,10 +179,8 @@ export function SiteHeader() {
           <div className="hidden min-w-0 md:block">
             <SearchBox />
           </div>
+          <RandomRoll />
           <div className="hidden items-center md:flex">
-            <HeaderIcon label={t("footer.randomAnime")} onClick={() => void roll()}>
-              <ShuffleIcon className={cn("transition-transform duration-500", rolling && "animate-spin")} />
-            </HeaderIcon>
             <HeaderIcon label={t("frameSearch.navLabel")} to="/frame-search">
               <ScanSearchIcon />
             </HeaderIcon>

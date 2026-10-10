@@ -134,14 +134,14 @@ function Article({ collection: c }: { collection: CollectionDetail }) {
             <span className="ml-auto flex flex-wrap gap-1.5">
               <Link
                 to={`/collections/${c.id}/edit`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
               >
                 <PencilIcon className="size-3.5" />
                 {t("common.edit")}
               </Link>
               <Link
                 to={`/collections/stats?open=${c.id}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
               >
                 <BarChart3Icon className="size-3.5" />
                 {t("collections.stats")}
@@ -195,7 +195,7 @@ function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note:
   return (
     <section className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:flex-row sm:p-4">
       <Link to={animeHref(anime)} viewTransition className="group relative shrink-0 self-center sm:self-start">
-        <span className="block aspect-[2/3] w-32 overflow-hidden rounded-xl border border-primary/30 sm:w-36">
+        <span className="block aspect-[2/3] w-32 overflow-hidden rounded-xl border border-border/70 sm:w-36">
           {anime.imageUrl && (
             <img
               src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
@@ -205,7 +205,7 @@ function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note:
             />
           )}
         </span>
-        <span className="absolute -left-2 -top-2 grid size-8 place-items-center rounded-full bg-primary font-display text-sm text-primary-foreground shadow-lg shadow-primary/40">
+        <span className="absolute -left-2 -top-2 grid size-8 place-items-center rounded-full bg-primary font-display text-sm text-primary-foreground shadow-lg">
           {index}
         </span>
       </Link>
@@ -300,7 +300,7 @@ function RatePanel({ collection: c }: { collection: CollectionDetail }) {
   const word = (v: number) => t(`collections.rate.${RATING_WORDS[v - 1]}` as "collections.rate.ok");
 
   return (
-    <section className="grid gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/[0.1] via-transparent to-transparent p-4 sm:grid-cols-2 sm:p-5">
+    <section className="grid gap-4 rounded-2xl border border-border/70 bg-card/50 p-4 sm:grid-cols-2 sm:p-5">
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center">
           <span className="font-display text-5xl leading-none tabular-nums">{c.ratingAvg != null ? c.ratingAvg.toFixed(1) : "—"}</span>
@@ -414,7 +414,7 @@ function Comments({ collectionId }: { collectionId: string }) {
       {status === "authenticated" ? (
         <Composer collectionId={collectionId} />
       ) : (
-        <Link to="/login" className="rounded-xl border border-dashed border-primary/30 p-3 text-center text-sm text-primary hover:bg-primary/5">
+        <Link to="/login" className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-primary hover:bg-primary/5">
           {t("collections.signInToComment")}
         </Link>
       )}
@@ -467,7 +467,7 @@ function Thread({
     <li className="rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:p-4">
       <CommentBody comment={top} collectionId={collectionId} onReply={onReply} />
       {(replies.length > 0 || answeringHere) && (
-        <div className="ml-4 mt-3 flex flex-col gap-3 border-l-2 border-primary/25 pl-3 sm:ml-10 sm:pl-4">
+        <div className="ml-4 mt-3 flex flex-col gap-3 border-l-2 border-border/70 pl-3 sm:ml-10 sm:pl-4">
           {hidden > 0 && (
             <button type="button" onClick={() => setOpen(true)} className="self-start text-xs font-semibold text-primary hover:underline">
               {t("collections.moreReplies", { n: hidden })}
@@ -607,7 +607,7 @@ function Composer({
         maxLength={2000}
         rows={replyTo ? 2 : 3}
         placeholder={replyTo ? t("collections.replyPlaceholder") : t("collections.commentPlaceholder")}
-        className="w-full resize-y rounded-lg border border-primary/20 bg-card/60 p-2.5 text-sm outline-none focus:border-primary"
+        className="w-full resize-y rounded-lg border border-border/70 bg-card/60 p-2.5 text-sm outline-none focus:border-primary"
       />
       <div className="flex items-center justify-end gap-2">
         {replyTo && (
@@ -619,7 +619,7 @@ function Composer({
           type="button"
           onClick={submit}
           disabled={add.isPending || !body.trim()}
-          className="btn-sheen inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
         >
           <SendIcon className="size-3.5" />
           {replyTo ? t("collections.reply") : t("collections.send")}

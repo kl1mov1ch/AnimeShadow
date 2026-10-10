@@ -224,7 +224,7 @@ function FilterToggle({
       className={cn(
         "rounded-lg border px-2.5 py-1 text-xs transition-all duration-200",
         active
-          ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
+          ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm"
           : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
       )}
     >
@@ -307,7 +307,7 @@ function Composer({
               className={cn(
                 "rounded-lg px-2.5 py-1 text-xs transition-all duration-200",
                 mode === m
-                  ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm shadow-primary/25"
+                  ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
               )}
             >
@@ -319,7 +319,7 @@ function Composer({
           size="sm"
           onClick={submit}
           disabled={create.isPending || !body.trim()}
-          className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
+          className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:hover:translate-y-0"
         >
           {t("comments.submit")}
         </Button>
@@ -475,7 +475,7 @@ function CommentItem({
                   );
                 }}
                 disabled={edit.isPending || !draft.trim()}
-                className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/35 disabled:hover:translate-y-0"
+                className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:hover:translate-y-0"
               >
                 {t("common.save")}
               </Button>

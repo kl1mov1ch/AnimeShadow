@@ -146,7 +146,7 @@ function GameGate() {
   if (status !== "authenticated") {
     return (
       <article className={cn(PANEL, "items-center justify-center gap-3 p-6 text-center sm:p-8")}>
-        <span className="grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20">
+        <span className="grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg">
           <LockIcon className="size-6" />
         </span>
         <p className="font-display text-lg">{t("home.game.lockedTitle")}</p>
@@ -154,7 +154,7 @@ function GameGate() {
         <div className="flex flex-wrap justify-center gap-2 pt-1">
           <Link
             to="/login"
-            className="btn-sheen inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+            className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg active:scale-95"
           >
             {t("common.signIn")}
           </Link>
@@ -376,7 +376,7 @@ function GuessGame() {
               <button
                 type="button"
                 onClick={restart}
-                className="btn-sheen group/again mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/40 transition-transform active:scale-95"
+                className="group/again mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
               >
                 <RotateCcwIcon className="size-4 transition-transform duration-500 group-hover/again:-rotate-180" />
                 {t("home.game.again")}
@@ -408,9 +408,9 @@ function GuessGame() {
               disabled={picked != null || over}
               style={{ animationDelay: `${i * 50}ms`, animationFillMode: "both" }}
               className={cn(
-                "group/opt btn-sheen flex min-h-11 animate-in items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs font-medium transition-all duration-200 fade-in-0 slide-in-from-bottom-1",
+                "group/opt flex min-h-11 animate-in items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs font-medium transition-all duration-200 fade-in-0 slide-in-from-bottom-1",
                 !revealed && picked == null &&
-                  "border-primary/30 bg-primary/10 hover:-translate-y-0.5 hover:border-primary hover:bg-primary/20 hover:shadow-md hover:shadow-primary/20 active:scale-[0.97]",
+                  "border-primary/30 bg-primary/10 hover:-translate-y-0.5 hover:border-primary hover:bg-primary/20 hover:shadow-md active:scale-[0.97]",
                 !revealed && isPicked && "border-primary bg-primary/25",
                 !revealed && picked != null && !isPicked && "border-primary/15 bg-primary/5 opacity-60",
                 isAnswer && "border-emerald-500/70 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
@@ -648,7 +648,7 @@ function FactsStrip() {
               setDeal((d) => d + 1);
               setOffset((o) => (o + 4) % FACT_KEYS.length);
             }}
-            className="btn-sheen inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
           >
             <ShuffleIcon
               className="size-3.5 transition-transform duration-500"
@@ -699,7 +699,7 @@ function FactCard({ fact, index }: { fact: ApiFact; index: number }) {
   );
   const className = cn(
     PANEL,
-    "reveal group min-h-40 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
+    "reveal group min-h-40 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg",
   );
   const style = { "--i": index } as CSSProperties;
   return fact.anime ? (

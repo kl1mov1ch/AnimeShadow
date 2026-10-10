@@ -108,7 +108,7 @@ export function CoverFlow({
           <span
             className={cn(
               "block aspect-[2/3] overflow-hidden rounded-xl border bg-card shadow-2xl",
-              isFront ? "border-primary/60 shadow-primary/30" : "border-white/10 shadow-black/60",
+              isFront ? "border-primary/60" : "border-white/10 shadow-black/60",
             )}
           >
             {item.image ? (
@@ -156,7 +156,7 @@ export function CoverFlow({
             onClick={() => go(-1)}
             disabled={index === 0}
             aria-label="←"
-            className="absolute left-2 top-1/2 z-30 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-primary/30 bg-background/90 text-foreground shadow-lg transition-all hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-30"
+            className="absolute left-2 top-1/2 z-30 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border/70 bg-background/90 text-foreground shadow-lg transition-all hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-30"
           >
             <ChevronLeftIcon className="size-5" />
           </button>
@@ -165,7 +165,7 @@ export function CoverFlow({
             onClick={() => go(1)}
             disabled={index === count - 1}
             aria-label="→"
-            className="absolute right-2 top-1/2 z-30 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-primary/30 bg-background/90 text-foreground shadow-lg transition-all hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-30"
+            className="absolute right-2 top-1/2 z-30 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border/70 bg-background/90 text-foreground shadow-lg transition-all hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-30"
           >
             <ChevronRightIcon className="size-5" />
           </button>

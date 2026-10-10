@@ -212,7 +212,7 @@ export function SearchCommandDialog({
                         <CommandItem
                           value="see-all"
                           onSelect={() => submit(term)}
-                          className="group relative justify-center overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg data-[selected=true]:shadow-primary/40"
+                          className="group relative justify-center overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg"
                         >
                           <SearchIcon className="relative z-10 text-primary-foreground!" />
                           <span className="relative z-10 truncate">

@@ -61,7 +61,7 @@ export function Component() {
               href={BOOSTY_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-sheen group inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95"
+              className="group inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
             >
               <HeartIcon className="size-4 fill-current" />
               {t("support.boosty.cta")}
@@ -94,7 +94,7 @@ export function Component() {
               >
                 {i + 1}
               </span>
-              <span className="grid size-10 place-items-center rounded-xl bg-primary/15 text-primary">
+              <span className="grid size-10 place-items-center rounded-xl bg-foreground/[0.06] text-foreground/80">
                 <Icon className="size-5" />
               </span>
               <h3 className="font-semibold">{title}</h3>
@@ -106,7 +106,7 @@ export function Component() {
 
       {/* One-off tips — for anyone who wants to say thanks without a plan. */}
       <section
-        className="reveal relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/[0.12] via-primary/[0.04] to-transparent p-5 shadow-xl shadow-primary/10 sm:p-7"
+        className="reveal relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-border/70 bg-card/50 p-5 shadow-xl sm:p-7"
         style={reveal(3)}
       >
         <SectionTitle icon={HeartIcon} title={t("support.boosty.title")} note={t("support.boosty.body")} />
@@ -118,10 +118,10 @@ export function Component() {
               target="_blank"
               rel="noopener noreferrer"
               style={{ animationDelay: `${i * 70}ms`, animationFillMode: "backwards" }}
-              className="btn-sheen group relative flex animate-in flex-col gap-2 overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/70 p-4 fade-in-0 zoom-in-95 duration-500 transition-all hover:-translate-y-1 hover:border-primary hover:shadow-lg hover:shadow-primary/15"
+              className="group relative flex animate-in flex-col gap-2 overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-card/70 p-4 fade-in-0 zoom-in-95 duration-500 transition-all hover:border-primary hover:shadow-lg"
             >
               <span className="flex items-center justify-between">
-                <span className="grid size-9 place-items-center rounded-lg bg-primary/15 text-primary transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110">
+                <span className="grid size-9 place-items-center rounded-lg bg-foreground/[0.06] text-foreground/80 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110">
                   <Icon className="size-4" />
                 </span>
                 <span className="font-display text-2xl text-primary tabular-nums">${amount}+</span>
@@ -140,7 +140,7 @@ export function Component() {
 function SealPreview({ name }: { name: string }) {
   const t = useT();
   return (
-    <div className="hidden w-64 flex-col gap-3 rounded-2xl border border-primary/30 bg-background/80 p-4 shadow-xl shadow-primary/15 md:flex">
+    <div className="hidden w-64 flex-col gap-3 rounded-2xl border border-border/70 bg-background/80 p-4 shadow-xl md:flex">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {t("support.previewTitle")}
       </span>

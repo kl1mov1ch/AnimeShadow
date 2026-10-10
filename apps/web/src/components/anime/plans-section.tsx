@@ -84,7 +84,6 @@ export function PlansSection({
 
       <div className="grid items-stretch gap-4 lg:grid-cols-3">
         {PLANS.map((plan) => {
-          const Scene = plan.scene;
           const perks = Array.from({ length: plan.perkCount }, (_, n) =>
             t(`plans.${plan.key}.perk${n + 1}` as "plans.shadow.perk1"),
           );
@@ -93,28 +92,13 @@ export function PlansSection({
             <article
               key={plan.key}
               className={cn(
-                "group relative isolate flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-500 hover:-translate-y-2",
-                plan.featured
-                  ? "border-primary/60 bg-card shadow-xl shadow-primary/10 lg:-my-2"
-                  : "border-border/60 bg-card hover:border-primary/40",
+                "group relative isolate flex h-full flex-col overflow-hidden rounded-2xl border bg-card/50 transition-colors duration-300",
+                plan.featured ? "border-primary/50" : "border-border/60 hover:border-foreground/20",
               )}
             >
-              {/* The scene runs behind the whole card; the content sits on a
-                  floor that rises out of it, so text stays readable over
-                  whatever is moving. */}
-              <Scene />
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0"
-                style={{
-                  background:
-                    "linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--card) 55%, transparent) 38%, var(--card) 62%)",
-                }}
-              />
-
-              <div className="relative h-32 shrink-0">
+              <div className="relative h-24 shrink-0">
                 {plan.featured && (
-                  <span className="absolute right-4 top-4 rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30">
+                  <span className="absolute right-4 top-4 rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground shadow-lg">
                     {t("plans.popular")}
                   </span>
                 )}
@@ -122,7 +106,7 @@ export function PlansSection({
                 <div className="absolute inset-x-5 bottom-3 flex items-center gap-2.5">
                   <span
                     className={cn(
-                      "grid size-11 shrink-0 place-items-center rounded-xl shadow-lg transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110",
+                      "grid size-11 shrink-0 place-items-center rounded-xl",
                       plan.featured
                         ? "bg-primary text-primary-foreground"
                         : "border border-border/60 bg-background/90 text-primary",
@@ -181,7 +165,7 @@ export function PlansSection({
                           "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full",
                           plan.featured
                             ? "bg-primary text-primary-foreground"
-                            : "bg-primary/15 text-primary",
+                            : "bg-foreground/[0.06] text-foreground/80",
                         )}
                       >
                         <CheckIcon className="size-2.5" strokeWidth={3} />
@@ -194,9 +178,9 @@ export function PlansSection({
                 <CtaLink
                   href={ctaHref}
                   className={cn(
-                    "group/cta btn-sheen mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-[0.98]",
+                    "group/cta mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-[0.98]",
                     plan.featured
-                      ? "bg-primary text-primary-foreground hover:shadow-lg hover:shadow-primary/30"
+                      ? "bg-primary text-primary-foreground hover:shadow-lg"
                       : "border border-border/70 hover:border-primary/50 hover:text-primary",
                   )}
                 >

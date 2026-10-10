@@ -15,25 +15,7 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useT } from "@/i18n";
-import { imageSrc } from "@/lib/format";
-import { useReactionGif } from "@/lib/query";
 import { BOOSTY_URL } from "@/lib/support-links";
-import { cn } from "@/lib/utils";
-
-/** A small decorative reaction gif — nothing at all (not a broken box) if
- *  the fetch is slow or fails, since it is pure flavour. */
-function Gif({ category, className }: { category: string; className?: string }) {
-  const { data } = useReactionGif(category);
-  if (!data?.url) return null;
-  return (
-    <img
-      src={imageSrc(data.url)}
-      alt=""
-      loading="lazy"
-      className={cn("animate-in rounded-2xl object-cover fade-in zoom-in-95 duration-700", className)}
-    />
-  );
-}
 
 const reveal = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -66,18 +48,12 @@ export function Component() {
           eyebrow={t("about.eyebrow")}
           title={t("about.title")}
           lead={t("about.lead")}
-          aside={
-            <Gif
-              category="happy"
-              className="hidden size-36 border border-primary/30 shadow-xl shadow-primary/15 md:block lg:size-44"
-            />
-          }
         >
           <div className="flex flex-wrap gap-2 pt-2">
             <Link
               to="/browse"
               viewTransition
-              className="btn-sheen group inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95"
+              className="group inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
             >
               {t("about.ctaButton")}
               <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
@@ -85,7 +61,7 @@ export function Component() {
             <Link
               to="/support"
               viewTransition
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border/70 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               <HeartIcon className="size-4" />
               {t("about.supportCta")}
@@ -99,8 +75,6 @@ export function Component() {
         className="reveal relative flex flex-col items-start gap-4 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5 sm:flex-row sm:items-center sm:p-6"
         style={reveal(1)}
       >
-        <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/60 to-transparent" />
-        <Gif category="wave" className="size-20 shrink-0 self-center rounded-xl sm:size-24" />
         <p className="leading-relaxed text-foreground/90">{t("about.introBody")}</p>
       </section>
 
@@ -111,13 +85,13 @@ export function Component() {
             <article
               key={title}
               style={{ animationDelay: `${i * 70}ms`, animationFillMode: "backwards" }}
-              className="group relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-card/60 p-5 fade-in-0 slide-in-from-bottom-2 duration-500 transition-all hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10"
+              className="group relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-card/60 p-5 fade-in-0 slide-in-from-bottom-2 duration-500 transition-all hover:border-primary/50 hover:shadow-lg"
             >
               <span
                 aria-hidden
                 className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full bg-primary/10 blur-2xl transition-opacity duration-500 group-hover:opacity-100 sm:opacity-0"
               />
-              <span className="relative grid size-11 place-items-center rounded-xl bg-primary/15 text-primary transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110">
+              <span className="relative grid size-11 place-items-center rounded-xl bg-foreground/[0.06] text-foreground/80 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110">
                 <Icon className="size-5" />
               </span>
               <h3 className="relative font-semibold">{title}</h3>
@@ -136,7 +110,7 @@ export function Component() {
               className="relative flex gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5"
             >
               <span className="relative flex flex-col items-center">
-                <span className="grid size-10 place-items-center rounded-full border-2 border-primary bg-background font-display text-sm text-primary shadow-md shadow-primary/20">
+                <span className="grid size-10 place-items-center rounded-full border-2 border-primary bg-background font-display text-sm text-primary shadow-md">
                   {i + 1}
                 </span>
               </span>
@@ -156,17 +130,10 @@ export function Component() {
           explains what support gets you before anything leaves the site. */}
       <section
         id="support"
-        className="reveal relative flex scroll-mt-24 flex-col items-start gap-5 overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/[0.14] via-primary/[0.05] to-transparent p-6 shadow-xl shadow-primary/10 sm:flex-row sm:items-center sm:justify-between sm:p-8"
+        className="reveal relative flex scroll-mt-24 flex-col items-start gap-5 overflow-hidden rounded-2xl border border-border/70 bg-card/50 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8"
         style={reveal(4)}
       >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -bottom-10 -right-4 select-none font-display text-[8rem] leading-none text-primary/[0.08]"
-        >
-          影
-        </span>
         <div className="relative flex items-start gap-4">
-          <Gif category="highfive" className="hidden size-20 shrink-0 rounded-xl sm:block" />
           <div className="flex flex-col gap-1.5">
             <h2 className="flex items-center gap-2 font-display text-xl">
               <HeartIcon className="size-5 fill-primary text-primary" />
@@ -179,7 +146,7 @@ export function Component() {
           <Link
             to="/support"
             viewTransition
-            className="btn-sheen inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95"
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
           >
             <HeartIcon className="size-4 fill-current" />
             {t("about.supportCta")}
@@ -188,7 +155,7 @@ export function Component() {
             href={BOOSTY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-11 items-center rounded-xl border border-primary/35 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+            className="inline-flex h-11 items-center rounded-xl border border-border/70 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
           >
             Boosty
           </a>

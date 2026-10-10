@@ -3,6 +3,15 @@ import type { Dict } from "./en";
 export const ru: Dict = {
   brand: { tagline: "Зал для просмотра аниме." },
   nav: { collections: "Подборки", discover: "Главная", browse: "Каталог", library: "Мой список", admin: "Админка" },
+  roll: {
+    title: "Случайное аниме",
+    hint: "только с плеером",
+    loading: "Крутим барабан…",
+    spinning: "Выбираем…",
+    error: "Не получилось — попробуйте ещё раз",
+    watch: "Смотреть",
+    again: "Ещё раз",
+  },
   cookies: {
     text: "Сайт использует куки, чтобы не разлогинивать вас и помнить настройки.",
     accept: "Принять",

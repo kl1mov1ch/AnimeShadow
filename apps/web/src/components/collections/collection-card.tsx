@@ -20,8 +20,8 @@ export function TagChip({
   const t = useT();
   const cls = cn(
     "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors",
-    active ? "border-primary bg-primary text-primary-foreground" : "border-primary/30 bg-primary/10 text-primary",
-    onClick && !active && "hover:border-primary hover:bg-primary/20",
+    active ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-foreground/[0.06] text-foreground/80",
+    onClick && !active && "hover:border-foreground/25 hover:text-foreground",
     className,
   );
   const label = t(`collections.tags.${tag}` as "collections.tags.cozy");
@@ -48,18 +48,16 @@ export function RatingBadge({ avg, count, className }: { avg: number | null; cou
  * A collection in a list, as a small poster of its own: the first title's
  * banner as the backdrop, the collection's posters fanned on top — they
  * spread apart under the pointer — and the title over the art. `featured`
- * makes it wide and tall, for the top of the feed; `rank` draws its place.
+ * makes it wide and tall, for the top of the feed.
  */
 export function CollectionCard({
   collection,
   featured = false,
-  rank,
   className,
   style,
 }: {
   collection: CollectionSummary;
   featured?: boolean;
-  rank?: number;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -75,7 +73,7 @@ export function CollectionCard({
       viewTransition
       style={style}
       className={cn(
-        "group/cc relative isolate flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-card shadow-lg shadow-black/20 transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-primary/45 hover:shadow-xl hover:shadow-primary/10",
+        "group/cc relative isolate flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-card shadow-lg shadow-black/20 transition-[transform,border-color,box-shadow] duration-300 hover:border-foreground/20",
         featured ? "min-h-[22rem] sm:min-h-[24rem]" : "min-h-[20rem]",
         className,
       )}
@@ -95,7 +93,6 @@ export function CollectionCard({
         />
       )}
       <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/80 to-card/10" />
-      <span aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(120%_70%_at_100%_0%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_60%)] opacity-0 transition-opacity duration-500 group-hover/cc:opacity-100" />
 
       {/* The posters, fanned; under the pointer they open up. */}
       <div className={cn("relative mx-3 mt-3 flex-1", featured ? "min-h-52" : "min-h-40")}>
@@ -136,18 +133,10 @@ export function CollectionCard({
           {t("collections.draft")}
         </span>
       )}
-      {rank != null && collection.published && (
-        <span
-          aria-hidden
-          className="cc-rank pointer-events-none absolute left-3 top-1 z-20 font-display text-5xl leading-none"
-        >
-          {rank}
-        </span>
-      )}
 
       {/* Title, lead, tags, then who and how it's doing. */}
       <div className="relative z-20 flex flex-col gap-1.5 px-3.5 pb-3 pt-3">
-        <h3 className={cn("line-clamp-2 font-display leading-tight transition-colors group-hover/cc:text-primary", featured ? "text-xl sm:text-2xl" : "text-base")}>
+        <h3 className={cn("line-clamp-2 font-display leading-tight transition-colors group-hover/cc:text-foreground/85", featured ? "text-xl sm:text-2xl" : "text-base")}>
           {collection.title}
         </h3>
         {collection.summary && (

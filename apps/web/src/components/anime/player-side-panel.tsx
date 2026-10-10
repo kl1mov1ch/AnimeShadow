@@ -408,7 +408,7 @@ const EpisodeRow = memo(function EpisodeRow({
       className={cn(
         "group flex h-full items-center gap-2 rounded-lg border p-1 pr-1.5 transition-colors duration-150",
         current
-          ? "border-primary bg-primary/10 shadow-sm shadow-primary/10"
+          ? "border-primary bg-primary/10 shadow-sm"
           : done
             ? "border-emerald-500/30 bg-emerald-500/[0.06] hover:border-emerald-500/60"
             : "border-transparent hover:border-primary/40 hover:bg-secondary/40",

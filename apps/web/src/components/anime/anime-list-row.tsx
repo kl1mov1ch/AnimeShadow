@@ -70,7 +70,7 @@ export function AnimeListRow({
       : null;
 
   return (
-    <div className="group relative flex gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 sm:gap-4 sm:p-3">
+    <div className="group relative flex gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg sm:gap-4 sm:p-3">
       {/* Vivid blurred echo of the poster, tinted by its own dominant colour. */}
       {src && (
         <div aria-hidden className="absolute inset-0 -z-10">
@@ -220,7 +220,7 @@ export function AnimeListRow({
               to={`${animeHref(anime)}#watch`}
               viewTransition
               aria-label={t("card.watch")}
-              className="btn-sheen grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/25 transition-transform hover:scale-105 active:scale-90"
+              className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105 active:scale-90"
             >
               <PlayIcon className="size-4 fill-current" />
             </Link>

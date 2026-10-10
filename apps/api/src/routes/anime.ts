@@ -1,3 +1,4 @@
+import { ANIME_WITH_GENRES_INCLUDE, toSummaryDto } from "@animeshadow/db";
 import { animeQuerySchema, localeQuerySchema } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -46,15 +47,53 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      // Only what can actually be watched here: a random title that then
+      // says "no player" is a dead end, not a surprise.
       const pool = await fastify.prisma.anime.findMany({
         where: {
-          AND: [{ score: { gte: 7 }, imageUrl: { not: null } }, contentGuardWhere(allowAdult)],
+          AND: [
+            { score: { gte: 7 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
+            contentGuardWhere(allowAdult),
+          ],
         },
         select: { id: true, slug: true },
       });
       if (pool.length === 0) throw new NotFoundError("Каталог пуст.");
       const pick = pool[Math.floor(Math.random() * pool.length)]!;
       return { id: pick.id, slug: pick.slug };
+    },
+  );
+
+  /**
+   * The header's roulette: a strip of random titles to spin past and the
+   * one it lands on. All of them have a player and a poster; the pick is
+   * the last of the strip.
+   */
+  fastify.get(
+    "/anime/roll",
+    { preHandler: fastify.optionalAuth },
+    async (request) => {
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const pool = await fastify.prisma.anime.findMany({
+        where: {
+          AND: [
+            { score: { gte: 6.8 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
+            contentGuardWhere(allowAdult),
+          ],
+        },
+        select: { id: true },
+      });
+      if (pool.length === 0) throw new NotFoundError("Каталог пуст.");
+      const ids = new Set<number>();
+      while (ids.size < Math.min(14, pool.length)) {
+        ids.add(pool[Math.floor(Math.random() * pool.length)]!.id);
+      }
+      const rows = await fastify.prisma.anime.findMany({
+        where: { id: { in: [...ids] } },
+        include: ANIME_WITH_GENRES_INCLUDE,
+      });
+      const reel = rows.map(toSummaryDto).sort(() => Math.random() - 0.5);
+      return { pick: reel[reel.length - 1]!, reel };
     },
   );
 

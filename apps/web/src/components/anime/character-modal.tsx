@@ -152,7 +152,7 @@ function CharacterGallery({
               aria-current={i === safeIndex}
               className={cn(
                 "h-14 w-10 shrink-0 overflow-hidden rounded-md border-2 transition-all duration-200",
-                i === safeIndex ? "border-primary shadow-md shadow-primary/30" : "border-transparent opacity-55 hover:opacity-100",
+                i === safeIndex ? "border-primary shadow-md" : "border-transparent opacity-55 hover:opacity-100",
               )}
             >
               <img src={imageSrc(src)} alt="" loading="lazy" className="size-full object-cover object-top" />
@@ -198,7 +198,7 @@ function StatTile({
       aria-pressed={onClick ? active : undefined}
       className={cn(
         "group flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-300",
-        active ? "border-primary bg-primary/15 shadow-md shadow-primary/15" : "border-[var(--accent-line-soft)] bg-card/60",
+        active ? "border-primary bg-primary/15 shadow-md" : "border-[var(--accent-line-soft)] bg-card/60",
         onClick && !active && "hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/[0.08]",
       )}
     >
@@ -273,7 +273,7 @@ function VoiceGrid({ actors }: { actors: SeiyuItem[] }) {
           className="flex min-w-0 animate-in flex-col items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/60 p-3 text-center fade-in-0 slide-in-from-bottom-1 duration-300"
           style={{ animationDelay: `${Math.min(i, 12) * 30}ms`, animationFillMode: "both" }}
         >
-          <span className="size-20 overflow-hidden rounded-full border-2 border-primary/40 bg-muted shadow-md shadow-primary/15">
+          <span className="size-20 overflow-hidden rounded-full border-2 border-primary/40 bg-muted shadow-md">
             {actor.imageUrl ? (
               <img src={imageSrc(actor.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />
             ) : (
@@ -339,7 +339,7 @@ function CharacterInfo({
           <span
             className={cn(
               "w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold",
-              isMain ? "bg-primary text-primary-foreground shadow-md shadow-primary/30" : "border border-primary/30 bg-primary/10 text-primary",
+              isMain ? "bg-primary text-primary-foreground shadow-md" : "border border-primary/30 bg-primary/10 text-primary",
             )}
           >
             {isMain ? t("detail.mainRole") : character.role}
@@ -413,7 +413,7 @@ function CharacterInfo({
                 className={cn(
                   "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 active:scale-95",
                   tab === id
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+                    ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
                 )}
               >
@@ -481,7 +481,7 @@ function CharacterInfo({
                         <button
                           type="button"
                           onClick={() => setRevealed(true)}
-                          className="btn-sheen pointer-events-auto inline-flex -translate-y-1/2 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform active:scale-95"
+                          className="pointer-events-auto inline-flex -translate-y-1/2 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
                         >
                           <EyeIcon className="size-4" />
                           {t("detail.characterModal.spoilers")} · {t("detail.characterModal.revealSpoilers")}

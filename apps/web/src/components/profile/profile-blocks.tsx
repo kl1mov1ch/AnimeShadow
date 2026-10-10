@@ -110,7 +110,7 @@ function SmallButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "btn-sheen inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all active:scale-95",
+        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all active:scale-95",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground",
@@ -407,7 +407,7 @@ function ShowcasePicker({
                 onClick={() => toggle(entry.anime.id)}
                 className={cn(
                   "group relative overflow-hidden rounded-lg border-2 text-left transition-all active:scale-95",
-                  n >= 0 ? "border-primary shadow-md shadow-primary/30" : "border-transparent hover:border-primary/40",
+                  n >= 0 ? "border-primary shadow-md" : "border-transparent hover:border-primary/40",
                 )}
               >
                 <span className="block aspect-[2/3] bg-muted">

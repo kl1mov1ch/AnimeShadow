@@ -1,6 +1,15 @@
 export const en = {
   brand: { tagline: "A screening room for anime." },
   nav: { collections: "Collections", discover: "Discover", browse: "Browse", library: "My list", admin: "Admin" },
+  roll: {
+    title: "Random anime",
+    hint: "playable only",
+    loading: "Spinning…",
+    spinning: "Picking…",
+    error: "Didn't work — try again",
+    watch: "Watch",
+    again: "Again",
+  },
   cookies: {
     text: "This site uses cookies to keep you signed in and remember your preferences.",
     accept: "Accept",

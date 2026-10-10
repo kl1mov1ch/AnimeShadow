@@ -104,7 +104,7 @@ export function CookieConsent() {
         </Button>
         <Button
           size="sm"
-          className="group relative flex-1 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm shadow-primary/25 transition-all duration-200 hover:shadow-md hover:shadow-primary/35"
+          className="group relative flex-1 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:shadow-md"
           onClick={() => choose(true)}
         >
           <span className="relative z-10">{t("cookies.accept")}</span>

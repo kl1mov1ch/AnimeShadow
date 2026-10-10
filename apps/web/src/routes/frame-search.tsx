@@ -133,10 +133,10 @@ export function Component() {
       {signedOut ? (
         // Signed out still gets the pitch and the guide, not just a door.
         <section
-          className="reveal relative flex flex-col items-center gap-3 overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-[var(--accent-surface)] p-8 text-center sm:p-12"
+          className="reveal relative flex flex-col items-center gap-3 overflow-hidden rounded-2xl border border-dashed border-border bg-[var(--accent-surface)] p-8 text-center sm:p-12"
           style={step(1)}
         >
-          <span className="grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20">
+          <span className="grid size-14 place-items-center rounded-2xl bg-foreground/[0.06] text-foreground/80 shadow-lg">
             <LockIcon className="size-6" />
           </span>
           <p className="font-display text-lg">{t("frameSearch.signedOutTitle")}</p>
@@ -144,13 +144,13 @@ export function Component() {
           <div className="flex flex-wrap justify-center gap-2 pt-1">
             <Link
               to="/login"
-              className="btn-sheen inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+              className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg active:scale-95"
             >
               {t("common.signIn")}
             </Link>
             <Link
               to="/register"
-              className="inline-flex h-10 items-center rounded-lg border border-primary/35 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+              className="inline-flex h-10 items-center rounded-lg border border-border/70 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               {t("common.createAccount")}
             </Link>
@@ -196,10 +196,10 @@ export function Component() {
               className={cn(
                 "group relative flex aspect-video cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center outline-none transition-all duration-300 focus-visible:ring-4 focus-visible:ring-primary/25",
                 dragging
-                  ? "scale-[1.01] border-primary bg-primary/10 shadow-xl shadow-primary/20"
+                  ? "scale-[1.01] border-primary bg-primary/10 shadow-xl"
                   : preview
-                    ? "border-primary/40 bg-black"
-                    : "border-primary/30 bg-[var(--accent-surface)] hover:border-primary/70 hover:bg-primary/[0.06]",
+                    ? "border-border/70 bg-black"
+                    : "border-border/70 bg-[var(--accent-surface)] hover:border-primary/70 hover:bg-primary/[0.06]",
               )}
             >
               {preview ? (
@@ -220,7 +220,7 @@ export function Component() {
                     aria-hidden
                     className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(color-mix(in_srgb,var(--primary)_35%,transparent)_1px,transparent_1px)] [background-size:18px_18px]"
                   />
-                  <span className="relative grid size-16 place-items-center rounded-2xl bg-primary/15 text-primary shadow-lg shadow-primary/20 transition-transform duration-500 group-hover:-translate-y-1 group-hover:scale-105">
+                  <span className="relative grid size-16 place-items-center rounded-2xl bg-foreground/[0.06] text-foreground/80 shadow-lg transition-transform duration-500 group-hover:scale-105">
                     <ImageUpIcon className="size-7" />
                   </span>
                   <p className="relative font-semibold">{t("frameSearch.dropHint")}</p>
@@ -237,7 +237,7 @@ export function Component() {
                 type="button"
                 onClick={() => inputRef.current?.click()}
                 disabled={search.isPending}
-                className="btn-sheen inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5 active:scale-95 disabled:pointer-events-none disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95 disabled:pointer-events-none disabled:opacity-60"
               >
                 <UploadIcon className="size-4" />
                 {t("frameSearch.pickFile")}
@@ -246,7 +246,7 @@ export function Component() {
                 <button
                   type="button"
                   onClick={reset}
-                  className="group inline-flex h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                  className="group inline-flex h-10 items-center gap-2 rounded-lg border border-border/70 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
                 >
                   <RotateCcwIcon className="size-3.5 transition-transform duration-500 group-hover:-rotate-180" />
                   {t("frameSearch.reset")}
@@ -280,7 +280,7 @@ export function Component() {
               </div>
             ) : search.data ? (
               results.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-primary/30 p-8 text-center text-sm text-muted-foreground">
+                <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                   {t("frameSearch.noMatches")}
                 </p>
               ) : (
@@ -347,7 +347,7 @@ function Tips({ className }: { className?: string }) {
             style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
             className="flex animate-in items-start gap-2.5 text-sm text-foreground/85 fade-in-0 slide-in-from-left-1 duration-500"
           >
-            <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/15 text-primary">
+            <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-foreground/[0.06] text-foreground/80">
               <CheckIcon className="size-3" strokeWidth={3} />
             </span>
             {tip}
@@ -376,7 +376,7 @@ function MatchMedia({ match, title, className }: { match: FrameMatch; title: str
               aria-label={t("frameSearch.playMoment")}
               className="group/play absolute inset-0 grid place-items-center bg-black/25 transition-colors hover:bg-black/40"
             >
-              <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform group-hover/play:scale-110">
+              <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform group-hover/play:scale-110">
                 <PlayIcon className="size-4 translate-x-[1px] fill-current" />
               </span>
             </button>
@@ -415,8 +415,8 @@ function BestMatch({ match }: { match: FrameMatch }) {
   const labels = useLabels();
   const title = match.anime ? labels.title(match.anime) : match.title;
   return (
-    <article className="relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-primary/50 bg-gradient-to-br from-primary/[0.12] via-card/60 to-card/40 p-3 shadow-xl shadow-primary/10 fade-in-0 zoom-in-95 duration-500 sm:p-4">
-      <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary-foreground shadow-md shadow-primary/30">
+    <article className="relative flex animate-in flex-col gap-3 overflow-hidden rounded-2xl border border-border/70 bg-card/50 p-3 shadow-xl fade-in-0 zoom-in-95 duration-500 sm:p-4">
+      <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary-foreground shadow-md">
         <SparklesIcon className="size-3" />
         {t("frameSearch.bestMatch")}
       </span>
@@ -435,7 +435,7 @@ function BestMatch({ match }: { match: FrameMatch }) {
           <Link
             to={animeHref(match.anime)}
             viewTransition
-            className="btn-sheen group mt-1 inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95"
+            className="group mt-1 inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg active:scale-95"
           >
             {t("frameSearch.openPage")}
             <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
@@ -455,7 +455,7 @@ function MatchRow({ match, index }: { match: FrameMatch; index: number }) {
 
   return (
     <div
-      className="flex animate-in gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-2.5 fade-in slide-in-from-bottom-2 transition-all duration-300 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
+      className="flex animate-in gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-2.5 fade-in slide-in-from-bottom-2 transition-all duration-300 hover:border-primary/40 hover:shadow-lg"
       style={{ animationDelay: `${(index + 1) * 60}ms`, animationFillMode: "backwards" }}
     >
       <MatchMedia match={match} title={title} className="w-28 sm:w-36" />
