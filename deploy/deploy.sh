@@ -72,6 +72,18 @@ if [ "$BRANCH" != "main" ]; then
   echo "repo was on '$BRANCH', not main — switching back to main"
   $AS_APP_USER "cd '$APP_DIR' && git checkout main"
 fi
+# The server is a deploy target, not a place to edit: files copied onto it
+# by hand (an upload, an unpacked archive) block every pull with "your local
+# changes would be overwritten". They are set aside — kept in `git stash`,
+# not deleted — and the pull goes ahead. .env, uploads and caches are
+# ignored by git and are never touched by this.
+chown -R "$APP_USER": "$APP_DIR" 2>/dev/null || true
+if [ -n "$(cd "$APP_DIR" && git status --porcelain)" ]; then
+  echo "!! files in $APP_DIR differ from git (copied by hand?) — setting them aside:"
+  (cd "$APP_DIR" && git status --porcelain | head -20)
+  $AS_APP_USER "cd '$APP_DIR' && git stash push --include-untracked -m 'deploy: local files set aside $(date +%F_%H%M)'"
+  echo "   kept in 'git stash list' — drop it once the site is fine"
+fi
 BEFORE="$(cd "$APP_DIR" && git rev-parse --short HEAD)"
 $AS_APP_USER "cd '$APP_DIR' && git pull --ff-only"
 AFTER="$(cd "$APP_DIR" && git rev-parse --short HEAD)"
