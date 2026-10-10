@@ -79,6 +79,12 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
+  // AniLibria's whole catalogue matched to ours, once a day: the site's own
+  // player for every title AniLibria streams.
+  ANILIBRIA_CATALOG_SYNC: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   // Titles per warm-up pass whose synopsis and rating are filled in from
   // Shikimori (imported ones arrive without). 0 turns it off.
   DETAIL_WARM_LIMIT: z.coerce.number().int().nonnegative().default(300),

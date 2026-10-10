@@ -496,6 +496,10 @@ model WatchAvailability {
   /// this") — a title Kodik found first but AniLibria also has would
   /// otherwise be invisible to the "own player" filter.
   hasCustomPlayer Boolean @default(false)
+  /// AniLibria's own release id for this title, from its catalogue listing
+  /// (see the AniLibria catalogue sync): the release is fetched by id, no
+  /// name search. Null when AniLibria doesn't have the title.
+  anilibriaId Int?
   checkedAt   DateTime @default(now())
 
   @@index([hasPlayer])
@@ -517,6 +521,10 @@ model PlayerSource {
   embedUrl      String
   /// format "hls" only: JSON object, episode number string -> HLS manifest URL.
   hlsEpisodes   Json?
+  /// format "hls" only: episode number string -> { "480": url, "720": url,
+  /// "1080": url } — every quality the provider publishes, for the player's
+  /// quality menu. hlsEpisodes keeps the best one of them.
+  hlsVariants   Json?
   /// format "iframe" only: JSON object, episode number string ->
   /// { url, thumbs } — the provider's own embed page for that one episode
   /// and the stills it publishes for it. Absent for providers that only

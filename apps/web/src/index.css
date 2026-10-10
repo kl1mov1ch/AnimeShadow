@@ -160,10 +160,10 @@
 
   /* Modern grotesque with full Cyrillic + Latin; JP titles use system fonts. */
   --font-sans:
-    "Onest", -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN",
+    "Onest Variable", "Onest", -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN",
     "Yu Gothic", Meiryo, system-ui, sans-serif;
   /* Wide, characterful display face — used for h1, the wordmark, .font-display. */
-  --font-display: "Unbounded", "Onest", system-ui, sans-serif;
+  --font-display: "Unbounded Variable", "Unbounded", "Onest Variable", system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -879,7 +879,7 @@ html.light .home-theme {
   anime poster. Only the landing uses it.
 */
 .home-display {
-  font-family: "Russo One", "Unbounded", var(--font-display);
+  font-family: "Russo One", var(--font-display);
   font-weight: 400;
   letter-spacing: 0.01em;
 }

@@ -141,5 +141,7 @@ export interface ShikiListParams {
   franchise?: string;
   search?: string;
   censored?: boolean;
+  /** Comma-separated ratings; a leading "!" excludes one ("!rx,!r_plus"). */
+  rating?: string;
   ids?: string;
 }

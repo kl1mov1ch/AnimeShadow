@@ -19,6 +19,13 @@ window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault();
   }
 });
+// The fonts, served from our own origin with the rest of the build. Each
+// family is split by script (unicode-range), so a page downloads only the
+// Cyrillic and Latin files it actually draws.
+import "@fontsource-variable/onest";
+import "@fontsource-variable/unbounded";
+import "@fontsource/russo-one/cyrillic-400.css";
+import "@fontsource/russo-one/latin-400.css";
 import "@/index.css";
 import { FEATURES } from "@/lib/features";
 

@@ -123,21 +123,6 @@ export default defineConfig(({ mode }) => {
                 expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
               },
             },
-            // The two Google Fonts requests index.html already preconnects
-            // for — Workbox's own recipe for this exact pair.
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
-              handler: "StaleWhileRevalidate",
-              options: { cacheName: "google-fonts-stylesheets" },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts-webfonts",
-                expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              },
-            },
           ],
         },
         devOptions: {

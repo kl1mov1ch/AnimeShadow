@@ -30,6 +30,7 @@ import {
   type AnimeOrderBy,
   type AnimeThemes,
   type AnimeQuery,
+  animeQuerySchema,
   type AnimeStats,
   type AnimeSummary,
   type Character,
@@ -43,9 +44,10 @@ import {
   type RecommendationItem,
   slugify,
 } from "@animeshadow/shared";
-import { TtlCache } from "../lib/cache.js";
+import { SwrCache, TtlCache } from "../lib/cache.js";
 import { seededShuffle, todayKey } from "../lib/seeded-shuffle.js";
 import { withTimeout } from "../lib/timeout.js";
+import { inBackground } from "../lib/priority.js";
 import {
   AgeVerificationRequiredError,
   NotFoundError,
@@ -126,6 +128,10 @@ const TYPE_TO_SHIKI_KIND: Partial<Record<NonNullable<AnimeQuery["type"]>, string
 /** How long a themes lookup may take before the route answers without it. */
 const GENRE_LIST_TTL_MS = 5 * 60_000;
 const THEMES_DEADLINE_MS = 4_000;
+/** How long the title page's watcher statistics may take before it renders without them. */
+const STATS_DEADLINE_MS = 4_000;
+/** Listings top up missing synopses this many titles at a time, at most. */
+const MAX_CONCURRENT_HEALS = 6;
 /** Failures in a row before the service stops asking the archive for a while. */
 const THEMES_FAILURES_BEFORE_BREAK = 3;
 const THEMES_BREAK_MS = 5 * 60_000;
@@ -142,7 +148,12 @@ export class CatalogService {
   private readonly translation: TranslationService;
   private readonly translator: Translator;
 
-  private readonly discoverCache = new TtlCache<DiscoverResponse>(10 * 60_000, 4);
+  // The home page's rails. Building them cold takes upstream calls — a
+  // trending list, spotlight details, missing posters — that can add up to
+  // twenty seconds; a visitor should never be the one waiting for that. So
+  // the last build is served for up to a day and rebuilt in the background
+  // once it is ten minutes old, and a fresh process builds it at start.
+  private readonly discoverCache = new SwrCache<DiscoverResponse>(10 * 60_000, 24 * 60 * 60_000, 4);
   /** Consecutive failed archive lookups, and until when to stop trying. */
   private themesFailures = 0;
   private themesBreakerUntil = 0;
@@ -153,10 +164,14 @@ export class CatalogService {
   /** The finished detail payload per (title, language), for two minutes —
    *  a title page opened by many people is assembled once. */
   private readonly detailCache = new TtlCache<AnimeDetail>(2 * 60_000, 2000);
-  // Per (filters + page) browse results — one upstream call per unique page / 10 min.
-  private readonly browseCache = new TtlCache<Paginated<AnimeSummary>>(
+  // Per (filters + page) browse results. Shikimori takes one to five
+  // seconds to answer a listing, so nobody waits for it twice: a page is
+  // served from here for a day, and refreshed behind the scenes (behind
+  // visitors' own requests) once it is ten minutes old.
+  private readonly browseCache = new SwrCache<Paginated<AnimeSummary>>(
     10 * 60_000,
-    200,
+    24 * 60 * 60_000,
+    1500,
   );
   private seeded = false;
   /** Genre counts only move when the catalogue is re-seeded — no reason to
@@ -185,7 +200,7 @@ export class CatalogService {
     lang: Locale = DEFAULT_LOCALE,
     allowAdult = false,
   ): Promise<DiscoverResponse> {
-    return this.discoverCache.wrap(`discover:${lang}:${allowAdult}`, async () => {
+    return this.discoverCache.get(`discover:${lang}:${allowAdult}`, async () => {
       await this.ensureSeeded();
 
       const [
@@ -257,7 +272,7 @@ export class CatalogService {
         trendingMonth,
         upcoming,
       };
-    });
+    }, (load) => inBackground(load));
   }
 
   /**
@@ -561,7 +576,23 @@ export class CatalogService {
       hp: query.hasPlayer ?? null,
       adult: allowAdult,
     })}`;
-    return this.browseCache.wrap(key, () => this.browseUpstream(query, allowAdult));
+    return this.browseCache.get(
+      key,
+      () => this.browseUpstream(query, allowAdult),
+      (load) => inBackground(load),
+    );
+  }
+
+  /**
+   * The catalogue's first pages, in its default order, loaded before anyone
+   * asks — after a deploy the cache starts empty, and these are the pages
+   * nearly every visit opens on. Upkeep: queued behind visitors' requests.
+   */
+  async prewarmBrowse(pages = 5): Promise<void> {
+    for (let page = 1; page <= pages; page++) {
+      const query = animeQuerySchema.parse({ page, perPage: 24, orderBy: "popularity", sort: "desc" });
+      await this.browse(query, false).catch(() => undefined);
+    }
   }
 
   private async browseUpstream(
@@ -572,7 +603,7 @@ export class CatalogService {
       const list = await this.shikimori.listAnimes({
         page: query.page,
         limit: query.perPage,
-        ...this.toShikiListParams(query),
+        ...this.toShikiListParams(query, allowAdult),
       });
       const summaries = list.map(shikiToSummary);
 
@@ -698,7 +729,7 @@ export class CatalogService {
         search: q,
         page: query.page,
         limit: query.perPage,
-        ...this.toShikiListParams(query),
+        ...this.toShikiListParams(query, allowAdult),
       });
       const summaries = list.map(shikiToSummary);
       await persistAnimeSummaries(summaries).catch((error) =>
@@ -1219,15 +1250,20 @@ export class CatalogService {
     }>,
   ): void {
     for (const item of items) {
+      // Thousands of titles arrive from Kodik's catalogue without a synopsis;
+      // the detail warm-up fills them in steadily. This only tops that up for
+      // what visitors are actually looking at — a few at a time, and behind
+      // their own requests in the upstream queue, never in front of them.
+      if (this.healingIds.size >= MAX_CONCURRENT_HEALS) break;
       if (this.healingIds.has(item.id)) continue;
       const missingSynopsis = !item.synopsis;
       const missingImage = !item.imageUrl;
       if (!missingImage && !missingSynopsis) continue;
 
       this.healingIds.add(item.id);
-      const job = missingSynopsis
-        ? this.getAnimeById(item.id, DEFAULT_LOCALE)
-        : this.healPoster(item);
+      const job = inBackground(() =>
+        missingSynopsis ? this.getAnimeById(item.id, DEFAULT_LOCALE) : this.healPoster(item),
+      );
       void job.catch(() => undefined).finally(() => this.healingIds.delete(item.id));
     }
   }
@@ -1341,22 +1377,34 @@ export class CatalogService {
    * one that didn't load.
    */
   async getAnimeStats(id: number): Promise<AnimeStats | null> {
-    return this.auxCache.wrap(`stats:${id}`, async () => {
-      try {
-        const raw = await this.jikan.getAnimeStatistics(id);
-        return {
+    const key = `stats:${id}`;
+    const cached = this.auxCache.get(key) as AnimeStats | null | undefined;
+    if (cached !== undefined) return cached;
+    // MAL's statistics, through Jikan — which can take half a minute to
+    // answer when it is busy. The page doesn't wait for that: past the
+    // deadline it renders without them, and nothing is remembered, so the
+    // next visit asks again.
+    const raw = await withTimeout(
+      this.jikan.getAnimeStatistics(id).catch((error: unknown) => {
+        this.logger.warn({ error, id }, "anime statistics fetch failed");
+        return null;
+      }),
+      STATS_DEADLINE_MS,
+      undefined,
+    );
+    if (raw === undefined) return null;
+    const stats: AnimeStats | null = raw
+      ? {
           watching: raw.watching ?? null,
           completed: raw.completed ?? null,
           onHold: raw.on_hold ?? null,
           dropped: raw.dropped ?? null,
           planToWatch: raw.plan_to_watch ?? null,
           total: raw.total ?? null,
-        };
-      } catch (error) {
-        this.logger.warn({ error, id }, "anime statistics fetch failed");
-        return null;
-      }
-    }) as Promise<AnimeStats | null>;
+        }
+      : null;
+    this.auxCache.set(key, stats);
+    return stats;
   }
 
   async getRecommendations(id: number): Promise<RecommendationItem[]> {
@@ -1559,8 +1607,14 @@ export class CatalogService {
     return items;
   }
 
-  private toShikiListParams(query: AnimeQuery): Record<string, unknown> {
-    const params: Record<string, unknown> = {};
+  private toShikiListParams(query: AnimeQuery, allowAdult: boolean): Record<string, unknown> {
+    const params: Record<string, unknown> = {
+      // What the content guard would take out afterwards is left out by
+      // Shikimori itself. Filtering it here instead, after the fetch, made a
+      // page that asked for 24 titles show 21-23 — a grid with a gap at the
+      // end of almost every page.
+      rating: allowAdult ? "!rx" : "!rx,!r_plus",
+    };
     if (query.type && TYPE_TO_SHIKI_KIND[query.type]) {
       params.kind = TYPE_TO_SHIKI_KIND[query.type];
     }

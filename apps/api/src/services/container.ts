@@ -1,4 +1,5 @@
 import { AllohaClient } from "@animeshadow/alloha";
+import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
 import { AnimeThemesClient } from "@animeshadow/animethemes";
@@ -16,6 +17,7 @@ import { CollectionService } from "./collection.service.js";
 import { FactsService } from "./facts.service.js";
 import { AdminAnalyticsService } from "./admin-analytics.service.js";
 import { KodikCatalogSync } from "./kodik-sync.service.js";
+import { AnilibriaCatalogSync } from "./anilibria-sync.service.js";
 import { LandingService } from "./landing.service.js";
 import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
@@ -86,6 +88,7 @@ export interface Services {
   adminAnalytics: AdminAnalyticsService;
   landing: LandingService;
   kodikSync: KodikCatalogSync;
+  anilibriaSync: AnilibriaCatalogSync;
   seo: SeoRenderer;
 }
 
@@ -96,6 +99,7 @@ export function createServices(deps: ContainerDeps): Services {
   const shikimori = new ShikimoriClient({
     baseUrl: deps.shikimori.baseUrl,
     userAgent: deps.shikimori.userAgent,
+    isBackground,
   });
   const kodik = new KodikClient({
     token: deps.watch.kodikToken,
@@ -240,6 +244,7 @@ export function createServices(deps: ContainerDeps): Services {
     adminAnalytics: new AdminAnalyticsService({ prisma: deps.prisma }),
     landing,
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
+    anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing }),
   };
 }

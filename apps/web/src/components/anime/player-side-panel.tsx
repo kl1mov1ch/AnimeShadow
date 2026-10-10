@@ -115,6 +115,7 @@ export function PlayerSidePanel({
             icon={ListVideoIcon}
             label={t("detail.sections.episodes")}
             count={total}
+            hint={t("watch.tip.episodesTab", { n: total })}
           />
           <PanelTab
             active={tab === "dubs"}
@@ -122,6 +123,7 @@ export function PlayerSidePanel({
             icon={MicIcon}
             label={t("watch.dubs")}
             count={sources.length}
+            hint={t("watch.tip.dubsTab", { n: sources.length })}
           />
         </div>
       )}
@@ -162,18 +164,21 @@ function PanelTab({
   icon: Icon,
   label,
   count,
+  hint,
 }: {
   active: boolean;
   onClick: () => void;
   icon: typeof ListVideoIcon;
   label: string;
   count: number;
+  hint: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      title={hint}
       className={cn(
         "relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors duration-200",
         active ? "text-primary" : "text-muted-foreground hover:text-foreground",
@@ -305,6 +310,7 @@ function EpisodeList({
             onBlur={jump}
             placeholder={t("detail.episodeSearch")}
             aria-label={t("detail.episodeSearch")}
+            title={t("watch.tip.episodeJump")}
             className="h-8 w-full rounded-lg border border-border/60 bg-card/60 pl-8 pr-3 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
           />
         </div>
@@ -376,6 +382,25 @@ const EpisodeRow = memo(function EpisodeRow({
   const numberLabel = t("detail.episodeNumber", { n });
   const length =
     info?.durationSeconds != null ? formatClock(info.durationSeconds) : fallbackDuration;
+  const started = !done && state != null && state.position > 0;
+  // How far in, for the thin bar on the still: against the episode's own
+  // length when a provider gave one, else against a typical 24 minutes.
+  const startedShare = started
+    ? Math.min(0.95, Math.max(0.05, state.position / (info?.durationSeconds ?? 1440)))
+    : 0;
+  const hint = [
+    info?.title ? `${numberLabel} · ${info.title}` : numberLabel,
+    current
+      ? t("watch.tip.episodeCurrent")
+      : done
+        ? t("watch.episodeWatched")
+        : started
+          ? t("watch.tip.episodeStarted", { at: formatClock(state.position) })
+          : null,
+    inDub ? null : t("watch.episodeNotInDub"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div
@@ -394,7 +419,7 @@ const EpisodeRow = memo(function EpisodeRow({
         type="button"
         onClick={() => onOpen(n)}
         aria-current={current}
-        title={info?.title ?? numberLabel}
+        title={hint}
         className="flex min-w-0 flex-1 items-center gap-2 text-left"
       >
         <span className="relative aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-secondary/60">
@@ -418,9 +443,9 @@ const EpisodeRow = memo(function EpisodeRow({
             </span>
           )}
           {/* Started but not finished — how far in they got. */}
-          {state && !done && state.position > 0 && (
+          {started && (
             <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black/40">
-              <span className="block h-full w-1/3 bg-primary" />
+              <span className="block h-full bg-primary" style={{ width: `${Math.round(startedShare * 100)}%` }} />
             </span>
           )}
         </span>
@@ -459,8 +484,8 @@ const EpisodeRow = memo(function EpisodeRow({
           type="button"
           onClick={() => onToggleWatched(n)}
           aria-pressed={done}
-          aria-label={t("detail.episodeMark")}
-          title={t("detail.episodeMark")}
+          aria-label={done ? t("watch.tip.episodeUnmark") : t("detail.episodeMark")}
+          title={done ? t("watch.tip.episodeUnmark") : t("detail.episodeMark")}
           className={cn(
             "grid size-6 shrink-0 place-items-center rounded-full border transition-all duration-200 active:scale-90",
             done
@@ -633,6 +658,11 @@ function DubList({
               type="button"
               onClick={() => onPickSource(source.id)}
               aria-current={active}
+              title={
+                active
+                  ? t("watch.tip.dubCurrent", { name: sourceLabel(source) })
+                  : t("watch.tip.dubPick", { name: sourceLabel(source) })
+              }
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
               <DubLogo name={source.title} active={active} />
@@ -645,7 +675,10 @@ function DubList({
                 {sourceLabel(source)}
               </span>
               {source.episodesCount != null && (
-                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                <span
+                  title={t("watch.tip.dubEpisodes", { n: source.episodesCount })}
+                  className="shrink-0 text-[10px] tabular-nums text-muted-foreground"
+                >
                   {source.episodesCount}
                 </span>
               )}
@@ -675,8 +708,8 @@ function DubList({
                   />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="left">
-                {starred ? t("watch.dubFavouriteOn") : t("watch.dubFavourite")}
+              <TooltipContent side="left" className="max-w-56">
+                {starred ? t("watch.dubFavouriteOn") : t("watch.tip.dubStar")}
               </TooltipContent>
             </Tooltip>
             )}

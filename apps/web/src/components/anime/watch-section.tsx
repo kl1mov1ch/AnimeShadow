@@ -1,6 +1,5 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
 import {
-  GaugeIcon,
   Loader2Icon,
   Maximize2Icon,
   Minimize2Icon,
@@ -10,6 +9,7 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   RotateCwIcon,
+  Settings2Icon,
   SkipForwardIcon,
   FastForwardIcon,
   HistoryIcon,
@@ -21,16 +21,11 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
@@ -39,9 +34,12 @@ import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
+import { setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { KodikControls } from "@/components/anime/kodik-controls";
+import { PlayerSettingsMenu, type QualityChoice } from "@/components/anime/player-settings-menu";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -78,7 +76,7 @@ interface WatchSectionProps {
 }
 
 /** Our own HLS player (AniLibria streams). Off: Kodik only. */
-const OWN_PLAYER_ENABLED = false;
+const OWN_PLAYER_ENABLED = true;
 
 export function WatchSection({
   anime,
@@ -125,9 +123,10 @@ export function WatchSection({
   // vanishing. A control that appears on some titles and not others is
   // harder to trust than one that is always there and sometimes greyed.
   //
-  // For now the site plays Kodik only: our own player is switched off and
-  // its switch hidden, so every title opens the same way. The code for it
-  // stays; turning it back on is `OWN_PLAYER_ENABLED`.
+  // Ours is the one where the site draws everything — the picture comes
+  // from the provider, every control, the quality menu included, is ours —
+  // so it leads wherever it can play the episode. Kodik stays one click
+  // away on the switch, with all of its dubs.
   const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls") ?? []) : [];
   const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
   const canUseOwn = ownSources.length > 0;
@@ -832,8 +831,34 @@ const CONTROL_BUTTON =
   "group flex size-8 items-center justify-center rounded-lg transition-all duration-200 active:scale-90";
 
 const CONTROLS_HIDE_MS = 2600;
-const SKIP_SECONDS = 10;
-const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
+/**
+ * Peak bitrates for the master playlist we build over a provider's separate
+ * quality streams — measured on AniLibria's (≈0.75 / 1.5 Mbit/s for 480p and
+ * 720p), with headroom, since hls.js reads BANDWIDTH as a peak.
+ */
+const LEVEL_BANDWIDTH: Record<number, number> = { 480: 1_000_000, 720: 2_000_000, 1080: 4_000_000 };
+
+/**
+ * One master playlist over streams the provider publishes separately, one
+ * per quality: hls.js can then switch between them by itself (auto) or on
+ * request, exactly as with a master the provider had written.
+ */
+function masterPlaylist(variants: Record<string, string>, heights: number[]): string {
+  const lines = ["#EXTM3U"];
+  for (const height of heights) {
+    const width = Math.round((height * 16) / 9 / 2) * 2;
+    const bandwidth = LEVEL_BANDWIDTH[height] ?? Math.round(height * height * 3.5);
+    lines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${width}x${height}`, variants[String(height)]!);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** The bit of hls.js the quality menu talks to. */
+interface HlsLevels {
+  levels: Array<{ height: number }>;
+  currentLevel: number;
+}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -861,6 +886,7 @@ function formatTime(seconds: number): string {
  */
 function CustomHlsPlayer({
   src,
+  variants = null,
   skin,
   isWinner,
   onReady,
@@ -870,6 +896,8 @@ function CustomHlsPlayer({
   opening = null,
 }: {
   src: string;
+  /** This episode in every quality the provider publishes ("480" → manifest, …). */
+  variants?: Record<string, string> | null;
   /** Which of the site's three looks the control bar wears. */
   skin: PlayerSkin;
   isWinner: boolean;
@@ -952,7 +980,24 @@ function CustomHlsPlayer({
   const [buffering, setBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const settings = usePlayerSettings();
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useDismiss(menuOpen, closeMenu, menuRef);
+  // Read from effects and key handlers without re-running them.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const variantsRef = useRef(variants);
+  variantsRef.current = variants;
+  const menuOpenRef = useRef(menuOpen);
+  menuOpenRef.current = menuOpen;
+
+  // Quality: the heights on offer, and the one actually on screen (with
+  // "auto", hls.js moves between them as the connection allows).
+  const hlsRef = useRef<HlsLevels | null>(null);
+  const [levels, setLevels] = useState<number[]>([]);
+  const [activeHeight, setActiveHeight] = useState<number | null>(null);
 
   // Load the manifest — native on Safari, hls.js everywhere else. Resumes
   // playback itself if this load was triggered by switching episodes while
@@ -962,7 +1007,10 @@ function CustomHlsPlayer({
     const video = videoRef.current;
     if (!video) return;
     let hls: { destroy: () => void } | null = null;
+    let master: string | null = null;
     let cancelled = false;
+    setLevels([]);
+    setActiveHeight(null);
 
     const resumeIfWinner = () => {
       if (!isWinnerRef.current) return;
@@ -970,18 +1018,54 @@ function CustomHlsPlayer({
       void video.play().catch(() => undefined);
     };
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
+    const variants = variantsRef.current;
+    const heights = Object.keys(variants ?? {})
+      .map(Number)
+      .filter((h) => Number.isFinite(h) && h > 0)
+      .sort((a, b) => a - b);
+    const wanted = settingsRef.current.quality;
+
+    // Apple's browsers play HLS themselves (and iPhones before iOS 17 can
+    // play it no other way): one quality at a time, switched by swapping
+    // the stream. Everyone else gets hls.js, which switches by itself.
+    const appleNative =
+      video.canPlayType("application/vnd.apple.mpegurl") !== "" && /Apple/.test(navigator.vendor);
+    if (appleNative) {
+      video.src = (wanted !== "auto" && variants?.[wanted]) || src;
+      if (heights.length > 1) {
+        setLevels(heights);
+        setActiveHeight(wanted !== "auto" && variants?.[wanted] ? Number(wanted) : heights[heights.length - 1]!);
+      }
       resumeIfWinner();
     } else {
-      void import("hls.js")
+      // The light build: everything a plain HLS stream needs (levels,
+      // switching, ABR) at two thirds of the full one's weight — no DRM,
+      // subtitle or alternate-audio machinery these streams never use.
+      void import("hls.js/light")
         .then(({ default: Hls }) => {
           if (cancelled) return;
           if (Hls.isSupported()) {
-            const instance = new Hls({ enableWorker: true });
-            instance.loadSource(src);
+            // A fair first guess at the connection, so the opening seconds
+            // aren't spent at 480p on a line that carries 1080p easily.
+            const instance = new Hls({ enableWorker: true, abrEwmaDefaultEstimate: 2_500_000 });
+            if (variants && heights.length > 1) {
+              master = URL.createObjectURL(
+                new Blob([masterPlaylist(variants, heights)], { type: "application/vnd.apple.mpegurl" }),
+              );
+            }
+            instance.loadSource(master ?? src);
             instance.attachMedia(video);
-            instance.on(Hls.Events.MANIFEST_PARSED, () => {
+            hlsRef.current = instance;
+            instance.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+              setActiveHeight(instance.levels[data.level]?.height ?? null);
+            });
+            instance.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+              const parsed = data.levels.map((level) => level.height ?? 0);
+              if (parsed.length > 1) {
+                setLevels(parsed);
+                const index = wanted === "auto" ? -1 : parsed.indexOf(Number(wanted));
+                if (index >= 0) instance.currentLevel = index;
+              }
               // "Ready" as far as the race is concerned: the manifest is
               // parsed, so this source is real and answering. Waiting for
               // `canplay` (a buffered first segment) meant the race's stall
@@ -1029,8 +1113,19 @@ function CustomHlsPlayer({
     return () => {
       cancelled = true;
       hls?.destroy();
+      hlsRef.current = null;
+      if (master) URL.revokeObjectURL(master);
     };
   }, [src]);
+
+  // The viewer's speed, kept across episodes: a new stream starts at the
+  // default rate, so the default is what gets set.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.defaultPlaybackRate = settings.speed;
+    video.playbackRate = settings.speed;
+  }, [settings.speed, src]);
 
   // Only the winner actually plays and makes sound — every other racer
   // sits muted and paused behind it until it either wins or is dropped.
@@ -1103,7 +1198,7 @@ function CustomHlsPlayer({
   const wake = () => {
     setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (playing) {
+    if (playing && !menuOpenRef.current) {
       hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_MS);
     }
   };
@@ -1150,12 +1245,53 @@ function CustomHlsPlayer({
   };
 
   const changeSpeed = (rate: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.playbackRate = rate;
-    setSpeedMenuOpen(false);
+    setPlayerSetting({ speed: rate });
     wake();
   };
+
+  const pickQuality = (value: string) => {
+    setPlayerSetting({ quality: value });
+    const hls = hlsRef.current;
+    if (hls) {
+      // -1 is hls.js's "auto"; a level switch keeps the place by itself.
+      hls.currentLevel = value === "auto" ? -1 : hls.levels.findIndex((l) => l.height === Number(value));
+      return;
+    }
+    // Native playback: swap the stream and pick up where it was.
+    const video = videoRef.current;
+    const url = value === "auto" ? src : variants?.[value];
+    if (!video || !url || video.currentSrc === url) return;
+    const at = video.currentTime;
+    const wasPlaying = !video.paused;
+    video.src = url;
+    video.addEventListener(
+      "loadedmetadata",
+      () => {
+        video.currentTime = at;
+        if (wasPlaying) void video.play().catch(() => undefined);
+      },
+      { once: true },
+    );
+    setActiveHeight(value === "auto" ? (levels[levels.length - 1] ?? null) : Number(value));
+  };
+
+  const quality: QualityChoice =
+    levels.length > 1
+      ? {
+          value: levels.includes(Number(settings.quality)) ? settings.quality : "auto",
+          onPick: pickQuality,
+          options: [
+            {
+              value: "auto",
+              label:
+                settings.quality === "auto" && activeHeight
+                  ? `${t("watch.ctl.qualityAuto")} · ${activeHeight}p`
+                  : t("watch.ctl.qualityAuto"),
+            },
+            ...[...levels].reverse().map((height) => ({ value: String(height), label: `${height}p` })),
+          ],
+        }
+      : { note: t("watch.ctl.qualitySingle") };
 
   /** iOS Safari has no arbitrary-element fullscreen at all — only the
    * `<video>` itself can go fullscreen there. Everywhere else, the whole
@@ -1211,10 +1347,12 @@ function CustomHlsPlayer({
           togglePlay();
           break;
         case "arrowleft":
-          skip(-5);
+        case "j":
+          skip(-settingsRef.current.step);
           break;
         case "arrowright":
-          skip(5);
+        case "l":
+          skip(settingsRef.current.step);
           break;
         case "arrowup":
           e.preventDefault();
@@ -1388,19 +1526,27 @@ function CustomHlsPlayer({
               </button>
               <button
                 type="button"
-                onClick={() => skip(-SKIP_SECONDS)}
-                aria-label={t("watch.skipBack")}
-                className={cn(CONTROL_BUTTON, tone.button, "hidden sm:flex")}
+                onClick={() => skip(-settings.step)}
+                aria-label={t("watch.ctl.back", { n: settings.step })}
+                title={t("watch.ctl.back", { n: settings.step })}
+                className={cn(CONTROL_BUTTON, tone.button, "relative hidden sm:flex")}
               >
                 <RotateCcwIcon className="size-4 transition-transform duration-300 group-hover:-rotate-45" />
+                <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none tabular-nums">
+                  {settings.step}
+                </span>
               </button>
               <button
                 type="button"
-                onClick={() => skip(SKIP_SECONDS)}
-                aria-label={t("watch.skipForward")}
-                className={cn(CONTROL_BUTTON, tone.button, "hidden sm:flex")}
+                onClick={() => skip(settings.step)}
+                aria-label={t("watch.ctl.forward", { n: settings.step })}
+                title={t("watch.ctl.forward", { n: settings.step })}
+                className={cn(CONTROL_BUTTON, tone.button, "relative hidden sm:flex")}
               >
                 <RotateCwIcon className="size-4 transition-transform duration-300 group-hover:rotate-45" />
+                <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none tabular-nums">
+                  {settings.step}
+                </span>
               </button>
 
               {/* Volume — a hover-reveal slider where hover exists at all; a
@@ -1453,47 +1599,41 @@ function CustomHlsPlayer({
               </span>
 
               <span className="ml-auto flex shrink-0 items-center gap-0.5">
-                <Popover open={speedMenuOpen} onOpenChange={setSpeedMenuOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t("watch.speed")}
-                      className={cn(
-                        "flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors",
-                        tone.button,
-                        speedMenuOpen && "bg-primary/25 text-white",
-                      )}
-                    >
-                      <GaugeIcon
-                        className={cn(
-                          "size-3.5 transition-transform duration-300",
-                          speedMenuOpen && "rotate-180",
-                        )}
-                      />
-                      {speed}x
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" align="end" className="w-28 p-1">
-                    {SPEED_OPTIONS.map((rate) => (
-                      <button
-                        key={rate}
-                        type="button"
-                        onClick={() => changeSpeed(rate)}
-                        className={cn(
-                          "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm transition-colors",
-                          rate === speed
-                            ? "bg-primary/10 font-medium text-primary"
-                            : "text-foreground/80 hover:bg-secondary/60",
-                        )}
-                      >
-                        {rate}x
-                        {rate === speed && (
-                          <DrawnCheck key={rate} className="size-3.5 text-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
+                <span ref={menuRef} className="relative flex">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen((open) => !open);
+                      setControlsVisible(true);
+                    }}
+                    aria-expanded={menuOpen}
+                    aria-label={t("watch.ctl.settings")}
+                    title={t("watch.ctl.settings")}
+                    className={cn(
+                      "flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors",
+                      tone.button,
+                      menuOpen && "bg-white/15 text-white",
+                    )}
+                  >
+                    <Settings2Icon
+                      className={cn("size-4 transition-transform duration-300", menuOpen && "rotate-90")}
+                    />
+                    {speed !== 1 && <span className="tabular-nums">{speedLabel(speed)}</span>}
+                    {activeHeight != null && (
+                      <span className="hidden tabular-nums text-white/70 sm:inline">{activeHeight}p</span>
+                    )}
+                  </button>
+                  {menuOpen && (
+                    <PlayerSettingsMenu
+                      className="right-0"
+                      speed={settings.speed}
+                      onSpeed={changeSpeed}
+                      step={settings.step}
+                      onStep={(n) => setPlayerSetting({ step: n })}
+                      quality={quality}
+                    />
+                  )}
+                </span>
 
                 {canPip && (
                   <button
@@ -1974,6 +2114,7 @@ function Player({
               <CustomHlsPlayer
                 key={source.id}
                 src={url}
+                variants={source.hlsVariants?.[String(episode)] ?? null}
                 skin={skin}
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
@@ -2156,6 +2297,8 @@ function Player({
                   frame={kodikFrame}
                   opening={opening}
                   ending={ending}
+                  hasPrev={episode > 1}
+                  onPrev={() => onEpisodeChange(episode - 1)}
                   hasNext={nextEpisode != null}
                   onNext={() => nextEpisode != null && onEpisodeChange(nextEpisode)}
                 />
@@ -2184,6 +2327,8 @@ function Player({
           frame={kodikFrame}
           opening={opening}
           ending={ending}
+          hasPrev={episode > 1}
+          onPrev={() => onEpisodeChange(episode - 1)}
           hasNext={nextEpisode != null}
           onNext={() => nextEpisode != null && onEpisodeChange(nextEpisode)}
           fullscreenTarget={stageEl}

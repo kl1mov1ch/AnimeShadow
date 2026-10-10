@@ -1,4 +1,5 @@
 import closeWithGrace from "close-with-grace";
+import { inBackground } from "./lib/priority.js";
 import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
 import { startIndexNow } from "./seo/indexnow.js";
@@ -37,6 +38,15 @@ try {
     // them and re-resolve the same rows concurrently.
     if (warming) return;
     warming = true;
+    // First, and quick (five listings): the catalogue's first pages, so the
+    // first visitors after a deploy don't each wait on Shikimori for them.
+    await app.services.catalog.prewarmBrowse().catch((error: unknown) =>
+      app.log.warn({ err: error }, "catalogue prewarm failed"),
+    );
+    // And the home page's rails, the one page everyone opens.
+    await app.services.catalog.getDiscover().catch((error: unknown) =>
+      app.log.warn({ err: error }, "home page prewarm failed"),
+    );
     try {
       await app.services.watch.warm(env.WATCH_WARM_LIMIT);
     } catch (error) {
@@ -61,7 +71,8 @@ try {
     }
   };
 
-  setTimeout(() => void runWarm(), 4_000);
+  // Upkeep, all of it: its upstream calls wait behind visitors' requests.
+  setTimeout(() => void inBackground(runWarm), 4_000);
   // Tell Yandex and Bing about new and changed pages (only with INDEXNOW_KEY).
   startIndexNow(app.prisma, app.log);
 
@@ -73,9 +84,15 @@ try {
     setTimeout(() => void app.services.kodikSync.runScheduled(), 120_000).unref();
     setInterval(() => void app.services.kodikSync.runScheduled(), 6 * 60 * 60_000).unref();
   }
+  // AniLibria's catalogue, matched to ours: three minutes after start, then
+  // checked every six hours (a full read runs at most once a day).
+  if (env.ANILIBRIA_CATALOG_SYNC) {
+    setTimeout(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 180_000).unref();
+    setInterval(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 6 * 60 * 60_000).unref();
+  }
   if (env.WATCH_WARM_INTERVAL_MS > 0) {
     // unref'd so a pending tick never keeps the process alive during shutdown.
-    setInterval(() => void runWarm(), env.WATCH_WARM_INTERVAL_MS).unref();
+    setInterval(() => void inBackground(runWarm), env.WATCH_WARM_INTERVAL_MS).unref();
   }
 } catch (error) {
   app.log.error({ err: error }, "failed to start server");

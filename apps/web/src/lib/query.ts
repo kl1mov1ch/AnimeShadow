@@ -50,6 +50,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { AnimeThemesClient } from "@animeshadow/animethemes";
 import { useLocale } from "@/i18n";
 import { apiRequest } from "./api.js";
 
@@ -287,17 +288,73 @@ export function useAnimeOpening(id: number, enabled = true) {
   });
 }
 
+/**
+ * AnimeThemes, asked from the visitor's browser.
+ *
+ * The archive sits behind an edge that turns datacenter addresses away —
+ * our production server gets a 403 page for every lookup — while ordinary
+ * visitors get JSON, with CORS headers for this site. So when the server
+ * says it could not reach the archive, the browser asks it directly: the
+ * same public API, called the way the archive itself allows.
+ *
+ * Both outcomes are remembered for the tab's session: a server that was
+ * turned away is skipped from then on (no wasted round trip per title),
+ * and a browser that was turned away too stops asking (no CORS error in
+ * the console for every further title).
+ */
+const THEMES_ROUTE_KEY = "animeshadow.themes-route.v1";
+type ThemesRoute = "server" | "browser" | "none";
+
+function readThemesRoute(): ThemesRoute {
+  try {
+    const value = sessionStorage.getItem(THEMES_ROUTE_KEY);
+    return value === "browser" || value === "none" ? value : "server";
+  } catch {
+    return "server";
+  }
+}
+
+let themesRoute: ThemesRoute = typeof window === "undefined" ? "server" : readThemesRoute();
+
+function setThemesRoute(route: ThemesRoute) {
+  themesRoute = route;
+  try {
+    sessionStorage.setItem(THEMES_ROUTE_KEY, route);
+  } catch {
+    /* private mode: remembered for this page load only */
+  }
+}
+
+let browserThemes: AnimeThemesClient | null = null;
+
+/** One shared client, so its request spacing covers the whole page. No
+ *  User-Agent of our own: the browser sends its, and a custom header
+ *  would cost a CORS preflight per request. */
+function themesFromBrowser(malId: number): Promise<AnimeThemes> {
+  browserThemes ??= new AnimeThemesClient({ userAgent: null, minIntervalMs: 350 });
+  return browserThemes.getThemes(malId);
+}
+
+const noThemes = (error: unknown): AnimeThemes => ({ tracks: [], opening: null, error: String(error) });
+
 function animeThemesQuery(id: number) {
   return {
     queryKey: ["anime", "themes", id] as const,
     queryFn: async ({ signal }: { signal: AbortSignal }): Promise<AnimeThemes> => {
-      const viaServer = await apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }).catch(
-        (error: unknown) => ({ tracks: [], opening: null, error: String(error) }) as AnimeThemes,
-      );
-      // Server only. The browser used to retry the archive itself when the
-      // server couldn't reach it — a second request per title, and a CORS
-      // error in the console whenever the archive turned the browser away.
-      return viaServer;
+      let viaServer: AnimeThemes | null = null;
+      if (themesRoute === "server") {
+        viaServer = await apiRequest<AnimeThemes>(`/anime/${id}/themes`, { signal }).catch(noThemes);
+        if (!viaServer.error) return viaServer;
+      }
+      if (themesRoute === "none") return viaServer ?? noThemes("animethemes unreachable");
+      const direct = await themesFromBrowser(id).catch(noThemes);
+      if (direct.error) {
+        // Turned away here as well: nothing more to try this session.
+        setThemesRoute("none");
+        return viaServer ?? direct;
+      }
+      if (themesRoute === "server") setThemesRoute("browser");
+      return direct;
     },
     staleTime: Infinity,
     gcTime: 60 * 60_000,

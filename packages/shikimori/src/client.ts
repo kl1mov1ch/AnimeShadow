@@ -17,6 +17,17 @@ export interface ShikimoriClientOptions {
   maxRetries?: number;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  /**
+   * Whether the call being made right now can wait — upkeep rather than a
+   * visitor's request. Those queue behind everything else; see `get`.
+   */
+  isBackground?: () => boolean;
+}
+
+interface QueuedRequest {
+  url: string;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
 }
 
 export class ShikimoriError extends Error {
@@ -52,7 +63,10 @@ export class ShikimoriClient {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly isBackground: () => boolean;
+  /** Visitors' requests, then upkeep: one in flight at a time, either way. */
+  private readonly lanes: { now: QueuedRequest[]; later: QueuedRequest[] } = { now: [], later: [] };
+  private pumping = false;
   private lastRequestAt = 0;
 
   constructor(options: ShikimoriClientOptions = {}) {
@@ -61,6 +75,7 @@ export class ShikimoriClient {
     this.minIntervalMs = options.minIntervalMs ?? DEFAULTS.minIntervalMs;
     this.maxRetries = options.maxRetries ?? DEFAULTS.maxRetries;
     this.timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
+    this.isBackground = options.isBackground ?? (() => false);
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
   }
 
@@ -138,13 +153,33 @@ export class ShikimoriClient {
       if (value === undefined || value === null || value === "") continue;
       url.searchParams.set(key, String(value));
     }
-    const run = () => this.attempt<T>(url.toString());
-    const result = this.queue.then(run, run);
-    this.queue = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
+    // Still strictly one request at a time, spaced by minIntervalMs — the
+    // rate limit is per client, not per lane. What the lanes change is the
+    // order: a visitor's request goes ahead of any upkeep still waiting, so
+    // it waits at most for the one call already in flight.
+    return new Promise<T>((resolve, reject) => {
+      const lane = this.isBackground() ? this.lanes.later : this.lanes.now;
+      lane.push({ url: url.toString(), resolve: resolve as (value: unknown) => void, reject });
+      void this.pump();
+    });
+  }
+
+  private async pump(): Promise<void> {
+    if (this.pumping) return;
+    this.pumping = true;
+    try {
+      for (;;) {
+        const next = this.lanes.now.shift() ?? this.lanes.later.shift();
+        if (!next) break;
+        try {
+          next.resolve(await this.attempt(next.url));
+        } catch (error) {
+          next.reject(error);
+        }
+      }
+    } finally {
+      this.pumping = false;
+    }
   }
 
   private async attempt<T>(url: string): Promise<T> {
@@ -201,6 +236,7 @@ function serialiseList(params: ShikiListParams): Record<string, unknown> {
     franchise: params.franchise,
     search: params.search,
     ids: params.ids,
+    rating: params.rating,
     // Safe by default: nothing in this app ever wants hentai/uncensored
     // results, so a caller has to opt out explicitly rather than remembering
     // to opt in every time a new listing call gets added.

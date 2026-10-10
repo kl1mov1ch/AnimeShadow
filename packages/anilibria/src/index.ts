@@ -40,6 +40,15 @@ export interface AniLibriaRelease {
   episodes: AniLibriaEpisode[];
 }
 
+/** One release from the catalogue listing: enough to match it to ours. */
+export interface AniLibriaCatalogEntry {
+  /** AniLibria's own release id. */
+  id: number;
+  malId: number | null;
+  /** Blocked by copyright or by region — unusable either way. */
+  blocked: boolean;
+}
+
 interface RawSearchEntry {
   id: number;
   mal?: { id?: number } | null;
@@ -112,6 +121,41 @@ export class AniLibriaClient {
       return detail;
     }
     return null;
+  }
+
+  /**
+   * One page of AniLibria's whole catalogue. Every entry carries the
+   * title's MyAnimeList id, so a full read matches the catalogue to ours
+   * without a single name search.
+   */
+  async listCatalog(page: number, limit = 50): Promise<{ entries: AniLibriaCatalogEntry[]; totalPages: number }> {
+    const url = new URL(`${this.baseUrl}/anime/catalog/releases`);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("limit", String(limit));
+    const response = await this.fetchImpl(url, {
+      signal: AbortSignal.timeout(this.timeoutMs * 3),
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`AniLibria catalogue page ${page}: HTTP ${response.status}`);
+    const body = (await response.json()) as {
+      data?: RawRelease[];
+      meta?: { pagination?: { total_pages?: number } };
+    };
+    return {
+      entries: (body.data ?? []).map((r) => ({
+        id: r.id,
+        malId: r.mal?.id ?? r.shikimori?.id ?? null,
+        blocked: Boolean(r.is_blocked_by_geo || r.is_blocked_by_copyrights),
+      })),
+      totalPages: body.meta?.pagination?.total_pages ?? page,
+    };
+  }
+
+  /** A release by AniLibria's own id, with its episodes — null when missing or blocked. */
+  async releaseById(id: number): Promise<AniLibriaRelease | null> {
+    const detail = await this.getRelease(id);
+    if (!detail || detail.isBlockedByGeo || detail.isBlockedByCopyrights) return null;
+    return detail;
   }
 
   private async searchReleases(query: string): Promise<RawSearchEntry[]> {

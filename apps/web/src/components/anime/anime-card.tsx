@@ -3,11 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
-  CalendarIcon,
   ClockIcon,
-  ListVideoIcon,
   PlayIcon,
-  TvIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -136,7 +133,6 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
     );
   };
   const title = labels.title(anime);
-  const when = labels.seasonYearLabel(anime);
 
   // const hasScore = anime.score != null;
   const airing = anime.airing === "AIRING";
@@ -151,7 +147,11 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         // OpeningVideo would refuse to render, and the request is disabled —
         // so the only thing these could do there is churn state on a tap.
         {...(canHover ? { onMouseEnter: startIntent, onMouseLeave: cancelIntent } : {})}
-        className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/60 bg-muted transition-[border-color,transform,box-shadow] duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/25 group-hover:shadow-lg group-hover:shadow-primary/10 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
+        // One slow, soft movement: a lift of a few pixels and a shadow that
+        // deepens with it, on the same long ease-out as everything else on
+        // the card. The red glow and the faster timing it used to have made
+        // a grid of these flicker as the pointer crossed it.
+        className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/50 bg-muted transition-[border-color,transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-1 group-hover:border-foreground/15 group-hover:shadow-xl group-hover:shadow-black/30 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
       >
         {/* Everything below is opacity/transform only — nothing that forces
             a repaint on scroll — and all of it sits behind `group-hover:`,
@@ -178,17 +178,8 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             the video underneath them starts moving. */}
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100 motion-reduce:transition-none"
         />
-
-        {/* A band of light crossing the poster on hover. One transform on
-            one element — nothing here repaints the picture underneath. */}
-        {hovered && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-1/3 -translate-x-[220%] -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%] motion-reduce:hidden"
-          />
-        )}
 
         {/* Two actions on the poster, stacked: keep it for later, and go
             straight to the player. They slide in one after the other under
@@ -208,10 +199,10 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                 disabled={addToLibrary.isPending}
                 aria-label={inLibrary ? t("card.inList") : t("card.addToList")}
                 className={cn(
-                  "grid size-9 place-items-center rounded-lg border border-white/15 transition-all duration-300 hover:scale-110 active:scale-90 motion-reduce:transition-none",
-                  inLibrary ? "bg-primary/90 text-primary-foreground" : "bg-black/60 text-white",
+                  "grid size-8 place-items-center rounded-lg border border-white/10 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-95 motion-reduce:transition-none",
+                  inLibrary ? "bg-primary/85 text-primary-foreground" : "bg-black/50 text-white/90 hover:bg-black/70 hover:text-white",
                   canHover && !inLibrary
-                    ? "translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
+                    ? "translate-x-1.5 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
                     : "opacity-100",
                 )}
               >
@@ -219,7 +210,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                   on={inLibrary}
                   off={BookmarkPlusIcon}
                   onIcon={BookmarkCheckIcon}
-                  className="size-4"
+                  className="size-3.5"
                 />
               </button>
             </TooltipTrigger>
@@ -234,9 +225,9 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                   to={`${animeHref(anime)}#watch`}
                   viewTransition
                   aria-label={t("card.watch")}
-                  className="grid size-9 translate-x-2 place-items-center rounded-lg border border-white/15 bg-black/60 text-white opacity-0 transition-all delay-75 duration-300 hover:scale-110 hover:bg-primary hover:text-primary-foreground active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
+                  className="grid size-8 translate-x-1.5 place-items-center rounded-lg border border-white/10 bg-black/50 text-white/90 opacity-0 transition-all delay-75 duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-primary hover:text-primary-foreground active:scale-95 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
                 >
-                  <PlayIcon className="size-4 fill-current" />
+                  <PlayIcon className="size-3.5 fill-current" />
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="left">{t("card.watch")}</TooltipContent>
@@ -258,7 +249,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         )}
 
         {isAdult && (
-          <span className="absolute right-2 top-2 z-10 rounded-md bg-rose-600/90 px-1.5 py-0.5 text-[11px] font-bold text-white">
+          <span className="absolute right-2 top-2 z-10 rounded-md bg-black/60 px-1.5 py-px text-[10px] font-semibold text-rose-300 ring-1 ring-inset ring-rose-400/40">
             18+
           </span>
         )}
@@ -289,84 +280,58 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             the picture that was already under a shadow. Clicks go through
             it to the poster link underneath. */}
         {canHover && hovered && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-full bg-gradient-to-t from-black via-black/90 to-black/0 px-2.5 pb-2.5 pt-8 text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 starting:translate-y-full starting:opacity-0 motion-reduce:transition-none">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-3 bg-gradient-to-t from-black/95 via-black/80 to-black/0 px-2.5 pb-2.5 pt-10 text-white opacity-0 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-0 group-hover:opacity-100 starting:translate-y-3 starting:opacity-0 motion-reduce:transition-none">
             {anime.genres.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {anime.genres.slice(0, 3).map((g) => (
-                  <span
-                    key={g}
-                    className="rounded border border-primary/50 bg-primary/25 px-1.5 py-px text-[10px] font-medium text-white"
-                  >
-                    {labels.genreLabel(g)}
-                  </span>
-                ))}
-              </div>
+              <p className="truncate text-[10px] font-medium text-white/70">
+                {anime.genres.slice(0, 3).map((g) => labels.genreLabel(g)).join(" · ")}
+              </p>
             )}
             {anime.synopsis && (
-              <p className="mt-1.5 line-clamp-3 text-[11px] leading-snug text-white/85">
+              <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-white/85">
                 {anime.synopsis}
               </p>
             )}
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-white/65">
-              {shortRating(anime.rating) && <span>{shortRating(anime.rating)}</span>}
-              {anime.scoredBy != null && anime.scoredBy > 0 && (
-                <span className="tabular-nums">
-                  {t("common.ratings", { count: labels.compact(anime.scoredBy) })}
-                </span>
-              )}
-              {anime.members != null && anime.members > 0 && (
-                <span className="tabular-nums">
-                  {t("home.views", { views: labels.compact(anime.members) })}
-                </span>
-              )}
-            </div>
+            {shortRating(anime.rating) && (
+              <p className="mt-1 text-[10px] text-white/50">{shortRating(anime.rating)}</p>
+            )}
           </div>
         )}
       </div>
 
       <div className="flex flex-col gap-0.5">
-        <h3 className="line-clamp-2 text-xs font-medium leading-snug sm:text-[13px] text-foreground transition-colors group-hover:text-primary">
+        <h3 className="line-clamp-2 text-xs font-medium leading-snug text-foreground/90 transition-colors duration-300 group-hover:text-foreground sm:text-[13px]">
           <Link to={animeHref(anime)} viewTransition className="outline-none">
             {title}
           </Link>
         </h3>
-        <div className="flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground sm:text-[11px]">
-          {/* A permanent "AIRING" tag here used to say the same thing on
-              every card of every currently-airing title, all the time, and
-              told you nothing about *when* the next episode actually lands.
-              That answer now lives in the hover preview instead — a plain
-              dot still marks an airing title at a glance, without a label
-              claiming a fact the card can't actually back up with a date. */}
-          <span className="flex min-w-0 items-center gap-2.5 truncate">
-            <span className="inline-flex items-center gap-1">
-              <TvIcon className="size-3 shrink-0 text-muted-foreground/70" />
-              {labels.typeLabel(anime.type)}
-            </span>
-            {anime.episodes != null && anime.episodes > 0 && (
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <ListVideoIcon className="size-3 shrink-0 text-muted-foreground/70" />
-                {anime.episodes}
-              </span>
-            )}
-            {airing && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    aria-label={labels.airingLabel(anime.airing)}
-                    className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500"
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="top">{labels.airingLabel(anime.airing)}</TooltipContent>
-              </Tooltip>
-            )}
-          </span>
-          {when && (
-            <span className="inline-flex shrink-0 items-center gap-1 tabular-nums">
-              <CalendarIcon className="size-3 text-muted-foreground/70" />
-              {when}
-            </span>
+        {/* One line in plain words — "ТВ · 12 эп. · 2023" — where there used
+            to be an icon in front of every fact: three icons per card, forty
+            cards a page, was most of what made the grid look busy. A dot
+            still marks a title that is airing. */}
+        <p className="flex min-w-0 items-center gap-1.5 truncate text-[10px] text-muted-foreground sm:text-[11px]">
+          {airing && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  aria-label={labels.airingLabel(anime.airing)}
+                  className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500/80"
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top">{labels.airingLabel(anime.airing)}</TooltipContent>
+            </Tooltip>
           )}
-        </div>
+          <span className="truncate tabular-nums">
+            {[
+              labels.typeLabel(anime.type),
+              anime.episodes != null && anime.episodes > 1 ? t("watch.episodesCount", { count: anime.episodes }) : null,
+              // The year alone: "Весна 2021" didn't fit beside the rest at
+              // six cards a row, and the season is on the title's page.
+              anime.year,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </p>
       </div>
     </article>
   );

@@ -21,6 +21,12 @@ export const watchSourceSchema = z.object({
   /** format "hls" only: episode number (as a string key) → HLS manifest URL. */
   hlsEpisodes: z.record(z.string(), z.string()).optional(),
   /**
+   * format "hls" only: episode number → picture height ("480", "720",
+   * "1080") → that quality's manifest. What the player's quality menu
+   * offers; `hlsEpisodes` holds the best of them.
+   */
+  hlsVariants: z.record(z.string(), z.record(z.string(), z.string())).optional(),
+  /**
    * What the provider says about each episode beyond where to play it —
    * its own title, its real length, a still, where the opening sits. Only
    * AniLibria publishes any of this today; every field is optional because

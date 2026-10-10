@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TIP_SURFACE, TIP_TEXT } from "@/lib/tip-style";
 import { cn } from "@/lib/utils";
 
-/** How long a pointer rests before the hint appears — long enough not to flicker while crossing a row. */
-const SHOW_DELAY_MS = 280;
-const GAP = 8;
+/** How long a pointer rests before the hint appears — the same as every
+ *  Radix tooltip on the site, and long enough not to flicker across a row. */
+const SHOW_DELAY_MS = 200;
+const GAP = 6;
 const EDGE = 8;
 
 interface Tip {
@@ -126,8 +128,10 @@ function TipBubble({ tip }: { tip: Tip }) {
         top: pos?.top ?? -9999,
       }}
       className={cn(
-        "pointer-events-none fixed z-[100] max-w-[min(20rem,80vw)] rounded-lg border border-primary/35 bg-popover bg-gradient-to-b from-primary/[0.14] via-primary/[0.04] to-transparent px-3 py-2 text-[12px] font-medium leading-snug text-balance text-popover-foreground shadow-xl shadow-primary/15 ring-1 ring-black/5",
-        pos && "animate-in fade-in-0 zoom-in-90 duration-150",
+        "pointer-events-none fixed z-[100]",
+        TIP_SURFACE,
+        TIP_TEXT,
+        pos && "animate-in fade-in-0 duration-150 ease-out",
         pos && (pos.below ? "slide-in-from-top-1" : "slide-in-from-bottom-1"),
       )}
     >

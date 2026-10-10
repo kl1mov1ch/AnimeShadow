@@ -196,6 +196,9 @@ export class WatchService {
           // Known to be playable (the Kodik catalogue sync) but its dubs not
           // resolved yet: doing it here makes the first open instant.
           { watchAvailability: { hasPlayer: true }, playerSources: { none: {} } },
+          // Matched to an AniLibria release by the catalogue sync, stream
+          // not fetched yet: so the title opens in our player the first time.
+          { watchAvailability: { anilibriaId: { not: null } }, playerSources: { none: { format: "hls" } } },
         ],
       },
       orderBy: [{ members: { sort: "desc", nulls: "last" } }],
@@ -259,6 +262,10 @@ export class WatchService {
         r.hlsEpisodes != null
           ? (r.hlsEpisodes as Record<string, string>)
           : undefined,
+      hlsVariants:
+        r.hlsVariants != null
+          ? (r.hlsVariants as Record<string, Record<string, string>>)
+          : undefined,
       iframeEpisodes:
         r.iframeEpisodes != null
           ? (r.iframeEpisodes as WatchSource["iframeEpisodes"])
@@ -271,6 +278,17 @@ export class WatchService {
       episodesCount: r.episodesCount,
       stable: r.stable,
     }));
+
+    // Matched to an AniLibria release by the catalogue sync, but its stream
+    // isn't stored yet: fetched now — one request by id, a short deadline —
+    // and kept, so the title opens in our own player this very time.
+    if (availability.anilibriaId != null && !rows.some((r) => r.format === "hls")) {
+      const own = await withTimeout(this.fetchAnilibria(malId, [], true, availability.anilibriaId), 3_000, null);
+      if (own) {
+        sources.push(own);
+        void this.addSource(malId, own, rows.length).catch(() => undefined);
+      }
+    }
 
     // Never probed, or the verdict is old enough that a mirror could have
     // died since? Check in the background so the next open gets a fresh
@@ -298,9 +316,11 @@ export class WatchService {
     // exact — a date cutoff either misses rows written between the change
     // and the deploy, or, set a little ahead, re-resolves on every single
     // open until the clock catches up.
+    // The same goes for one written before qualities were kept per episode:
+    // without them the player has no quality menu to offer.
     if (
       (rows.some((r) => r.updatedAt.getTime() < SOURCE_SCHEMA_SINCE) ||
-        rows.some((r) => r.format === "hls" && r.episodeMeta == null)) &&
+        rows.some((r) => r.format === "hls" && (r.episodeMeta == null || r.hlsVariants == null))) &&
       !this.refreshingIds.has(malId)
     ) {
       this.refreshingIds.add(malId);
@@ -424,18 +444,29 @@ export class WatchService {
     malId: number,
     titles: string[],
     quiet: boolean,
+    releaseId: number | null = null,
   ): Promise<WatchSource | null> {
     try {
-      const release = await this.anilibria.findByMalId(titles, malId);
+      // By id when the catalogue sync has matched the title — one request,
+      // no guessing — and by name search otherwise.
+      const release =
+        (releaseId != null ? await this.anilibria.releaseById(releaseId) : null) ??
+        (titles.length > 0 ? await this.anilibria.findByMalId(titles, malId) : null);
       if (!release || release.episodes.length === 0) return null;
 
       const hlsEpisodes: Record<string, string> = {};
+      const hlsVariants: Record<string, Record<string, string>> = {};
       const episodeMeta: NonNullable<WatchSource["episodeMeta"]> = {};
       for (const episode of release.episodes) {
         const url = bestEpisodeUrl(episode);
         if (!url) continue;
         const key = String(episode.ordinal);
         hlsEpisodes[key] = url;
+        const variants: Record<string, string> = {};
+        if (episode.hls480) variants["480"] = episode.hls480;
+        if (episode.hls720) variants["720"] = episode.hls720;
+        if (episode.hls1080) variants["1080"] = episode.hls1080;
+        hlsVariants[key] = variants;
         episodeMeta[key] = {
           title: episode.name,
           titleEn: episode.nameEnglish,
@@ -453,6 +484,7 @@ export class WatchService {
         format: "hls",
         embedUrl: "",
         hlsEpisodes,
+        hlsVariants,
         episodeMeta,
         quality: "HD",
         episodesCount: release.episodesTotal,
@@ -487,6 +519,9 @@ export class WatchService {
     const titles = [existing?.titleLocalized, existing?.title, existing?.titleEnglish].filter(
       (t): t is string => Boolean(t),
     );
+    const releaseId =
+      (await this.prisma.watchAvailability.findUnique({ where: { animeId: malId }, select: { anilibriaId: true } }))
+        ?.anilibriaId ?? null;
     // Hard cap on top of the client's own per-request timeouts: trying up to
     // three title variants, each with its own search-then-detail round trip,
     // could otherwise stack into tens of seconds if AniLibria itself is slow
@@ -494,11 +529,12 @@ export class WatchService {
     // stuck watch-sources response is exactly the kind of hang this whole
     // feature was asked not to reintroduce.
     const eagerAnilibria =
-      titles.length > 0
-        ? withTimeout(this.fetchAnilibria(malId, titles, quiet), 6_000, null)
+      titles.length > 0 || releaseId != null
+        ? withTimeout(this.fetchAnilibria(malId, titles, quiet, releaseId), 6_000, null)
         : null;
 
     // 1. Kodik
+    let kodikFailed = false;
     try {
       const group = await this.kodik.getByShikimoriId(malId);
       if (group) {
@@ -515,6 +551,7 @@ export class WatchService {
         if (sources.length > 0) provider = "kodik";
       }
     } catch (error) {
+      kodikFailed = true;
       if (!quiet) this.logger.warn({ error, malId }, "kodik lookup failed");
     }
 
@@ -557,6 +594,24 @@ export class WatchService {
       provider = "custom";
     }
 
+    // A lookup that failed is not an answer. When Kodik errored (a timeout,
+    // an outage) and this pass found less than is already stored, what is
+    // stored stays: overwriting it would take the player off a title over a
+    // network hiccup — every title a background refresh touched during an
+    // outage used to end up "no player found" until its next recheck.
+    if (kodikFailed) {
+      const stored = await this.prisma.playerSource.count({ where: { animeId: malId } });
+      if (stored > sources.length) {
+        this.logger.warn({ malId, stored, found: sources.length }, "watch refresh incomplete — keeping stored sources");
+        // Rechecked later, on the usual schedule, rather than on every open.
+        await this.prisma.watchAvailability
+          .update({ where: { animeId: malId }, data: { checkedAt: new Date() } })
+          .catch(() => undefined);
+        const kept = await this.readCached(malId);
+        if (kept) return kept;
+      }
+    }
+
     await this.persist(malId, kinopoiskId, provider, sources);
 
     if (sources.length === 0) {
@@ -569,6 +624,33 @@ export class WatchService {
     else void this.probeAndPersist(malId, sources).catch(() => undefined);
 
     return { available: true, reason: "ok", provider, sources: sortByStability(sources) };
+  }
+
+  /** One more source for a title, kept next to the ones already stored. */
+  private async addSource(malId: number, source: WatchSource, position: number): Promise<void> {
+    const { provider, sourceKey } = keyOf(source.id);
+    const data = {
+      title: source.title,
+      kind: source.kind,
+      format: source.format,
+      embedUrl: source.embedUrl,
+      hlsEpisodes: source.hlsEpisodes ?? Prisma.JsonNull,
+      hlsVariants: source.hlsVariants ?? Prisma.JsonNull,
+      iframeEpisodes: source.iframeEpisodes ?? Prisma.JsonNull,
+      episodeMeta: source.episodeMeta ?? Prisma.JsonNull,
+      quality: source.quality,
+      episodesCount: source.episodesCount,
+      position,
+      stable: source.stable,
+    };
+    await this.prisma.playerSource.upsert({
+      where: { animeId_provider_sourceKey: { animeId: malId, provider, sourceKey } },
+      create: { animeId: malId, provider, sourceKey, ...data },
+      update: data,
+    });
+    if (source.format === "hls") {
+      await this.prisma.watchAvailability.update({ where: { animeId: malId }, data: { hasCustomPlayer: true } });
+    }
   }
 
   private async persist(
@@ -630,6 +712,7 @@ export class WatchService {
             format: s.format,
             embedUrl: s.embedUrl,
             hlsEpisodes: s.hlsEpisodes ?? Prisma.JsonNull,
+            hlsVariants: s.hlsVariants ?? Prisma.JsonNull,
             iframeEpisodes: s.iframeEpisodes ?? Prisma.JsonNull,
             episodeMeta: s.episodeMeta ?? Prisma.JsonNull,
             quality: s.quality,
