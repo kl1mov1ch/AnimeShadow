@@ -294,6 +294,33 @@ export const recommendationItemSchema = z.object({
 });
 export type RecommendationItem = z.infer<typeof recommendationItemSchema>;
 
+/** A themed list the site keeps itself (see the API's CuratedService). */
+export const CURATED_ICONS = [
+  "film", "timer", "calendar", "compass", "radio", "trophy", "coffee",
+  "brain", "smile", "heart", "flame", "rocket", "ghost", "monitor",
+] as const;
+export interface CuratedCollection {
+  slug: string;
+  icon: (typeof CURATED_ICONS)[number];
+  title: string;
+  pitch: string;
+  /** How many titles fit it in all. */
+  total: number;
+  /** Its first few titles, for the card. */
+  covers: AnimeSummary[];
+}
+export interface CuratedCollectionDetail extends Omit<CuratedCollection, "covers"> {
+  items: AnimeSummary[];
+  /** The same list in the catalogue, to filter and go further. */
+  moreHref: string;
+  /** A few other collections, to move on to. */
+  others: Array<Pick<CuratedCollection, "slug" | "title" | "icon">>;
+}
+
+/** The homepage hero's clips by title id: a computer's (`hd`, 720p) and a
+ *  phone's (`sd`, 432p) — ten muted seconds of episode 1 each. */
+export type HeroClips = Record<string, { hd: string; sd: string }>;
+
 export const discoverResponseSchema = z.object({
   spotlight: animeDetailSchema.nullable(),
   /** Rotating hero — several airing titles, trailers preferred. */

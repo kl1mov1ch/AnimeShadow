@@ -63,6 +63,17 @@ ensure_postgres() {
 step "postgres"
 ensure_postgres
 
+# The homepage hero's short clips are cut and compressed on this server
+# (HeroClipService). Without ffmpeg the hero simply shows pictures.
+step "ffmpeg"
+if command -v ffmpeg >/dev/null; then
+  echo "ffmpeg present"
+elif (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg) >/tmp/ffmpeg-install.log 2>&1; then
+  echo "ffmpeg installed"
+else
+  echo "!! ffmpeg could not be installed (see /tmp/ffmpeg-install.log) — the hero shows pictures only"
+fi
+
 step "git pull"
 # A rollback by hand (git checkout <commit>) leaves the repo off the branch,
 # and then `git pull` has nothing to pull into — every later deploy would

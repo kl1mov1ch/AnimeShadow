@@ -85,6 +85,9 @@ const envSchema = z.object({
   // and how big that may grow before the oldest go.
   IMAGE_CACHE_DIR: z.string().min(1).optional(),
   IMAGE_CACHE_MAX_MB: z.coerce.number().int().positive().default(2048),
+  /** ffmpeg, for the homepage hero's clips; without it there are none. */
+  FFMPEG_PATH: z.string().min(1).default("ffmpeg"),
+  HERO_CLIP_DIR: z.string().min(1).optional(),
   /** Days of raw page views kept; older days live on as daily rollups. */
   STATS_RAW_DAYS: z.coerce.number().int().min(14).default(90),
   ANILIBRIA_CATALOG_SYNC: z

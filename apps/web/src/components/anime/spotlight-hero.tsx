@@ -1,5 +1,6 @@
 import { genreHref } from "@/lib/format";
-import type { AnimeDetail } from "@animeshadow/shared";
+import type { AnimeDetail, HeroClips } from "@animeshadow/shared";
+import { useQuery } from "@tanstack/react-query";
 import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
@@ -16,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { MorphIcon } from "@/components/ui/morph-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { apiRequest } from "@/lib/api";
+import { useSlowConnection } from "@/lib/connection";
 import { useT } from "@/i18n";
 import { animeHref, fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
@@ -41,7 +45,14 @@ function useTabHidden(): boolean {
  *
  * One title at a time across the full width: its key visual behind, the
  * pitch on the left, and on the right the queue of titles in the rotation,
- * the current one with a line filling under it. Pictures only — no video.
+ * the current one with a line filling under it.
+ *
+ * Behind the picture, when the server has one, a short muted clip of the
+ * title (see HeroClipService): the picture shows first, and the clip fades
+ * in over it only once it is actually playing — never an empty box, never a
+ * spinner. Only the slide on screen loads its clip, the phone-sized one on
+ * a phone; none at all on a slow connection or for anyone who asked their
+ * system for less motion.
  *
  * The rotation is even: every slide gets the same eight seconds, the
  * picture and the text change together in one cross-fade, and nothing
@@ -68,6 +79,17 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
     const next = (index + 1) % count;
     setPrimed((prev) => (prev.has(index) && prev.has(next) ? prev : new Set([...prev, index, next])));
   }, [index, count]);
+
+  // Which titles have a clip, and whether this visitor should get one.
+  const slow = useSlowConnection();
+  const calm = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const narrow = useMediaQuery("(max-width: 767px)");
+  const { data: clips } = useQuery({
+    queryKey: ["hero-clips"],
+    enabled: !slow && !calm,
+    queryFn: ({ signal }) => apiRequest<HeroClips>("/hero-clips", { signal }),
+    staleTime: 5 * 60_000,
+  });
 
   useEffect(() => {
     if (count < 2 || hidden) return;
@@ -119,6 +141,9 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                   className={cn("absolute inset-0 size-full object-cover object-center", on && "home-kenburns")}
                 />
               )}
+              {on && !hidden && clips?.[String(slide.id)] && (
+                <HeroClip src={narrow ? clips[String(slide.id)]!.sd : clips[String(slide.id)]!.hd} />
+              )}
             </div>
           );
         })}
@@ -165,6 +190,34 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * A clip over the slide's picture: invisible until it is really playing,
+ * then a slow fade in. If it never plays (blocked autoplay, a slow line, a
+ * missing file) the picture simply stays — nothing to see go wrong.
+ */
+function HeroClip({ src }: { src: string }) {
+  const [playing, setPlaying] = useState(false);
+  return (
+    <video
+      key={src}
+      src={src}
+      muted
+      autoPlay
+      loop
+      playsInline
+      disablePictureInPicture
+      preload="auto"
+      aria-hidden
+      tabIndex={-1}
+      onPlaying={() => setPlaying(true)}
+      className={cn(
+        "absolute inset-0 size-full object-cover object-center transition-opacity duration-1000 ease-out",
+        playing ? "opacity-100" : "opacity-0",
+      )}
+    />
   );
 }
 

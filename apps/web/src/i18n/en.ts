@@ -105,6 +105,8 @@ export const en = {
     viewDetails: "View details",
   },
   collections: {
+    themed: "Themed collections",
+    fromViewers: "Viewers' collections",
     theme: "Theme",
     random: "Random collection",
     votes: "{n} votes",
@@ -427,8 +429,12 @@ export const en = {
     },
     adultGate: {
       title: "18+ content",
-      body: "This title is marked as adult content. Confirm your birth date in profile settings to view it — takes a second.",
-      verify: "Confirm my age",
+      body: "An adult title. Enter your birth date — once — and titles like this open.",
+      signInBody: "An adult title. Sign in or create an account — then enter your birth date once.",
+      birthLabel: "Birth date",
+      confirm: "Confirm and open",
+      under18: "This title is for viewers aged 18 and over.",
+      note: "Only you can see the date, and it can't be changed later. Hentai is never shown on the site.",
       leave: "Back to home",
     },
     facts: {

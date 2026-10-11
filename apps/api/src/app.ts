@@ -29,6 +29,7 @@ import { imageRoutes } from "./routes/image.js";
 import { libraryRoutes } from "./routes/library.js";
 import { metricsRoutes } from "./routes/metrics.js";
 import { seoRoutes } from "./routes/seo.js";
+import { heroRoutes } from "./routes/hero.js";
 import { profileRoutes } from "./routes/profile.js";
 import { progressRoutes } from "./routes/progress.js";
 import { recommendationRoutes } from "./routes/recommendations.js";
@@ -196,6 +197,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(analyticsRoutes);
       await api.register(adminRoutes);
       await api.register(seoRoutes);
+      await api.register(heroRoutes);
     },
     { prefix: "/api" },
   );

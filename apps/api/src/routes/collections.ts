@@ -111,6 +111,19 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
     return null;
   });
 
+  // The site's own themed lists (see CuratedService) — above the viewers' ones.
+  fastify.get("/collections/curated", { preHandler: fastify.optionalAuth }, async (request, reply) => {
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+    if (!request.userId) reply.header("cache-control", "public, max-age=600");
+    return fastify.services.curated.list(allowAdult);
+  });
+  fastify.get("/collections/curated/:slug", { preHandler: fastify.optionalAuth }, async (request, reply) => {
+    const { slug } = parse(z.object({ slug: z.string().regex(/^[a-z0-9-]{2,40}$/) }), request.params);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+    if (!request.userId) reply.header("cache-control", "public, max-age=600");
+    return fastify.services.curated.detail(slug, allowAdult);
+  });
+
   // Counted once per visitor per day; the author's own visits don't count.
   fastify.post(
     "/collections/:id/view",

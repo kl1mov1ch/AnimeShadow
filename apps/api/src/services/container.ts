@@ -1,3 +1,4 @@
+import { inBackground } from "../lib/priority.js";
 import { AllohaClient } from "@animeshadow/alloha";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
@@ -21,6 +22,8 @@ import { LandingService } from "./landing.service.js";
 import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { StatsRollupService } from "./stats-rollup.service.js";
+import { HeroClipService } from "./hero-clip.service.js";
+import { CuratedService } from "./curated.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
 import { CommentService } from "./comment.service.js";
@@ -81,6 +84,8 @@ export interface Services {
   recommendations: RecommendationService;
   analytics: AnalyticsService;
   statsRollup: StatsRollupService;
+  heroClips: HeroClipService;
+  curated: CuratedService;
   admin: AdminService;
   episodeInfo: EpisodeInfoService;
   insights: ProfileInsightsService;
@@ -214,6 +219,15 @@ export function createServices(deps: ContainerDeps): Services {
 
   const recommendations = new RecommendationService({ prisma: deps.prisma });
   const analytics = new AnalyticsService({ prisma: deps.prisma, logger: deps.logger });
+  const heroClips = new HeroClipService({
+    prisma: deps.prisma,
+    logger: deps.logger,
+    spotlightIds: async () => (await catalog.getDiscover()).spotlights.map((anime) => anime.id),
+    dir: env.HERO_CLIP_DIR ?? join(process.cwd(), "cache", "hero"),
+    ffmpeg: env.FFMPEG_PATH,
+  });
+  // A new hero lineup: clips for the new titles, the old ones go.
+  catalog.onSpotlightsChange(() => void inBackground(() => heroClips.refresh()));
   const statsRollup = new StatsRollupService({ prisma: deps.prisma, logger: deps.logger, rawDays: env.STATS_RAW_DAYS });
   // The admin's reports run on a pool of their own, four connections: a
   // heavy report then waits its turn there instead of taking the site's
@@ -243,6 +257,8 @@ export function createServices(deps: ContainerDeps): Services {
     recommendations,
     analytics,
     statsRollup,
+    curated: new CuratedService({ prisma: deps.prisma }),
+    heroClips,
     admin,
     episodeInfo,
     insights,

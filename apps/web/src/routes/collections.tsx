@@ -14,13 +14,14 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CollectionCard } from "@/components/collections/collection-card";
+import { CuratedCard, DailyCurated } from "@/components/collections/curated-card";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useT } from "@/i18n";
-import { useCollections, useMyCollectionsStats } from "@/lib/query";
+import { useCollections, useCuratedCollections, useMyCollectionsStats } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 const ANY_TAG = "__any";
@@ -45,9 +46,11 @@ const SORT_ICON: Record<CollectionSort, LucideIcon> = {
 };
 
 /**
- * Everyone's collections, laid out the way the catalogue is: the title and
- * a way to make one, a search box, the order as one row of chips with the
- * theme beside it, and the cards.
+ * Collections: first the site's own themed lists — the one of the day, wide,
+ * then all of them as cards (each a rule over the catalogue, so always full
+ * and always playable) — and under them the viewers' own collections, with
+ * their search, order and theme. The viewers' part used to be the whole
+ * page, and with a handful of them that left nothing much to look at.
  */
 export function Component() {
   const t = useT();
@@ -66,6 +69,7 @@ export function Component() {
   const [rolls, setRolls] = useState(0);
 
   const { data, isPending } = useCollections({ sort, tag, q: q || undefined, page, perPage: 18 });
+  const curated = useCuratedCollections();
   const { data: mine } = useMyCollectionsStats(authed);
   const limit = mine?.limit;
   const atLimit = limit?.max != null && limit.used >= limit.max;
@@ -125,7 +129,12 @@ export function Component() {
             )}
           </div>
         </div>
+      </header>
 
+      {page === 1 && !q && !tag && <CuratedHub data={curated.data} pending={curated.isPending} />}
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-display text-lg sm:text-xl">{t("collections.fromViewers")}</h2>
         <div className="group relative">
           <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
           <input
@@ -220,7 +229,7 @@ export function Component() {
             {tag && <> · {tagLabel(tag)}</>}
           </p>
         )}
-      </header>
+      </section>
 
       <div className="flex min-w-0 flex-col gap-4">
         {isPending ? (
@@ -263,6 +272,44 @@ export function Component() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The site's themed lists: the one of the day, then all of them. */
+function CuratedHub({
+  data,
+  pending,
+}: {
+  data: ReturnType<typeof useCuratedCollections>["data"];
+  pending: boolean;
+}) {
+  const t = useT();
+  if (pending) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-64 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-56 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (!data || data.items.length === 0) return null;
+  const daily = data.items.find((c) => c.slug === data.daily);
+  return (
+    <div className="flex flex-col gap-4">
+      {daily && <DailyCurated collection={daily} />}
+      <section className="flex flex-col gap-3">
+        <h2 className="font-display text-lg sm:text-xl">{t("collections.themed")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {data.items.map((c) => (
+            <CuratedCard key={c.slug} collection={c} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

@@ -182,6 +182,26 @@ export class CatalogService {
 
   // -- Discover ---------------------------------------------------------
 
+  private readonly spotlightListeners = new Set<(ids: number[]) => void>();
+  private spotlightKey = "";
+
+  /**
+   * Called whenever the homepage hero's lineup changes (a different title,
+   * or the same ones in another order) — and only then. The hero's clips
+   * are made from this (HeroClipService): no polling, no work while the
+   * lineup stays the same.
+   */
+  onSpotlightsChange(listener: (ids: number[]) => void): void {
+    this.spotlightListeners.add(listener);
+  }
+
+  private announceSpotlights(ids: number[]): void {
+    const key = ids.join(",");
+    if (key === this.spotlightKey) return;
+    this.spotlightKey = key;
+    for (const listener of this.spotlightListeners) listener(ids);
+  }
+
   async getDiscover(
     lang: Locale = DEFAULT_LOCALE,
     allowAdult = false,
@@ -246,6 +266,7 @@ export class CatalogService {
         lang,
       );
       const spotlight = spotlights[0] ?? null;
+      this.announceSpotlights(spotlights.map((anime) => anime.id));
 
       return {
         spotlight,
@@ -424,12 +445,15 @@ export class CatalogService {
     );
     const pool = withArt.length >= 4 ? withArt : all;
 
+    // Titles our own player plays come first: they are the ones the hero can
+    // show a clip of (HeroClipService), and they play without ads. The rest
+    // fill in when there aren't six of them among today's trending.
     const scored = pool
       .map((anime) => ({
         anime,
         score: this.trendingScore(anime, engagement.get(anime.id) ?? 0),
       }))
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => Number(b.anime.hasCustomPlayer) - Number(a.anime.hasCustomPlayer) || b.score - a.score)
       .slice(0, 6)
       .map((s) => s.anime);
 

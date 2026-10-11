@@ -53,11 +53,14 @@ import {
   useCharacters,
   useFranchise,
   useSimilarAnime,
+  useUpdateProfile,
 } from "@/lib/query";
 import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { WhenNear } from "@/components/common/when-near";
+import { useAuth } from "@/hooks/use-auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function Component() {
   const t = useT();
@@ -1005,30 +1008,86 @@ function RelatedSection({ anime }: { anime: AnimeDetail }) {
 
 /**
  * Shown for an R+ title the server refused to send (AGE_VERIFICATION_REQUIRED)
- * — the API never even includes the real content here, so there's nothing to
- * reveal client-side; the only way past this is confirming a birth date in
- * Settings, which is a real one-time account fact, not a one-click popup.
+ * — the API never includes the real content here, so there is nothing to
+ * reveal client-side. The way past it is right here: a signed-in viewer
+ * enters their birth date once (a real, one-time account fact, kept
+ * private) and the title opens; a visitor is sent to sign in and brought
+ * back. It used to send everyone off to dig through profile settings.
  * Hentai never reaches this at all — that's a plain 404, handled above.
  */
 function AdultContentGate() {
   const t = useT();
+  const { status } = useAuth();
+  const update = useUpdateProfile();
+  const client = useQueryClient();
+  const [birthDate, setBirthDate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const maxDate = new Date().toISOString().slice(0, 10);
+
+  const confirm = () => {
+    setError(null);
+    update.mutate(
+      { birthDate },
+      {
+        onSuccess: (profile) => {
+          if (!profile.isAdult) {
+            setError(t("detail.adultGate.under18"));
+            return;
+          }
+          // Lists and the title itself now include R+ — everything refetches.
+          void client.invalidateQueries();
+        },
+        onError: (e) => setError(e instanceof Error ? e.message : t("errors.genericTitle")),
+      },
+    );
+  };
+
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-      <span className="rounded-md bg-rose-600 px-2.5 py-1 text-sm font-bold text-white">
-        18+
-      </span>
+    <div className="mx-auto flex min-h-[60vh] w-full max-w-sm flex-col items-center justify-center gap-4 text-center">
+      <span className="rounded-md bg-rose-600 px-2.5 py-1 text-sm font-bold text-white">18+</span>
       <h1 className="font-display text-xl">{t("detail.adultGate.title")}</h1>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        {t("detail.adultGate.body")}
+      <p className="text-sm text-muted-foreground">
+        {status === "authenticated" ? t("detail.adultGate.body") : t("detail.adultGate.signInBody")}
       </p>
-      <div className="mt-2 flex gap-3">
-        <Button variant="outline" asChild>
-          <Link to="/">{t("detail.adultGate.leave")}</Link>
-        </Button>
-        <Button asChild>
-          <Link to="/profile?tab=settings">{t("detail.adultGate.verify")}</Link>
-        </Button>
-      </div>
+      {status === "authenticated" ? (
+        <form
+          className="flex w-full flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (birthDate) confirm();
+          }}
+        >
+          <label className="flex flex-col gap-1.5 text-left text-xs text-muted-foreground">
+            {t("detail.adultGate.birthLabel")}
+            <input
+              type="date"
+              value={birthDate}
+              max={maxDate}
+              onChange={(event) => setBirthDate(event.target.value)}
+              className="h-11 rounded-lg border border-border/70 bg-card/60 px-3 text-sm text-foreground outline-none focus:border-foreground/30"
+            />
+          </label>
+          {error && <p className="text-left text-xs text-rose-400">{error}</p>}
+          <Button type="submit" className="h-11" disabled={!birthDate || update.isPending}>
+            {t("detail.adultGate.confirm")}
+          </Button>
+          <p className="text-[11px] leading-snug text-muted-foreground/80">{t("detail.adultGate.note")}</p>
+        </form>
+      ) : (
+        <div className="flex w-full flex-col gap-2 sm:flex-row">
+          <Button asChild className="h-11 flex-1">
+            <Link to="/login" state={{ from: window.location.pathname }}>
+              {t("common.signIn")}
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-11 flex-1">
+            <Link to="/register">{t("common.createAccount")}</Link>
+          </Button>
+        </div>
+      )}
+      <Link to="/" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        {t("detail.adultGate.leave")}
+      </Link>
     </div>
   );
 }

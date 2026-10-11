@@ -9,6 +9,8 @@ import type {
   AdminArchiveDetail,
   AdminArchiveMonth,
   AdminOverviewTop,
+  CuratedCollection,
+  CuratedCollectionDetail,
   AdminSummary,
   AdminTimelinePoint,
   AdminExternalAnalytics,
@@ -920,6 +922,24 @@ export function useAdminExternalAnalytics() {
     queryKey: ["admin", "external-analytics"],
     queryFn: ({ signal }) => apiRequest<AdminExternalAnalytics>("/admin/analytics/external", { signal }),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** The site's own themed collections, and the one of the day. */
+export function useCuratedCollections() {
+  return useQuery({
+    queryKey: ["collections", "curated"],
+    queryFn: ({ signal }) =>
+      apiRequest<{ daily: string | null; items: CuratedCollection[] }>("/collections/curated", { signal }),
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useCuratedCollection(slug: string) {
+  return useQuery({
+    queryKey: ["collections", "curated", slug],
+    queryFn: ({ signal }) => apiRequest<CuratedCollectionDetail>(`/collections/curated/${slug}`, { signal }),
+    staleTime: 10 * 60_000,
   });
 }
 

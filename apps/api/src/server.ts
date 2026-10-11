@@ -99,6 +99,10 @@ try {
     setTimeout(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 180_000).unref();
     setInterval(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 6 * 60 * 60_000).unref();
   }
+  // The hero's clips are made when its lineup changes (an event from the
+  // catalogue, see HeroClipService); this is only the fallback, every two
+  // hours, in case an event was missed.
+  setInterval(() => void inBackground(() => app.services.heroClips.refresh()), 2 * 60 * 60_000).unref();
   // Statistics upkeep: finished days rolled up, raw rows past their time
   // pruned. Five minutes after start, then every six hours (see
   // StatsRollupService).
