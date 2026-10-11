@@ -19,7 +19,7 @@ function toDate(value: string | null | undefined): Date | null {
 }
 
 /**
- * Scalar columns for an `anime` row, derived from a Jikan-sourced DTO. Safe to
+ * Scalar columns for an `anime` row, derived from a provider's DTO. Safe to
  * use as both `create` and `update` payloads for `prisma.anime.upsert`.
  * Genre links are handled separately (explicit join table) by the caller.
  */

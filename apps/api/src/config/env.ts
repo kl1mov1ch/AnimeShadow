@@ -30,13 +30,12 @@ const envSchema = z.object({
         .filter(Boolean),
     ),
 
-  // ---- Metadata: Shikimori primary, Jikan fallback ----
+  // ---- Metadata: Shikimori ----
   SHIKIMORI_BASE_URL: z.string().url().default("https://shikimori.io"),
   // Shikimori asks for a descriptive User-Agent identifying your app.
   SHIKIMORI_USER_AGENT: z
     .string()
-    .default("AnimeShadow/1.0 (anime catalogue app)"),
-  JIKAN_BASE_URL: z.string().url().default("https://api.jikan.moe/v4"),
+    .default("AnimeShadow/1.0 (anime catalogue app)"),
   ANIME_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
 
   // TEMPORARY: unlock every PRO feature for all users during open testing.

@@ -632,8 +632,8 @@ function SynopsisBody({
 }
 
 /**
- * How the wider audience is tracking this title — counts from MAL via
- * Jikan, not our own visitors. It fills the space under a short synopsis
+ * How the wider audience is tracking this title — counts from
+ * Shikimori's lists, not our own visitors. It fills the space under a short synopsis
  * with something factual rather than padding, and it is deliberately
  * quiet: five rows, one hue, no claim about whether any of it is good.
  *

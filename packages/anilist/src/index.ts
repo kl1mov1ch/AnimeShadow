@@ -7,7 +7,7 @@
 // What it is here for, specifically: it holds the best artwork of any source
 // we talk to (460x650 covers and true widescreen banners, against Shikimori's
 // 225px-wide posters), it reports each cover's dominant colour, and it knows
-// the next airing episode — which neither Shikimori nor Jikan expose.
+// the next airing episode — which Shikimori doesn't expose.
 
 export interface AniListClientOptions {
   baseUrl?: string;

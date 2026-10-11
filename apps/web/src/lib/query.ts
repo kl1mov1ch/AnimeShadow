@@ -196,7 +196,7 @@ export function useAnime(idOrSlug: number | string) {
 }
 
 /**
- * Audience counts from MAL (via Jikan) for one title. Long stale time —
+ * Audience counts from Shikimori for one title. Long stale time —
  * these move slowly, and the endpoint answers null rather than failing
  * when the upstream is down, so a miss costs the page nothing.
  */

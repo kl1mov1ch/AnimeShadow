@@ -1,6 +1,5 @@
 import fp from "fastify-plugin";
 import { env } from "../config/env.js";
-import { jikan } from "../services/jikan.js";
 import { createServices, type Services } from "../services/container.js";
 
 declare module "fastify" {
@@ -13,7 +12,6 @@ export default fp(
   async (fastify) => {
     const services = createServices({
       prisma: fastify.prisma,
-      jikan,
       logger: fastify.log,
       cacheTtlSeconds: env.ANIME_CACHE_TTL_SECONDS,
       proForAll: env.PRO_FOR_ALL,

@@ -95,7 +95,7 @@ export const animeDetailSchema = animeSummarySchema.extend({
   /**
    * When and which episode airs next (AniList), for titles still airing.
    * `.optional()` on purpose — every upstream-source mapper (Shikimori,
-   * Jikan, Kodik) builds an `AnimeDetail` object literal directly, and none
+   * Kodik) builds an `AnimeDetail` object literal directly, and none
    * of them know this; only the live AniList lookup in catalog.service.ts
    * ever sets it, so it must be safe to simply omit.
    */
@@ -104,7 +104,7 @@ export const animeDetailSchema = animeSummarySchema.extend({
     .nullable()
     .optional(),
   /**
-   * Studio name → logo URL (MAL/Jikan producer artwork), best-effort. Same
+   * Studio name → logo URL (Shikimori's studio list), best-effort. Same
    * `.optional()` reasoning as `nextEpisode` above — only catalog.service's
    * live lookup ever sets it; provider mappers never do. Missing entries
    * (unresolved or no upstream match) are simply absent from the map, not
@@ -340,7 +340,7 @@ export type DiscoverResponse = z.infer<typeof discoverResponseSchema>;
 
 /**
  * How the wider anime audience is tracking a title — plain counts from
- * MAL via Jikan, not our own visitors (the profile's charts are the
+ * Shikimori's lists, not our own visitors (the profile's charts are the
  * place for those). Every field nullable: the upstream is optional and a
  * missing number should read as "unknown", never as zero.
  */

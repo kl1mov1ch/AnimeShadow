@@ -4,7 +4,7 @@ import { useT } from "@/i18n";
 
 /**
  * "Episode N airs in ~X" for a title that's still currently airing — sourced
- * from AniList's `nextAiringEpisode` (neither Shikimori nor Jikan expose an
+ * from AniList's `nextAiringEpisode` (Shikimori doesn't expose an
  * actual schedule, only "airing" as a status). Ticks over on its own so a
  * page left open doesn't show a stale countdown.
  */

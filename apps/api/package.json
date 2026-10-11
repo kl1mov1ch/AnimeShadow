@@ -17,7 +17,6 @@
     "@animeshadow/anilist": "workspace:*",
     "@animeshadow/animethemes": "workspace:*",
     "@animeshadow/db": "workspace:*",
-    "@animeshadow/jikan": "workspace:*",
     "@animeshadow/kodik": "workspace:*",
     "@animeshadow/shared": "workspace:*",
     "@animeshadow/shikimori": "workspace:*",

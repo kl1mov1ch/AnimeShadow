@@ -50,9 +50,6 @@ importers:
       '@animeshadow/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@animeshadow/jikan':
-        specifier: workspace:*
-        version: link:../../packages/jikan
       '@animeshadow/kodik':
         specifier: workspace:*
         version: link:../../packages/kodik
@@ -296,16 +293,6 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.13
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  packages/jikan:
-    dependencies:
-      '@animeshadow/shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3

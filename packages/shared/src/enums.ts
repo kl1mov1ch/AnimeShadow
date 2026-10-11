@@ -18,7 +18,7 @@ export const LIBRARY_STATUS_LABELS: Record<LibraryStatus, string> = {
   DROPPED: "Dropped",
 };
 
-/** Normalised release format. Jikan's free-text `type` is mapped onto this. */
+/** Normalised release format. A provider's own `kind`/`type` is mapped onto this. */
 export const animeTypeSchema = z.enum([
   "TV",
   "MOVIE",

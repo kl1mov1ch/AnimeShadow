@@ -7,6 +7,7 @@ import type {
   ShikiListParams,
   ShikiMangaShort,
   ShikiRole,
+  ShikiStudio,
 } from "./types.js";
 
 export interface ShikimoriClientOptions {
@@ -85,6 +86,16 @@ export class ShikimoriClient {
 
   listAnimes(params: ShikiListParams = {}): Promise<ShikiAnimeShort[]> {
     return this.get<ShikiAnimeShort[]>("/api/animes", serialiseList(params));
+  }
+
+  /** Titles Shikimori's users found similar to this one. */
+  getSimilar(id: number): Promise<ShikiAnimeShort[]> {
+    return this.get<ShikiAnimeShort[]>(`/api/animes/${id}/similar`);
+  }
+
+  /** Every studio, with its logo — one list, worth caching for a day. */
+  getStudios(): Promise<ShikiStudio[]> {
+    return this.get<ShikiStudio[]>("/api/studios");
   }
 
   getRoles(id: number): Promise<ShikiRole[]> {

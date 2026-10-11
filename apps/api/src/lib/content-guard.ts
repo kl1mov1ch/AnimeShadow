@@ -67,7 +67,7 @@ export function withContentGuard(
 
 /**
  * Defense-in-depth for anything assembled outside a single Prisma `where`
- * (Shikimori/Jikan/AniList results, blended trending rows, recommendation
+ * (Shikimori/AniList results, blended trending rows, recommendation
  * pools) — drops by `rating` right before a list of summaries leaves the
  * service layer. A title that hasn't been detail-synced yet has `rating:
  * null` and won't be caught here; `censored: true` on every Shikimori list

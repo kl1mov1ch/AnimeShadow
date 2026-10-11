@@ -4,7 +4,6 @@ import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
 import { createPrismaClient, type PrismaClient } from "@animeshadow/db";
-import type { JikanClient } from "@animeshadow/jikan";
 import { KodikClient } from "@animeshadow/kodik";
 import { ShikimoriClient } from "@animeshadow/shikimori";
 import { join } from "node:path";
@@ -47,7 +46,6 @@ import { WatchService } from "./watch.service.js";
 
 export interface ContainerDeps {
   prisma: PrismaClient;
-  jikan: JikanClient;
   logger: FastifyBaseLogger;
   cacheTtlSeconds: number;
   proForAll: boolean;
@@ -149,7 +147,6 @@ export function createServices(deps: ContainerDeps): Services {
   const catalog = new CatalogService({
     prisma: deps.prisma,
     shikimori,
-    jikan: deps.jikan,
     anilist,
     anilistBackground,
     cacheTtlSeconds: deps.cacheTtlSeconds,

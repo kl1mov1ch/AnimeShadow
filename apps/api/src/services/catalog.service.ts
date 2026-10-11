@@ -12,7 +12,6 @@ import {
   toSummaryDto,
   upsertGenres,
 } from "@animeshadow/db";
-import type { JikanClient } from "@animeshadow/jikan";
 import {
   ShikimoriError,
   type ShikimoriClient,
@@ -76,7 +75,6 @@ interface CatalogLogger {
 export interface CatalogServiceDeps {
   prisma: PrismaClient;
   shikimori: ShikimoriClient;
-  jikan: JikanClient;
   anilist: AniListClient;
   /** Same API, its own request queue — see the note in container.ts. */
   anilistBackground: AniListClient;
@@ -116,7 +114,7 @@ const TYPE_TO_SHIKI_KIND: Partial<Record<NonNullable<AnimeQuery["type"]>, string
 /**
  * The catalogue: everything the app knows about anime. Served from Postgres and
  * transparently topped up from Shikimori (Russian-native metadata: titles,
- * descriptions, genres, characters). Recommendations come from Jikan, which is
+ * descriptions, genres, characters). Recommendations are Shikimori's "similar", which is
  * Shikimori's weak spot. Reads check the local cache first; on a miss or stale
  * row it fetches upstream, persists, and returns; if upstream is down it serves
  * whatever is cached so the product degrades gracefully.
@@ -130,7 +128,6 @@ const MAX_CONCURRENT_HEALS = 6;
 export class CatalogService {
   private readonly prisma: PrismaClient;
   private readonly shikimori: ShikimoriClient;
-  private readonly jikan: JikanClient;
   private readonly anilist: AniListClient;
   private readonly anilistBackground: AniListClient;
   private readonly ttlMs: number;
@@ -171,7 +168,6 @@ export class CatalogService {
   constructor(deps: CatalogServiceDeps) {
     this.prisma = deps.prisma;
     this.shikimori = deps.shikimori;
-    this.jikan = deps.jikan;
     this.anilist = deps.anilist;
     this.anilistBackground = deps.anilistBackground;
     this.ttlMs = deps.cacheTtlSeconds * 1000;
@@ -256,15 +252,10 @@ export class CatalogService {
         );
       }
 
-      const spotlights = await this.pickTrendingSpotlights(
-        [
-          ...topAiring.slice(0, 8),
-          ...thisSeason.slice(0, 8),
-          ...allTimeTop.slice(0, 8),
-          ...mostPopular.slice(0, 8),
-        ],
-        lang,
-      );
+      const spotlights = await this.pickHeroLineup(lang, allowAdult, [
+        ...topAiring.slice(0, 10),
+        ...thisSeason.slice(0, 10),
+      ]);
       const spotlight = spotlights[0] ?? null;
       this.announceSpotlights(spotlights.map((anime) => anime.id));
 
@@ -391,14 +382,8 @@ export class CatalogService {
             (await kitsuPoster(item.title)) ??
             (await anilibriaPoster(item.title));
 
-          let large = externalPoster;
-          let small = externalPoster;
-          if (!externalPoster) {
-            const poster = await this.jikan.getAnimePoster(item.id);
-            large = poster?.large ?? poster?.small ?? null;
-            small = poster?.small ?? poster?.large ?? null;
-          }
-          if (!large && !small) return item;
+          const large = externalPoster ?? shikimoriPoster(item.id, "original");
+          const small = externalPoster ?? shikimoriPoster(item.id, "preview");
 
           await this.prisma.anime
             .update({ where: { id: item.id }, data: { imageUrl: small, imageLargeUrl: large } })
@@ -421,6 +406,82 @@ export class CatalogService {
    * of "best" titles don't sit frozen at #1 forever; the ranking itself is
    * what decides who's even in the running.
    */
+  /**
+   * The homepage hero: what is airing right now and popular in Russia.
+   *
+   * Two signals, both from a Russian-speaking audience: Shikimori's ongoing
+   * titles in order of popularity (how many of its users have them in their
+   * lists), and what our own visitors opened and watched this week. Only
+   * titles that are actually airing make it, ranked by the two together; a
+   * title our own player plays gets a nudge (its clip can be shown, and it
+   * plays without the provider's ads). Ordered most popular first — the
+   * hero opens on the title most people came for.
+   *
+   * Falls back to the local airing lists when Shikimori doesn't answer.
+   */
+  private async pickHeroLineup(lang: Locale, allowAdult: boolean, fallback: AnimeSummary[]): Promise<AnimeDetail[]> {
+    const shiki = await withTimeout(
+      this.shikimori
+        .listAnimes({
+          status: "ongoing",
+          order: "popularity",
+          kind: "tv,ona",
+          limit: 30,
+          censored: true,
+          rating: allowAdult ? "!rx" : "!rx,!r_plus",
+        })
+        .catch((error: unknown) => {
+          this.logger.warn({ error }, "hero: Shikimori ongoing list failed");
+          return [];
+        }),
+      8_000,
+      [],
+    );
+    if (shiki.length > 0) await persistAnimeSummaries(shiki.map(shikiToSummary)).catch(() => undefined);
+    const shikiRank = new Map(shiki.map((a, i) => [a.id, i]));
+
+    // Our visitors this week: title-page views and time in the player.
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const siteViews = await this.prisma.$queryRaw<Array<{ id: number; views: number }>>`
+      SELECT (substring(path from '^/anime/([0-9]+)'))::int AS id, COUNT(*)::int AS views
+      FROM "PageView"
+      WHERE "createdAt" >= ${since} AND path ~ '^/anime/[0-9]' AND (device IS NULL OR device <> 'bot')
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 40
+    `.catch(() => [] as Array<{ id: number; views: number }>);
+    const views = new Map(siteViews.map((r) => [r.id, r.views]));
+
+    const ids = [...new Set([...shiki.map((a) => a.id), ...siteViews.map((r) => r.id), ...fallback.map((a) => a.id)])].slice(0, 45);
+    if (ids.length === 0) return [];
+    const [rows, engagement] = await Promise.all([
+      this.prisma.anime.findMany({
+        where: withContentGuard({ id: { in: ids }, airing: "AIRING" }, allowAdult),
+        select: { id: true, imageUrl: true, imageLargeUrl: true, watchAvailability: { select: { hasPlayer: true, hasCustomPlayer: true } } },
+      }),
+      this.engagementScores(ids),
+    ]);
+
+    const maxViews = Math.max(1, ...views.values());
+    const scored = rows
+      .filter((r) => r.imageUrl || r.imageLargeUrl)
+      .filter((r) => r.watchAvailability?.hasPlayer !== false)
+      .map((r) => {
+        const rank = shikiRank.get(r.id);
+        const rankScore = rank == null ? 0 : 1 - rank / 30;
+        const siteScore = Math.log10((views.get(r.id) ?? 0) + 1) / Math.log10(maxViews + 1);
+        const engagementScore = Math.min(1, Math.log10((engagement.get(r.id) ?? 0) + 1) / 2);
+        const ownPlayer = r.watchAvailability?.hasCustomPlayer ? 0.15 : 0;
+        return { id: r.id, score: rankScore * 0.55 + siteScore * 0.25 + engagementScore * 0.1 + ownPlayer };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+
+    if (scored.length < 4) return this.pickTrendingSpotlights(fallback, lang);
+
+    const details = await Promise.all(scored.map((s) => this.getAnimeById(s.id, lang).catch(() => null)));
+    const lineup = details.filter((d): d is AnimeDetail => d != null);
+    return Promise.all(lineup.map((anime) => this.resolveSpotlightBanner(anime)));
+  }
+
   private async pickTrendingSpotlights(
     candidates: AnimeSummary[],
     lang: Locale,
@@ -874,10 +935,10 @@ export class CatalogService {
   }
 
   /**
-   * Tags / next episode (AniList) and studio logos (Jikan), side by side and
+   * Tags / next episode (AniList) and studio logos (Shikimori), side by side and
    * given a short budget. Both are decoration: the page used to wait for
    * them one after the other, up to 2 + 2.5 seconds, on every open where
-   * AniList or Jikan was slow. Whatever isn't back in time keeps loading
+   * AniList or Shikimori was slow. Whatever isn't back in time keeps loading
    * into the cache and shows up on the next open.
    */
   private async enrichDetail(detail: AnimeDetail): Promise<void> {
@@ -929,7 +990,7 @@ export class CatalogService {
   >(row: T): Promise<T> {
     try {
       // AniList has near-total coverage incl. brand-new / upcoming titles; try it
-      // first (by MAL id, then by title), and fall back to MAL/Jikan.
+      // first (by MAL id, then by title), and fall back to Shikimori's own.
       let large: string | null = null;
       let small: string | null = null;
 
@@ -942,9 +1003,9 @@ export class CatalogService {
         large = external;
         small = external;
       } else {
-        const poster = await this.jikan.getAnimePoster(row.id);
-        large = poster?.large ?? poster?.small ?? null;
-        small = poster?.small ?? poster?.large ?? null;
+        // Shikimori keeps a poster for every title it knows, at a fixed address.
+        large = shikimoriPoster(row.id, "original");
+        small = shikimoriPoster(row.id, "preview");
       }
 
       if (!large && !small) return row;
@@ -1008,19 +1069,16 @@ export class CatalogService {
   }
 
   /**
-   * Best-effort studio logos (MAL/Jikan producer art) for a bit of visual
+   * Best-effort studio logos (Shikimori's studio list) for a bit of visual
    * variety on the detail page — cached per studio name (an hour at a time,
    * same as `auxCache`'s other entries) since many titles share a studio.
-   * A studio Jikan doesn't know, or whose top hit doesn't actually match the
-   * name we asked for, is simply left out of the map rather than guessing.
+   * A studio Shikimori doesn't list, or whose name doesn't actually match the
+   * one we asked for, is simply left out of the map rather than guessing.
    */
   private async getStudioLogos(studios: string[]): Promise<Record<string, string>> {
-    // Hard cap on the whole lookup, not just each Jikan call — JikanClient
-    // serialises every request through one rate-limited queue, so when Jikan
-    // itself is slow/erroring, several studios' worth of retries queue up
-    // one after another and can add tens of seconds. That must never block
-    // the detail page; a missing logo is cosmetic, a stuck page isn't. The
-    // slow lookup keeps running and still populates the cache for next time.
+    // Hard cap on the whole lookup: the Shikimori client serialises every
+    // request through one rate-limited queue, and a missing logo must never
+    // hold the detail page — the lookup keeps running and fills the cache.
     const entries = await withTimeout(
       Promise.all(
         studios.map(async (name) => {
@@ -1042,12 +1100,14 @@ export class CatalogService {
 
   private async lookupStudioLogo(name: string): Promise<string | null> {
     try {
-      const results = await this.jikan.searchProducers(name, 3);
-      const match = results.find((producer) =>
-        (producer.titles ?? []).some((t) => namesMatch(t.title, name)),
-      );
-      const set = match?.images?.jpg ?? match?.images?.webp;
-      return set?.image_url ?? set?.large_image_url ?? null;
+      const studios = (await this.auxCache.wrap("studios:all", () => this.shikimori.getStudios())) as Array<{
+        name: string;
+        filtered_name?: string;
+        image?: string | null;
+      }>;
+      const match = studios.find((studio) => studio.image && (namesMatch(studio.name, name) || (studio.filtered_name && namesMatch(studio.filtered_name, name))));
+      if (!match?.image) return null;
+      return match.image.startsWith("http") ? match.image : `https://shikimori.io${match.image}`;
     } catch (error) {
       this.logger.warn({ error, name }, "studio logo lookup failed");
       return null;
@@ -1076,7 +1136,7 @@ export class CatalogService {
    * age rating is Kodik's rough one. This fills them in from Shikimori's
    * detail endpoint, a batch per pass, most-voted first — the same data a
    * detail page fetches when someone opens it, just ahead of time. Only
-   * Shikimori is asked (no AniList, Jikan or translation round trips), and
+   * Shikimori is asked (no AniList or translation round trips), and
    * a title Shikimori doesn't know is marked so it isn't asked again.
    */
   async warmDetails(limit: number): Promise<void> {
@@ -1233,17 +1293,13 @@ export class CatalogService {
 
   /**
    * Full bio for the character modal — Shikimori's structured description,
-   * plus extra gallery art from Jikan when MAL happens to be reachable.
    * Shikimori character ids are MAL ids, so the same id is safe to ask for.
    */
   async getCharacterDetail(id: number, lang: Locale = DEFAULT_LOCALE): Promise<CharacterDetail | null> {
     const base = await this.auxCache.wrap(`character:v3:${id}`, async () => {
       try {
-        const [detail, pictures] = await Promise.all([
-          this.shikimori.getCharacter(id).then(shikiToCharacterDetail),
-          withTimeout(this.jikan.getCharacterPictures(id), 4_000, [] as string[]),
-        ]);
-        return { ...detail, images: [...new Set([...detail.images, ...pictures])].slice(0, 12) };
+        const detail = shikiToCharacterDetail(await this.shikimori.getCharacter(id));
+        return { ...detail, images: [...new Set(detail.images)].slice(0, 12) };
       } catch (error) {
         this.logger.warn({ error, id }, "character detail fetch failed");
         return null;
@@ -1311,8 +1367,8 @@ export class CatalogService {
   }
 
   /**
-   * Audience counts from MAL, cached alongside the other per-title extras.
-   * Returns null rather than throwing when Jikan is unreachable — this is
+   * Audience counts from Shikimori, cached alongside the other per-title
+   * extras. Returns null rather than throwing when it is unreachable — this is
    * a garnish under the synopsis, and a detail page must never fail over
    * one that didn't load.
    */
@@ -1320,29 +1376,37 @@ export class CatalogService {
     const key = `stats:${id}`;
     const cached = this.auxCache.get(key) as AnimeStats | null | undefined;
     if (cached !== undefined) return cached;
-    // MAL's statistics, through Jikan — which can take half a minute to
-    // answer when it is busy. The page doesn't wait for that: past the
-    // deadline it renders without them, and nothing is remembered, so the
-    // next visit asks again.
+    // Shikimori's list statuses — how many of its (Russian-speaking) users
+    // watch, finished, shelved or dropped the title. The page doesn't wait
+    // long for them: past the deadline it renders without, and nothing is
+    // remembered, so the next visit asks again.
     const raw = await withTimeout(
-      this.jikan.getAnimeStatistics(id).catch((error: unknown) => {
-        this.logger.warn({ error, id }, "anime statistics fetch failed");
-        return null;
-      }),
+      this.shikimori.getAnime(id).then(
+        (full) => full.rates_statuses_stats ?? [],
+        (error: unknown) => {
+          this.logger.warn({ error, id }, "anime statistics fetch failed");
+          return null;
+        },
+      ),
       STATS_DEADLINE_MS,
       undefined,
     );
     if (raw === undefined) return null;
-    const stats: AnimeStats | null = raw
-      ? {
-          watching: raw.watching ?? null,
-          completed: raw.completed ?? null,
-          onHold: raw.on_hold ?? null,
-          dropped: raw.dropped ?? null,
-          planToWatch: raw.plan_to_watch ?? null,
-          total: raw.total ?? null,
-        }
-      : null;
+    const pick = (...names: string[]) => {
+      const row = raw?.find((r) => names.some((n) => r.name.toLowerCase() === n));
+      return row ? row.value : null;
+    };
+    const stats: AnimeStats | null =
+      raw && raw.length > 0
+        ? {
+            watching: pick("смотрю", "watching"),
+            completed: pick("просмотрено", "completed"),
+            onHold: pick("отложено", "on hold", "on_hold"),
+            dropped: pick("брошено", "dropped"),
+            planToWatch: pick("запланировано", "planned to watch", "planned"),
+            total: raw.reduce((sum, r) => sum + r.value, 0),
+          }
+        : null;
     this.auxCache.set(key, stats);
     return stats;
   }
@@ -1350,16 +1414,13 @@ export class CatalogService {
   async getRecommendations(id: number): Promise<RecommendationItem[]> {
     return this.auxCache.wrap(`recs:${id}`, async () => {
       try {
-        const entries = await this.jikan.getAnimeRecommendations(id);
+        const entries = await this.shikimori.getSimilar(id);
         return entries.slice(0, 12).map((entry) => ({
-          id: entry.entry.mal_id,
-          slug: slugify(`${entry.entry.mal_id}-${entry.entry.title}`),
-          title: entry.entry.title,
-          imageUrl:
-            entry.entry.images?.webp?.image_url ??
-            entry.entry.images?.jpg?.image_url ??
-            null,
-          votes: entry.votes ?? 0,
+          id: entry.id,
+          slug: slugify(`${entry.id}-${entry.name}`),
+          title: entry.russian || entry.name,
+          imageUrl: entry.image?.original ? absoluteShikimori(entry.image.original) : shikimoriPoster(entry.id, "original"),
+          votes: 0,
         }));
       } catch (error) {
         this.logger.warn({ error, id }, "recommendation fetch failed");
@@ -1656,7 +1717,16 @@ function needsLocalFilters(query: AnimeQuery): boolean {
   );
 }
 
-/** Loose match for "is this Jikan producer title actually the studio we asked about" —
+/** A title's poster on Shikimori, which keeps one for every title it knows. */
+function shikimoriPoster(id: number, size: "original" | "preview"): string {
+  return `https://shikimori.io/system/animes/${size}/${id}.jpg`;
+}
+
+function absoluteShikimori(path: string): string {
+  return path.startsWith("http") ? path : `https://shikimori.io${path}`;
+}
+
+/** Loose match for "is this studio name the studio we asked about" —
  * punctuation/case-insensitive so "Studio Bind" ≈ "STUDIO BIND", "MAPPA" ≈ "Mappa Co., Ltd.". */
 function namesMatch(a: string, b: string): boolean {
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
