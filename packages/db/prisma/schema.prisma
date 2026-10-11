@@ -471,6 +471,11 @@ model Anime {
   titleEnglish    String?
   titleJapanese   String?
   titleLocalized  String? // Russian title (Shikimori)
+  /// Other names the title goes by — Shikimori's synonyms, the licensed
+  /// Russian name, abbreviations like "AoT". Searched, never shown as the name.
+  titleSynonyms   String[]       @default([])
+  /// When those names were last read from Shikimori; null until the first time.
+  namesSyncedAt   DateTime?
   synopsis        String?
   background      String?
   imageUrl        String?

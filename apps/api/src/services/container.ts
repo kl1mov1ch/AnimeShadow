@@ -22,6 +22,7 @@ import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { StatsRollupService } from "./stats-rollup.service.js";
 import { HeroClipService } from "./hero-clip.service.js";
+import { TitleNamesService } from "./title-names.service.js";
 import { CuratedService } from "./curated.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
@@ -83,6 +84,7 @@ export interface Services {
   analytics: AnalyticsService;
   statsRollup: StatsRollupService;
   heroClips: HeroClipService;
+  titleNames: TitleNamesService;
   curated: CuratedService;
   admin: AdminService;
   episodeInfo: EpisodeInfoService;
@@ -258,6 +260,7 @@ export function createServices(deps: ContainerDeps): Services {
     statsRollup,
     curated: new CuratedService({ prisma: deps.prisma }),
     heroClips,
+    titleNames: new TitleNamesService({ prisma: deps.prisma, shikimori, logger: deps.logger }),
     admin,
     episodeInfo,
     insights,

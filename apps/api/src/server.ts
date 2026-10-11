@@ -103,6 +103,11 @@ try {
   // catalogue, see HeroClipService); this is only the fallback, every two
   // hours, in case an event was missed.
   setInterval(() => void inBackground(() => app.services.heroClips.refresh()), 2 * 60 * 60_000).unref();
+  // Every other name of each title (synonyms, abbreviations) for search:
+  // four minutes after start, then every six hours; each pass reads the
+  // titles not read yet, best-known first (see TitleNamesService).
+  setTimeout(() => void inBackground(() => app.services.titleNames.run()), 4 * 60_000).unref();
+  setInterval(() => void inBackground(() => app.services.titleNames.run()), 6 * 60 * 60_000).unref();
   // Statistics upkeep: finished days rolled up, raw rows past their time
   // pruned. Five minutes after start, then every six hours (see
   // StatsRollupService).

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { animeSummarySchema } from "./anime.js";
+import { animeAiringSchema, animeTypeSchema } from "./enums.js";
 
 /** Why a title showed up in smart-search results. */
 export const searchReasonSchema = z.enum([
@@ -8,8 +9,34 @@ export const searchReasonSchema = z.enum([
   "studio",
   "mood",
   "synopsis",
+  /** "похоже на …": titles like the one named. */
+  "similar",
+  /** Nothing but filters read from the query ("фильмы 2020"). */
+  "filters",
 ]);
 export type SearchReason = z.infer<typeof searchReasonSchema>;
+
+/**
+ * Where to look. "all" asks every lens; the others ask one — less work for
+ * the server, and the way to find a character whose name is also a title.
+ */
+export const searchScopeSchema = z.enum(["all", "title", "character", "studio", "plot"]);
+export type SearchScope = z.infer<typeof searchScopeSchema>;
+
+/** What the query was read as, besides the words themselves. */
+export const parsedSearchSchema = z.object({
+  /** The words left once the filters below were taken out. */
+  rest: z.string(),
+  yearFrom: z.number().int().nullable(),
+  yearTo: z.number().int().nullable(),
+  type: animeTypeSchema.nullable(),
+  airing: animeAiringSchema.nullable(),
+  /** "похоже на Наруто" — the title the results are like. */
+  similarTo: z
+    .object({ id: z.number().int(), slug: z.string(), title: z.string() })
+    .nullable(),
+});
+export type ParsedSearch = z.infer<typeof parsedSearchSchema>;
 
 export const searchGroupSchema = z.object({
   reason: searchReasonSchema,
@@ -27,6 +54,11 @@ export const smartSearchResponseSchema = z.object({
   /** All results, de-duplicated and ranked, ignoring grouping. */
   flat: z.array(animeSummarySchema),
   total: z.number().int().nonnegative(),
+  /** Filters and "похоже на" read from the query; absent from older servers. */
+  parsed: parsedSearchSchema.optional(),
+  /** Title id → the other name it was found by ("AoT", "Вторжение
+   *  гигантов"), when that is not the name shown. */
+  aka: z.record(z.string(), z.string()).optional(),
 });
 export type SmartSearchResponse = z.infer<typeof smartSearchResponseSchema>;
 
@@ -35,7 +67,11 @@ export const searchQuerySchema = z.object({
   lang: z.enum(["ru", "en"]).default("ru"),
   limit: z.coerce.number().int().positive().max(48).default(30),
   /** Instant typeahead: title lenses only, hard-capped latency. */
-  fast: z.coerce.boolean().default(false),
+  fast: z
+    .union([z.boolean(), z.enum(["true", "false", "1", "0"])])
+    .transform((v) => v === true || v === "true" || v === "1")
+    .default(false),
+  scope: searchScopeSchema.default("all"),
 });
 export type SearchQuery = z.infer<typeof searchQuerySchema>;
 

@@ -51,6 +51,7 @@ import type {
   Paginated,
   RecommendationItem,
   ResetPasswordInput,
+  SearchScope,
   SmartSearchResponse,
   UpsertLibraryInput,
   WatchResponse,
@@ -139,19 +140,42 @@ export function useGenres(enabled = true) {
  * richer character/studio/mood/synopsis lenses cost more but the visitor
  * is already committed to a results page, not typing into a dropdown.
  */
-export function useSmartSearch(q: string, enabled = true, fast = true) {
+export function useSmartSearch(q: string, enabled = true, fast = true, scope: SearchScope = "all") {
   const { locale } = useLocale();
   const term = q.trim();
   return useQuery({
-    queryKey: ["search", locale, term, fast],
+    queryKey: ["search", locale, term, fast, scope],
     enabled: enabled && term.length >= 2,
     queryFn: ({ signal }) =>
       apiRequest<SmartSearchResponse>("/search", {
         signal,
-        query: { q: term, lang: locale, fast },
+        query: { q: term, lang: locale, fast, scope },
       }),
     placeholderData: (previous) => previous,
     staleTime: 60_000,
+  });
+}
+
+export interface TrendingPick {
+  id: number;
+  slug: string;
+  title: string;
+  titleLocalized: string | null;
+  imageUrl: string | null;
+  type: AnimeSummary["type"];
+  year: number | null;
+  score: number | null;
+}
+
+/** What the empty search window offers: a few titles being watched now. */
+export function useSearchTrending(enabled: boolean) {
+  const { locale } = useLocale();
+  return useQuery({
+    queryKey: ["search-trending", locale],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: TrendingPick[] }>("/search/trending", { signal, query: { lang: locale } }).then((r) => r.items),
+    staleTime: 10 * 60_000,
   });
 }
 

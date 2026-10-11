@@ -59,14 +59,17 @@ export function titleKey(text: string): string {
  * The forms a query might really have meant: as typed, and as typed on the
  * other keyboard layout in both directions. Deduplicated, so a query with no
  * letters (a year, say) costs one comparison rather than three.
+ *
+ * A layout swap only counts from four letters: "jjk" swapped is "ол", and two
+ * letters start half the catalogue's names — the short swaps found nonsense,
+ * and nobody types three letters in the wrong layout and keeps going.
  */
 export function queryVariants(query: string): string[] {
-  const variants = [
-    titleKey(query),
-    titleKey(swapLayout(query, EN_TO_RU)),
-    titleKey(swapLayout(query, RU_TO_EN)),
-  ];
-  return [...new Set(variants.filter((v) => v.length > 0))];
+  const typed = titleKey(query);
+  const swapped = [titleKey(swapLayout(query, EN_TO_RU)), titleKey(swapLayout(query, RU_TO_EN))].filter(
+    (v) => v.length >= 4,
+  );
+  return [...new Set([typed, ...swapped].filter((v) => v.length > 0))];
 }
 
 export interface TitleRecord {
@@ -79,12 +82,16 @@ interface IndexedTitle {
   id: number;
   members: number;
   keys: string[];
+  /** The name each key was made from, at the same position. */
+  names: string[];
 }
 
 export interface TitleHit {
   id: number;
   /** Higher is better. Exact beats prefix beats contained beats a typo. */
   score: number;
+  /** The name that matched, as written — one of the record's titles. */
+  matched: string;
 }
 
 /** Scores for each kind of match — the gaps are what keep them ordered. */
@@ -147,20 +154,22 @@ function substringDistance(query: string, key: string): { dist: number; start: n
 
 export class FuzzyTitleIndex {
   private readonly items: IndexedTitle[];
+  private readonly members: Map<number, number>;
 
   constructor(records: TitleRecord[]) {
-    this.items = records.map((r) => ({
-      id: r.id,
-      members: r.members ?? 0,
-      keys: [
-        ...new Set(
-          r.titles
-            .filter((t): t is string => Boolean(t && t.trim()))
-            .map(titleKey)
-            .filter((k) => k.length > 0),
-        ),
-      ],
-    }));
+    this.items = records.map((r) => {
+      const keys: string[] = [];
+      const names: string[] = [];
+      for (const name of r.titles) {
+        if (!name || !name.trim()) continue;
+        const key = titleKey(name);
+        if (key.length === 0 || keys.includes(key)) continue;
+        keys.push(key);
+        names.push(name.trim());
+      }
+      return { id: r.id, members: r.members ?? 0, keys, names };
+    });
+    this.members = new Map(this.items.map((i) => [i.id, i.members]));
   }
 
   get size(): number {
@@ -171,20 +180,23 @@ export class FuzzyTitleIndex {
     const variants = queryVariants(query);
     if (variants.length === 0) return [];
 
-    const best = new Map<number, number>();
-    const offer = (id: number, score: number) => {
-      if (score > (best.get(id) ?? -1)) best.set(id, score);
+    const best = new Map<number, { score: number; matched: string }>();
+    const offer = (item: IndexedTitle, k: number, score: number) => {
+      const now = best.get(item.id);
+      // A tie goes to the earlier name — the record's own title before a synonym.
+      if (!now || score > now.score) best.set(item.id, { score, matched: item.names[k] ?? "" });
     };
 
     // The certain matches: the query, in any of its forms, is part of a
     // title's key.
     for (const item of this.items) {
       for (const variant of variants) {
-        for (const key of item.keys) {
-          if (key === variant) offer(item.id, SCORE.exact);
-          else if (key.startsWith(variant)) offer(item.id, SCORE.prefix);
+        for (let k = 0; k < item.keys.length; k += 1) {
+          const key = item.keys[k]!;
+          if (key === variant) offer(item, k, SCORE.exact);
+          else if (key.startsWith(variant)) offer(item, k, SCORE.prefix);
           else if (variant.length >= MIN_CONTAINS && key.includes(variant)) {
-            offer(item.id, SCORE.contains);
+            offer(item, k, SCORE.contains);
           }
         }
       }
@@ -198,7 +210,8 @@ export class FuzzyTitleIndex {
         const max = allowedEdits(variant.length);
         if (max === 0) continue;
         for (const item of this.items) {
-          for (const key of item.keys) {
+          for (let k = 0; k < item.keys.length; k += 1) {
+            const key = item.keys[k]!;
             // A key too short to hold the query even with every allowed edit
             // spent cannot match; skipping it is most of the saving here.
             if (key.length < variant.length - max) continue;
@@ -209,17 +222,16 @@ export class FuzzyTitleIndex {
             // Extra length costs a little too, so a typo of "naruto" finds
             // "Naruto" ahead of its fifteen films and sequels.
             const extra = Math.min(15, Math.floor((key.length - variant.length) / 4));
-            offer(item.id, SCORE.fuzzy - dist * 80 + (start <= 1 ? 20 : 0) - Math.max(0, extra));
+            offer(item, k, SCORE.fuzzy - dist * 80 + (start <= 1 ? 20 : 0) - Math.max(0, extra));
           }
         }
       }
     }
 
-    const members = new Map(this.items.map((i) => [i.id, i.members]));
     return [...best.entries()]
-      .map(([id, score]) => ({ id, score }))
+      .map(([id, hit]) => ({ id, score: hit.score, matched: hit.matched }))
       // Among equally good matches, the better-known show first.
-      .sort((a, b) => b.score - a.score || (members.get(b.id) ?? 0) - (members.get(a.id) ?? 0))
+      .sort((a, b) => b.score - a.score || (this.members.get(b.id) ?? 0) - (this.members.get(a.id) ?? 0))
       .slice(0, limit);
   }
 }

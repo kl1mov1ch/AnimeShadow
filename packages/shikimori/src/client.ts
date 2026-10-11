@@ -1,5 +1,6 @@
 import type {
   ShikiAnimeFull,
+  ShikiAnimeNames,
   ShikiAnimeShort,
   ShikiCharacterSearch,
   ShikiFranchise,
@@ -27,6 +28,8 @@ export interface ShikimoriClientOptions {
 
 interface QueuedRequest {
   url: string;
+  /** A JSON body makes it a POST (the GraphQL API). */
+  body?: string;
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
 }
@@ -98,6 +101,36 @@ export class ShikimoriClient {
     return this.get<ShikiStudio[]>("/api/studios");
   }
 
+  /**
+   * Every other name of up to 50 titles in one request — synonyms (Russian
+   * ones and abbreviations like "AoT" among them), the English, Japanese and
+   * licensed Russian names. From Shikimori's GraphQL API: the REST list has
+   * none of them, and asking title by title would be fifty requests.
+   */
+  async animeNames(ids: number[]): Promise<ShikiAnimeNames[]> {
+    const clean = ids.filter((id) => Number.isInteger(id) && id > 0).slice(0, 50);
+    if (clean.length === 0) return [];
+    const query = `{ animes(ids: "${clean.join(",")}", limit: ${clean.length}) { id english japanese synonyms licenseNameRu } }`;
+    const response = await this.post<{
+      data?: {
+        animes?: Array<{
+          id: string;
+          english: string | null;
+          japanese: string | null;
+          synonyms: string[] | null;
+          licenseNameRu: string | null;
+        }>;
+      };
+    }>("/api/graphql", { query });
+    return (response.data?.animes ?? []).map((a) => ({
+      id: Number(a.id),
+      english: a.english,
+      japanese: a.japanese,
+      synonyms: a.synonyms ?? [],
+      licenseNameRu: a.licenseNameRu,
+    }));
+  }
+
   getRoles(id: number): Promise<ShikiRole[]> {
     return this.get<ShikiRole[]>(`/api/animes/${id}/roles`);
   }
@@ -158,6 +191,14 @@ export class ShikimoriClient {
 
   // -- internals ---------------------------------------------------------
 
+  private post<T>(path: string, body: unknown): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const lane = this.isBackground() ? this.lanes.later : this.lanes.now;
+      lane.push({ url: this.baseUrl + path, body: JSON.stringify(body), resolve: resolve as (value: unknown) => void, reject });
+      void this.pump();
+    });
+  }
+
   private get<T>(path: string, query?: Record<string, unknown>): Promise<T> {
     const url = new URL(this.baseUrl + path);
     for (const [key, value] of Object.entries(query ?? {})) {
@@ -183,7 +224,7 @@ export class ShikimoriClient {
         const next = this.lanes.now.shift() ?? this.lanes.later.shift();
         if (!next) break;
         try {
-          next.resolve(await this.attempt(next.url));
+          next.resolve(await this.attempt(next.url, next.body));
         } catch (error) {
           next.reject(error);
         }
@@ -193,7 +234,7 @@ export class ShikimoriClient {
     }
   }
 
-  private async attempt<T>(url: string): Promise<T> {
+  private async attempt<T>(url: string, body?: string): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       const wait = this.lastRequestAt + this.minIntervalMs - Date.now();
       if (wait > 0) await sleep(wait);
@@ -202,7 +243,13 @@ export class ShikimoriClient {
       let response: Response;
       try {
         response = await this.fetchImpl(url, {
-          headers: { accept: "application/json", "user-agent": this.userAgent },
+          method: body ? "POST" : "GET",
+          body,
+          headers: {
+            accept: "application/json",
+            "user-agent": this.userAgent,
+            ...(body ? { "content-type": "application/json" } : {}),
+          },
           redirect: "follow",
           signal: AbortSignal.timeout(this.timeoutMs),
         });

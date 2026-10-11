@@ -1,15 +1,15 @@
-import { ArrowUpIcon, HeartIcon } from "lucide-react";
+import { ArrowUpIcon, HeartIcon, UserPlusIcon } from "lucide-react";
 import { type ComponentType, type SVGProps, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useI18n } from "@/i18n";
+import { shareInvite, TELEGRAM_CHANNEL } from "@/lib/community";
 import { glideTo } from "@/lib/glide";
 
-/* Edit these to your real handles. */
 const SOCIALS: Array<{ label: string; href: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }> = [
-  { label: "Telegram", href: "https://t.me/animeshadow", Icon: TelegramIcon },
-  { label: "Discord", href: "https://discord.gg/animeshadow", Icon: DiscordIcon },
+  { label: "Telegram", href: TELEGRAM_CHANNEL, Icon: TelegramIcon },
 ];
 
 /**
@@ -57,6 +57,7 @@ export function SiteFooter() {
                 {label}
               </a>
             ))}
+            <InviteButton />
             <Link
               to="/support"
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-sm font-medium text-foreground transition-colors duration-200 hover:border-primary/50 hover:bg-primary/15"
@@ -84,6 +85,26 @@ export function SiteFooter() {
         </div>
       </div>
     </footer>
+  );
+}
+
+/** Passes the channel's invite link on — the share sheet on a phone, the
+ *  clipboard on a computer. */
+function InviteButton() {
+  const invite = async () => {
+    const result = await shareInvite();
+    if (result === "copied") toast.success("Ссылка-приглашение скопирована — отправьте её друзьям");
+    if (result === "failed") toast.error("Не получилось скопировать ссылку");
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => void invite()}
+      className="inline-flex h-9 items-center gap-2 rounded-lg border border-border/60 px-3 text-sm text-foreground/85 transition-colors duration-200 hover:border-foreground/25 hover:bg-foreground/[0.04] hover:text-foreground active:scale-[0.98]"
+    >
+      <UserPlusIcon className="size-4 text-muted-foreground" />
+      Позвать друзей
+    </button>
   );
 }
 
@@ -119,14 +140,6 @@ function TelegramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
       <path d="M21.94 4.57a1.5 1.5 0 0 0-2-1.35L3.2 9.86c-1.36.53-1.35 2.47.02 2.98l3.98 1.49 1.54 4.95a1.2 1.2 0 0 0 1.97.5l2.2-2.06 4.13 3.04a1.5 1.5 0 0 0 2.36-.94l2.54-15.2ZM9.4 13.66l7.9-4.98-6.53 6.06c-.23.22-.38.5-.44.82l-.28 1.53-.65-3.45Z" />
-    </svg>
-  );
-}
-
-function DiscordIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
-      <path d="M19.3 5.34A17 17 0 0 0 15 4l-.2.42a13 13 0 0 1 3.7 1.9 15.6 15.6 0 0 0-12.98 0A13 13 0 0 1 9.2 4.42L9 4a17 17 0 0 0-4.3 1.34C2 9.4 1.24 13.35 1.6 17.24a17.2 17.2 0 0 0 5.24 2.66l.66-1.6a11 11 0 0 1-2.03-.98l.5-.37a12.3 12.3 0 0 0 10.55 0l.5.37c-.64.38-1.32.71-2.03.98l.66 1.6a17.2 17.2 0 0 0 5.24-2.66c.42-4.4-.72-8.32-3.7-11.9ZM8.5 14.9c-1 0-1.83-.94-1.83-2.1 0-1.14.8-2.08 1.83-2.08s1.85.95 1.83 2.09c0 1.15-.8 2.09-1.83 2.09Zm7 0c-1 0-1.83-.94-1.83-2.1 0-1.14.8-2.08 1.83-2.08s1.85.95 1.83 2.09c0 1.15-.8 2.09-1.83 2.09Z" />
     </svg>
   );
 }

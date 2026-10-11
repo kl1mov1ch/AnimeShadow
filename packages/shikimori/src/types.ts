@@ -23,6 +23,15 @@ export interface ShikiStudio {
   image?: string | null;
 }
 
+/** A title's other names (GraphQL API), see ShikimoriClient.animeNames. */
+export interface ShikiAnimeNames {
+  id: number;
+  english: string | null;
+  japanese: string | null;
+  synonyms: string[];
+  licenseNameRu: string | null;
+}
+
 export interface ShikiVideo {
   id: number;
   url: string;

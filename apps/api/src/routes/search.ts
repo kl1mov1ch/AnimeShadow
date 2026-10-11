@@ -1,4 +1,4 @@
-import { frameSearchInputSchema, searchQuerySchema } from "@animeshadow/shared";
+import { frameSearchInputSchema, localeQuerySchema, searchQuerySchema } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { resolveAllowAdult } from "../lib/content-guard.js";
 import { parse } from "../lib/validation.js";
@@ -8,9 +8,38 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     "/search",
     { preHandler: fastify.optionalAuth },
     async (request) => {
-      const { q, lang, limit, fast } = parse(searchQuerySchema, request.query);
+      const { q, lang, limit, fast, scope } = parse(searchQuerySchema, request.query);
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      return fastify.services.search.search(q, lang, limit, fast, allowAdult);
+      return fastify.services.search.search(q, lang, limit, fast, allowAdult, scope);
+    },
+  );
+
+  // What the empty search window offers: a handful of titles being watched
+  // right now, from the homepage's own (cached) lists — no work of its own.
+  fastify.get(
+    "/search/trending",
+    { preHandler: fastify.optionalAuth },
+    async (request, reply) => {
+      const { lang } = parse(localeQuerySchema, request.query);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const discover = await fastify.services.catalog.getDiscover(lang, allowAdult);
+      const pool = [...discover.trendingNow, ...discover.topAiring];
+      const seen = new Set<number>();
+      const items = pool
+        .filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
+        .slice(0, 8)
+        .map((a) => ({
+          id: a.id,
+          slug: a.slug,
+          title: a.title,
+          titleLocalized: a.titleLocalized,
+          imageUrl: a.imageUrl,
+          type: a.type,
+          year: a.year,
+          score: a.score,
+        }));
+      reply.header("cache-control", "public, max-age=300");
+      return { items };
     },
   );
 
