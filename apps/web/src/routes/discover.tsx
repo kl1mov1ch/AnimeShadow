@@ -7,8 +7,8 @@ import {
   SpotlightHeroSkeleton,
 } from "@/components/anime/spotlight-hero";
 import { GenreCards } from "@/components/anime/genre-cards";
-import { HomeActions } from "@/components/anime/home-actions";
 import { AnimeCorner } from "@/components/home/anime-corner";
+import { HomeMoodPicker } from "@/components/home/mood-picker";
 import { HomeQuickLinks } from "@/components/home/quick-links";
 import { ErrorState } from "@/components/common/states";
 import { useAuth } from "@/hooks/use-auth";
@@ -136,7 +136,9 @@ export function Component() {
       />
       </div>
 
-      <HomeActions />
+      <div className="cv-auto">
+        <HomeMoodPicker />
+      </div>
 
       {FEATURES.homeGenres && (
       <div className="cv-auto">
@@ -163,7 +165,7 @@ export function Component() {
       </WhenNear>
 
 
-      <div className="cv-auto">
+      <div className="cv-auto flex flex-col gap-12">
       <AnimeRail
         title={t("home.recommended")}
         subtitle={

@@ -412,10 +412,11 @@ export class CatalogService {
    * Two signals, both from a Russian-speaking audience: Shikimori's ongoing
    * titles in order of popularity (how many of its users have them in their
    * lists), and what our own visitors opened and watched this week. Only
-   * titles that are actually airing make it, ranked by the two together; a
-   * title our own player plays gets a nudge (its clip can be shown, and it
-   * plays without the provider's ads). Ordered most popular first — the
-   * hero opens on the title most people came for.
+   * titles that are actually airing make it, ranked by the two together.
+   * Titles our own player plays come first: the hero shows a clip only for
+   * them (HeroClipService cuts it from that stream), and they play without
+   * the provider's ads; others only fill the places left. Ordered most
+   * popular first — the hero opens on the title most people came for.
    *
    * Falls back to the local airing lists when Shikimori doesn't answer.
    */
@@ -461,7 +462,7 @@ export class CatalogService {
     ]);
 
     const maxViews = Math.max(1, ...views.values());
-    const scored = rows
+    const ranked = rows
       .filter((r) => r.imageUrl || r.imageLargeUrl)
       .filter((r) => r.watchAvailability?.hasPlayer !== false)
       .map((r) => {
@@ -469,11 +470,16 @@ export class CatalogService {
         const rankScore = rank == null ? 0 : 1 - rank / 30;
         const siteScore = Math.log10((views.get(r.id) ?? 0) + 1) / Math.log10(maxViews + 1);
         const engagementScore = Math.min(1, Math.log10((engagement.get(r.id) ?? 0) + 1) / 2);
-        const ownPlayer = r.watchAvailability?.hasCustomPlayer ? 0.15 : 0;
-        return { id: r.id, score: rankScore * 0.55 + siteScore * 0.25 + engagementScore * 0.1 + ownPlayer };
+        return {
+          id: r.id,
+          own: r.watchAvailability?.hasCustomPlayer === true,
+          score: rankScore * 0.6 + siteScore * 0.28 + engagementScore * 0.12,
+        };
       })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
+      .sort((a, b) => b.score - a.score);
+    const scored = [...ranked.filter((r) => r.own), ...ranked.filter((r) => !r.own)]
+      .slice(0, 6)
+      .sort((a, b) => b.score - a.score);
 
     if (scored.length < 4) return this.pickTrendingSpotlights(fallback, lang);
 

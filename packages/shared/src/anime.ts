@@ -318,7 +318,8 @@ export interface CuratedCollectionDetail extends Omit<CuratedCollection, "covers
 }
 
 /** The homepage hero's clips by title id: a computer's (`hd`, 720p) and a
- *  phone's (`sd`, 432p) — ten muted seconds of episode 1 each. */
+ *  phone's (`sd`, 432p) — twelve muted seconds from the middle of an
+ *  episode's opening each. */
 export type HeroClips = Record<string, { hd: string; sd: string }>;
 
 export const discoverResponseSchema = z.object({

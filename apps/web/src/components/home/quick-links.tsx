@@ -5,6 +5,7 @@ import {
   CalendarIcon,
   ClapperboardIcon,
   DicesIcon,
+  LayersIcon,
   type LucideIcon,
   MonitorPlayIcon,
   RadioIcon,
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 interface QuickLink {
   to: string;
+  /** The tile's name — short, it is all a phone shows. */
   title: string;
   hint: string;
   Icon: LucideIcon;
@@ -27,16 +29,21 @@ interface QuickLink {
   curated?: string;
 }
 
+/**
+ * One tile, the same for every link (the dice included): on a phone an icon
+ * over a one-word name, four to a row; from a tablet up the icon beside the
+ * name and what is in it.
+ */
 const TILE =
-  "group relative flex h-[5.5rem] w-[11.5rem] shrink-0 snap-start flex-col justify-between overflow-hidden rounded-xl border border-border/60 bg-card/60 p-3 text-left transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-card active:scale-[0.98] sm:w-auto";
+  "group relative flex min-w-0 flex-col items-center gap-1.5 rounded-2xl p-1 text-center outline-none transition-transform duration-200 active:scale-95 sm:flex-row sm:gap-2.5 sm:overflow-hidden sm:rounded-xl sm:border sm:border-border/60 sm:bg-card/50 sm:p-2.5 sm:text-left sm:transition-[border-color,background-color,transform] sm:hover:-translate-y-0.5 sm:hover:border-foreground/20 sm:hover:bg-card focus-visible:ring-2 focus-visible:ring-ring";
+const CHIP =
+  "relative z-10 grid size-12 shrink-0 place-items-center rounded-2xl border border-border/60 bg-card/70 text-foreground/80 transition-colors duration-300 group-hover:border-primary/40 group-hover:text-primary group-active:border-primary/50 group-active:text-primary sm:size-9 sm:rounded-lg sm:border-0 sm:bg-foreground/[0.07] sm:group-hover:bg-primary/15";
 
 /**
- * Right under the hero: the lists people come to an anime site for, as
- * tiles that show what is in them — a fan of their first posters peeking
- * from the corner, rising on hover, and how many titles there are (from
- * the themed collections) — so the first screen already shows what the
- * site has, not only what it recommends. A row that scrolls sideways on a
- * phone, a grid on a computer.
+ * Right under the hero: the lists people come to an anime site for. Light
+ * at rest — an icon and a name — so the hero above stays the one loud
+ * thing; on a computer, hovering a tile raises the first posters of what is
+ * in it from its corner, and it says how many titles there are.
  */
 export function HomeQuickLinks() {
   const navigate = useNavigate();
@@ -46,7 +53,7 @@ export function HomeQuickLinks() {
   const seasonName = seasonNameRu(season.season, "nom");
   const links: QuickLink[] = [
     { to: "/ongoing", title: "Онгоинги", hint: "Выходят сейчас", Icon: RadioIcon, curated: "airing-now" },
-    { to: "/top", title: "Топ аниме", hint: "Лучшее за всё время", Icon: TrophyIcon, curated: "start-here" },
+    { to: "/top", title: "Топ", hint: "Лучшее за всё время", Icon: TrophyIcon, curated: "start-here" },
     {
       to: landingPath({ kind: "season", ...season }),
       title: `${seasonName.charAt(0).toUpperCase()}${seasonName.slice(1)} ${season.year}`,
@@ -56,7 +63,8 @@ export function HomeQuickLinks() {
     },
     { to: "/movies", title: "Фильмы", hint: "Полнометражные", Icon: ClapperboardIcon, curated: "one-evening" },
     { to: "/announced", title: "Анонсы", hint: "Скоро выйдут", Icon: CalendarClockIcon },
-    { to: "/browse?hasCustomPlayer=1", title: "Свой плеер", hint: "До 1080p, без рекламы", Icon: MonitorPlayIcon, curated: "no-ads" },
+    { to: "/collections", title: "Подборки", hint: "На любой вечер", Icon: LayersIcon },
+    { to: "/browse?hasCustomPlayer=1", title: "Без рекламы", hint: "Свой плеер, до 1080p", Icon: MonitorPlayIcon, curated: "no-ads" },
   ];
   const byslug = new Map((curated?.items ?? []).map((c) => [c.slug, c]));
 
@@ -74,50 +82,53 @@ export function HomeQuickLinks() {
   };
 
   return (
-    <nav
-      aria-label="Разделы"
-      className="-mx-4 flex snap-x scroll-px-4 gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 lg:grid-cols-7 [&::-webkit-scrollbar]:hidden"
-    >
+    <nav aria-label="Разделы" className="grid grid-cols-4 gap-x-1 gap-y-3 sm:gap-2.5 lg:grid-cols-8">
       {links.map(({ to, title, hint, Icon, curated: slug }) => {
         const collection = slug ? byslug.get(slug) : undefined;
         return (
           <Link key={to} to={to} viewTransition className={TILE}>
             {collection && <PosterFan covers={collection.covers} />}
-            <span className="relative z-10 grid size-8 place-items-center rounded-lg bg-foreground/[0.07] text-foreground/80 transition-colors duration-300 group-hover:bg-primary/15 group-hover:text-primary">
-              <Icon className="size-[18px]" />
+            <span className={CHIP}>
+              <Icon className="size-5 sm:size-[18px]" />
             </span>
-            <span className="relative z-10 flex min-w-0 flex-col pr-10">
-              <span className="truncate text-sm font-semibold">{title}</span>
-              <span className="truncate text-[11px] text-muted-foreground">
-                {collection ? titlesCount(collection.total) : hint}
-              </span>
-            </span>
+            <TileText title={title} hint={collection ? titlesCount(collection.total) : hint} />
           </Link>
         );
       })}
       <button type="button" onClick={() => void roll()} className={TILE}>
-        <span className="relative z-10 grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
+        <span className={CHIP}>
           <DicesIcon
             className={cn(
-              "size-[18px] transition-transform duration-500 group-hover:rotate-[200deg]",
+              "size-5 transition-transform duration-500 group-hover:rotate-[200deg] sm:size-[18px]",
               rolling && "animate-spin",
             )}
           />
         </span>
-        <span className="relative z-10 flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold">Случайное</span>
-          <span className="truncate text-[11px] text-muted-foreground">Мне повезёт</span>
-        </span>
+        <TileText title="Случайное" hint="Мне повезёт" />
       </button>
     </nav>
   );
 }
 
-/** Two posters peeking from the tile's corner, rising a little on hover. */
+function TileText({ title, hint }: { title: string; hint: string }) {
+  return (
+    <span className="relative z-10 flex w-full min-w-0 flex-col">
+      <span className="truncate text-[11.5px] font-medium leading-tight text-foreground/85 sm:text-sm sm:font-semibold sm:text-foreground">
+        {title}
+      </span>
+      <span className="hidden truncate text-[11px] text-muted-foreground sm:block">{hint}</span>
+    </span>
+  );
+}
+
+/** Two posters that rise from the tile's corner when it is hovered. */
 function PosterFan({ covers }: { covers: AnimeSummary[] }) {
   const two = covers.slice(0, 2);
   return (
-    <span aria-hidden className="pointer-events-none absolute -bottom-5 right-1 flex">
+    <span
+      aria-hidden
+      className="pointer-events-none absolute -bottom-6 right-1 hidden translate-y-4 opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 sm:flex"
+    >
       {two.map((anime, i) => (
         <img
           key={anime.id}
@@ -129,8 +140,8 @@ function PosterFan({ covers }: { covers: AnimeSummary[] }) {
             event.currentTarget.style.visibility = "hidden";
           }}
           className={cn(
-            "aspect-[2/3] w-11 rounded-md object-cover shadow-lg shadow-black/40 ring-1 ring-black/30 transition-transform duration-300 ease-out",
-            i === 0 ? "-mr-4 -rotate-6 opacity-80 group-hover:-translate-y-2" : "rotate-3 group-hover:-translate-y-3",
+            "aspect-[2/3] w-10 rounded-md object-cover shadow-lg shadow-black/40 ring-1 ring-black/30",
+            i === 0 ? "-mr-4 -rotate-6 opacity-80" : "rotate-3",
           )}
         />
       ))}

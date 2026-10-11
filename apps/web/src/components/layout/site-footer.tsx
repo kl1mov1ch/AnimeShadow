@@ -1,6 +1,7 @@
 import { ArrowUpIcon, HeartIcon } from "lucide-react";
 import { type ComponentType, type SVGProps, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useI18n } from "@/i18n";
 import { glideTo } from "@/lib/glide";
@@ -32,7 +33,9 @@ export function SiteFooter() {
   ];
 
   return (
-    <footer className="cv-auto mt-12 border-t border-border/50 bg-card/30 sm:mt-16">
+    <footer className="cv-auto relative isolate mt-12 overflow-hidden border-t border-border/50 bg-card/30 sm:mt-16">
+      {/* The site's mark, large and faint, on the footer's right. */}
+      <LogoWatermark className="-bottom-24 -right-16 size-80 -rotate-6 sm:-bottom-32 sm:right-[4%] sm:size-[26rem]" />
       <div className="mx-auto flex max-w-[1400px] flex-col gap-7 px-4 py-9 sm:py-11">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="flex max-w-md flex-col gap-2.5">

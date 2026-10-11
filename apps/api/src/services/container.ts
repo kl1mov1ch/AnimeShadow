@@ -218,8 +218,10 @@ export function createServices(deps: ContainerDeps): Services {
   const analytics = new AnalyticsService({ prisma: deps.prisma, logger: deps.logger });
   const heroClips = new HeroClipService({
     prisma: deps.prisma,
+    anilibria,
     logger: deps.logger,
     spotlightIds: async () => (await catalog.getDiscover()).spotlights.map((anime) => anime.id),
+    resolveSources: (animeId) => watch.getSources(animeId),
     dir: env.HERO_CLIP_DIR ?? join(process.cwd(), "cache", "hero"),
     ffmpeg: env.FFMPEG_PATH,
   });

@@ -56,9 +56,9 @@ export function AnimeRail({
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-end justify-between gap-4">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="flex items-center gap-2.5 font-display text-lg tracking-tight sm:text-xl">
+      <div className="flex items-end justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2 className="flex min-w-0 items-center gap-2.5 font-display text-[1.05rem] tracking-tight sm:text-xl">
             {Icon && (
               <span
                 aria-hidden
@@ -67,16 +67,19 @@ export function AnimeRail({
                 <Icon className="size-4" />
               </span>
             )}
-            {title}
+            <span className="truncate">{title}</span>
           </h2>
           {subtitle && (
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
+            <p className="line-clamp-1 text-xs text-muted-foreground sm:line-clamp-none">{subtitle}</p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {href && (
-            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <Link to={href}>{t("common.seeAll")}</Link>
+            <Button asChild variant="ghost" size="sm" className="h-8 gap-1 px-2 text-muted-foreground sm:px-3">
+              <Link to={href} aria-label={t("common.seeAll")}>
+                <span className="hidden sm:inline">{t("common.seeAll")}</span>
+                <ChevronRightIcon className="size-4 sm:hidden" />
+              </Link>
             </Button>
           )}
           {items.length > 3 && (

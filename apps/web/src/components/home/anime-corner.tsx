@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -488,7 +489,8 @@ function Leaderboard() {
   const mine = data?.top.some((row) => row.userId === user?.id) ?? false;
 
   return (
-    <article className={cn(PANEL, "gap-2 p-3 sm:p-3")}>
+    <article className={cn(PANEL, "isolate gap-2 p-3 sm:p-3")}>
+      <LogoWatermark className="-bottom-16 -right-12 size-56 -rotate-12" />
       <div className="flex items-center justify-between gap-2">
         <PanelLabel icon={CrownIcon}>{t("home.game.board")}</PanelLabel>
         {data && data.top.length > 0 && (
@@ -659,11 +661,12 @@ function FactsStrip() {
           </button>
         }
       />
-      <div className="reveal-group grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* A phone: a row to swipe through, one card and the edge of the next. */}
+      <div className="reveal-group -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
         {shown
           ? shown.map((fact, i) => <FactCard key={`${fact.id}-${deal}`} fact={fact} index={i} />)
           : Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className={cn(PANEL, "min-h-40 animate-pulse")} />
+              <div key={i} className={cn(PANEL, "min-h-40 w-[80%] shrink-0 animate-pulse sm:w-auto")} />
             ))}
       </div>
     </section>
@@ -682,12 +685,7 @@ function FactCard({ fact, index }: { fact: ApiFact; index: number }) {
           className="pointer-events-none absolute -right-6 -top-4 h-40 w-28 rotate-12 rounded-lg object-cover opacity-15 transition-[transform,opacity] duration-500 group-hover:rotate-6 group-hover:scale-105 group-hover:opacity-30"
         />
       ) : (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-3 -top-6 font-display text-8xl leading-none text-primary/10 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110"
-        >
-          ?
-        </span>
+        <LogoWatermark className="-right-6 -top-6 z-0 size-28 rotate-12 text-primary/10 group-hover:rotate-[20deg] group-hover:scale-110" />
       )}
       <p className="relative pr-10 font-display text-base leading-tight text-primary">{fact.title}</p>
       <p className="relative text-xs leading-relaxed text-muted-foreground">{fact.text}</p>
@@ -700,7 +698,7 @@ function FactCard({ fact, index }: { fact: ApiFact; index: number }) {
   );
   const className = cn(
     PANEL,
-    "reveal group min-h-40 gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg",
+    "reveal group isolate min-h-40 w-[80%] shrink-0 snap-start gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg sm:w-auto",
   );
   const style = { "--i": index } as CSSProperties;
   return fact.anime ? (

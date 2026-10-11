@@ -1447,17 +1447,29 @@ body:has([role="dialog"][data-state="open"]) main * {
   animation: none !important;
 }
 
-/* The homepage slider's progress: one line filling over a slide's time. */
-@keyframes hero-progress {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
+/* The homepage slider's progress: one line filling as the slide runs. The
+   slider sets --hero-p (0…1) on its section every frame — from the clip's
+   own time when there is one — so the line ends exactly as the slide does. */
 .hero-progress {
   transform-origin: left center;
-  animation: hero-progress 8s linear forwards;
+  transform: scaleX(var(--hero-p, 0));
+  will-change: transform;
 }
-@media (prefers-reduced-motion: reduce) {
-  .hero-progress { animation: none; transform: scaleX(1); }
+
+/* On a computer the hero's frame fades out to the left (under the pitch)
+   and to the bottom, into the blurred picture behind; on the right it runs
+   to the page's edge. */
+@media (min-width: 1024px) {
+  .hero-frame {
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0, #000 30%),
+      linear-gradient(to top, transparent 0, #000 20%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent 0, #000 30%),
+      linear-gradient(to top, transparent 0, #000 20%);
+    mask-composite: intersect;
+  }
 }
 
 /* Achievement meters: the fill sweeps in once, then sits still — a bright
