@@ -24,13 +24,15 @@ export const commentRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // Per-address caps on writing: the global 600 a minute would let one
+  // script flood a page with comments or votes.
   fastify.post(
     "/comments",
-    { preHandler: fastify.authenticate },
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 6, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const input = parse(createCommentInputSchema, request.body);
+      // Achievements are re-checked by the service.
       const comment = await comments.create(request.userId!, input);
-      void fastify.services.achievements.recompute(request.userId!).catch(() => {});
       reply.code(201);
       return comment;
     },
@@ -38,7 +40,7 @@ export const commentRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch(
     "/comments/:id",
-    { preHandler: fastify.authenticate },
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
     async (request) => {
       const { id } = parse(commentIdParams, request.params);
       const { body } = parse(editCommentInputSchema, request.body);
@@ -59,7 +61,7 @@ export const commentRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/comments/:id/vote",
-    { preHandler: fastify.authenticate },
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
     async (request) => {
       const { id } = parse(commentIdParams, request.params);
       const { value } = parse(voteCommentInputSchema, request.body);

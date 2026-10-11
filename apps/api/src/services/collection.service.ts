@@ -332,7 +332,9 @@ export class CollectionService {
       await this.prisma.collectionView.create({
         data: { collectionId: id, visitorId, userId: userId ?? null, day: dayOf(new Date()) },
       });
-      await this.prisma.collection.update({ where: { id }, data: { viewCount: { increment: 1 } } });
+      // Raw SQL: Prisma's update would also move `updatedAt`, the sitemap's
+      // "last changed" for the collection.
+      await this.prisma.$executeRaw`UPDATE "Collection" SET "viewCount" = "viewCount" + 1 WHERE id = ${id}`;
     } catch {
       // Already counted today (unique collection + visitor + day).
     }

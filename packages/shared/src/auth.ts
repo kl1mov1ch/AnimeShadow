@@ -105,6 +105,11 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordInputSchema>;
 export const confirmRegistrationInputSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   code: verificationCodeSchema,
+  /// What /auth/register answered to the browser that sent the details.
+  ticket: z.string().max(200).optional(),
+  /// Without that ticket (the link opened on another device): the password
+  /// chosen at signup, so only its owner can confirm it.
+  password: z.string().max(128).optional(),
 });
 export type ConfirmRegistrationInput = z.infer<typeof confirmRegistrationInputSchema>;
 

@@ -743,6 +743,8 @@ export const ru: Dict = {
     },
     forgotPassword: "Забыли пароль?",
     verifyEmail: {
+      passwordPrompt: "Введите пароль, который указали при регистрации",
+      passwordWrong: "Пароль не совпадает с указанным при регистрации",
       title: "Подтвердите почту",
       subtitle: "Мы отправили 6-значный код на {email}. Введите его ниже.",
       submit: "Подтвердить",

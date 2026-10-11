@@ -1,6 +1,16 @@
 import type {
   AdminAnalytics,
+  AdminAnalyticsBreakdownGroup,
+  AdminAnalyticsBreakdowns,
+  AdminAnalyticsHeatmap,
+  AdminAnalyticsLive,
   AdminAnalyticsQuery,
+  AdminAnalyticsRetention,
+  AdminArchiveDetail,
+  AdminArchiveMonth,
+  AdminOverviewTop,
+  AdminSummary,
+  AdminTimelinePoint,
   AdminExternalAnalytics,
   AdminVisitor,
   AdminVisitorDetail,
@@ -810,15 +820,81 @@ export function useSimilarAnime(animeId: number, enabled = true) {
 // the caller to gate on the viewer's own role.
 // ---------------------------------------------------------------------------
 
-/** The analytics tab, for one set of filters; the last answer stays on
- *  screen while the next one loads, and the live count refreshes itself. */
+/** The analytics tab's numbers and curve, for one set of filters; the last
+ *  answer stays on screen while the next one loads. Not refetched on a
+ *  timer — only "who is on the site now" is (useAdminAnalyticsLive). */
 export function useAdminAnalytics(params: Partial<AdminAnalyticsQuery>) {
   return useQuery({
     queryKey: ["admin", "analytics", params],
     queryFn: ({ signal }) => apiRequest<AdminAnalytics>("/admin/analytics", { signal, query: params }),
     placeholderData: (previous) => previous,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 60_000,
+  });
+}
+
+/** Five minutes of who is on the site — one cheap query, every 30 seconds. */
+export function useAdminAnalyticsLive(params: Partial<AdminAnalyticsQuery>) {
+  return useQuery({
+    queryKey: ["admin", "analytics-live", params],
+    queryFn: ({ signal }) => apiRequest<AdminAnalyticsLive>("/admin/analytics/live", { signal, query: params }),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+}
+
+/** The analytics blocks below the curve, each its own request, made only
+ *  once the block is on screen (`enabled`). */
+export function useAdminHeatmap(params: Partial<AdminAnalyticsQuery>, enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "heatmap", params],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminAnalyticsHeatmap>("/admin/analytics/heatmap", { signal, query: params }),
+    placeholderData: (previous) => previous,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAdminBreakdowns(
+  params: Partial<AdminAnalyticsQuery>,
+  group: AdminAnalyticsBreakdownGroup,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ["admin", "breakdowns", group, params],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<Partial<AdminAnalyticsBreakdowns>>("/admin/analytics/breakdowns", { signal, query: { ...params, group } }),
+    placeholderData: (previous) => previous,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAdminRetention(params: Partial<AdminAnalyticsQuery>, enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "retention", { ...params, to: undefined }],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminAnalyticsRetention>("/admin/analytics/retention", { signal, query: params }),
+    placeholderData: (previous) => previous,
+    staleTime: 30 * 60_000,
+  });
+}
+
+/** The daily rollups by month — everything older than the raw page views. */
+export function useAdminArchive(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "archive"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminArchiveMonth[]>("/admin/analytics/archive", { signal }),
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useAdminArchiveMonth(month: string | null) {
+  return useQuery({
+    queryKey: ["admin", "archive", month],
+    enabled: month != null,
+    queryFn: ({ signal }) => apiRequest<AdminArchiveDetail>(`/admin/analytics/archive/${month}`, { signal }),
+    staleTime: 10 * 60_000,
   });
 }
 
@@ -847,12 +923,43 @@ export function useAdminExternalAnalytics() {
   });
 }
 
+/** The admin page's header: tab badges and today's pills — a few counts. */
+export function useAdminSummary(enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "summary"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminSummary>("/admin/summary", { signal }),
+    staleTime: 60_000,
+  });
+}
+
+/** The overview's numbers and registered/guests split. */
 export function useAdminOverview(enabled = true) {
   return useQuery({
     queryKey: ["admin", "overview"],
     enabled,
     queryFn: ({ signal }) => apiRequest<AdminOverview>("/admin/overview", { signal }),
-    staleTime: 30_000,
+    staleTime: 60_000,
+  });
+}
+
+/** The overview's 30-day curve — loaded when it comes into view. */
+export function useAdminOverviewTimeline(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "overview-timeline"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminTimelinePoint[]>("/admin/overview/timeline", { signal }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** The overview's lists — loaded when they come into view. */
+export function useAdminOverviewTop(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "overview-top"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<AdminOverviewTop>("/admin/overview/top", { signal }),
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -38,10 +38,13 @@ export function appShell(): string {
  * replaces with itself as soon as it starts.
  */
 export function fillShell(head: string, body: string): string {
+  // Replacer functions, not strings: in a replacement string `$&`, `$'` and
+  // the like are patterns, and a collection title or a display name holding
+  // one spliced copies of the page into it.
   return appShell()
-    .replace(/<html[^>]*>/i, '<html lang="ru" class="dark">')
-    .replace(/<title>[\s\S]*?<\/title>/i, "")
-    .replace(/<meta\s+name="description"[^>]*>/i, "")
-    .replace(/<\/head>/i, `${head}\n</head>`)
-    .replace(/<div id="root"><\/div>/i, `<div id="root">${body}</div>`);
+    .replace(/<html[^>]*>/i, () => '<html lang="ru" class="dark">')
+    .replace(/<title>[\s\S]*?<\/title>/i, () => "")
+    .replace(/<meta\s+name="description"[^>]*>/i, () => "")
+    .replace(/<\/head>/i, () => `${head}\n</head>`)
+    .replace(/<div id="root"><\/div>/i, () => `<div id="root">${body}</div>`);
 }

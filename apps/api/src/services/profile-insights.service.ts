@@ -359,7 +359,7 @@ ${items}
       });
       imported++;
     }
-    void this.achievements.recompute(userId).catch(() => undefined);
+    this.achievements.recomputeSoon(userId);
     return { total: parsed.length, imported, skipped: parsed.length - imported };
   }
 }

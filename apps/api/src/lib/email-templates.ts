@@ -18,7 +18,8 @@ const COLORS = {
 };
 
 interface CodeEmail {
-  displayName: string;
+  /** Null: greet nobody by name (a signup — see sendVerificationCode). */
+  displayName: string | null;
   code: string;
   /** One-click link that opens the site with the code already filled in. */
   actionUrl: string;
@@ -97,7 +98,7 @@ function divider(label: string): string {
 
 export function verificationEmailHtml(opts: CodeEmail): string {
   const body = `
-    <h1 style="margin:0 0 4px;font-size:18px;color:${COLORS.text};">Привет, ${escapeHtml(opts.displayName)}!</h1>
+    <h1 style="margin:0 0 4px;font-size:18px;color:${COLORS.text};">${opts.displayName ? `Привет, ${escapeHtml(opts.displayName)}!` : "Здравствуйте!"}</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.muted};">
       Остался один шаг — подтвердите почту, и аккаунт на AnimeShadow будет создан.
     </p>
@@ -116,7 +117,7 @@ export function verificationEmailHtml(opts: CodeEmail): string {
 
 export function verificationEmailText(opts: CodeEmail): string {
   return [
-    `Привет, ${opts.displayName}!`,
+    opts.displayName ? `Привет, ${opts.displayName}!` : "Здравствуйте!",
     "",
     "Подтвердите почту, чтобы завершить регистрацию на AnimeShadow.",
     `Код: ${opts.code}`,
@@ -130,7 +131,7 @@ export function passwordResetEmailHtml(opts: CodeEmail): string {
   const body = `
     <h1 style="margin:0 0 4px;font-size:18px;color:${COLORS.text};">Сброс пароля</h1>
     <p style="margin:0;font-size:14px;line-height:1.6;color:${COLORS.muted};">
-      Привет, ${escapeHtml(opts.displayName)}. Кто-то (надеемся, вы) запросил сброс пароля для аккаунта AnimeShadow.
+      ${opts.displayName ? `Привет, ${escapeHtml(opts.displayName)}.` : "Здравствуйте."} Кто-то (надеемся, вы) запросил сброс пароля для аккаунта AnimeShadow.
     </p>
     ${actionButton(opts.actionUrl, "Задать новый пароль")}
     ${divider("или введите код на сайте")}
@@ -147,7 +148,7 @@ export function passwordResetEmailHtml(opts: CodeEmail): string {
 
 export function passwordResetEmailText(opts: CodeEmail): string {
   return [
-    `Привет, ${opts.displayName}.`,
+    opts.displayName ? `Привет, ${opts.displayName}.` : "Здравствуйте.",
     "",
     "Для аккаунта AnimeShadow запрошен сброс пароля.",
     `Код: ${opts.code}`,

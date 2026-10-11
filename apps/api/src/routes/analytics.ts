@@ -10,7 +10,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request, reply) => {
       const input = parse(pageViewInputSchema, request.body);
-      await analytics.record(input, request.userId, request.headers["user-agent"]);
+      // Queued and written in batches (see AnalyticsService).
+      analytics.record(input, request.userId, request.headers["user-agent"]);
       reply.code(204);
     },
   );
@@ -26,7 +27,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/analytics/leave", async (request, reply) => {
     const input = parse(pageLeaveInputSchema, request.body);
-    await analytics.leave(input);
+    analytics.leave(input);
     reply.code(204);
   });
 };

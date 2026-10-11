@@ -73,7 +73,7 @@ export class ProgressService {
     await this.syncLibrary(userId, animeId, input.episode, completed);
     if (completed) {
       // Fire-and-forget: don't make a progress save wait on achievement math.
-      void this.achievements?.recompute(userId).catch(() => undefined);
+      this.achievements?.recomputeSoon(userId);
     }
     return this.get(userId, animeId);
   }

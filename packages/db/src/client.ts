@@ -1,7 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/client/index.js";
 
-function createPrismaClient(): PrismaClient {
+/**
+ * A client with its own connection pool. The app uses one shared client
+ * (`prisma`, below); `poolMax` is for work that should never be able to
+ * take the site's connections — the admin's reports get a small pool of
+ * their own (see the API's service container).
+ */
+export function createPrismaClient(options: { poolMax?: number } = {}): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(
@@ -15,7 +21,7 @@ function createPrismaClient(): PrismaClient {
   // users (most requests are short reads served from the read-through cache).
   const adapter = new PrismaPg({
     connectionString,
-    max: Number(process.env.DATABASE_POOL_MAX ?? 20),
+    max: options.poolMax ?? Number(process.env.DATABASE_POOL_MAX ?? 20),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
   });

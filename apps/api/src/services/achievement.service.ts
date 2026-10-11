@@ -43,13 +43,37 @@ interface Snapshot {
   guessNeed: { top50: number; top10: number; top1: number };
 }
 
+/** A watch session closing re-checks achievements at most this often. */
+const RECOMPUTE_EVERY_MS = 5 * 60_000;
+
 export class AchievementService {
   private readonly prisma: PrismaClient;
   private readonly proForAll: boolean;
+  private readonly lastRun = new Map<string, number>();
+  private readonly pending = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(deps: AchievementServiceDeps) {
     this.prisma = deps.prisma;
     this.proForAll = deps.proForAll ?? false;
+  }
+
+  /**
+   * recompute(), at most once every five minutes per account. A recompute
+   * is a dozen queries, and the player reports a session every time a tab
+   * is hidden — the achievement can wait a few minutes; a call that arrives
+   * too soon runs once the five minutes are up, never gets lost.
+   */
+  recomputeSoon(userId: string): void {
+    if (this.pending.has(userId)) return;
+    const run = () => {
+      this.pending.delete(userId);
+      if (this.lastRun.size > 50_000) this.lastRun.clear();
+      this.lastRun.set(userId, Date.now());
+      void this.recompute(userId).catch(() => undefined);
+    };
+    const wait = (this.lastRun.get(userId) ?? 0) + RECOMPUTE_EVERY_MS - Date.now();
+    if (wait <= 0) run();
+    else this.pending.set(userId, setTimeout(run, wait).unref());
   }
 
   /** Idempotently grant every non-manual achievement the user now qualifies for. */

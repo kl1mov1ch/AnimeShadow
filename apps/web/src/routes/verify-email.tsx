@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AuthCard } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
+import { clearLinkParams, linkParam } from "@/lib/link-params";
 import { useResendRegistration } from "@/lib/query";
 
 const RESEND_COOLDOWN_SECONDS = 45;
@@ -41,12 +42,16 @@ export function Component() {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
-  const [params] = useSearchParams();
   const stateEmail = (location.state as { email?: string } | null)?.email;
   const [email] = useState<string | undefined>(
-    () => params.get("email") ?? stateEmail ?? readPendingEmail() ?? undefined,
+    () => linkParam("email") ?? stateEmail ?? readPendingEmail() ?? undefined,
   );
-  const linkCode = params.get("code");
+  const [linkCode] = useState(() => linkParam("code"));
+  useEffect(() => clearLinkParams(), []);
+  // Asked for when the code is confirmed in a browser that didn't send the
+  // signup form (the mail opened on another device) — see confirmRegistration.
+  const [needPassword, setNeedPassword] = useState(false);
+  const [password, setPassword] = useState("");
   const { confirmRegistration } = useAuth();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string>();
@@ -74,10 +79,16 @@ export function Component() {
       setError(undefined);
       setPending(true);
       try {
-        await confirmRegistration(email, value);
+        await confirmRegistration(email, value, needPassword ? password : undefined);
         writePendingEmail(null);
         navigate("/library", { replace: true });
       } catch (err) {
+        if (err instanceof ApiRequestError && err.code === "PASSWORD_REQUIRED") {
+          // Keep the code; only the password is missing (or wrong).
+          if (needPassword) setError(t("auth.verifyEmail.passwordWrong"));
+          setNeedPassword(true);
+          return;
+        }
         setError(
           err instanceof ApiRequestError && err.code === "INVALID_CODE"
             ? t("auth.verifyEmail.invalidCode")
@@ -88,7 +99,7 @@ export function Component() {
         setPending(false);
       }
     },
-    [email, confirmRegistration, navigate, t],
+    [email, confirmRegistration, navigate, t, needPassword, password],
   );
 
   useEffect(() => {
@@ -137,9 +148,26 @@ export function Component() {
           {...(error ? { error } : {})}
         />
 
+        {needPassword && (
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-muted-foreground">{t("auth.verifyEmail.passwordPrompt")}</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && password) void submit(code);
+              }}
+              className="h-11 rounded-lg border border-border/70 bg-card/60 px-3 outline-none focus:border-foreground/30"
+            />
+          </label>
+        )}
+
         <Button
           type="button"
-          disabled={code.length !== 6 || pending}
+          disabled={code.length !== 6 || pending || (needPassword && !password)}
           onClick={() => submit(code)}
           className="h-11 w-full"
         >

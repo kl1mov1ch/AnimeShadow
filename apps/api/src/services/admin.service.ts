@@ -1,6 +1,6 @@
 import {
   ANIME_WITH_GENRES_INCLUDE,
-  type Prisma,
+  Prisma,
   type PrismaClient,
   toSummaryDto,
 } from "@animeshadow/db";
@@ -13,8 +13,10 @@ import {
   type AdminWindow,
   type AdminCommentQuery,
   type AdminCommentSummary,
-  type AdminKpi,
   type AdminOverview,
+  type AdminOverviewTop,
+  type AdminSummary,
+  type AdminTimelinePoint,
   type AdminUpdateUserInput,
   type AdminUserDetail,
   type AdminUserQuery,
@@ -25,6 +27,8 @@ import {
 import bcrypt from "bcryptjs";
 import { TtlCache } from "../lib/cache.js";
 import { BadRequestError, NotFoundError } from "../lib/errors.js";
+import { forgetSession, revokeSessions } from "../lib/session-guard.js";
+import { STATS_TZ } from "./stats-rollup.service.js";
 import type { GaugeSnapshot } from "../lib/metrics.js";
 
 export interface AdminServiceDeps {
@@ -111,6 +115,11 @@ function referrerHost(referrer: string | null): string {
   }
 }
 
+/** "YYYY-MM-DD" moved by whole days. */
+function shiftDay(day: string, by: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + by * DAY_MS).toISOString().slice(0, 10);
+}
+
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -167,15 +176,18 @@ const CONTENT_AUTHOR_SELECT = {
 interface Windows {
   now: Date;
   todayStart: Date;
-  timelineStart: Date;
   last7: Date;
   last30: Date;
-  last60: Date;
 }
+
+const NOT_BOT = "(device IS NULL OR device <> 'bot')";
 
 export class AdminService {
   private readonly prometheusUrl: string;
   private readonly monitoringCache = new TtlCache<AdminMonitoring>(20_000, 8);
+  /** The overview's blocks: the numbers for a minute, the rest for five. */
+  private readonly overviewCache = new TtlCache<unknown>(60_000, 8);
+  private readonly blockCache = new TtlCache<unknown>(5 * 60_000, 8);
   private readonly logger: AdminServiceDeps["logger"];
   private readonly prisma: PrismaClient;
 
@@ -185,60 +197,54 @@ export class AdminService {
     this.logger = deps.logger;
   }
 
-  async overview(): Promise<AdminOverview> {
+  private windows(): Windows {
     const now = new Date();
-    const todayStart = startOfUtcDay(now);
-    const w: Windows = {
+    return {
       now,
-      todayStart,
-      timelineStart: new Date(todayStart.getTime() - (TIMELINE_DAYS - 1) * DAY_MS),
+      todayStart: startOfUtcDay(now),
       last7: new Date(now.getTime() - 7 * DAY_MS),
       last30: new Date(now.getTime() - 30 * DAY_MS),
-      last60: new Date(now.getTime() - 60 * DAY_MS),
     };
+  }
 
-    const [
-      split,
-      kpis,
-      timeline,
-      hourly,
-      audience,
-      topReferrers,
-      topPaths,
-      libraryStatus,
-      topGenres,
-      topAnime,
-      recentUsers,
-      recentComments,
-    ] = await Promise.all([
-      this.split(w),
-      this.kpis(w),
-      this.timeline(w),
-      this.hourly(w),
-      this.audience(w),
-      this.topReferrers(),
-      this.topPaths(w),
-      this.libraryStatus(),
-      this.topGenres(),
-      this.topAnime(),
-      this.recentUsers(),
-      this.recentComments(),
-    ]);
+  /** The admin page's header: the tab badges and today's two pills. Three
+   *  cheap counts, read on every tab — the overview itself is not. */
+  async summary(): Promise<AdminSummary> {
+    return this.overviewCache.wrap("summary", async () => {
+      const since = startOfUtcDay(new Date());
+      const [users, comments, today] = await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.comment.count(),
+        this.prisma.$queryRaw<Array<{ registered: boolean; visitors: number }>>`
+          SELECT ("userId" IS NOT NULL) AS registered, COUNT(DISTINCT "visitorId")::int AS visitors
+          FROM "PageView" WHERE "createdAt" >= ${since}
+          GROUP BY 1
+        `,
+      ]);
+      return {
+        users,
+        comments,
+        today: {
+          registered: today.find((r) => r.registered)?.visitors ?? 0,
+          guests: today.find((r) => !r.registered)?.visitors ?? 0,
+        },
+      };
+    }) as Promise<AdminSummary>;
+  }
 
-    return {
-      split,
-      kpis,
-      timeline,
-      hourly,
-      audience,
-      topReferrers,
-      topPaths,
-      libraryStatus,
-      topGenres,
-      topAnime,
-      recentUsers,
-      recentComments,
-    };
+  /**
+   * The overview's top: the four numbers and the registered/guests table.
+   * The curve and the lists are their own requests (overviewTimeline,
+   * overviewTop), loaded when they come into view. What used to come with
+   * this and was never shown — hours by hour, library statuses, genres,
+   * comments, previous-period values — is no longer computed at all.
+   */
+  async overview(): Promise<AdminOverview> {
+    return this.overviewCache.wrap("overview", async () => {
+      const w = this.windows();
+      const [split, kpis] = await Promise.all([this.split(w), this.kpis(w)]);
+      return { split, kpis };
+    }) as Promise<AdminOverview>;
   }
 
   // -- overview pieces ---------------------------------------------------
@@ -291,6 +297,153 @@ export class AdminService {
         return { window, registered: side(true, registeredWatch), guests: side(false, guestWatch) };
       }),
     );
+  }
+
+  private async kpis(w: Windows): Promise<AdminOverview["kpis"]> {
+    const current = { gte: w.last30 };
+    const [usersTotal, usersCurrent, [visitors], [views], commentsTotal, commentsCurrent] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { createdAt: current } }),
+      this.prisma.$queryRaw<Array<{ total: number; current: number }>>`
+        SELECT
+          (SELECT COUNT(*) FROM "VisitorFirstSeen")::int AS total,
+          (SELECT COUNT(DISTINCT "visitorId") FROM "PageView"
+            WHERE "createdAt" >= ${w.last30} AND ${Prisma.raw(NOT_BOT)})::int AS current
+      `,
+      // All-time page views: the rolled-up days, plus the raw rows after them
+      // (the raw table itself only keeps the last few months).
+      this.prisma.$queryRaw<Array<{ total: number; current: number }>>`
+        WITH rolled AS (
+          SELECT COALESCE(SUM(pageviews), 0) AS views,
+            ((MAX(day) + 1)::timestamp AT TIME ZONE ${STATS_TZ}) AT TIME ZONE 'UTC' AS until
+          FROM "StatDay"
+        )
+        SELECT
+          ((SELECT views FROM rolled) + (
+            SELECT COUNT(*) FROM "PageView"
+            WHERE ${Prisma.raw(NOT_BOT)} AND "createdAt" >= COALESCE((SELECT until FROM rolled), '-infinity'::timestamp)
+          ))::bigint::float AS total,
+          (SELECT COUNT(*) FROM "PageView" WHERE "createdAt" >= ${w.last30})::int AS current
+      `,
+      this.prisma.comment.count(),
+      this.prisma.comment.count({ where: { createdAt: current } }),
+    ]);
+    return {
+      users: { total: usersTotal, current: usersCurrent },
+      visitors: { total: visitors?.total ?? 0, current: visitors?.current ?? 0 },
+      pageviews: { total: Math.round(views?.total ?? 0), current: views?.current ?? 0 },
+      comments: { total: commentsTotal, current: commentsCurrent },
+    };
+  }
+
+  /**
+   * Thirty Moscow days of traffic and watching. Finished days come from the
+   * daily rollups (StatDay) — a row per day, nothing to count — and only the
+   * days not rolled up yet (today, usually) are counted from the raw rows.
+   */
+  async overviewTimeline(): Promise<AdminTimelinePoint[]> {
+    return this.blockCache.wrap("timeline", async () => {
+      const [now] = await this.prisma.$queryRaw<Array<{ today: string }>>`
+        SELECT to_char((now() AT TIME ZONE ${STATS_TZ})::date, 'YYYY-MM-DD') AS today
+      `;
+      const today = now?.today ?? new Date().toISOString().slice(0, 10);
+      const days = Array.from({ length: TIMELINE_DAYS }, (_, i) => shiftDay(today, i - (TIMELINE_DAYS - 1)));
+      const first = days[0]!;
+      const rolled = await this.prisma.$queryRaw<
+        Array<{ day: string; audience: string; pageviews: number; visitors: number; registrations: number; watch: number }>
+      >`
+        SELECT to_char(day, 'YYYY-MM-DD') AS day, audience, pageviews, visitors, registrations, "watchSec" AS watch
+        FROM "StatDay" WHERE day >= ${first}::date
+      `;
+      const have = new Set(rolled.map((r) => r.day));
+      const missing = days.filter((d) => !have.has(d));
+
+      const points = new Map<string, AdminTimelinePoint>(
+        days.map((date) => [
+          date,
+          { date, pageviews: 0, visitors: 0, registrations: 0, watchMinutes: 0, guestPageviews: 0, guestWatchMinutes: 0 },
+        ]),
+      );
+      for (const r of rolled) {
+        const p = points.get(r.day);
+        if (!p) continue;
+        p.pageviews += r.pageviews;
+        p.visitors += r.visitors;
+        p.registrations += r.registrations;
+        p.watchMinutes += Math.round(r.watch / 60);
+        if (r.audience === "guest") {
+          p.guestPageviews += r.pageviews;
+          p.guestWatchMinutes += Math.round(r.watch / 60);
+        }
+      }
+
+      if (missing.length > 0) {
+        const localDay = (column: string) =>
+          Prisma.raw(`to_char(((${column} AT TIME ZONE 'UTC') AT TIME ZONE '${STATS_TZ}')::date, 'YYYY-MM-DD')`);
+        const [[bounds], ] = await Promise.all([
+          this.prisma.$queryRaw<Array<{ since: Date }>>`
+            SELECT (${missing[0]}::date::timestamp AT TIME ZONE ${STATS_TZ}) AT TIME ZONE 'UTC' AS since
+          `,
+        ]);
+        const since = bounds!.since;
+        const [traffic, regs, watch] = await Promise.all([
+          this.prisma.$queryRaw<Array<{ day: string; pageviews: number; guests: number; visitors: number }>>`
+            SELECT ${localDay('"createdAt"')} AS day, COUNT(*)::int AS pageviews,
+              COUNT(*) FILTER (WHERE "userId" IS NULL)::int AS guests, COUNT(DISTINCT "visitorId")::int AS visitors
+            FROM "PageView" WHERE "createdAt" >= ${since} AND ${Prisma.raw(NOT_BOT)}
+            GROUP BY 1
+          `,
+          this.prisma.$queryRaw<Array<{ day: string; count: number }>>`
+            SELECT ${localDay('"createdAt"')} AS day, COUNT(*)::int AS count
+            FROM "User" WHERE "createdAt" >= ${since} GROUP BY 1
+          `,
+          this.prisma.$queryRaw<Array<{ day: string; guest: boolean; seconds: number }>>`
+            SELECT ${localDay('"startedAt"')} AS day, FALSE AS guest, COALESCE(SUM(seconds), 0)::int AS seconds
+            FROM "WatchSession" WHERE "startedAt" >= ${since} GROUP BY 1
+            UNION ALL
+            SELECT ${localDay('"startedAt"')} AS day, TRUE AS guest, COALESCE(SUM(seconds), 0)::int AS seconds
+            FROM "GuestWatchSession" WHERE "startedAt" >= ${since} GROUP BY 1
+          `,
+        ]);
+        const open = new Set(missing);
+        for (const r of traffic) {
+          const p = open.has(r.day) ? points.get(r.day) : undefined;
+          if (!p) continue;
+          p.pageviews = r.pageviews;
+          p.guestPageviews = r.guests;
+          p.visitors = r.visitors;
+        }
+        for (const r of regs) {
+          const p = open.has(r.day) ? points.get(r.day) : undefined;
+          if (p) p.registrations = r.count;
+        }
+        for (const r of watch) {
+          const p = open.has(r.day) ? points.get(r.day) : undefined;
+          if (!p) continue;
+          p.watchMinutes += Math.round(r.seconds / 60);
+          if (r.guest) p.guestWatchMinutes += Math.round(r.seconds / 60);
+        }
+      }
+      return days.map((d) => points.get(d)!);
+    }) as Promise<AdminTimelinePoint[]>;
+  }
+
+  /** The overview's lists: top titles, pages and sources, newest accounts. */
+  async overviewTop(): Promise<AdminOverviewTop> {
+    return this.blockCache.wrap("top", async () => {
+      const w = this.windows();
+      const [topAnime, topPaths, topReferrers, recentUsers] = await Promise.all([
+        this.topAnime(),
+        this.prisma.$queryRaw<Array<{ path: string; count: number }>>`
+          SELECT path, COUNT(*)::int AS count FROM "PageView"
+          WHERE "createdAt" >= ${w.last30} AND ${Prisma.raw(NOT_BOT)}
+          GROUP BY path ORDER BY count DESC LIMIT 8
+        `,
+        this.topReferrers(),
+        this.recentUsers(),
+      ]);
+      return { topAnime, topPaths, topReferrers, recentUsers };
+    }) as Promise<AdminOverviewTop>;
   }
 
   /** The numbers the Prometheus gauges report — read here, once per scrape
@@ -395,158 +548,7 @@ export class AdminService {
     return { up: target.health === "up", lastScrape: target.lastScrape };
   }
 
-  private async kpis(w: Windows): Promise<AdminOverview["kpis"]> {
-    const current = { gte: w.last30 };
-    const previous = { gte: w.last60, lt: w.last30 };
-
-    const [
-      usersTotal,
-      usersCurrent,
-      usersPrevious,
-      pageviewsTotal,
-      pageviewsCurrent,
-      pageviewsPrevious,
-      [visitors],
-      watchTotal,
-      watchCurrent,
-      watchPrevious,
-      commentsTotal,
-      commentsCurrent,
-      commentsPrevious,
-    ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { createdAt: current } }),
-      this.prisma.user.count({ where: { createdAt: previous } }),
-      this.prisma.pageView.count(),
-      this.prisma.pageView.count({ where: { createdAt: current } }),
-      this.prisma.pageView.count({ where: { createdAt: previous } }),
-      this.prisma.$queryRaw<Array<{ total: number; current: number; previous: number }>>`
-        SELECT
-          COUNT(DISTINCT "visitorId")::int AS total,
-          COUNT(DISTINCT "visitorId") FILTER (WHERE "createdAt" >= ${w.last30})::int AS current,
-          COUNT(DISTINCT "visitorId") FILTER (
-            WHERE "createdAt" >= ${w.last60} AND "createdAt" < ${w.last30}
-          )::int AS previous
-        FROM "PageView"
-      `,
-      this.prisma.watchSession.aggregate({ _sum: { seconds: true } }),
-      this.prisma.watchSession.aggregate({
-        _sum: { seconds: true },
-        where: { startedAt: current },
-      }),
-      this.prisma.watchSession.aggregate({
-        _sum: { seconds: true },
-        where: { startedAt: previous },
-      }),
-      this.prisma.comment.count(),
-      this.prisma.comment.count({ where: { createdAt: current } }),
-      this.prisma.comment.count({ where: { createdAt: previous } }),
-    ]);
-
-    const kpi = (total: number, cur: number, prev: number): AdminKpi => ({
-      total,
-      current: cur,
-      previous: prev,
-    });
-
-    return {
-      users: kpi(usersTotal, usersCurrent, usersPrevious),
-      visitors: kpi(visitors?.total ?? 0, visitors?.current ?? 0, visitors?.previous ?? 0),
-      pageviews: kpi(pageviewsTotal, pageviewsCurrent, pageviewsPrevious),
-      watchSeconds: kpi(
-        watchTotal._sum.seconds ?? 0,
-        watchCurrent._sum.seconds ?? 0,
-        watchPrevious._sum.seconds ?? 0,
-      ),
-      comments: kpi(commentsTotal, commentsCurrent, commentsPrevious),
-    };
-  }
-
-  private async timeline(w: Windows): Promise<AdminOverview["timeline"]> {
-    const [traffic, registrations, watch, guestWatch] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ day: string; pageviews: number; visitors: number; guests: number }>>`
-        SELECT
-          to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
-          COUNT(*)::int AS pageviews,
-          COUNT(DISTINCT "visitorId")::int AS visitors,
-          COUNT(*) FILTER (WHERE "userId" IS NULL)::int AS guests
-        FROM "PageView"
-        WHERE "createdAt" >= ${w.timelineStart}
-        GROUP BY 1
-      `,
-      this.prisma.$queryRaw<Array<{ day: string; count: number }>>`
-        SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
-        FROM "User"
-        WHERE "createdAt" >= ${w.timelineStart}
-        GROUP BY 1
-      `,
-      this.prisma.$queryRaw<Array<{ day: string; seconds: number }>>`
-        SELECT
-          to_char(date_trunc('day', "startedAt"), 'YYYY-MM-DD') AS day,
-          COALESCE(SUM(seconds), 0)::int AS seconds
-        FROM "WatchSession"
-        WHERE "startedAt" >= ${w.timelineStart}
-        GROUP BY 1
-      `,
-      this.prisma.$queryRaw<Array<{ day: string; seconds: number }>>`
-        SELECT
-          to_char(date_trunc('day', "startedAt"), 'YYYY-MM-DD') AS day,
-          COALESCE(SUM(seconds), 0)::int AS seconds
-        FROM "GuestWatchSession"
-        WHERE "startedAt" >= ${w.timelineStart}
-        GROUP BY 1
-      `,
-    ]);
-    const guestWatchByDay = new Map(guestWatch.map((r) => [r.day, r.seconds]));
-
-    const trafficByDay = new Map(traffic.map((r) => [r.day, r]));
-    const registrationsByDay = new Map(registrations.map((r) => [r.day, r.count]));
-    const watchByDay = new Map(watch.map((r) => [r.day, r.seconds]));
-
-    return Array.from({ length: TIMELINE_DAYS }, (_, i) => {
-      const date = new Date(w.timelineStart.getTime() + i * DAY_MS).toISOString().slice(0, 10);
-      return {
-        date,
-        pageviews: trafficByDay.get(date)?.pageviews ?? 0,
-        visitors: trafficByDay.get(date)?.visitors ?? 0,
-        registrations: registrationsByDay.get(date) ?? 0,
-        watchMinutes: Math.round((watchByDay.get(date) ?? 0) / 60),
-        guestPageviews: trafficByDay.get(date)?.guests ?? 0,
-        guestWatchMinutes: Math.round((guestWatchByDay.get(date) ?? 0) / 60),
-      };
-    });
-  }
-
-  private async hourly(w: Windows): Promise<AdminOverview["hourly"]> {
-    const rows = await this.prisma.$queryRaw<Array<{ hour: number; count: number }>>`
-      SELECT EXTRACT(HOUR FROM "createdAt")::int AS hour, COUNT(*)::int AS count
-      FROM "PageView"
-      WHERE "createdAt" >= ${w.last7}
-      GROUP BY 1
-    `;
-    const byHour = new Map(rows.map((r) => [r.hour, r.count]));
-    return Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      pageviews: byHour.get(hour) ?? 0,
-    }));
-  }
-
-  private async audience(w: Windows): Promise<AdminOverview["audience"]> {
-    const [total, admins, banned, telegram, [active]] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { role: "ADMIN" } }),
-      this.prisma.user.count({ where: { isBanned: true } }),
-      this.prisma.user.count({ where: { telegramId: { not: null } } }),
-      this.prisma.$queryRaw<Array<{ count: number }>>`
-        SELECT COUNT(DISTINCT "visitorId")::int AS count
-        FROM "PageView"
-        WHERE "createdAt" >= ${w.todayStart}
-      `,
-    ]);
-    return { total, admins, banned, telegram, activeToday: active?.count ?? 0 };
-  }
-
-  private async topReferrers(): Promise<AdminOverview["topReferrers"]> {
+  private async topReferrers(): Promise<AdminOverviewTop["topReferrers"]> {
     const groups = await this.prisma.user.groupBy({
       by: ["referrer"],
       _count: { _all: true },
@@ -562,50 +564,12 @@ export class AdminService {
       .map(([host, count]) => ({ host, count }));
   }
 
-  private async topPaths(w: Windows): Promise<AdminOverview["topPaths"]> {
-    const groups = await this.prisma.pageView.groupBy({
-      by: ["path"],
-      where: { createdAt: { gte: w.last30 } },
-      _count: { _all: true },
-    });
-    return groups
-      .map((g) => ({ path: g.path, count: g._count._all }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-  }
-
-  private async libraryStatus(): Promise<AdminOverview["libraryStatus"]> {
-    const groups = await this.prisma.libraryEntry.groupBy({
-      by: ["status"],
-      _count: { _all: true },
-    });
-    const byStatus = new Map(groups.map((g) => [g.status, g._count._all]));
-    return ADMIN_LIBRARY_STATUSES.map((status) => ({
-      status,
-      count: byStatus.get(status) ?? 0,
-    }));
-  }
-
-  /** Genres of titles people actually put in their lists — what the
-   * audience is into, as opposed to what the catalogue happens to hold. */
-  private async topGenres(): Promise<AdminOverview["topGenres"]> {
-    return this.prisma.$queryRaw<Array<{ name: string; count: number }>>`
-      SELECT g.name AS name, COUNT(*)::int AS count
-      FROM "LibraryEntry" le
-      JOIN "GenreOnAnime" ga ON ga."animeId" = le."animeId"
-      JOIN "Genre" g ON g.id = ga."genreId"
-      GROUP BY g.name
-      ORDER BY count DESC
-      LIMIT 8
-    `;
-  }
-
   /**
    * The most-opened titles of the last 30 days, counted from title-page
    * views of both audiences, with player time split the same way. Topped
    * up from the all-time view counter when there isn't a month of traffic.
    */
-  private async topAnime(): Promise<AdminOverview["topAnime"]> {
+  private async topAnime(): Promise<AdminOverviewTop["topAnime"]> {
     const since = new Date(Date.now() - 30 * DAY_MS);
     const recent = await this.prisma.$queryRaw<Array<{ id: number; registered: number; guests: number }>>`
       SELECT
@@ -669,7 +633,7 @@ export class AdminService {
       }));
   }
 
-  private async recentUsers(): Promise<AdminOverview["recentUsers"]> {
+  private async recentUsers(): Promise<AdminOverviewTop["recentUsers"]> {
     const rows = await this.prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       take: 6,
@@ -681,27 +645,6 @@ export class AdminService {
       avatarUrl: u.avatarUrl,
       hasTelegram: u.telegramId != null,
       createdAt: u.createdAt.toISOString(),
-    }));
-  }
-
-  private async recentComments(): Promise<AdminOverview["recentComments"]> {
-    const rows = await this.prisma.comment.findMany({
-      where: { deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      take: 6,
-      include: {
-        user: { select: { displayName: true, avatarUrl: true } },
-        anime: { select: { title: true, titleLocalized: true } },
-      },
-    });
-    return rows.map((c) => ({
-      id: c.id,
-      animeId: c.animeId,
-      animeTitle: c.anime.titleLocalized ?? c.anime.title,
-      authorName: c.mode === "ANON" ? `Аниме-ниндзя #${c.anonSeq ?? 0}` : c.user.displayName,
-      authorAvatarUrl: c.mode === "ANON" ? null : c.user.avatarUrl,
-      body: c.body,
-      createdAt: c.createdAt.toISOString(),
     }));
   }
 
@@ -783,6 +726,9 @@ export class AdminService {
       })
       .catch(() => null);
     if (!user) throw new NotFoundError("User not found.");
+    // A ban ends every session the account had; lifting it lets new ones in.
+    if (input.isBanned === true) await revokeSessions(this.prisma, targetId);
+    else if (input.isBanned === false) forgetSession(targetId);
     const watched = await this.watchSecondsFor([user.id]);
     return toUserSummary(user, watched.get(user.id) ?? 0);
   }
@@ -798,6 +744,8 @@ export class AdminService {
     if (!target) throw new NotFoundError("User not found.");
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     await this.prisma.user.update({ where: { id: targetId }, data: { passwordHash } });
+    // Whoever was signed in with the old password is signed out.
+    await revokeSessions(this.prisma, targetId);
     this.logger?.info({ adminId: callerId, userId: targetId }, "admin set a user's password");
     return { loginEmail: target.email };
   }

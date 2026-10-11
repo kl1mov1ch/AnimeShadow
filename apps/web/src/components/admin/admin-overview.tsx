@@ -1,4 +1,4 @@
-import type { AdminAudienceStats, AdminOverview, AdminWindow } from "@animeshadow/shared";
+import type { AdminAudienceStats, AdminOverviewTop, AdminTimelinePoint, AdminWindow } from "@animeshadow/shared";
 import {
   ClapperboardIcon,
   EyeIcon,
@@ -25,9 +25,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useInView } from "@/hooks/use-in-view";
 import { useLocale, useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
-import { useAdminOverview } from "@/lib/query";
+import { useAdminOverview, useAdminOverviewTimeline, useAdminOverviewTop } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { AnimeThumb, EmptyBlock, ENTER, Panel, timeAgo, UserAvatar, useFormatDuration } from "./admin-ui";
 
@@ -83,13 +84,49 @@ export function AdminOverviewTab() {
         <SplitTable registered={split.registered} guests={split.guests} />
       </Panel>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <TrendPanel timeline={data.timeline} kind="pageviews" />
-        <TrendPanel timeline={data.timeline} kind="watch" />
+      {/* Below the fold: each loads its own data once scrolled to. */}
+      <TimelineBlock />
+      <TopBlock />
+    </div>
+  );
+}
+
+/** The 30-day curves, from the daily rollups — loaded when in view. */
+function TimelineBlock() {
+  const [ref, seen] = useInView<HTMLDivElement>();
+  const { data } = useAdminOverviewTimeline(seen);
+  return (
+    <div ref={ref} className="grid gap-5 xl:grid-cols-2">
+      {data ? (
+        <>
+          <TrendPanel timeline={data} kind="pageviews" />
+          <TrendPanel timeline={data} kind="watch" />
+        </>
+      ) : (
+        <>
+          <Skeleton className="h-72 rounded-2xl" />
+          <Skeleton className="hidden h-72 rounded-2xl xl:block" />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Top titles, pages, sources and newest accounts — loaded when in view. */
+function TopBlock() {
+  const t = useT();
+  const [ref, seen] = useInView<HTMLDivElement>();
+  const { data } = useAdminOverviewTop(seen);
+  if (!data) {
+    return (
+      <div ref={ref} className="flex flex-col gap-5">
+        <Skeleton className="h-80 rounded-2xl" />
       </div>
-
+    );
+  }
+  return (
+    <div ref={ref} className="flex flex-col gap-5">
       <TopAnimePanel items={data.topAnime} />
-
       <div className="grid gap-5 lg:grid-cols-3">
         <ListPanel
           icon={<MousePointerClickIcon />}
@@ -124,7 +161,7 @@ function Stat({ icon: Icon, label, value, note }: { icon: LucideIcon; label: str
         <span className="grid size-7 place-items-center rounded-lg bg-primary/15 text-primary">
           <Icon className="size-3.5" />
         </span>
-        <span className="truncate">{label}</span>
+        <span className="line-clamp-2 leading-tight">{label}</span>
       </span>
       <span className="font-display text-2xl tabular-nums sm:text-3xl">{value.toLocaleString()}</span>
       <span className="truncate text-[11px] text-muted-foreground">{note}</span>
@@ -224,7 +261,7 @@ function SplitTable({ registered, guests }: { registered: AdminAudienceStats; gu
   );
 }
 
-function TrendPanel({ timeline, kind }: { timeline: AdminOverview["timeline"]; kind: "pageviews" | "watch" }) {
+function TrendPanel({ timeline, kind }: { timeline: AdminTimelinePoint[]; kind: "pageviews" | "watch" }) {
   const t = useT();
   const { locale } = useLocale();
   const data = timeline.map((d) => ({
@@ -272,7 +309,7 @@ function TrendPanel({ timeline, kind }: { timeline: AdminOverview["timeline"]; k
   );
 }
 
-function TopAnimePanel({ items: raw }: { items: AdminOverview["topAnime"] }) {
+function TopAnimePanel({ items: raw }: { items: AdminOverviewTop["topAnime"] }) {
   // Older API responses have no per-audience columns — count them as zero.
   const items = raw.map((i) => ({
     ...i,
@@ -370,7 +407,7 @@ function ListPanel({
   );
 }
 
-function RecentUsers({ users }: { users: AdminOverview["recentUsers"] }) {
+function RecentUsers({ users }: { users: AdminOverviewTop["recentUsers"] }) {
   const t = useT();
   const { locale } = useLocale();
   return (

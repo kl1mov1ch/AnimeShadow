@@ -1,5 +1,6 @@
 import {
   adminAnalyticsQuerySchema,
+  adminBreakdownQuerySchema,
   adminCommentQuerySchema,
   adminMonitoringQuerySchema,
   adminSetPasswordInputSchema,
@@ -20,12 +21,38 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const { admin, comments, adminAnalytics } = fastify.services;
   const guard = { preHandler: [fastify.authenticate, fastify.requireAdmin] };
 
-  fastify.get("/admin/overview", guard, async () => admin.overview());
+  // The page's header (tab badges, today's pills) — read on every tab.
+  fastify.get("/admin/summary", guard, async () => admin.summary());
 
-  // The analytics tab: any period, filtered, with the previous period beside it.
+  // The overview, block by block: each is loaded when it comes into view
+  // and cached on the server (see AdminService).
+  fastify.get("/admin/overview", guard, async () => admin.overview());
+  fastify.get("/admin/overview/timeline", guard, async () => admin.overviewTimeline());
+  fastify.get("/admin/overview/top", guard, async () => admin.overviewTop());
+
+  // The analytics tab: any period, filtered, with the previous period beside
+  // it — the numbers and curve first, every other block its own request.
   fastify.get("/admin/analytics", guard, async (request) =>
     adminAnalytics.analytics(parse(adminAnalyticsQuerySchema, request.query)),
   );
+  fastify.get("/admin/analytics/live", guard, async (request) =>
+    adminAnalytics.live(parse(adminAnalyticsQuerySchema, request.query)),
+  );
+  fastify.get("/admin/analytics/heatmap", guard, async (request) =>
+    adminAnalytics.heatmap(parse(adminAnalyticsQuerySchema, request.query)),
+  );
+  fastify.get("/admin/analytics/breakdowns", guard, async (request) =>
+    adminAnalytics.breakdowns(parse(adminBreakdownQuerySchema, request.query)),
+  );
+  fastify.get("/admin/analytics/retention", guard, async (request) =>
+    adminAnalytics.retention(parse(adminAnalyticsQuerySchema, request.query)),
+  );
+  // Past the raw page views' retention: the daily rollups, a month at a time.
+  fastify.get("/admin/analytics/archive", guard, async () => adminAnalytics.archive());
+  fastify.get("/admin/analytics/archive/:month", guard, async (request) => {
+    const { month } = parse(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }), request.params);
+    return adminAnalytics.archiveMonth(month);
+  });
   fastify.get("/admin/analytics/visitors", guard, async (request) =>
     adminAnalytics.visitors(parse(adminVisitorsQuerySchema, request.query)),
   );

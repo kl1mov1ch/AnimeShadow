@@ -116,7 +116,7 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const input = parse(logSessionInputSchema, request.body);
       await profile.logSession(request.userId!, input);
-      void achievements.recompute(request.userId!).catch(() => {});
+      achievements.recomputeSoon(request.userId!);
       reply.code(204);
       return null;
     },

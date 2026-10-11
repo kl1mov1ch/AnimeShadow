@@ -1,6 +1,7 @@
 import { resetPasswordInputSchema } from "@animeshadow/shared";
-import { type FormEvent, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { type FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { clearLinkParams, linkParam } from "@/lib/link-params";
 import {
   AuthCard,
   AuthField,
@@ -21,14 +22,15 @@ type Errors = Partial<Record<"email" | "code" | "password" | "form", string>>;
 export function Component() {
   const t = useT();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
   const resetPassword = useResetPassword();
 
-  const [email, setEmail] = useState(params.get("email") ?? "");
+  const [email, setEmail] = useState(() => linkParam("email") ?? "");
   // Prefilled when arriving from the email's one-click link.
   const [code, setCode] = useState(
-    () => params.get("code")?.replace(/\D/g, "").slice(0, 6) ?? "",
+    () => linkParam("code")?.replace(/\D/g, "").slice(0, 6) ?? "",
   );
+  // Read once; out of the address bar, history and analytics from here on.
+  useEffect(() => clearLinkParams(), []);
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [done, setDone] = useState(false);

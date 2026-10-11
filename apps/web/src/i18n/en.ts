@@ -742,6 +742,8 @@ export const en = {
     },
     forgotPassword: "Forgot password?",
     verifyEmail: {
+      passwordPrompt: "Enter the password you chose when signing up",
+      passwordWrong: "That password doesn't match the one chosen at signup",
       title: "Verify your email",
       subtitle: "We sent a 6-digit code to {email}. Enter it below.",
       submit: "Verify",

@@ -7,6 +7,7 @@ import { contentGuardWhere } from "../lib/content-guard.js";
 import { NotFoundError } from "../lib/errors.js";
 import { parse } from "../lib/validation.js";
 import { SITE } from "../seo/html.js";
+import { PAGE_CSP } from "../seo/csp.js";
 
 /** Anime per sitemap file (the limit is 50 000; smaller files regenerate faster). */
 const ANIME_PER_SITEMAP = 10_000;
@@ -32,7 +33,8 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
       .code(page.status)
       .header("content-type", "text/html; charset=utf-8")
       // Always re-checked, so a deploy shows at once.
-      .header("cache-control", "no-cache");
+      .header("cache-control", "no-cache")
+      .header("content-security-policy", PAGE_CSP);
     return page.html;
   });
 

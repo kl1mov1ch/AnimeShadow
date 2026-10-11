@@ -1,14 +1,23 @@
- import { Prisma, type PrismaClient } from "@animeshadow/db";
+import { Prisma, type PrismaClient } from "@animeshadow/db";
 import type {
   AdminAnalytics,
+  AdminAnalyticsBreakdowns,
+  AdminAnalyticsHeatmap,
+  AdminAnalyticsLive,
   AdminAnalyticsQuery,
+  AdminAnalyticsRetention,
   AdminAnalyticsRow,
   AdminAnalyticsSummary,
+  AdminArchiveDetail,
+  AdminArchiveKey,
+  AdminArchiveMonth,
+  AdminBreakdownQuery,
   AdminVisitor,
   AdminVisitorDetail,
   AdminVisitorsQuery,
   Paginated,
 } from "@animeshadow/shared";
+import { TtlCache } from "../lib/cache.js";
 import { NotFoundError } from "../lib/errors.js";
 
 export interface AdminAnalyticsServiceDeps {
@@ -46,48 +55,82 @@ interface Range {
   to: Date;
 }
 
+/** How long each kind of answer is kept: the numbers move, the shape of
+ *  traffic over a month or a cohort table hardly does. */
+const TTL = { core: 60_000, block: 5 * 60_000, retention: 60 * 60_000, archive: 10 * 60_000 };
+
 /**
  * The admin's "Аналитика" tab: visits for any period, cut by audience,
  * device and page, with the previous period of the same length beside it.
  * All of it comes from our own PageView table — anonymous visitor and
  * session ids kept by the browser, never an IP address.
+ *
+ * Every block of the tab is its own request — the numbers and curve, who is
+ * on the site now, the heatmap, one group of breakdown tables, the cohort
+ * table, the archive — fetched when the block comes into view, and each
+ * answer is kept for a while (TTL above), so leaving the tab open or a
+ * second admin looking costs nothing. It used to be one request of about
+ * thirty queries, several over everyone's whole history, every minute.
+ * "New or returning" is a lookup in VisitorFirstSeen; days past the raw
+ * page views' retention are read from the daily rollups (the archive).
  */
 export class AdminAnalyticsService {
   private readonly prisma: PrismaClient;
+  private readonly cache = new TtlCache<unknown>(TTL.block, 300);
+  private readonly longCache = new TtlCache<unknown>(TTL.retention, 100);
+  private readonly coreCache = new TtlCache<unknown>(TTL.core, 200);
 
   constructor(deps: AdminAnalyticsServiceDeps) {
     this.prisma = deps.prisma;
   }
 
   async analytics(query: AdminAnalyticsQuery): Promise<AdminAnalytics> {
-    const range = rangeOf(query);
-    const span = range.to.getTime() - range.from.getTime();
-    const previousRange = { from: new Date(range.from.getTime() - span), to: range.from };
-    const bucket: "hour" | "day" = span <= 2 * DAY_MS ? "hour" : "day";
-    const where = this.filter(query, range);
+    return this.cached(this.coreCache, "core", query, async () => {
+      const range = rangeOf(query);
+      const span = range.to.getTime() - range.from.getTime();
+      const previousRange = { from: new Date(range.from.getTime() - span), to: range.from };
+      const bucket: "hour" | "day" = span <= 2 * DAY_MS ? "hour" : "day";
 
-    const [summary, previous, live, series, previousSeries, heatmap, breakdowns, retention] = await Promise.all([
-      this.summary(query, range),
-      this.summary(query, previousRange),
-      this.live(query),
-      this.series(query, range, bucket),
-      this.series(query, previousRange, bucket),
-      this.heatmap(where, query.tz),
-      this.breakdowns(where),
-      this.retention(query, range),
-    ]);
+      const [summary, previous, series, previousSeries, [oldest]] = await Promise.all([
+        this.summary(query, range),
+        this.summary(query, previousRange),
+        this.series(query, range, bucket),
+        this.series(query, previousRange, bucket),
+        this.prisma.$queryRaw<Array<{ first: Date | null }>>`SELECT MIN("createdAt") AS first FROM "PageView"`,
+      ]);
+      return {
+        range: { from: range.from.toISOString(), to: range.to.toISOString(), bucket },
+        summary,
+        previous,
+        series,
+        previousSeries,
+        rawSince: oldest?.first?.toISOString() ?? null,
+      };
+    });
+  }
 
-    return {
-      range: { from: range.from.toISOString(), to: range.to.toISOString(), bucket },
-      summary,
-      previous,
-      live,
-      series,
-      previousSeries,
-      heatmap,
-      breakdowns,
-      retention,
-    };
+  async live(query: AdminAnalyticsQuery): Promise<AdminAnalyticsLive> {
+    const now = new Date();
+    const where = this.filter(query, { from: new Date(now.getTime() - 5 * 60_000), to: new Date(now.getTime() + 60_000) });
+    const [row] = await this.prisma.$queryRaw<Array<{ visitors: number; pageviews: number }>>`
+      SELECT COUNT(DISTINCT "visitorId")::int AS visitors, COUNT(*)::int AS pageviews
+      FROM "PageView" WHERE ${where}
+    `;
+    return { visitors: row?.visitors ?? 0, pageviews: row?.pageviews ?? 0 };
+  }
+
+  async heatmap(query: AdminAnalyticsQuery): Promise<AdminAnalyticsHeatmap> {
+    return this.cached(this.cache, "heatmap", query, () => {
+      const where = this.filter(query, rangeOf(query));
+      return this.prisma.$queryRaw<AdminAnalyticsHeatmap>`
+        SELECT
+          EXTRACT(DOW FROM (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${query.tz}))::int AS dow,
+          EXTRACT(HOUR FROM (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${query.tz}))::int AS hour,
+          COUNT(*)::int AS pageviews
+        FROM "PageView" WHERE ${where}
+        GROUP BY 1, 2
+      `;
+    });
   }
 
   // -- filters -------------------------------------------------------------
@@ -132,17 +175,13 @@ export class AdminAnalyticsService {
           AVG(n)::float AS avg_pages
         FROM s
       `,
+      // New or returning: when the browser was first seen, by key lookup.
       this.prisma.$queryRaw<Array<{ fresh: number; returning: number }>>`
-        WITH seen AS (SELECT DISTINCT "visitorId" FROM "PageView" WHERE ${where}),
-        first AS (
-          SELECT p."visitorId", MIN(p."createdAt") AS first
-          FROM "PageView" p JOIN seen USING ("visitorId")
-          GROUP BY p."visitorId"
-        )
         SELECT
-          COUNT(*) FILTER (WHERE first >= ${range.from})::int AS fresh,
-          COUNT(*) FILTER (WHERE first < ${range.from})::int AS returning
-        FROM first
+          COUNT(*) FILTER (WHERE f."firstAt" IS NULL OR f."firstAt" >= ${range.from})::int AS fresh,
+          COUNT(*) FILTER (WHERE f."firstAt" < ${range.from})::int AS returning
+        FROM (SELECT DISTINCT "visitorId" FROM "PageView" WHERE ${where}) seen
+        LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
       `,
       this.prisma.user.count({ where: { createdAt: { gte: range.from, lt: range.to } } }),
       query.audience === "guests"
@@ -169,16 +208,6 @@ export class AdminAnalyticsService {
     };
   }
 
-  private async live(query: AdminAnalyticsQuery): Promise<AdminAnalytics["live"]> {
-    const now = new Date();
-    const where = this.filter(query, { from: new Date(now.getTime() - 5 * 60_000), to: new Date(now.getTime() + 60_000) });
-    const [row] = await this.prisma.$queryRaw<Array<{ visitors: number; pageviews: number }>>`
-      SELECT COUNT(DISTINCT "visitorId")::int AS visitors, COUNT(*)::int AS pageviews
-      FROM "PageView" WHERE ${where}
-    `;
-    return { visitors: row?.visitors ?? 0, pageviews: row?.pageviews ?? 0 };
-  }
-
   private async series(query: AdminAnalyticsQuery, range: Range, bucket: "hour" | "day"): Promise<AdminAnalytics["series"]> {
     const where = this.filter(query, range);
     const unit = Prisma.raw(`'${bucket}'`);
@@ -187,21 +216,17 @@ export class AdminAnalyticsService {
       this.prisma.$queryRaw<
         Array<{ at: string; visitors: number; users: number; sessions: number; pageviews: number; fresh: number }>
       >`
-        WITH ${sessioned(where)},
-        v AS (SELECT * FROM sv),
-        first AS (
-          SELECT p."visitorId", MIN(p."createdAt") AS first
-          FROM "PageView" p WHERE p."visitorId" IN (SELECT DISTINCT "visitorId" FROM v)
-          GROUP BY p."visitorId"
-        )
+        WITH ${sessioned(where)}
         SELECT
           to_char(date_trunc(${unit}, ${local}), 'YYYY-MM-DD"T"HH24:00') AS at,
-          COUNT(DISTINCT v."visitorId")::int AS visitors,
-          COUNT(DISTINCT v."userId")::int AS users,
-          SUM(v.start)::int AS sessions,
+          COUNT(DISTINCT sv."visitorId")::int AS visitors,
+          COUNT(DISTINCT sv."userId")::int AS users,
+          SUM(sv.start)::int AS sessions,
           COUNT(*)::int AS pageviews,
-          COUNT(DISTINCT v."visitorId") FILTER (WHERE date_trunc(${unit}, first."first") = date_trunc(${unit}, v."createdAt"))::int AS fresh
-        FROM v JOIN first USING ("visitorId")
+          COUNT(DISTINCT sv."visitorId") FILTER (
+            WHERE f."firstAt" IS NULL OR date_trunc(${unit}, f."firstAt") = date_trunc(${unit}, sv."createdAt")
+          )::int AS fresh
+        FROM sv LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
         GROUP BY 1
       `,
       this.prisma.$queryRaw<Array<{ at: string; count: number }>>`
@@ -240,20 +265,24 @@ export class AdminAnalyticsService {
     return out;
   }
 
-  private async heatmap(where: Prisma.Sql, tz: string): Promise<AdminAnalytics["heatmap"]> {
-    return this.prisma.$queryRaw<AdminAnalytics["heatmap"]>`
-      SELECT
-        EXTRACT(DOW FROM (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}))::int AS dow,
-        EXTRACT(HOUR FROM (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}))::int AS hour,
-        COUNT(*)::int AS pageviews
-      FROM "PageView" WHERE ${where}
-      GROUP BY 1, 2
-    `;
+  // -- breakdowns, a group at a time --------------------------------------
+
+  async breakdowns(query: AdminBreakdownQuery): Promise<Partial<AdminAnalyticsBreakdowns>> {
+    return this.cached(this.cache, `breakdowns:${query.group}`, query, () => this.computeBreakdowns(query));
   }
 
-  private async breakdowns(where: Prisma.Sql): Promise<AdminAnalytics["breakdowns"]> {
+  private async computeBreakdowns(query: AdminBreakdownQuery): Promise<Partial<AdminAnalyticsBreakdowns>> {
+    const where = this.filter(query, rangeOf(query));
+    type Raw = Array<{ key: string | null; pageviews: number; visitors: number; avg: number | null }>;
+    const toRows = (rows: Raw): AdminAnalyticsRow[] =>
+      rows.map((r) => ({
+        key: r.key ?? "—",
+        pageviews: r.pageviews,
+        visitors: r.visitors,
+        avgSec: r.avg == null ? null : Math.round(r.avg),
+      }));
     const entries = (key: Prisma.Sql, limit = 100) =>
-      this.prisma.$queryRaw<Array<{ key: string | null; pageviews: number; visitors: number; avg: number | null }>>`
+      this.prisma.$queryRaw<Raw>`
         WITH ${sessioned(where)}
         SELECT
           ${key} AS key,
@@ -265,18 +294,9 @@ export class AdminAnalyticsService {
         GROUP BY 1
         ORDER BY pageviews DESC
         LIMIT ${limit}
-      `.then((rows) =>
-        rows.map(
-          (r): AdminAnalyticsRow => ({
-            key: r.key ?? "—",
-            pageviews: r.pageviews,
-            visitors: r.visitors,
-            avgSec: r.avg == null ? null : Math.round(r.avg),
-          }),
-        ),
-      );
+      `.then(toRows);
     const by = (key: Prisma.Sql, extra: Prisma.Sql = Prisma.empty, limit = 100) =>
-      this.prisma.$queryRaw<Array<{ key: string | null; pageviews: number; visitors: number; avg: number | null }>>`
+      this.prisma.$queryRaw<Raw>`
         SELECT
           ${key} AS key,
           COUNT(*)::int AS pageviews,
@@ -287,28 +307,20 @@ export class AdminAnalyticsService {
         GROUP BY 1
         ORDER BY pageviews DESC
         LIMIT ${limit}
-      `.then((rows) =>
-        rows.map(
-          (r): AdminAnalyticsRow => ({
-            key: r.key ?? "—",
-            pageviews: r.pageviews,
-            visitors: r.visitors,
-            avgSec: r.avg == null ? null : Math.round(r.avg),
-          }),
-        ),
-      );
+      `.then(toRows);
 
-    const [pages, sections, entryPages, animeRaw, referrers, utmSources, utmCampaigns, devices, browsers, os, langs, screens] =
-      await Promise.all([
-        by(Prisma.sql`path`, Prisma.empty, 200),
-        by(Prisma.sql`COALESCE(NULLIF(substring(path from '^/[^/?#]*'), '/'), '/ (главная)')`),
-        entries(Prisma.sql`path`),
-        by(Prisma.sql`substring(path from ${ANIME_SLUG})`, Prisma.sql`AND path ~ ${ANIME_SLUG}`, 100),
+    if (query.group === "sources") {
+      const [referrers, utmSources, utmCampaigns] = await Promise.all([
         // The session's own referrer where we have it; older views only kept
         // the visitor's very first one.
         entries(Prisma.sql`COALESCE(substring(COALESCE("sessionRef", referrer) from ${HOST}), 'Прямые заходы')`),
         by(Prisma.sql`"utmSource"`, Prisma.sql`AND "utmSource" IS NOT NULL`),
         by(Prisma.sql`"utmCampaign"`, Prisma.sql`AND "utmCampaign" IS NOT NULL`),
+      ]);
+      return { referrers, utmSources, utmCampaigns };
+    }
+    if (query.group === "tech") {
+      const [devices, browsers, os, langs, screens] = await Promise.all([
         by(Prisma.sql`COALESCE(device, 'неизвестно')`),
         by(Prisma.sql`COALESCE(browser, 'неизвестно')`),
         by(Prisma.sql`COALESCE(os, 'неизвестно')`),
@@ -322,7 +334,15 @@ export class AdminAnalyticsService {
           WHEN "screenW" < 1920 THEN '1440–1919 (монитор)'
           ELSE '1920+ (большой монитор)' END`),
       ]);
+      return { devices, browsers, os, langs, screens };
+    }
 
+    const [pages, sections, entryPages, animeRaw] = await Promise.all([
+      by(Prisma.sql`path`, Prisma.empty, 200),
+      by(Prisma.sql`COALESCE(NULLIF(substring(path from '^/[^/?#]*'), '/'), '/ (главная)')`),
+      entries(Prisma.sql`path`),
+      by(Prisma.sql`substring(path from ${ANIME_SLUG})`, Prisma.sql`AND path ~ ${ANIME_SLUG}`, 100),
+    ]);
     // Anime pages by name rather than by slug.
     const keys = animeRaw.map((r) => r.key);
     const ids = keys.map((k) => Number.parseInt(k, 10)).filter((n) => Number.isFinite(n));
@@ -336,48 +356,150 @@ export class AdminAnalyticsService {
       const hit = titles.find((a) => a.slug === r.key || String(a.id) === r.key || r.key.startsWith(`${a.id}-`));
       return { ...r, label: hit ? (hit.titleLocalized ?? hit.title) : r.key, href: `/anime/${r.key}` };
     });
-
-    return { pages, sections, entryPages, anime, referrers, utmSources, utmCampaigns, devices, browsers, os, langs, screens };
+    return { pages, sections, entryPages, anime };
   }
 
-  /** Weekly cohorts by first visit: how many came back 1–4 weeks later. */
-  private async retention(query: AdminAnalyticsQuery, range: Range): Promise<AdminAnalytics["retention"]> {
-    const audience =
-      query.audience === "guests"
-        ? Prisma.sql`AND "userId" IS NULL`
-        : query.audience === "users"
-          ? Prisma.sql`AND "userId" IS NOT NULL`
-          : Prisma.empty;
-    const rows = await this.prisma.$queryRaw<Array<{ week: string; visitors: number; w1: number; w2: number; w3: number; w4: number }>>`
-      WITH first AS (
-        SELECT "visitorId", date_trunc('week', MIN("createdAt")) AS week
-        FROM "PageView"
-        WHERE (device IS NULL OR device <> 'bot') ${audience}
-        GROUP BY "visitorId"
-        HAVING MIN("createdAt") >= ${range.from} AND MIN("createdAt") < ${range.to}
-      ),
-      activity AS (
-        SELECT DISTINCT p."visitorId", f.week,
-          (EXTRACT(EPOCH FROM date_trunc('week', p."createdAt") - f.week) / 604800)::int AS k
-        FROM "PageView" p JOIN first f USING ("visitorId")
-      )
-      SELECT
-        to_char(f.week, 'YYYY-MM-DD') AS week,
-        COUNT(DISTINCT f."visitorId")::int AS visitors,
-        COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 1)::int AS w1,
-        COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 2)::int AS w2,
-        COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 3)::int AS w3,
-        COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 4)::int AS w4
-      FROM first f LEFT JOIN activity a ON a."visitorId" = f."visitorId"
-      GROUP BY f.week
-      ORDER BY f.week
-    `;
-    return rows.map((r) => ({ week: r.week, visitors: r.visitors, returned: [r.w1, r.w2, r.w3, r.w4] }));
+  /** Weekly cohorts by first visit: how many came back 1–4 weeks later. The
+   *  cohort is read from VisitorFirstSeen; the coming back, from the page
+   *  views of those visitors only. */
+  async retention(query: AdminAnalyticsQuery): Promise<AdminAnalyticsRetention> {
+    return this.cached(this.longCache, "retention", { ...query, to: undefined }, async () => {
+      const range = rangeOf(query);
+      const audience =
+        query.audience === "guests"
+          ? Prisma.sql`AND p."userId" IS NULL`
+          : query.audience === "users"
+            ? Prisma.sql`AND p."userId" IS NOT NULL`
+            : Prisma.empty;
+      const until = new Date(range.to.getTime() + 35 * DAY_MS);
+      const rows = await this.prisma.$queryRaw<Array<{ week: string; visitors: number; w1: number; w2: number; w3: number; w4: number }>>`
+        WITH first AS (
+          SELECT "visitorId", date_trunc('week', "firstAt") AS week
+          FROM "VisitorFirstSeen"
+          WHERE "firstAt" >= ${range.from} AND "firstAt" < ${range.to}
+        ),
+        activity AS (
+          SELECT DISTINCT p."visitorId", f.week,
+            (EXTRACT(EPOCH FROM date_trunc('week', p."createdAt") - f.week) / 604800)::int AS k
+          FROM "PageView" p JOIN first f USING ("visitorId")
+          WHERE p."createdAt" >= ${range.from} AND p."createdAt" < ${until}
+            AND (p.device IS NULL OR p.device <> 'bot') ${audience}
+        )
+        SELECT
+          to_char(f.week, 'YYYY-MM-DD') AS week,
+          COUNT(DISTINCT f."visitorId")::int AS visitors,
+          COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 1)::int AS w1,
+          COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 2)::int AS w2,
+          COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 3)::int AS w3,
+          COUNT(DISTINCT a."visitorId") FILTER (WHERE a.k = 4)::int AS w4
+        FROM first f LEFT JOIN activity a ON a."visitorId" = f."visitorId"
+        GROUP BY f.week
+        ORDER BY f.week
+      `;
+      return rows.map((r) => ({ week: r.week, visitors: r.visitors, returned: [r.w1, r.w2, r.w3, r.w4] }));
+    });
+  }
+
+  // -- the archive (daily rollups) ------------------------------------------
+
+  /** Every month the rollups hold, newest first. */
+  async archive(): Promise<AdminArchiveMonth[]> {
+    return this.cached(this.cache, "archive", {}, async () => {
+      const rows = await this.prisma.$queryRaw<
+        Array<{ month: string; days: number; pageviews: number; visitors: number; sessions: number; fresh: number; regs: number; watch: number }>
+      >`
+        SELECT
+          to_char(day, 'YYYY-MM') AS month,
+          COUNT(DISTINCT day)::int AS days,
+          SUM(pageviews)::int AS pageviews,
+          SUM(visitors)::int AS visitors,
+          SUM(sessions)::int AS sessions,
+          SUM("newVisitors")::int AS fresh,
+          SUM(registrations)::int AS regs,
+          SUM("watchSec")::bigint::float AS watch
+        FROM "StatDay"
+        GROUP BY 1
+        ORDER BY 1 DESC
+      `;
+      return rows.map((r) => ({
+        month: r.month,
+        days: r.days,
+        pageviews: r.pageviews,
+        visitors: r.visitors,
+        sessions: r.sessions,
+        newVisitors: r.fresh,
+        registrations: r.regs,
+        watchMinutes: Math.round(r.watch / 60),
+      }));
+    });
+  }
+
+  /** One month from the rollups: its days, and its top keys of each kind. */
+  async archiveMonth(month: string): Promise<AdminArchiveDetail> {
+    return this.cached(this.cache, "archive-month", { month }, async () => {
+      const from = `${month}-01`;
+      const [days, keys] = await Promise.all([
+        this.prisma.$queryRaw<Array<{ day: string; pageviews: number; visitors: number; regs: number; watch: number }>>`
+          SELECT to_char(day, 'YYYY-MM-DD') AS day, SUM(pageviews)::int AS pageviews, SUM(visitors)::int AS visitors,
+            SUM(registrations)::int AS regs, SUM("watchSec")::int AS watch
+          FROM "StatDay"
+          WHERE day >= ${from}::date AND day < (${from}::date + interval '1 month')
+          GROUP BY 1 ORDER BY 1
+        `,
+        this.prisma.$queryRaw<Array<{ dim: string; key: string; views: number; uniques: number }>>`
+          SELECT dim, key, views, uniques FROM (
+            SELECT dim, key, SUM(views)::int AS views, SUM(uniques)::int AS uniques,
+              ROW_NUMBER() OVER (PARTITION BY dim ORDER BY SUM(views) DESC) AS rank
+            FROM "StatDayKey"
+            WHERE day >= ${from}::date AND day < (${from}::date + interval '1 month')
+            GROUP BY dim, key
+          ) ranked
+          WHERE rank <= 20
+          ORDER BY dim, views DESC
+        `,
+      ]);
+      if (days.length === 0) throw new NotFoundError("No data for that month");
+
+      // Titles by name.
+      const ids = [...new Set(keys.filter((k) => k.dim === "anime" || k.dim === "watch").map((k) => Number(k.key)))].filter(
+        (n) => Number.isFinite(n),
+      );
+      const titles = ids.length
+        ? await this.prisma.anime.findMany({ where: { id: { in: ids } }, select: { id: true, slug: true, title: true, titleLocalized: true } })
+        : [];
+      const byId = new Map(titles.map((a) => [a.id, a]));
+      const top: Record<string, AdminArchiveKey[]> = {};
+      for (const k of keys) {
+        const anime = k.dim === "anime" || k.dim === "watch" ? byId.get(Number(k.key)) : undefined;
+        (top[k.dim] ??= []).push({
+          key: k.key,
+          ...(anime ? { label: anime.titleLocalized ?? anime.title, href: `/anime/${anime.slug || anime.id}` } : {}),
+          ...(k.dim === "page" ? { href: k.key } : {}),
+          views: k.views,
+          uniques: k.uniques,
+        });
+      }
+      return {
+        month,
+        days: days.map((d) => ({
+          day: d.day,
+          pageviews: d.pageviews,
+          visitors: d.visitors,
+          registrations: d.regs,
+          watchMinutes: Math.round(d.watch / 60),
+        })),
+        top,
+      };
+    });
   }
 
   // -- visitors ------------------------------------------------------------
 
   async visitors(query: AdminVisitorsQuery): Promise<Paginated<AdminVisitor>> {
+    return this.cached(this.coreCache, "visitors", query, () => this.computeVisitors(query));
+  }
+
+  private async computeVisitors(query: AdminVisitorsQuery): Promise<Paginated<AdminVisitor>> {
     const range = rangeOf(query);
     let where = this.filter(query, range);
     if (query.q) {
@@ -486,11 +608,9 @@ export class AdminAnalyticsService {
             select: { id: true, displayName: true, username: true, avatarUrl: true },
           })
         : [],
-      visitorIds.length
-        ? this.prisma.pageView.groupBy({ by: ["visitorId"], where: { visitorId: { in: visitorIds } }, _min: { createdAt: true } })
-        : [],
+      visitorIds.length ? this.prisma.visitorFirstSeen.findMany({ where: { visitorId: { in: visitorIds } } }) : [],
     ]);
-    const firstSeen = new Map(firsts.map((f) => [f.visitorId, f._min.createdAt]));
+    const firstSeen = new Map(firsts.map((f) => [f.visitorId, f.firstAt]));
     return rows.map((r) => {
       const user = users.find((u) => u.id === r.userId) ?? null;
       const first = firstSeen.get(r.visitorId) ?? r.first;
@@ -511,6 +631,11 @@ export class AdminAnalyticsService {
       };
     });
   }
+
+  /** One answer per kind and filters, kept for that kind's TTL. */
+  private cached<T>(cache: TtlCache<unknown>, kind: string, query: unknown, produce: () => Promise<T>): Promise<T> {
+    return cache.wrap(`${kind}:${JSON.stringify(query)}`, produce) as Promise<T>;
+  }
 }
 
 interface VisitorRow {
@@ -528,7 +653,7 @@ interface VisitorRow {
   source: string | null;
 }
 
-function rangeOf(query: { from?: string; to?: string }): Range {
+function rangeOf(query: { from?: string | undefined; to?: string | undefined }): Range {
   const to = query.to ? new Date(query.to) : new Date();
   const from = query.from ? new Date(query.from) : new Date(to.getTime() - 30 * DAY_MS);
   // At most two years at once, and never backwards.

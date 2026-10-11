@@ -78,6 +78,15 @@ export class AgeVerificationRequiredError extends AppError {
  * expired, already used, or has been guessed too many times — distinct from
  * a generic 400 so the frontend can keep the form open with a clear inline
  * message instead of a dead-end error page. */
+/** Signup confirmation from a browser other than the one that sent the
+ * details (a link opened on another device): the account's password has to
+ * be typed again, so the code can only ever confirm the owner's own. */
+export class PasswordRequiredError extends AppError {
+  constructor(message = "Enter the password you chose when signing up.") {
+    super(400, "PASSWORD_REQUIRED", message);
+  }
+}
+
 export class InvalidCodeError extends AppError {
   constructor(message = "That code is wrong or has expired.") {
     super(400, "INVALID_CODE", message);

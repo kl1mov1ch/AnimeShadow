@@ -129,18 +129,18 @@ export function AdminComments() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-4">{t("admin.comments.columns.author")}</TableHead>
-                  <TableHead>{t("admin.comments.columns.anime")}</TableHead>
-                  <TableHead>{t("admin.comments.columns.comment")}</TableHead>
-                  <TableHead>{t("admin.comments.columns.reactions")}</TableHead>
-                  <TableHead>{t("admin.comments.columns.date")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("admin.comments.columns.anime")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("admin.comments.columns.comment")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("admin.comments.columns.reactions")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("admin.comments.columns.date")}</TableHead>
                   <TableHead className="pr-4" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.map((row) => (
                   <TableRow key={row.id} className={cn(row.deleted && "opacity-60")}>
-                    <TableCell className="py-3 pl-4">
-                      <div className="flex min-w-[10rem] items-center gap-2.5">
+                    <TableCell className="py-3 pl-4 align-top md:align-middle">
+                      <div className="flex min-w-0 items-center gap-2.5 md:min-w-[10rem]">
                         <UserAvatar name={row.authorName} url={row.authorAvatarUrl} className="size-8" />
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">{row.authorName}</div>
@@ -149,10 +149,23 @@ export function AdminComments() {
                               {row.mode === "ANON" ? t("admin.comments.anon") : t("admin.comments.supporter")}
                             </Badge>
                           )}
+                          <div className="truncate text-[11px] text-muted-foreground md:hidden">
+                            {row.animeTitle} · {timeAgo(row.createdAt, locale)}
+                          </div>
                         </div>
                       </div>
+                      {/* The text itself, full width under its author on a phone. */}
+                      <div className="mt-2 md:hidden">
+                        {row.deleted ? (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            {t("admin.comments.deleted")}
+                          </Badge>
+                        ) : (
+                          <p className="line-clamp-4 whitespace-normal text-sm leading-relaxed">{row.body}</p>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <AnimeThumb
                         id={row.animeId}
                         slug={row.animeSlug}
@@ -160,7 +173,7 @@ export function AdminComments() {
                         imageUrl={row.animeImageUrl}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {row.deleted ? (
                         <Badge variant="outline" className="text-muted-foreground">
                           {t("admin.comments.deleted")}
@@ -171,7 +184,7 @@ export function AdminComments() {
                         </p>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <div className="flex items-center gap-2.5 text-xs tabular-nums">
                         <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                           <ThumbsUpIcon className="size-3.5" />
@@ -183,7 +196,7 @@ export function AdminComments() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Tooltip>
                         <TooltipTrigger className="whitespace-nowrap text-sm text-muted-foreground">
                           {timeAgo(row.createdAt, locale)}
@@ -191,7 +204,7 @@ export function AdminComments() {
                         <TooltipContent>{fullDate.format(new Date(row.createdAt))}</TooltipContent>
                       </Tooltip>
                     </TableCell>
-                    <TableCell className="pr-4 text-right">
+                    <TableCell className="pr-4 text-right align-top md:align-middle">
                       <RowActions
                         href={animeHref({ id: row.animeId, slug: row.animeSlug })}
                         {...(row.deleted ? {} : { onDelete: () => setPendingDelete(row) })}

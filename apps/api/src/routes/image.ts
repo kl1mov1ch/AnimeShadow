@@ -117,7 +117,69 @@ async function sweep(log: FastifyBaseLogger): Promise<void> {
  * never fetched twice at once, a refusal is retried once, and a picture the
  * source doesn't have is remembered as missing for an hour.
  */
+/** Only pictures from the hosts we use, over https — checked for the
+ *  address asked for and again for every redirect on the way. */
+function allowed(target: URL): boolean {
+  return (
+    target.protocol === "https:" &&
+    !target.username &&
+    !target.password &&
+    (target.port === "" || target.port === "443") &&
+    ALLOWED_HOSTS.some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`))
+  );
+}
+
+/** Redirects followed by hand, each hop checked: "follow" would have gone
+ *  wherever an open redirect on an allowed host pointed — this server's
+ *  own loopback services included. */
+const MAX_REDIRECTS = 3;
+
+/** Reads a body up to `limit` bytes and gives up past it, instead of
+ *  buffering whatever size the source sends and checking afterwards. */
+async function readCapped(response: Response, limit: number): Promise<Buffer | null> {
+  const declared = Number(response.headers.get("content-length") ?? 0);
+  if (declared > limit) {
+    await response.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Fetches from the sources (cache misses) per visitor per minute. Anything
+ * cached is free; this caps what one address can make the server download
+ * and store — a `?x=1`, `?x=2`… loop on an allowed host would otherwise
+ * fill the disk and get this server's address banned by the source.
+ */
+const MISSES_PER_MINUTE = 150;
+
 export const imageRoutes: FastifyPluginAsync = async (fastify) => {
+  const misses = new Map<string, { count: number; since: number }>();
+  const overMissBudget = (ip: string): boolean => {
+    const now = Date.now();
+    const entry = misses.get(ip);
+    if (!entry || now - entry.since > 60_000) {
+      if (misses.size > 20_000) misses.clear();
+      misses.set(ip, { count: 1, since: now });
+      return false;
+    }
+    entry.count += 1;
+    return entry.count > MISSES_PER_MINUTE;
+  };
   await mkdir(CACHE_DIR, { recursive: true }).catch(() => undefined);
   const upstream = limiter(MAX_UPSTREAM);
   const inflight = new Map<string, Promise<Fetched>>();
@@ -132,14 +194,27 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     upstream(async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const response = await fetch(target, {
-            redirect: "follow",
-            headers: { "user-agent": userAgentFor(target.hostname), accept: "image/*" },
+          let url = target;
+          let response = await fetch(url, {
+            redirect: "manual",
+            headers: { "user-agent": userAgentFor(url.hostname), accept: "image/*" },
             signal: AbortSignal.timeout(10_000),
           });
+          for (let hop = 0; response.status >= 300 && response.status < 400; hop++) {
+            const location = response.headers.get("location");
+            await response.body?.cancel().catch(() => undefined);
+            const next = location ? new URL(location, url) : null;
+            if (!next || hop >= MAX_REDIRECTS || !allowed(next)) return { ok: false, status: 502 };
+            url = next;
+            response = await fetch(url, {
+              redirect: "manual",
+              headers: { "user-agent": userAgentFor(url.hostname), accept: "image/*" },
+              signal: AbortSignal.timeout(10_000),
+            });
+          }
           if (response.ok) {
-            const buf = Buffer.from(await response.arrayBuffer());
-            if (buf.length === 0 || buf.length > MAX_BYTES) return { ok: false, status: 502 };
+            const buf = await readCapped(response, MAX_BYTES);
+            if (!buf || buf.length === 0) return { ok: false, status: 502 };
             const file = join(CACHE_DIR, key);
             await writeFile(`${file}.tmp`, buf)
               .then(() => rename(`${file}.tmp`, file))
@@ -178,10 +253,7 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
       return { error: { code: "BAD_REQUEST", message: "Bad url" } };
     }
 
-    if (
-      target.protocol !== "https:" ||
-      !ALLOWED_HOSTS.some((host) => target.hostname === host || target.hostname.endsWith(`.${host}`))
-    ) {
+    if (!allowed(target)) {
       reply.code(400);
       return { error: { code: "BAD_REQUEST", message: "Host not allowed" } };
     }
@@ -207,6 +279,10 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     let pending = inflight.get(key);
+    if (!pending && overMissBudget(request.ip)) {
+      reply.code(429).header("retry-after", "60").header("cache-control", "no-store");
+      return { error: { code: "RATE_LIMITED", message: "Too many new images, slow down" } };
+    }
     if (!pending) {
       pending = fetchOnce(target, key).finally(() => inflight.delete(key));
       inflight.set(key, pending);

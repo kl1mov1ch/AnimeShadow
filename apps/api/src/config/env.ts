@@ -85,6 +85,8 @@ const envSchema = z.object({
   // and how big that may grow before the oldest go.
   IMAGE_CACHE_DIR: z.string().min(1).optional(),
   IMAGE_CACHE_MAX_MB: z.coerce.number().int().positive().default(2048),
+  /** Days of raw page views kept; older days live on as daily rollups. */
+  STATS_RAW_DAYS: z.coerce.number().int().min(14).default(90),
   ANILIBRIA_CATALOG_SYNC: z
     .enum(["true", "false"])
     .default("true")
@@ -188,3 +190,10 @@ export type Env = typeof env;
 
 export const isProduction = env.NODE_ENV === "production";
 export const isDevelopment = env.NODE_ENV === "development";
+
+// The placeholder from .env.example is long enough to pass the length rule,
+// and anyone can read it: in production it would let anyone sign tokens.
+if (isProduction && /change-me/i.test(env.JWT_SECRET)) {
+  console.error("JWT_SECRET is still the example value from .env.example — set a random one.");
+  process.exit(1);
+}

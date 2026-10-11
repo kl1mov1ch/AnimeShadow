@@ -21,6 +21,9 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
       // trace.moe's free tier, so it is not something to leave open to
       // anonymous traffic.
       preHandler: fastify.authenticate,
+      // A handful a minute per address: one account could otherwise spend
+      // the whole month's quota in a loop.
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
       // Fastify defaults to 1MB, and a screenshot carried as a base64 data
       // URL is about a third larger than the file it came from — well past
       // that for anything at screen resolution. The service enforces the

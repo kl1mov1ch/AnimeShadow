@@ -1,5 +1,7 @@
 import type {
   AdminAnalytics,
+  AdminAnalyticsBreakdownGroup,
+  AdminAnalyticsBreakdowns,
   AdminAnalyticsQuery,
   AdminAnalyticsRow,
   AdminAnalyticsSummary,
@@ -13,6 +15,7 @@ import {
   ArrowUpIcon,
   BotIcon,
   CalendarRangeIcon,
+  ArchiveIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CompassIcon,
@@ -38,7 +41,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useAdminAnalytics, useAdminExternalAnalytics, useAdminVisitor, useAdminVisitors } from "@/lib/query";
+import { useInView } from "@/hooks/use-in-view";
+import {
+  useAdminAnalytics,
+  useAdminAnalyticsLive,
+  useAdminArchive,
+  useAdminArchiveMonth,
+  useAdminBreakdowns,
+  useAdminExternalAnalytics,
+  useAdminHeatmap,
+  useAdminRetention,
+  useAdminVisitor,
+  useAdminVisitors,
+} from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 /*
@@ -157,7 +172,11 @@ export function AdminAnalyticsTab() {
     ...(bots ? { bots: true } : {}),
   };
   const query = useAdminAnalytics(params);
+  const live = useAdminAnalyticsLive(params);
   const data = query.data;
+  // Raw page views are kept for a few months; a period reaching further
+  // back is only partly here — the rest is in the archive below.
+  const beyondRaw = data?.rawSince != null && new Date(range.from) < new Date(data.rawSince);
 
   return (
     <div className="flex flex-col gap-4">
@@ -184,7 +203,7 @@ export function AdminAnalyticsTab() {
         )}
         <Segmented value={audience} options={AUDIENCES} onChange={setAudience} />
         <Select value={device} onValueChange={(v) => setDevice(v as AdminAnalyticsQuery["device"])}>
-          <SelectTrigger size="sm" className="w-40 text-xs">
+          <SelectTrigger size="sm" className="w-full text-xs sm:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -195,13 +214,13 @@ export function AdminAnalyticsTab() {
             ))}
           </SelectContent>
         </Select>
-        <span className="relative">
+        <span className="relative min-w-0 flex-1 sm:flex-none">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={pathInput}
             onChange={(e) => setPathInput(e.target.value)}
             placeholder="Страница содержит… (/anime)"
-            className="h-8 w-52 rounded-md border border-border/60 bg-background/60 pl-8 pr-2 text-xs outline-none focus:border-foreground/30"
+            className="h-8 w-full rounded-md border border-border/60 bg-background/60 pl-8 pr-2 text-xs outline-none focus:border-foreground/30 sm:w-52"
           />
         </span>
         <button
@@ -218,10 +237,10 @@ export function AdminAnalyticsTab() {
         </button>
         <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           {query.isFetching && <span className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
-          {data && (
+          {live.data && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-600 dark:text-emerald-400">
               <LiveDot />
-              Сейчас на сайте: <b className="tabular-nums">{data.live.visitors}</b>
+              Сейчас на сайте: <b className="tabular-nums">{live.data.visitors}</b>
             </span>
           )}
         </span>
@@ -236,14 +255,22 @@ export function AdminAnalyticsTab() {
         </div>
       ) : (
         <div className={cn("flex flex-col gap-4 transition-opacity", query.isPlaceholderData && "opacity-60")}>
+          {beyondRaw && (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
+              Подробные данные хранятся с {new Date(data.rawSince!).toLocaleDateString("ru-RU")} — за более ранние дни есть
+              итоги по дням в блоке «Архив» внизу.
+            </p>
+          )}
           <Kpis now={data.summary} before={data.previous} />
           <TrendPanel data={data} />
+          {/* Everything below loads its own data once scrolled to. */}
           <div className="grid gap-4 xl:grid-cols-2">
-            <HeatmapPanel data={data} />
-            <RetentionPanel data={data} />
+            <HeatmapPanel params={params} />
+            <RetentionPanel params={params} />
           </div>
-          <BreakdownsPanel data={data} />
+          <BreakdownsPanel params={params} />
           <VisitorsPanel filters={params} />
+          <ArchivePanel />
           <ExternalPanel />
         </div>
       )}
@@ -263,7 +290,8 @@ function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex rounded-lg border border-border/60 bg-background/40 p-0.5">
+    // One line that scrolls sideways on a phone, never a word broken in two.
+    <div className="flex max-w-full overflow-x-auto rounded-lg border border-border/60 bg-background/40 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {options.map((o) => (
         <button
           key={o.key}
@@ -271,7 +299,7 @@ function Segmented<T extends string>({
           onClick={() => onChange(o.key)}
           aria-pressed={value === o.key}
           className={cn(
-            "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+            "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
             value === o.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -320,14 +348,14 @@ function Kpis({ now, before }: { now: AdminAnalyticsSummary; before: AdminAnalyt
         const Icon = k.icon;
         return (
           <div key={k.key} title={k.hint} className="flex min-w-0 flex-col gap-1 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5">
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Icon className="size-3.5 shrink-0" />
-              <span className="truncate">{k.label}</span>
+            <span className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+              <Icon className="mt-px size-3.5 shrink-0" />
+              <span className="line-clamp-2 leading-tight">{k.label}</span>
             </span>
             <span className="font-display text-xl tabular-nums sm:text-2xl">{(k.format ?? fmt)(value)}</span>
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               {delta == null ? (
-                <span>нет данных за прошлый период</span>
+                <span>без сравнения</span>
               ) : (
                 <>
                   <span
@@ -443,12 +471,14 @@ function TrendPanel({ data }: { data: AdminAnalytics }) {
 
 const DOW = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
-function HeatmapPanel({ data }: { data: AdminAnalytics }) {
-  const grid = new Map(data.heatmap.map((c) => [`${c.dow}:${c.hour}`, c.pageviews]));
-  const max = Math.max(1, ...data.heatmap.map((c) => c.pageviews));
+function HeatmapPanel({ params }: { params: Partial<AdminAnalyticsQuery> }) {
+  const [ref, seen] = useInView<HTMLDivElement>();
+  const { data: cells = [], isPending } = useAdminHeatmap(params, seen);
+  const grid = new Map(cells.map((c) => [`${c.dow}:${c.hour}`, c.pageviews]));
+  const max = Math.max(1, ...cells.map((c) => c.pageviews));
   return (
     <Panel title="Когда заходят" description="День недели × час, просмотры страниц" icon={<CalendarRangeIcon />}>
-      <div className="overflow-x-auto">
+      <div ref={ref} className={cn("overflow-x-auto transition-opacity", isPending && "opacity-40")}>
         <div className="grid min-w-[34rem] grid-cols-[2rem_repeat(24,minmax(0,1fr))] gap-[2px] text-[10px] text-muted-foreground">
           <span />
           {Array.from({ length: 24 }, (_, h) => (
@@ -492,10 +522,15 @@ function HeatmapPanel({ data }: { data: AdminAnalytics }) {
 
 /* -- Retention ------------------------------------------------------------ */
 
-function RetentionPanel({ data }: { data: AdminAnalytics }) {
+function RetentionPanel({ params }: { params: Partial<AdminAnalyticsQuery> }) {
+  const [ref, seen] = useInView<HTMLDivElement>();
+  const { data: retention, isPending } = useAdminRetention(params, seen);
   return (
     <Panel title="Возвращаемость" description="Кто впервые пришёл на неделе — сколько вернулись через 1–4 недели" icon={<RepeatIcon />}>
-      {data.retention.length === 0 ? (
+      <div ref={ref} />
+      {!retention ? (
+        <Skeleton className={cn("h-40 rounded-xl", !isPending && "hidden")} />
+      ) : retention.length === 0 ? (
         <EmptyBlock>Новых посетителей в этом периоде нет</EmptyBlock>
       ) : (
         <div className="overflow-x-auto">
@@ -512,7 +547,7 @@ function RetentionPanel({ data }: { data: AdminAnalytics }) {
               </tr>
             </thead>
             <tbody>
-              {data.retention.map((row) => (
+              {retention.map((row) => (
                 <tr key={row.week} className="border-t border-border/40">
                   <td className="py-1.5 tabular-nums">{new Date(row.week).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</td>
                   <td className="py-1.5 text-right tabular-nums">{fmt(row.visitors)}</td>
@@ -543,10 +578,10 @@ function RetentionPanel({ data }: { data: AdminAnalytics }) {
 /* -- Breakdowns ------------------------------------------------------------ */
 
 const GROUPS: Array<{
-  key: string;
+  key: AdminAnalyticsBreakdownGroup;
   label: string;
   icon: LucideIcon;
-  tables: Array<{ key: keyof AdminAnalytics["breakdowns"]; label: string; first: string }>;
+  tables: Array<{ key: keyof AdminAnalyticsBreakdowns; label: string; first: string }>;
 }> = [
   {
     key: "pages",
@@ -585,11 +620,15 @@ const GROUPS: Array<{
 
 const DEVICE_RU: Record<string, string> = { mobile: "Телефон", tablet: "Планшет", desktop: "Компьютер", bot: "Бот" };
 
-function BreakdownsPanel({ data }: { data: AdminAnalytics }) {
-  const [group, setGroup] = useState(GROUPS[0]!.key);
+function BreakdownsPanel({ params }: { params: Partial<AdminAnalyticsQuery> }) {
+  const [group, setGroup] = useState<AdminAnalyticsBreakdownGroup>(GROUPS[0]!.key);
   const current = GROUPS.find((g) => g.key === group)!;
   const [table, setTable] = useState(current.tables[0]!.key);
   const def = current.tables.find((t) => t.key === table) ?? current.tables[0]!;
+  const [ref, seen] = useInView<HTMLDivElement>();
+  // Only the group on screen is asked for — three groups, twelve tables.
+  const { data: tables, isFetching } = useAdminBreakdowns(params, group, seen);
+  const rowsOf = (key: keyof AdminAnalyticsBreakdowns) => tables?.[key] ?? [];
 
   return (
     <Panel
@@ -601,7 +640,7 @@ function BreakdownsPanel({ data }: { data: AdminAnalytics }) {
           value={group}
           options={GROUPS.map((g) => ({ key: g.key, label: g.label }))}
           onChange={(g) => {
-            setGroup(g);
+            setGroup(g as AdminAnalyticsBreakdownGroup);
             setTable(GROUPS.find((x) => x.key === g)!.tables[0]!.key);
           }}
         />
@@ -620,17 +659,23 @@ function BreakdownsPanel({ data }: { data: AdminAnalytics }) {
             )}
           >
             {t.label}
-            <span className="ml-1 tabular-nums opacity-60">{data.breakdowns[t.key].length}</span>
+            {tables?.[t.key] && <span className="ml-1 tabular-nums opacity-60">{tables[t.key]!.length}</span>}
           </button>
         ))}
       </div>
-      <BreakdownTable
-        key={def.key}
-        name={def.label}
-        first={def.first}
-        rows={data.breakdowns[def.key].map((r) => (def.key === "devices" ? { ...r, label: DEVICE_RU[r.key] ?? r.key } : r))}
-        linkable={def.key === "pages" || def.key === "entryPages" || def.key === "anime"}
-      />
+      <div ref={ref} className={cn("transition-opacity", isFetching && "opacity-60")}>
+        {tables ? (
+          <BreakdownTable
+            key={def.key}
+            name={def.label}
+            first={def.first}
+            rows={rowsOf(def.key).map((r) => (def.key === "devices" ? { ...r, label: DEVICE_RU[r.key] ?? r.key } : r))}
+            linkable={def.key === "pages" || def.key === "entryPages" || def.key === "anime"}
+          />
+        ) : (
+          <Skeleton className="h-64 rounded-xl" />
+        )}
+      </div>
     </Panel>
   );
 }
@@ -1010,6 +1055,134 @@ function VisitorSheet({ id, onClose }: { id: string | null; onClose: () => void 
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/* -- Archive (daily rollups) ------------------------------------------------ */
+
+const ARCHIVE_DIMS: Array<{ key: string; label: string; views: string; uniques: string }> = [
+  { key: "page", label: "Страницы", views: "Просмотры", uniques: "Посетители" },
+  { key: "anime", label: "Тайтлы", views: "Просмотры", uniques: "Посетители" },
+  { key: "watch", label: "Смотрели", views: "Минуты", uniques: "Сеансы" },
+  { key: "referrer", label: "Источники", views: "Визиты", uniques: "Посетители" },
+  { key: "device", label: "Устройства", views: "Просмотры", uniques: "Посетители" },
+];
+
+/**
+ * Every month the daily rollups hold — they outlive the raw page views,
+ * which are pruned after a few months. A month opens into its days and its
+ * top pages, titles and sources, a request of its own.
+ */
+function ArchivePanel() {
+  const [ref, seen] = useInView<HTMLDivElement>();
+  const { data: months, isPending } = useAdminArchive(seen);
+  const [open, setOpen] = useState<string | null>(null);
+  const detail = useAdminArchiveMonth(open);
+  const [dim, setDim] = useState(ARCHIVE_DIMS[0]!.key);
+  const monthName = (m: string) =>
+    new Date(`${m}-01T00:00:00`).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+
+  return (
+    <Panel title="Архив" description="Итоги по дням — хранятся дольше подробных данных" icon={<ArchiveIcon />}>
+      <div ref={ref} />
+      {!months ? (
+        <Skeleton className={cn("h-40 rounded-xl", !isPending && "hidden")} />
+      ) : months.length === 0 ? (
+        <EmptyBlock>Итоги появятся после первого ночного подсчёта</EmptyBlock>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] text-xs">
+              <thead>
+                <tr className="text-left text-[11px] text-muted-foreground">
+                  <th className="py-1.5 font-medium">Месяц</th>
+                  <th className="py-1.5 text-right font-medium">Просмотры</th>
+                  <th className="py-1.5 text-right font-medium" title="Сумма по дням: вернувшийся в другой день считается снова">Посетители*</th>
+                  <th className="py-1.5 text-right font-medium">Визиты</th>
+                  <th className="py-1.5 text-right font-medium">Новые</th>
+                  <th className="py-1.5 text-right font-medium">Регистрации</th>
+                  <th className="py-1.5 text-right font-medium">Просмотр видео</th>
+                </tr>
+              </thead>
+              <tbody>
+                {months.map((m) => (
+                  <tr
+                    key={m.month}
+                    onClick={() => setOpen((cur) => (cur === m.month ? null : m.month))}
+                    className={cn(
+                      "cursor-pointer border-t border-border/40 hover:bg-foreground/[0.03]",
+                      open === m.month && "bg-primary/[0.06]",
+                    )}
+                  >
+                    <td className="py-1.5 capitalize">{monthName(m.month)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{fmt(m.pageviews)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{fmt(m.visitors)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{fmt(m.sessions)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{fmt(m.newVisitors)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{fmt(m.registrations)}</td>
+                    <td className="py-1.5 text-right tabular-nums">{duration(m.watchMinutes * 60)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {open && (
+            <div className="flex flex-col gap-2 rounded-xl border border-border/60 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium capitalize">{monthName(open)}</span>
+                <Segmented value={dim} options={ARCHIVE_DIMS.map((d) => ({ key: d.key, label: d.label }))} onChange={setDim} />
+              </div>
+              {!detail.data ? (
+                <Skeleton className="h-32 rounded-lg" />
+              ) : (
+                <ArchiveTop dim={ARCHIVE_DIMS.find((d) => d.key === dim)!} rows={detail.data.top[dim] ?? []} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function ArchiveTop({
+  dim,
+  rows,
+}: {
+  dim: (typeof ARCHIVE_DIMS)[number];
+  rows: Array<{ key: string; label?: string; href?: string; views: number; uniques: number }>;
+}) {
+  if (rows.length === 0) return <EmptyBlock>За этот месяц здесь пусто</EmptyBlock>;
+  const label = (key: string, text?: string) =>
+    text ?? (dim.key === "referrer" ? key || "Прямые заходы" : dim.key === "device" ? (DEVICE_RU[key] ?? (key || "неизвестно")) : key);
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-[11px] text-muted-foreground">
+          <th className="py-1 font-medium">{dim.label}</th>
+          <th className="py-1 text-right font-medium">{dim.views}</th>
+          <th className="py-1 text-right font-medium">{dim.uniques}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key} className="border-t border-border/40">
+            <td className="max-w-[16rem] truncate py-1 pr-2 sm:max-w-[28rem]">
+              {r.href ? (
+                <Link to={r.href} target="_blank" className="hover:text-primary">
+                  {label(r.key, r.label)}
+                </Link>
+              ) : (
+                label(r.key, r.label)
+              )}
+            </td>
+            <td className="py-1 text-right tabular-nums">{dim.key === "watch" ? fmt(Math.round(r.views / 60)) : fmt(r.views)}</td>
+            <td className="py-1 text-right tabular-nums">{fmt(r.uniques)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

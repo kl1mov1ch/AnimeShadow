@@ -162,10 +162,10 @@ export function AdminUsers() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-4">{t("admin.users.columns.user")}</TableHead>
-                  <TableHead>{t("admin.users.lastSeen")}</TableHead>
-                  <TableHead>{t("admin.users.watchTime")}</TableHead>
-                  <TableHead>{t("admin.users.columns.activity")}</TableHead>
-                  <TableHead>{t("admin.users.columns.joined")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("admin.users.lastSeen")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("admin.users.watchTime")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("admin.users.columns.activity")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("admin.users.columns.joined")}</TableHead>
                   <TableHead className="pr-4 text-right">{t("admin.users.columns.status")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -239,7 +239,7 @@ function UserRow({
       )}
     >
       <TableCell className="py-3 pl-4">
-        <div className="flex min-w-[15rem] items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3 md:min-w-[15rem]">
           <span className="relative shrink-0">
             <UserAvatar name={row.displayName} url={row.avatarUrl} className={cn(row.isBanned && "opacity-50 grayscale")} />
             {online && (
@@ -258,14 +258,23 @@ function UserRow({
               {row.isPro && <SparklesIcon aria-label="PRO" className="size-3.5 shrink-0 text-amber-500" />}
               {row.hasTelegram && <SendIcon aria-label="Telegram" className="size-3.5 shrink-0 text-sky-500" />}
             </div>
-            <div className="max-w-[16rem] truncate text-xs text-muted-foreground">
+            <div className="max-w-[12rem] truncate text-xs text-muted-foreground sm:max-w-[16rem]">
               {row.username ? `@${row.username} · ` : ""}
               {telegramOnly ? t("admin.users.telegramAccount") : row.email}
+            </div>
+            {/* The columns a phone has no room for, as one line. */}
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground md:hidden">
+              {online ? (
+                <span className="text-emerald-500">{t("admin.users.online")}</span>
+              ) : (
+                (lastSeen ?? t("admin.users.never"))
+              )}
+              {watch !== "—" && ` · ${watch}`}
             </div>
           </div>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         {online ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
             <span className="size-1.5 rounded-full bg-emerald-500" />
@@ -280,14 +289,14 @@ function UserRow({
           <span className="text-sm text-muted-foreground/50">{t("admin.users.never")}</span>
         )}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-sm tabular-nums">{watch}</TableCell>
-      <TableCell>
+      <TableCell className="hidden whitespace-nowrap text-sm tabular-nums md:table-cell">{watch}</TableCell>
+      <TableCell className="hidden lg:table-cell">
         <div className="flex items-center gap-1.5 text-xs">
           <Chip icon={<BookmarkIcon />} value={row.libraryCount} label={t("admin.users.library")} />
           <Chip icon={<MessageSquareIcon />} value={row.commentCount} label={t("admin.users.comments")} />
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden lg:table-cell">
         <Tooltip>
           <TooltipTrigger className="whitespace-nowrap text-sm text-muted-foreground">{joined}</TooltipTrigger>
           <TooltipContent>{joinedFull}</TooltipContent>
@@ -298,12 +307,12 @@ function UserRow({
           {row.isBanned ? (
             <Badge variant="outline" className="gap-1 border-destructive/40 bg-destructive/10 text-destructive">
               <BanIcon className="size-3" />
-              {t("admin.users.statusBanned")}
+              <span className="hidden sm:inline">{t("admin.users.statusBanned")}</span>
             </Badge>
           ) : (
             <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
               <CircleCheckIcon className="size-3" />
-              {t("admin.users.statusActive")}
+              <span className="hidden sm:inline">{t("admin.users.statusActive")}</span>
             </Badge>
           )}
           <ChevronRightIcon className="size-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />

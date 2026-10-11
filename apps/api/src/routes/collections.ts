@@ -56,7 +56,7 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
       const input = parse(collectionInputSchema, request.body);
       reply.code(201);
       const created = await collections.create(request.userId!, input);
-      void fastify.services.achievements.recompute(request.userId!).catch(() => undefined);
+      fastify.services.achievements.recomputeSoon(request.userId!);
       return created;
     },
   );
@@ -82,7 +82,7 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parse(idParams, request.params);
     const { value } = parse(collectionRatingSchema, request.body);
     const result = await collections.rate(request.userId!, id, value);
-    void fastify.services.achievements.recompute(request.userId!).catch(() => undefined);
+    fastify.services.achievements.recomputeSoon(request.userId!);
     return result;
   });
 
@@ -99,7 +99,7 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
       const { body, parentId } = parse(collectionCommentInputSchema, request.body);
       reply.code(201);
       const comment = await collections.addComment(request.userId!, id, body, parentId);
-      void fastify.services.achievements.recompute(request.userId!).catch(() => undefined);
+      fastify.services.achievements.recomputeSoon(request.userId!);
       return comment;
     },
   );

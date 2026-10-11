@@ -35,7 +35,9 @@ interface AuthContextValue {
   requestRegistration: (input: RegisterInput) => Promise<void>;
   /** Step 2 — the code was right, the account now actually exists, and this
    * applies the session exactly like `login` does. */
-  confirmRegistration: (email: string, code: string) => Promise<void>;
+  /** `password`: only when the server asks for it (PASSWORD_REQUIRED) —
+   *  the code is being confirmed in a browser without the signup ticket. */
+  confirmRegistration: (email: string, code: string, password?: string) => Promise<void>;
   loginWithTelegram: (data: TelegramAuthData) => Promise<void>;
   logout: () => void;
   /** Patch the cached user (e.g. after an avatar/name change) without a full re-login. */
@@ -146,16 +148,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const requestRegistration = useCallback(async (input: RegisterInput) => {
-    // 202, empty body — no session to apply. See AuthService.requestRegistration.
-    await apiRequest<void>("/auth/register", { method: "POST", body: input });
+    // 202 — no session yet, only the ticket that binds the emailed code to
+    // these details in this browser. See AuthService.requestRegistration.
+    const res = await apiRequest<{ ticket?: string } | undefined>("/auth/register", { method: "POST", body: input });
+    if (res?.ticket) writeSignupTicket(input.email, res.ticket);
   }, []);
 
   const confirmRegistration = useCallback(
-    async (email: string, code: string) => {
+    async (email: string, code: string, password?: string) => {
+      const ticket = readSignupTicket(email);
       const res = await apiRequest<AuthResponse>("/auth/register/confirm", {
         method: "POST",
-        body: { email, code },
+        body: { email, code, ...(ticket ? { ticket } : {}), ...(password ? { password } : {}) },
       });
+      writeSignupTicket(email, null);
       applySession({ v: 1, token: res.token, user: res.user });
     },
     [applySession],
@@ -211,4 +217,28 @@ const FALLBACK_AUTH: AuthContextValue = {
 
 export function useAuth(): AuthContextValue {
   return use(AuthContext) ?? FALLBACK_AUTH;
+}
+
+/**
+ * The signup ticket, per email, in localStorage — not sessionStorage: the
+ * one-click link in the mail opens a new tab, and it should still find it.
+ */
+const TICKET_KEY = "animeshadow.signupTicket";
+
+function readSignupTicket(email: string): string | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(TICKET_KEY) ?? "null") as { email?: string; ticket?: string } | null;
+    return stored?.email === email.trim().toLowerCase() ? (stored.ticket ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSignupTicket(email: string, ticket: string | null): void {
+  try {
+    if (ticket) localStorage.setItem(TICKET_KEY, JSON.stringify({ email: email.trim().toLowerCase(), ticket }));
+    else localStorage.removeItem(TICKET_KEY);
+  } catch {
+    /* storage blocked — the password confirms it instead */
+  }
 }

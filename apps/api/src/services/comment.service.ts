@@ -127,13 +127,15 @@ export class CommentService {
       },
       include: COMMENT_INCLUDE,
     });
-    void this.achievements?.recompute(userId).catch(() => undefined);
+    this.achievements?.recomputeSoon(userId);
     return this.toDto(row, 0);
   }
 
   async edit(userId: string, id: string, body: string): Promise<Comment> {
     const owned = await this.prisma.comment.findUnique({ where: { id } });
-    if (!owned) throw new NotFoundError("Комментарий не найден.");
+    // A removed comment stays removed: editing it would put new text up
+    // under a moderator's "[удалено]".
+    if (!owned || owned.deletedAt) throw new NotFoundError("Комментарий не найден.");
     if (owned.userId !== userId) throw new ForbiddenError();
     const row = await this.prisma.comment.update({
       where: { id },

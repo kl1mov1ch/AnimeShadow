@@ -67,7 +67,9 @@ export class EmailService {
     }
   }
 
-  async sendVerificationCode(to: string, displayName: string, code: string): Promise<void> {
+  /** `displayName` null: a signup, where the name is whatever the sender
+   *  typed and the inbox may not be theirs — the mail greets nobody by it. */
+  async sendVerificationCode(to: string, displayName: string | null, code: string): Promise<void> {
     emailsSentTotal.inc({ kind: "verification" });
     const content = { displayName, code, actionUrl: this.link("/verify-email", to, code) };
     await this.send({
@@ -95,8 +97,10 @@ export class EmailService {
     });
   }
 
+  /** After the '#': a fragment never reaches a server or the analytics
+   *  scripts that report the page address (see web lib/link-params). */
   private link(path: string, email: string, code: string): string {
-    return `${this.appUrl}${path}?${new URLSearchParams({ email, code }).toString()}`;
+    return `${this.appUrl}${path}#${new URLSearchParams({ email, code }).toString()}`;
   }
 
   private async send(opts: {

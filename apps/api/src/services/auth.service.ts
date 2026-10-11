@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { UserImageStore } from "../lib/user-images.js";
@@ -14,8 +14,11 @@ import {
   BadRequestError,
   ConflictError,
   InvalidCodeError,
+  PasswordRequiredError,
+  TooManyRequestsError,
   UnauthorizedError,
 } from "../lib/errors.js";
+import { revokeSessions } from "../lib/session-guard.js";
 import { accountsDeletedTotal, loginsTotal, registrationsTotal } from "../lib/metrics.js";
 import { fetchReactionGif, randomReactionCategory } from "../lib/reaction-gif.js";
 import {
@@ -51,8 +54,33 @@ async function defaultAvatarUrl(): Promise<string> {
  * widget signs `auth_date` once, at the moment the user actually clicked
  * through on Telegram's side, so anything not fresh could be a replayed
  * payload rather than a live login. */
-const TELEGRAM_AUTH_MAX_AGE_SECONDS = 24 * 60 * 60;
+const TELEGRAM_AUTH_MAX_AGE_SECONDS = 60 * 60;
 const BCRYPT_ROUNDS = 12;
+/**
+ * Compared against when an email has no account, so a wrong address takes
+ * as long as a wrong password. It has to be a real bcrypt hash: bcryptjs
+ * answers a malformed one at once, which is what the old placeholder was —
+ * a timing oracle for "does this email have an account".
+ */
+const DUMMY_HASH = bcrypt.hashSync(randomUUID(), BCRYPT_ROUNDS);
+
+/**
+ * Caps per account, across codes — asking for a new code must never buy a
+ * new round of guesses. Six-digit codes allow five guesses each; without
+ * these, rotating IPs could request code after code and guess forever.
+ */
+const MAX_CODES_PER_DAY = 5;
+const MAX_FAILED_PER_DAY = 10;
+const DAY_MS = 86_400_000;
+
+function sha256(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+/** A ticket nobody holds — the answer when a request is absorbed. */
+function deadTicket(): string {
+  return randomBytes(24).toString("base64url");
+}
 
 export interface AuthServiceDeps {
   prisma: PrismaClient;
@@ -97,7 +125,7 @@ export class AuthService {
    * can produce a code that was sent to it — so nothing should exist, and
    * nobody should be signed in, before that happens.
    */
-  async requestRegistration(input: RegisterInput): Promise<void> {
+  async requestRegistration(input: RegisterInput): Promise<{ ticket: string }> {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
       throw new ConflictError("An account with that email already exists.");
@@ -107,7 +135,19 @@ export class AuthService {
       where: { email: input.email },
     });
     if (pending && this.issuedAt(pending).getTime() > Date.now() - RESEND_COOLDOWN_SECONDS * 1000) {
-      return; // a very recent code already went out — absorbed silently
+      // A code went out moments ago. The same person pressing the button
+      // twice gets a fresh ticket for the same details; anyone else gets
+      // a ticket that confirms nothing.
+      if (!(await bcrypt.compare(input.password, pending.passwordHash))) return { ticket: deadTicket() };
+      const ticket = deadTicket();
+      await this.prisma.pendingRegistration.update({
+        where: { email: input.email },
+        data: { ticketHash: sha256(ticket) },
+      });
+      return { ticket };
+    }
+    if (pending && pending.sends >= MAX_CODES_PER_DAY) {
+      throw new TooManyRequestsError("Too many codes for this email today. Try again tomorrow.");
     }
 
     const [passwordHash, code] = await Promise.all([
@@ -115,6 +155,10 @@ export class AuthService {
       Promise.resolve(generateCode()),
     ]);
     const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MINUTES * 60_000);
+    // The ticket binds the code to these details and this browser: whoever
+    // sends the form again later replaces it, so a code emailed to the
+    // owner can never confirm somebody else's password (see confirm).
+    const ticket = deadTicket();
 
     await this.prisma.pendingRegistration.upsert({
       where: { email: input.email },
@@ -124,6 +168,7 @@ export class AuthService {
         passwordHash,
         referrer: input.referrer || null,
         codeHash: hashCode(code),
+        ticketHash: sha256(ticket),
         expiresAt,
       },
       update: {
@@ -131,12 +176,17 @@ export class AuthService {
         passwordHash,
         referrer: input.referrer || null,
         codeHash: hashCode(code),
+        ticketHash: sha256(ticket),
         attempts: 0,
+        sends: { increment: 1 },
         expiresAt,
       },
     });
 
-    await this.email.sendVerificationCode(input.email, input.displayName, code);
+    // The name someone typed is not put into a mail to an address they may
+    // not own (see sendVerificationCode).
+    this.sendQuietly(() => this.email.sendVerificationCode(input.email, null, code));
+    return { ticket };
   }
 
   /**
@@ -145,15 +195,33 @@ export class AuthService {
    * first time. Wrong/expired/attempts-exhausted all fail identically
    * (InvalidCodeError), same reasoning as `consumeCode` below.
    */
-  async confirmRegistration(email: string, code: string): Promise<PublicUser> {
+  async confirmRegistration(
+    email: string,
+    code: string,
+    proof: { ticket?: string | undefined; password?: string | undefined } = {},
+  ): Promise<PublicUser> {
     const pending = await this.prisma.pendingRegistration.findUnique({ where: { email } });
     if (!pending || pending.expiresAt < new Date()) throw new InvalidCodeError();
-    if (pending.attempts >= MAX_VERIFICATION_ATTEMPTS) throw new InvalidCodeError();
+    if (pending.attempts >= MAX_VERIFICATION_ATTEMPTS || pending.failed >= MAX_FAILED_PER_DAY) {
+      throw new InvalidCodeError();
+    }
+
+    // The code only confirms the details of whoever proves they sent them:
+    // the browser holding the ticket, or someone who knows the password.
+    // (Rows from before tickets existed have none and need neither.)
+    const ticketOk = pending.ticketHash == null || (proof.ticket != null && sha256(proof.ticket) === pending.ticketHash);
+    if (!ticketOk) {
+      if (!proof.password) throw new PasswordRequiredError();
+      if (!(await bcrypt.compare(proof.password, pending.passwordHash))) {
+        await this.prisma.pendingRegistration.update({ where: { email }, data: { failed: { increment: 1 } } });
+        throw new PasswordRequiredError("That password doesn't match the one chosen at signup.");
+      }
+    }
 
     if (pending.codeHash !== hashCode(code)) {
       await this.prisma.pendingRegistration.update({
         where: { email },
-        data: { attempts: { increment: 1 } },
+        data: { attempts: { increment: 1 }, failed: { increment: 1 } },
       });
       throw new InvalidCodeError();
     }
@@ -206,6 +274,7 @@ export class AuthService {
     const pending = await this.prisma.pendingRegistration.findUnique({ where: { email } });
     if (!pending) return;
     if (this.issuedAt(pending).getTime() > Date.now() - RESEND_COOLDOWN_SECONDS * 1000) return;
+    if (pending.sends >= MAX_CODES_PER_DAY) return;
 
     const code = generateCode();
     await this.prisma.pendingRegistration.update({
@@ -213,10 +282,26 @@ export class AuthService {
       data: {
         codeHash: hashCode(code),
         attempts: 0,
+        sends: { increment: 1 },
         expiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MINUTES * 60_000),
       },
     });
-    await this.email.sendVerificationCode(pending.email, pending.displayName, code);
+    this.sendQuietly(() => this.email.sendVerificationCode(pending.email, null, code));
+  }
+
+  /**
+   * Mail goes out without the request waiting for it: an answer that took
+   * the mail provider's time only when an account exists told anyone
+   * timing it which emails have one. A failed send is logged by the mailer.
+   */
+  private sendQuietly(send: () => Promise<void>): void {
+    void send().catch(() => undefined);
+  }
+
+  /** What every token issued now carries (see lib/session-guard). */
+  async tokenVersion(userId: string): Promise<number> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { tokenVersion: true } });
+    return user?.tokenVersion ?? 0;
   }
 
   /** `PendingRegistration` has no dedicated "code issued at" column — it's
@@ -232,7 +317,7 @@ export class AuthService {
     });
 
     // Compare even when the user is missing to keep timing uniform.
-    const hash = user?.passwordHash ?? "$2a$12$0000000000000000000000000000000000000000000000000000";
+    const hash = user?.passwordHash ?? DUMMY_HASH;
     const ok = await bcrypt.compare(input.password, hash);
 
     if (!user || !ok) {
@@ -295,6 +380,8 @@ export class AuthService {
     await this.consumeCode(user.id, "RESET_PASSWORD", code);
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    // Whoever had the old password — or a token from it — is out now.
+    await revokeSessions(this.prisma, user.id);
   }
 
   // -- verification code internals -----------------------------------------
@@ -313,6 +400,10 @@ export class AuthService {
     ) {
       return; // silently absorbed — the viewer already has a very recent code
     }
+    const issuedToday = await this.prisma.verificationCode.count({
+      where: { userId: user.id, purpose, createdAt: { gte: new Date(Date.now() - DAY_MS) } },
+    });
+    if (issuedToday >= MAX_CODES_PER_DAY) return; // same silence: no oracle, no mail bomb
 
     const code = generateCode();
     await this.prisma.$transaction([
@@ -333,9 +424,9 @@ export class AuthService {
     ]);
 
     if (purpose === "VERIFY_EMAIL") {
-      await this.email.sendVerificationCode(user.email, user.displayName, code);
+      this.sendQuietly(() => this.email.sendVerificationCode(user.email, user.displayName, code));
     } else {
-      await this.email.sendPasswordResetCode(user.email, user.displayName, code);
+      this.sendQuietly(() => this.email.sendPasswordResetCode(user.email, user.displayName, code));
     }
   }
 
@@ -350,6 +441,12 @@ export class AuthService {
     });
     if (!row || row.expiresAt < new Date()) throw new InvalidCodeError();
     if (row.attempts >= MAX_VERIFICATION_ATTEMPTS) throw new InvalidCodeError();
+    // Wrong guesses across every code of the last day, not just this one.
+    const failed = await this.prisma.verificationCode.aggregate({
+      where: { userId, purpose, createdAt: { gte: new Date(Date.now() - DAY_MS) } },
+      _sum: { attempts: true },
+    });
+    if ((failed._sum.attempts ?? 0) >= MAX_FAILED_PER_DAY) throw new InvalidCodeError();
 
     if (row.codeHash !== hashCode(code)) {
       await this.prisma.verificationCode.update({
@@ -504,9 +601,11 @@ export class AuthService {
       .join("\n");
 
     const secretKey = createHash("sha256").update(botToken).digest();
-    const computedHash = createHmac("sha256", secretKey).update(checkString).digest("hex");
+    const computed = createHmac("sha256", secretKey).update(checkString).digest();
+    const given = /^[0-9a-f]{64}$/i.test(hash) ? Buffer.from(hash, "hex") : null;
 
-    if (computedHash !== hash) {
+    // Constant-time: a plain comparison stops at the first wrong character.
+    if (!given || !timingSafeEqual(computed, given)) {
       throw new UnauthorizedError("Telegram sign-in couldn't be verified.");
     }
     const ageSeconds = Date.now() / 1000 - input.auth_date;

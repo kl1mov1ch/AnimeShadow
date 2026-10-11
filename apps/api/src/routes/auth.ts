@@ -21,22 +21,26 @@ function strict(max: number, minutes: number) {
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { auth } = fastify.services;
 
-  const issueToken = (userId: string) => fastify.jwt.sign({ sub: userId });
+  // The account's token version goes into every token: raising it (a
+  // password reset, a ban) ends all of them — see lib/session-guard.
+  const issueToken = async (userId: string) => fastify.jwt.sign({ sub: userId, tv: await auth.tokenVersion(userId) });
 
   // -- signup: request a code, then confirm it to actually create the account ---
 
   fastify.post("/auth/register", strict(10, 15), async (request, reply) => {
     const input = parse(registerInputSchema, request.body);
-    await auth.requestRegistration(input);
-    // No token, nobody's signed in yet — see AuthService.requestRegistration.
+    // No token, nobody's signed in yet — only the ticket that binds the
+    // emailed code to these details (see AuthService.requestRegistration).
+    const { ticket } = await auth.requestRegistration(input);
     reply.code(202);
+    return { ticket };
   });
 
   fastify.post("/auth/register/confirm", strict(20, 15), async (request, reply) => {
-    const { email, code } = parse(confirmRegistrationInputSchema, request.body);
-    const user = await auth.confirmRegistration(email, code);
+    const { email, code, ticket, password } = parse(confirmRegistrationInputSchema, request.body);
+    const user = await auth.confirmRegistration(email, code, { ticket, password });
     reply.code(201);
-    return { token: issueToken(user.id), user };
+    return { token: await issueToken(user.id), user };
   });
 
   fastify.post("/auth/register/resend", strict(5, 15), async (request, reply) => {
@@ -48,13 +52,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post("/auth/login", strict(15, 15), async (request) => {
     const input = parse(loginInputSchema, request.body);
     const user = await auth.verifyCredentials(input);
-    return { token: issueToken(user.id), user };
+    return { token: await issueToken(user.id), user };
   });
 
   fastify.post("/auth/telegram", strict(30, 15), async (request) => {
     const input = parse(telegramAuthInputSchema, request.body);
     const user = await auth.loginWithTelegram(input);
-    return { token: issueToken(user.id), user };
+    return { token: await issueToken(user.id), user };
   });
 
   fastify.get(

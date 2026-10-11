@@ -42,6 +42,11 @@ export default fp(
       },
     });
     fastify.decorate("services", services);
+    // Page views waiting in memory are written before the database goes.
+    fastify.addHook("onClose", async () => {
+      await services.analytics.close();
+      await services.adminPrisma.$disconnect();
+    });
   },
   { name: "services", dependencies: ["prisma"] },
 );

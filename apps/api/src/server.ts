@@ -99,6 +99,11 @@ try {
     setTimeout(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 180_000).unref();
     setInterval(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 6 * 60 * 60_000).unref();
   }
+  // Statistics upkeep: finished days rolled up, raw rows past their time
+  // pruned. Five minutes after start, then every six hours (see
+  // StatsRollupService).
+  setTimeout(() => void inBackground(() => app.services.statsRollup.run()), 5 * 60_000).unref();
+  setInterval(() => void inBackground(() => app.services.statsRollup.run()), 6 * 60 * 60_000).unref();
   if (env.WATCH_WARM_INTERVAL_MS > 0) {
     // unref'd so a pending tick never keeps the process alive during shutdown.
     setInterval(() => void inBackground(runWarm), env.WATCH_WARM_INTERVAL_MS).unref();

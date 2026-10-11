@@ -102,7 +102,16 @@ export class SeoRenderer {
     } catch {
       pathname = rawPath || "/";
     }
-    const search = rawSearch ? `?${rawSearch}` : "";
+    // Only what the pages read: `page`, and whether any filter is set at
+    // all (filtered catalogue pages are noindex). Keyed on the raw query, a
+    // `?x=1`, `?x=2`… loop made every request a fresh, uncached render.
+    const params = new URLSearchParams(rawSearch);
+    const pageParam = params.get("page");
+    const kept = [
+      pageParam && /^\d{1,4}$/.test(pageParam) ? `page=${pageParam}` : null,
+      [...params.keys()].some((key) => key !== "page") ? "filtered=1" : null,
+    ].filter(Boolean);
+    const search = kept.length > 0 ? `?${kept.join("&")}` : "";
     const part = await this.cache.wrap(`${pathname}${search}`, () =>
       this.renderUncached(pathname, search, `${rawPath || "/"}${search}`),
     );

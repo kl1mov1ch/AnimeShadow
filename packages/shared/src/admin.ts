@@ -10,12 +10,10 @@ const perPage = z.coerce.number().int().positive().max(100).default(20);
 // Overview — /admin/overview
 // ---------------------------------------------------------------------------
 
-/** A metric over the trailing 30 days next to the 30 days before it, so the
- * dashboard can show a trend without asking for a second window. */
+/** A total, and how much of it came in the last 30 days. */
 export const adminKpiSchema = z.object({
   total: count,
   current: count,
-  previous: count,
 });
 export type AdminKpi = z.infer<typeof adminKpiSchema>;
 
@@ -44,6 +42,16 @@ export type AdminAudienceStats = z.infer<typeof adminAudienceStatsSchema>;
 export const ADMIN_WINDOWS = ["today", "7d", "30d"] as const;
 export type AdminWindow = (typeof ADMIN_WINDOWS)[number];
 
+/** The admin page's header: what the tab badges and "today" pills show —
+ *  /admin/summary, a few cheap counts. */
+export interface AdminSummary {
+  users: number;
+  comments: number;
+  today: { registered: number; guests: number };
+}
+
+/** The overview's top: the numbers and the registered/guests split —
+ *  /admin/overview. The rest of the overview loads block by block. */
 export const adminOverviewSchema = z.object({
   /** Signed-in visitors next to guests, for each window — the two columns
    *  the dashboard is built around. */
@@ -56,72 +64,46 @@ export const adminOverviewSchema = z.object({
   ),
   kpis: z.object({
     users: adminKpiSchema,
+    /** `total`: every browser ever seen; `current`: the last 30 days. */
     visitors: adminKpiSchema,
     pageviews: adminKpiSchema,
-    watchSeconds: adminKpiSchema,
     comments: adminKpiSchema,
   }),
-  /** One point per UTC day, oldest first, zero-filled — always 30 entries. */
-  timeline: z.array(
-    z.object({
-      date: z.string(),
-      pageviews: count,
-      visitors: count,
-      registrations: count,
-      watchMinutes: count,
-      /** The guest share of the day's pageviews and watch time. */
-      guestPageviews: count,
-      guestWatchMinutes: count,
-    }),
-  ),
-  /** Pageviews by UTC hour over the last 7 days — always 24 entries. */
-  hourly: z.array(z.object({ hour: z.number().int().min(0).max(23), pageviews: count })),
-  audience: z.object({
-    total: count,
-    admins: count,
-    banned: count,
-    telegram: count,
-    activeToday: count,
-  }),
-  topReferrers: z.array(z.object({ host: z.string(), count })),
-  topPaths: z.array(z.object({ path: z.string(), count })),
-  libraryStatus: z.array(z.object({ status: z.enum(ADMIN_LIBRARY_STATUSES), count })),
-  topGenres: z.array(z.object({ name: z.string(), count })),
-  topAnime: z.array(
-    z.object({
-      anime: z.custom<AnimeSummary>(),
-      views: count,
-      watchers: count,
-      /** Title-page opens over the last 30 days, by audience. */
-      viewsRegistered: count,
-      viewsGuests: count,
-      /** Player time over the last 30 days, by audience. */
-      watchSecondsRegistered: count,
-      watchSecondsGuests: count,
-    }),
-  ),
-  recentUsers: z.array(
-    z.object({
-      id: z.string(),
-      displayName: z.string(),
-      avatarUrl: z.string().nullable(),
-      hasTelegram: z.boolean(),
-      createdAt: z.string(),
-    }),
-  ),
-  recentComments: z.array(
-    z.object({
-      id: z.string(),
-      animeId: z.number().int(),
-      animeTitle: z.string(),
-      authorName: z.string(),
-      authorAvatarUrl: z.string().nullable(),
-      body: z.string(),
-      createdAt: z.string(),
-    }),
-  ),
 });
 export type AdminOverview = z.infer<typeof adminOverviewSchema>;
+
+/** One point per Moscow day, oldest first, zero-filled — 30 entries. Past
+ *  days come from the daily rollups; today is counted live. */
+export interface AdminTimelinePoint {
+  date: string;
+  pageviews: number;
+  visitors: number;
+  registrations: number;
+  watchMinutes: number;
+  /** The guest share of the day's pageviews and watch time. */
+  guestPageviews: number;
+  guestWatchMinutes: number;
+}
+
+export interface AdminTopAnime {
+  anime: AnimeSummary;
+  views: number;
+  watchers: number;
+  /** Title-page opens over the last 30 days, by audience. */
+  viewsRegistered: number;
+  viewsGuests: number;
+  /** Player time over the last 30 days, by audience. */
+  watchSecondsRegistered: number;
+  watchSecondsGuests: number;
+}
+
+/** The overview's lists — /admin/overview/top. */
+export interface AdminOverviewTop {
+  topAnime: AdminTopAnime[];
+  topReferrers: Array<{ host: string; count: number }>;
+  topPaths: Array<{ path: string; count: number }>;
+  recentUsers: Array<{ id: string; displayName: string; avatarUrl: string | null; hasTelegram: boolean; createdAt: string }>;
+}
 
 // ---------------------------------------------------------------------------
 // Users — /admin/users
@@ -378,11 +360,12 @@ export interface AdminAnalyticsRow {
   avgSec: number | null;
 }
 
+/** The analytics tab's numbers and curve — /admin/analytics. Every other
+ *  block of the tab is its own request (below), loaded when it is shown. */
 export interface AdminAnalytics {
   range: { from: string; to: string; bucket: "hour" | "day" };
   summary: AdminAnalyticsSummary;
   previous: AdminAnalyticsSummary;
-  live: { visitors: number; pageviews: number };
   series: Array<{
     at: string;
     visitors: number;
@@ -394,24 +377,75 @@ export interface AdminAnalytics {
   }>;
   /** The period before, bucket for bucket — for the dashed line. */
   previousSeries: AdminAnalytics["series"];
-  /** Day of week (0 = Sunday) × hour, in the chosen time zone. */
-  heatmap: Array<{ dow: number; hour: number; pageviews: number }>;
-  breakdowns: {
-    pages: AdminAnalyticsRow[];
-    sections: AdminAnalyticsRow[];
-    entryPages: AdminAnalyticsRow[];
-    anime: AdminAnalyticsRow[];
-    referrers: AdminAnalyticsRow[];
-    utmSources: AdminAnalyticsRow[];
-    utmCampaigns: AdminAnalyticsRow[];
-    devices: AdminAnalyticsRow[];
-    browsers: AdminAnalyticsRow[];
-    os: AdminAnalyticsRow[];
-    langs: AdminAnalyticsRow[];
-    screens: AdminAnalyticsRow[];
-  };
-  /** How many visitors who first came in a week came back in the weeks after. */
-  retention: Array<{ week: string; visitors: number; returned: number[] }>;
+  /** Raw page views are kept from this moment on (older days only as daily
+   *  rollups, see the archive); null when there are none at all. */
+  rawSince: string | null;
+}
+
+/** Who is on the site right now (the last five minutes) — /admin/analytics/live. */
+export interface AdminAnalyticsLive {
+  visitors: number;
+  pageviews: number;
+}
+
+/** Day of week (0 = Sunday) × hour, in the chosen time zone — /admin/analytics/heatmap. */
+export type AdminAnalyticsHeatmap = Array<{ dow: number; hour: number; pageviews: number }>;
+
+export interface AdminAnalyticsBreakdowns {
+  pages: AdminAnalyticsRow[];
+  sections: AdminAnalyticsRow[];
+  entryPages: AdminAnalyticsRow[];
+  anime: AdminAnalyticsRow[];
+  referrers: AdminAnalyticsRow[];
+  utmSources: AdminAnalyticsRow[];
+  utmCampaigns: AdminAnalyticsRow[];
+  devices: AdminAnalyticsRow[];
+  browsers: AdminAnalyticsRow[];
+  os: AdminAnalyticsRow[];
+  langs: AdminAnalyticsRow[];
+  screens: AdminAnalyticsRow[];
+}
+
+/** The breakdown tables come a group at a time — only the one on screen. */
+export const ANALYTICS_BREAKDOWN_GROUPS = ["pages", "sources", "tech"] as const;
+export type AdminAnalyticsBreakdownGroup = (typeof ANALYTICS_BREAKDOWN_GROUPS)[number];
+export const adminBreakdownQuerySchema = adminAnalyticsQuerySchema.extend({
+  group: z.enum(ANALYTICS_BREAKDOWN_GROUPS).default("pages"),
+});
+export type AdminBreakdownQuery = z.infer<typeof adminBreakdownQuerySchema>;
+
+/** How many visitors who first came in a week came back in the weeks after
+ *  — /admin/analytics/retention. */
+export type AdminAnalyticsRetention = Array<{ week: string; visitors: number; returned: number[] }>;
+
+/** One month of the daily rollups — /admin/analytics/archive. `visitors` is
+ *  summed over the days (a visitor back on another day counts again). */
+export interface AdminArchiveMonth {
+  month: string;
+  days: number;
+  pageviews: number;
+  visitors: number;
+  sessions: number;
+  newVisitors: number;
+  registrations: number;
+  watchMinutes: number;
+}
+
+export interface AdminArchiveKey {
+  key: string;
+  label?: string;
+  href?: string;
+  views: number;
+  uniques: number;
+}
+
+/** One month in detail, from the rollups — /admin/analytics/archive/:month. */
+export interface AdminArchiveDetail {
+  month: string;
+  days: Array<{ day: string; pageviews: number; visitors: number; registrations: number; watchMinutes: number }>;
+  /** Top keys of each kind: page, section, anime, referrer, utm, device,
+   *  browser, os, lang, and "watch" (views = seconds, uniques = sessions). */
+  top: Record<string, AdminArchiveKey[]>;
 }
 
 export const ANALYTICS_VISITOR_SORTS = ["last", "first", "pageviews", "sessions", "time"] as const;

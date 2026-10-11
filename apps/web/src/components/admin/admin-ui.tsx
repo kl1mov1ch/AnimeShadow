@@ -1,4 +1,4 @@
-import type { AdminKpi, PaginationMeta } from "@animeshadow/shared";
+import type { PaginationMeta } from "@animeshadow/shared";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -6,15 +6,11 @@ import {
   MoreHorizontalIcon,
   SearchIcon,
   Trash2Icon,
-  TrendingDownIcon,
-  TrendingUpIcon,
 } from "lucide-react";
-import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { Area, AreaChart } from "recharts";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,16 +36,7 @@ import { cn } from "@/lib/utils";
 export const ENTER =
   "animate-in fade-in slide-in-from-bottom-3 duration-500 [animation-fill-mode:both]";
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
-
 /** `useId()` output is not a valid SVG `url(#…)` reference in React 19. */
-// The count-up now lives in lib, so the profile can use it without
-// pulling this file in; re-exported here so nothing that already
-// imports it from the dashboard has to move.
-import { useCountUp } from "@/lib/use-count-up";
-
 export function useSafeId(): string {
   return useId().replace(/[^a-zA-Z0-9_-]/g, "");
 }
@@ -92,12 +79,6 @@ export function useFormatDuration(): (seconds: number) => string {
       ? `${hours.toLocaleString()} ${t("admin.units.h")} ${minutes} ${t("admin.units.m")}`
       : `${minutes} ${t("admin.units.m")}`;
   };
-}
-
-/** Percent change vs the previous period; `null` when there's no baseline. */
-export function deltaPercent(current: number, previous: number): number | null {
-  if (previous === 0) return current === 0 ? 0 : null;
-  return Math.round(((current - previous) / previous) * 100);
 }
 
 export function errorMessage(error: unknown, fallback: string): string {
@@ -172,136 +153,6 @@ export function EmptyBlock({ children }: { children: ReactNode }) {
 
 // ---------------------------------------------------------------------------
 // KPI cards
-// ---------------------------------------------------------------------------
-
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const id = useSafeId();
-  const config = { v: { label: "", color } } satisfies ChartConfig;
-  const points = data.map((v, i) => ({ i, v }));
-  return (
-    <ChartContainer config={config} className="-mx-1 aspect-auto h-12 w-[calc(100%+0.5rem)]">
-      <AreaChart data={points} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-v)" stopOpacity={0.45} />
-            <stop offset="100%" stopColor="var(--color-v)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <Area
-          dataKey="v"
-          type="monotone"
-          stroke="var(--color-v)"
-          strokeWidth={2}
-          fill={`url(#spark-${id})`}
-          dot={false}
-          animationDuration={1200}
-        />
-      </AreaChart>
-    </ChartContainer>
-  );
-}
-
-function PeriodCompare({ kpi, color, format }: { kpi: AdminKpi; color: string; format: (n: number) => string }) {
-  const t = useT();
-  const max = Math.max(kpi.current, kpi.previous, 1);
-  const current = useEnterValue((kpi.current / max) * 100);
-  const previous = useEnterValue((kpi.previous / max) * 100);
-  return (
-    <div className="flex flex-col gap-1.5 pt-1 text-[11px] text-muted-foreground">
-      {[
-        { label: t("admin.kpi.thisPeriod"), width: current, value: kpi.current, fill: color },
-        { label: t("admin.kpi.prevPeriod"), width: previous, value: kpi.previous, fill: "var(--muted-foreground)" },
-      ].map((row) => (
-        <div key={row.label} className="flex items-center gap-2">
-          <span className="w-16 shrink-0 truncate">{row.label}</span>
-          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-            <span
-              className="block h-full rounded-full transition-[width] duration-700 ease-out"
-              style={{ width: `${row.width}%`, background: row.fill, opacity: row.fill === color ? 1 : 0.45 }}
-            />
-          </span>
-          <span className="w-8 shrink-0 text-right tabular-nums text-foreground/80">{format(row.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function KpiCard({
-  label,
-  icon,
-  color,
-  kpi,
-  series,
-  format = (n) => n.toLocaleString(),
-  delay = 0,
-}: {
-  label: string;
-  icon: ReactNode;
-  color: string;
-  kpi: AdminKpi;
-  series?: number[];
-  format?: (value: number) => string;
-  delay?: number;
-}) {
-  const t = useT();
-  const animated = useCountUp(kpi.total);
-  const delta = deltaPercent(kpi.current, kpi.previous);
-  const up = delta == null || delta >= 0;
-
-  return (
-    <div
-      style={{ animationDelay: `${delay}ms`, "--kpi": color } as CSSProperties}
-      className={cn(
-        ENTER,
-        "group relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40 motion-reduce:hover:translate-y-0",
-      )}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-12 -top-12 size-32 rounded-full opacity-[0.14] blur-2xl transition-opacity group-hover:opacity-25"
-        style={{ background: color }}
-      />
-      <div className="relative flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-medium text-muted-foreground">{label}</span>
-        <span
-          className="grid size-8 shrink-0 place-items-center rounded-lg"
-          style={{ background: `color-mix(in oklab, ${color} 16%, transparent)`, color }}
-        >
-          {icon}
-        </span>
-      </div>
-
-      <div className="relative flex items-end justify-between gap-2">
-        <span className="truncate text-2xl font-semibold leading-none">{format(animated)}</span>
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
-            up
-              ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
-              : "bg-rose-500/12 text-rose-600 dark:text-rose-400",
-          )}
-        >
-          {up ? <TrendingUpIcon className="size-3" /> : <TrendingDownIcon className="size-3" />}
-          {delta == null ? t("admin.kpi.new") : `${delta > 0 ? "+" : ""}${delta}%`}
-        </span>
-      </div>
-
-      <span className="relative text-[11px] text-muted-foreground">
-        +{format(kpi.current)} {t("admin.last30")}
-      </span>
-
-      {series ? (
-        <Sparkline data={series} color={color} />
-      ) : (
-        <PeriodCompare kpi={kpi} color={color} format={format} />
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Lists & charts helpers
 // ---------------------------------------------------------------------------
 
 export function BarRow({

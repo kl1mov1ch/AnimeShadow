@@ -1,5 +1,5 @@
 import { ANIME_WITH_GENRES_INCLUDE, toSummaryDto } from "@animeshadow/db";
-import { animeQuerySchema, localeQuerySchema } from "@animeshadow/shared";
+import { animeQuerySchema, localeQuerySchema, type WatchResponse } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { TtlCache } from "../lib/cache.js";
@@ -17,6 +17,36 @@ const rollQuery = z.object({ count: z.coerce.number().int().min(1).max(14).defau
  * minutes instead of on every press of the button.
  */
 const rollPool = new TtlCache<number[]>(10 * 60_000, 4);
+
+/**
+ * The watch payload as the page needs it. Every Kodik dub carried five
+ * screenshot links per episode, and the page shows only one still per
+ * episode, taken from the first dub that has any — so a title with 40 dubs
+ * and 28 episodes answered with 380 KB, 90% of it links nobody loads. One
+ * still per episode, on the first dub that has it; the result is kept per
+ * cached response, so it is worked out once, not on every request.
+ */
+const slimmed = new WeakMap<WatchResponse, WatchResponse>();
+function slimWatch(response: WatchResponse): WatchResponse {
+  const hit = slimmed.get(response);
+  if (hit) return hit;
+  const withStill = new Set<string>();
+  const out: WatchResponse = {
+    ...response,
+    sources: response.sources.map((source) => {
+      if (!source.iframeEpisodes) return source;
+      const episodes: NonNullable<typeof source.iframeEpisodes> = {};
+      for (const [n, episode] of Object.entries(source.iframeEpisodes)) {
+        const first = episode.thumbs.length > 0 && !withStill.has(n);
+        if (first) withStill.add(n);
+        episodes[n] = { url: episode.url, thumbs: first ? episode.thumbs.slice(0, 1) : [] };
+      }
+      return { ...source, iframeEpisodes: episodes };
+    }),
+  };
+  slimmed.set(response, out);
+  return out;
+}
 
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const { catalog, watch, episodeInfo } = fastify.services;
@@ -124,7 +154,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = parse(idParams, request.params);
       const { lang } = parse(localeQuerySchema, request.query);
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      catalog.recordView(id);
+      // Views are counted from page visits (AnalyticsService), not here: this
+      // also answers the hover prefetch of a card.
       return catalog.getAnimeById(id, lang, allowAdult);
     },
   );
@@ -143,7 +174,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
       });
       if (!row) throw new NotFoundError("Аниме не найдено.");
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      catalog.recordView(row.id);
       return catalog.getAnimeById(row.id, lang, allowAdult);
     },
   );
@@ -187,6 +217,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/anime/:id/watch", async (request) => {
     const { id } = parse(idParams, request.params);
-    return watch.getSources(id);
+    return slimWatch(await watch.getSources(id));
   });
 };

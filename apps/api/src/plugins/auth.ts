@@ -3,11 +3,14 @@ import type { preHandlerHookHandler } from "fastify";
 import fp from "fastify-plugin";
 import { env } from "../config/env.js";
 import { ForbiddenError, UnauthorizedError } from "../lib/errors.js";
+import { sessionIsValid } from "../lib/session-guard.js";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
-    payload: { sub: string };
-    user: { sub: string };
+    /** `tv`: the account's tokenVersion when the token was issued (absent
+     * on tokens from before it existed, which count as version 0). */
+    payload: { sub: string; tv?: number };
+    user: { sub: string; tv?: number };
   }
 }
 
@@ -36,21 +39,30 @@ export default fp(
       sign: { expiresIn: env.JWT_EXPIRES_IN },
     });
 
+    // A valid signature is not enough: the account may have been banned,
+    // or every session ended by a password reset (lib/session-guard).
     fastify.decorate("authenticate", async (request) => {
       try {
         await request.jwtVerify();
-        request.userId = request.user.sub;
       } catch {
         throw new UnauthorizedError();
       }
+      if (!(await sessionIsValid(fastify.prisma, request.user.sub, request.user.tv ?? 0))) {
+        throw new UnauthorizedError("Your session has ended. Please sign in again.");
+      }
+      request.userId = request.user.sub;
     });
 
     fastify.decorate("optionalAuth", async (request) => {
+      request.userId = undefined;
+      if (!request.headers.authorization) return;
       try {
         await request.jwtVerify();
-        request.userId = request.user.sub;
       } catch {
-        request.userId = undefined;
+        return;
+      }
+      if (await sessionIsValid(fastify.prisma, request.user.sub, request.user.tv ?? 0)) {
+        request.userId = request.user.sub;
       }
     });
 

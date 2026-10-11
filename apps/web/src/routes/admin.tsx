@@ -20,7 +20,7 @@ import { PageHero } from "@/components/common/page-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
-import { useAdminOverview } from "@/lib/query";
+import { useAdminSummary } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 const TABS = ["overview", "analytics", "monitoring", "users", "comments"] as const;
@@ -68,12 +68,14 @@ function AdminPanel() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab: AdminTab = isAdminTab(tabParam) ? tabParam : "overview";
-  const overview = useAdminOverview();
+  // A few counts for the badges and pills — not the whole overview, which
+  // only its own tab loads.
+  const overview = useAdminSummary();
 
   const counts: Partial<Record<AdminTab, number>> = overview.data
-    ? { users: overview.data.kpis.users.total, comments: overview.data.kpis.comments.total }
+    ? { users: overview.data.users, comments: overview.data.comments }
     : {};
-  const today = overview.data?.split?.find((s) => s.window === "today");
+  const today = overview.data?.today;
   const updatedAt = overview.dataUpdatedAt
     ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(overview.dataUpdatedAt)
     : null;
@@ -88,11 +90,11 @@ function AdminPanel() {
             <>
               <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400">
                 <LiveDot />
-                {t("admin.x.todayRegistered", { n: today.registered.visitors })}
+                {t("admin.x.todayRegistered", { n: today.registered })}
               </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-600 dark:text-sky-300">
                 <span className="size-2 rounded-full bg-sky-400" />
-                {t("admin.x.todayGuests", { n: today.guests.visitors })}
+                {t("admin.x.todayGuests", { n: today.guests })}
               </span>
             </>
           )}
@@ -115,7 +117,9 @@ function AdminPanel() {
 
       <nav
         aria-label={t("admin.title")}
-        className="sticky top-14 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-[var(--accent-line-soft)] bg-background/95 p-1 [scrollbar-width:none]"
+        // Pinned under the header on a computer; on a phone it scrolls away
+        // with the page instead of covering the cards under it.
+        className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-[var(--accent-line-soft)] bg-background/95 p-1 [scrollbar-width:none] md:sticky md:top-[4.5rem] md:z-20"
       >
         {TABS.map((value) => {
           const Icon = TAB_ICONS[value];

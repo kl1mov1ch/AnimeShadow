@@ -2,7 +2,7 @@ import { AllohaClient } from "@animeshadow/alloha";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
-import type { PrismaClient } from "@animeshadow/db";
+import { createPrismaClient, type PrismaClient } from "@animeshadow/db";
 import type { JikanClient } from "@animeshadow/jikan";
 import { KodikClient } from "@animeshadow/kodik";
 import { ShikimoriClient } from "@animeshadow/shikimori";
@@ -20,6 +20,7 @@ import { AnilibriaCatalogSync } from "./anilibria-sync.service.js";
 import { LandingService } from "./landing.service.js";
 import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
+import { StatsRollupService } from "./stats-rollup.service.js";
 import { AuthService } from "./auth.service.js";
 import { CatalogService } from "./catalog.service.js";
 import { CommentService } from "./comment.service.js";
@@ -79,12 +80,15 @@ export interface Services {
   achievements: AchievementService;
   recommendations: RecommendationService;
   analytics: AnalyticsService;
+  statsRollup: StatsRollupService;
   admin: AdminService;
   episodeInfo: EpisodeInfoService;
   insights: ProfileInsightsService;
   collections: CollectionService;
   facts: FactsService;
   adminAnalytics: AdminAnalyticsService;
+  /** The admin's own small connection pool (see below); closed on shutdown. */
+  adminPrisma: PrismaClient;
   landing: LandingService;
   kodikSync: KodikCatalogSync;
   anilibriaSync: AnilibriaCatalogSync;
@@ -209,9 +213,14 @@ export function createServices(deps: ContainerDeps): Services {
   });
 
   const recommendations = new RecommendationService({ prisma: deps.prisma });
-  const analytics = new AnalyticsService({ prisma: deps.prisma });
+  const analytics = new AnalyticsService({ prisma: deps.prisma, logger: deps.logger });
+  const statsRollup = new StatsRollupService({ prisma: deps.prisma, logger: deps.logger, rawDays: env.STATS_RAW_DAYS });
+  // The admin's reports run on a pool of their own, four connections: a
+  // heavy report then waits its turn there instead of taking the site's
+  // connections from visitors.
+  const adminPrisma = createPrismaClient({ poolMax: 4 });
   const admin = new AdminService({
-    prisma: deps.prisma,
+    prisma: adminPrisma,
     logger: deps.logger,
     prometheusUrl: env.PROMETHEUS_URL,
   });
@@ -233,12 +242,14 @@ export function createServices(deps: ContainerDeps): Services {
     achievements,
     recommendations,
     analytics,
+    statsRollup,
     admin,
     episodeInfo,
     insights,
     collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
     facts: new FactsService({ prisma: deps.prisma }),
-    adminAnalytics: new AdminAnalyticsService({ prisma: deps.prisma }),
+    adminAnalytics: new AdminAnalyticsService({ prisma: adminPrisma }),
+    adminPrisma,
     landing,
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),

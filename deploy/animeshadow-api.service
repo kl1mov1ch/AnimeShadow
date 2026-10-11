@@ -13,6 +13,17 @@ RestartSec=3
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=animeshadow-api
+# Whatever runs inside the API can't gain privileges (sudo, setuid
+# binaries) and can't write to the system's own directories — a hole in
+# the app stays a hole in the app, not a way to root.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target

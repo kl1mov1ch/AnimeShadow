@@ -89,6 +89,9 @@ model User {
   /// Last page opened while signed in (see AnalyticsService.record) — what
   /// the admin panel sorts and shows as "last seen".
   lastSeenAt      DateTime?
+  /// Signed into every token; raised by a password reset, a password set
+  /// by an admin or a ban, which ends every session the account had.
+  tokenVersion    Int             @default(0)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]
@@ -147,6 +150,13 @@ model PendingRegistration {
   referrer    String?
   codeHash    String
   attempts    Int      @default(0)
+  /// sha256 of the ticket /auth/register handed back: only the browser
+  /// that sent these details can confirm them with the emailed code.
+  ticketHash  String?
+  /// Codes sent and wrong guesses made, over the row's whole life — capped,
+  /// so asking for a new code never buys a fresh round of guesses.
+  sends       Int      @default(1)
+  failed      Int      @default(0)
   expiresAt   DateTime
   createdAt   DateTime @default(now())
 }
@@ -230,17 +240,13 @@ model WatchSession {
   createdAt DateTime  @default(now())
 
   @@index([userId, startedAt])
+  @@index([animeId, startedAt])
   // Backs the homepage's "trending now / this month" rails — a
   // groupBy(animeId) filtered to a recent window over the whole table, with
   // no animeId filter to narrow it first, so the range needs its own index.
   @@index([startedAt])
 }
 
-/// One SPA route visit, reported by the frontend beacon on every route
-/// change (see usePageviewBeacon). `visitorId` is a random id the browser
-/// keeps in localStorage — never an IP address, so anonymous traffic is
-/// tracked without storing anything personally identifying. Powers the
-/// admin traffic overview (volume over time, top pages, top referrers).
 /// Time with the player open, from someone who isn't signed in. Kept apart
 /// from WatchSession on purpose: that table belongs to accounts (profiles,
 /// hours watched, achievements) and cascades with them; this one is only
@@ -255,11 +261,21 @@ model GuestWatchSession {
   startedAt DateTime
   createdAt DateTime @default(now())
 
-  @@index([createdAt])
-  @@index([animeId, createdAt])
-  @@index([visitorId, createdAt])
+  // Every reader filters on when the watching happened, not when the row
+  // was written.
+  @@index([startedAt])
+  @@index([animeId, startedAt])
+  @@index([visitorId, startedAt])
 }
 
+/// One SPA route visit, reported by the frontend beacon on every route
+/// change (see usePageviewBeacon). `visitorId` is a random id the browser
+/// keeps in localStorage — never an IP address, so anonymous traffic is
+/// tracked without storing anything personally identifying. Powers the
+/// admin traffic overview (volume over time, top pages, top referrers).
+///
+/// Written in batches (AnalyticsService) and kept for STATS_RAW_DAYS; every
+/// day is rolled up into StatDay / StatDayKey before it is pruned.
 model PageView {
   id        String   @id @default(cuid())
   path      String
@@ -295,7 +311,54 @@ model PageView {
   @@index([path, createdAt])
   @@index([userId, createdAt])
   @@index([visitorId, createdAt])
-  @@index([sessionId])
+}
+
+/// When each browser was first seen: one row per visitorId, written once
+/// (insert-if-absent with every batch of page views). "New or returning"
+/// is a key lookup here instead of a scan of everyone's whole history, and
+/// it outlives the raw page views, which are pruned.
+model VisitorFirstSeen {
+  visitorId String   @id
+  firstAt   DateTime
+
+  @@index([firstAt])
+}
+
+/// One day of traffic for one audience ("registered" | "guest"), rolled up
+/// from the raw tables every night (see StatsRollupService). The raw rows
+/// are pruned after a while; these stay, so any past day can still be
+/// looked at. Days are Moscow days; crawlers are left out.
+model StatDay {
+  day           DateTime @db.Date
+  audience      String
+  pageviews     Int      @default(0)
+  visitors      Int      @default(0)
+  sessions      Int      @default(0)
+  bounces       Int      @default(0)
+  /// Summed length of the day's sessions.
+  sessionSec    Int      @default(0)
+  newVisitors   Int      @default(0)
+  watchSec      Int      @default(0)
+  watchSessions Int      @default(0)
+  /// Accounts created that day (on the "registered" row only).
+  registrations Int      @default(0)
+
+  @@id([day, audience])
+}
+
+/// The day's top keys of one kind — pages, sections, titles, sources,
+/// devices… (the list is in StatsRollupService). `views` is page views
+/// (for "watch": seconds watched), `uniques` distinct visitors (for
+/// "watch": sessions). At most 200 keys per kind per day.
+model StatDayKey {
+  day     DateTime @db.Date
+  dim     String
+  key     String
+  views   Int      @default(0)
+  uniques Int      @default(0)
+
+  @@id([day, dim, key])
+  @@index([dim, day])
 }
 
 /// An earned achievement. The catalogue itself is code-defined
@@ -675,4 +738,6 @@ model CollectionView {
 
   @@unique([collectionId, visitorId, day])
   @@index([collectionId, day])
+  // Achievements count one account's views.
+  @@index([userId])
 }
