@@ -94,9 +94,10 @@ export function BrowseSearch({ params, onChange }: { params: BrowseParams; onCha
 }
 
 /**
- * Every filter, one under another: a label, then its control at full width.
- * The same panel sits beside the results on a computer and fills the
- * filter sheet on a phone. Everything applies the moment it is picked.
+ * Every filter: a label, then its control. One under another beside the
+ * results on a computer; two to a row in the phone's filter sheet, so the
+ * whole set fits about one screen instead of three. Everything applies the
+ * moment it is picked.
  */
 export function BrowseFilters({
   params,
@@ -104,6 +105,7 @@ export function BrowseFilters({
   onChange,
   onReset,
   heading = true,
+  compact = false,
 }: {
   params: BrowseParams;
   genres: Genre[];
@@ -111,12 +113,15 @@ export function BrowseFilters({
   onReset: () => void;
   /** Off inside the filter sheet, which has its own title and reset. */
   heading?: boolean;
+  /** Two selects to a row — the phone's sheet. */
+  compact?: boolean;
 }) {
   const t = useT();
   const labels = useLabels();
   const { status } = useAuth();
   const authed = status === "authenticated";
   const count = activeFilterCount(params);
+  const pair = compact ? "grid grid-cols-2 gap-3" : "flex flex-col gap-4";
 
   const periodKey =
     PERIODS.find((p) => (params.yearFrom ?? null) === p.from && (params.yearTo ?? null) === p.to)?.key ?? null;
@@ -140,62 +145,68 @@ export function BrowseFilters({
         )}
       </div>
 
-      <FilterSelect
-        label={t("browse.format")}
-        value={params.type ?? null}
-        anyLabel={t("browse.anyShort")}
-        options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
-        onPick={(type) => onChange({ type })}
-      />
-      <FilterSelect
-        label={t("browse.status")}
-        value={params.airing ?? null}
-        anyLabel={t("browse.anyShort")}
-        options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
-        onPick={(airing) => onChange({ airing })}
-      />
+      <div className={pair}>
+        <FilterSelect
+          label={t("browse.format")}
+          value={params.type ?? null}
+          anyLabel={t("browse.anyShort")}
+          options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
+          onPick={(type) => onChange({ type })}
+        />
+        <FilterSelect
+          label={t("browse.status")}
+          value={params.airing ?? null}
+          anyLabel={t("browse.anyShort")}
+          options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
+          onPick={(airing) => onChange({ airing })}
+        />
+      </div>
       <GenrePicker params={params} genres={genres} onChange={onChange} />
-      <FilterSelect
-        label={t("browse.yearRange")}
-        value={periodKey}
-        anyLabel={t("browse.anyYear")}
-        options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
-        onPick={(key) => {
-          const period = PERIODS.find((p) => p.key === key);
-          onChange({
-            year: null,
-            yearFrom: period?.from != null ? String(period.from) : null,
-            yearTo: period?.to != null ? String(period.to) : null,
-          });
-        }}
-      />
-      <FilterSelect
-        label={t("browse.scoreRange")}
-        value={params.minScore ? String(params.minScore) : null}
-        anyLabel={t("browse.anyScore")}
-        options={SCORE_STEPS.map((v) => ({ value: String(v), label: t("browse.minScoreValue", { value: v }) }))}
-        onPick={(v) => onChange({ minScore: v, maxScore: null })}
-      />
-      <FilterSelect
-        label={t("browse.episodes")}
-        value={episodePreset?.key ?? null}
-        anyLabel={t("browse.anyLength")}
-        options={EPISODE_PRESETS.map((p) => ({
-          value: p.key,
-          label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
-        }))}
-        onPick={(key) => {
-          const preset = EPISODE_PRESETS.find((p) => p.key === key);
-          onChange(
-            preset
-              ? { episodesMin: String(preset.min), episodesMax: preset.max != null ? String(preset.max) : null }
-              : { episodesMin: null, episodesMax: null },
-          );
-        }}
-      />
-      <Field label={t("browse.studio")}>
-        <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
-      </Field>
+      <div className={pair}>
+        <FilterSelect
+          label={t("browse.yearRange")}
+          value={periodKey}
+          anyLabel={t("browse.anyYear")}
+          options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+          onPick={(key) => {
+            const period = PERIODS.find((p) => p.key === key);
+            onChange({
+              year: null,
+              yearFrom: period?.from != null ? String(period.from) : null,
+              yearTo: period?.to != null ? String(period.to) : null,
+            });
+          }}
+        />
+        <FilterSelect
+          label={t("browse.scoreRange")}
+          value={params.minScore ? String(params.minScore) : null}
+          anyLabel={t("browse.anyScore")}
+          options={SCORE_STEPS.map((v) => ({ value: String(v), label: t("browse.minScoreValue", { value: v }) }))}
+          onPick={(v) => onChange({ minScore: v, maxScore: null })}
+        />
+      </div>
+      <div className={pair}>
+        <FilterSelect
+          label={t("browse.episodes")}
+          value={episodePreset?.key ?? null}
+          anyLabel={t("browse.anyLength")}
+          options={EPISODE_PRESETS.map((p) => ({
+            value: p.key,
+            label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
+          }))}
+          onPick={(key) => {
+            const preset = EPISODE_PRESETS.find((p) => p.key === key);
+            onChange(
+              preset
+                ? { episodesMin: String(preset.min), episodesMax: preset.max != null ? String(preset.max) : null }
+                : { episodesMin: null, episodesMax: null },
+            );
+          }}
+        />
+        <Field label={t("browse.studio")}>
+          <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
+        </Field>
+      </div>
 
       <div className="flex flex-col gap-1">
         <Switch

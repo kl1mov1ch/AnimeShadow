@@ -28,7 +28,7 @@ import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { InfoSidebar } from "@/components/anime/episodes-panel";
 import { TitleTracker } from "@/components/library/title-tracker";
-import { TitleFacts } from "@/components/anime/title-facts";
+import { WatchTimeCard } from "@/components/anime/title-facts";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
 // import { ScoreBadge } from "@/components/anime/score-badge";
@@ -44,6 +44,7 @@ import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { useSlowConnection } from "@/lib/connection";
+import { glideTo } from "@/lib/glide";
 import { fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
@@ -322,8 +323,20 @@ function AnimeDetailView({ param }: { param: string }) {
                 was, on the bar above the player, so there is exactly one of
                 it on the page. */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button asChild size="lg" >
-                <a href="#watch">
+              <Button asChild size="lg">
+                <a
+                  href="#watch"
+                  onClick={(event) => {
+                    // Down to the player smoothly, not a jump cut. On a
+                    // phone the header steps aside on the way down, so
+                    // the player can sit right at the top.
+                    const target = document.getElementById("watch");
+                    if (!target) return;
+                    event.preventDefault();
+                    glideTo(target, window.matchMedia("(min-width: 768px)").matches ? 80 : 8);
+                    window.history.replaceState(window.history.state, "", "#watch");
+                  }}
+                >
                   <PlayIcon className="fill-current" />
                   {t("detail.sections.watch")}
                 </a>
@@ -339,17 +352,14 @@ function AnimeDetailView({ param }: { param: string }) {
           Each of these is a thing someone came for, so each gets its own
           card and its own heading rather than being a row inside the
           player's container. */}
-      <Panel id="watch" icon={MonitorPlayIcon} title={t("detail.sections.watch")}>
-        {/* Everything you do with a title while watching it — status,
-            score, episode, note — in one bar right above the player, the
-            full width of it. It used to be exactly as wide as its contents
-            and sat against the left edge with the rest of the line empty;
-            spanning the panel, with the facts pushed to the far end, is
-            what lines it up with the picture underneath. */}
-        <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/92 p-2 shadow-sm sm:px-3">
-          <TitleTracker anime={data} title={title} />
-          <TitleFacts anime={data} />
-        </div>
+      {/* On a phone the section runs edge to edge and the player with it;
+          the list and score bar go under the picture, which comes first. */}
+      <Panel
+        id="watch"
+        icon={MonitorPlayIcon}
+        title={t("detail.sections.watch")}
+        className="max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0"
+      >
         <WatchSection
           anime={data}
           title={title}
@@ -357,6 +367,14 @@ function AnimeDetailView({ param }: { param: string }) {
           episode={episode}
           onEpisodeChange={setEpisode}
         />
+        {/* Under the picture: the viewer's own list and score, and how long
+            the whole title takes — two cards side by side on a wide screen,
+            one under the other on a phone. Either stretches across when the
+            other has nothing to say. */}
+        <div className="grid gap-3 md:grid-cols-2 md:[&:has(>section:only-child)]:grid-cols-1">
+          <TitleTracker anime={data} title={title} />
+          <WatchTimeCard anime={data} />
+        </div>
       </Panel>
 
       {/* Episodes live beside the player now, where you reach for them, so

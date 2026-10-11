@@ -301,7 +301,8 @@ function GuessGame() {
   return (
     <article className={cn(PANEL, "gap-2.5 p-3 sm:p-3")}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] text-muted-foreground">{t("home.game.keys")}</p>
+        {/* Keys mean nothing on a touch screen. */}
+        <p className="text-[11px] text-muted-foreground pointer-coarse:invisible">{t("home.game.keys")}</p>
           <div className="flex items-center gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>

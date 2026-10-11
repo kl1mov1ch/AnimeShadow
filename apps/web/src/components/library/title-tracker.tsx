@@ -1,12 +1,6 @@
 import type { AnimeSummary, LibraryStatus } from "@animeshadow/shared";
-import {
-  BookmarkPlusIcon,
-  LockIcon,
-  NotebookPenIcon,
-  StarIcon,
-  Trash2Icon,
-} from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { BookmarkIcon, LockIcon, NotebookPenIcon, StarIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -15,24 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
-import { DrawnCheck } from "@/components/ui/morph-icon";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { STATUSES, STATUS_META } from "./library-meta";
 import { useLibraryEdit } from "./use-library-edit";
 
-/** The chosen status's text/icon colour — the fill itself now lives on the
- *  one sliding highlight behind the buttons, not on each button. */
-const CHIP_ON: Record<LibraryStatus, string> = {
-  WATCHING: "text-white",
-  PLANNED: "text-white",
-  COMPLETED: "text-primary-foreground",
-  ON_HOLD: "text-white",
-  DROPPED: "text-white",
-};
-
-/** Real colour values, not Tailwind classes — the highlight below animates
- *  `background-color` directly, and a class swap never transitions that. */
+/** The chosen status's fill — real colour values, so the change transitions. */
 const STATUS_COLOR: Record<LibraryStatus, string> = {
   WATCHING: "#10b981",
   PLANNED: "#0ea5e9",
@@ -41,16 +23,19 @@ const STATUS_COLOR: Record<LibraryStatus, string> = {
   DROPPED: "#f43f5e",
 };
 
+/** The card both blocks under the player are drawn in (see WatchTimeCard). */
+export const TRACK_CARD = "flex min-w-0 flex-col gap-3 rounded-2xl border border-border/60 bg-card/60 p-4";
+export const TRACK_HEAD =
+  "flex items-center gap-2 text-sm font-semibold [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground";
+
 /**
- * The title page's tracking bar: status, score and note in one
- * row. Each answers visibly when used — the chosen status fills with its
- * colour and names itself, stars light under the cursor and say what the
- * score means, the note shows its first words — without the bar growing
- * taller than one line of controls.
- *
- * Lives above the player on the title page, where watching happens.
+ * "My list" on the title page: where the title stands for this viewer, their
+ * score, and a private note — each control with its name written on it, so
+ * someone who has never seen the site knows what a tap will do. It used to
+ * be a row of five unlabelled coloured icons and ten small stars, which
+ * explained itself only to people who already knew it.
  */
-export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: string }) {
+export function TitleTracker({ anime, title, className }: { anime: AnimeSummary; title: string; className?: string }) {
   const t = useT();
   const { status: authStatus } = useAuth();
   const isAuthed = authStatus === "authenticated";
@@ -61,53 +46,25 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
   const [popped, setPopped] = useState<number | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const entry = entries?.find((e) => e.anime.id === anime.id);
-  const activeStatus = entry?.status ?? null;
-
-  // The fill used to be a class swapped straight onto whichever button was
-  // active — correct the instant you clicked, but a jump cut, not a change
-  // you could see happen. It is one element now, absolutely positioned
-  // behind the row, that slides to the new button's spot and crosses to its
-  // colour while it travels; the buttons themselves only ever swap a text
-  // colour, which *does* transition on its own.
-  //
-  // Declared above every early return below — hooks can't be conditional —
-  // even though the row it measures only exists once someone is signed in.
-  const statusRowRef = useRef<HTMLDivElement>(null);
-  const [highlight, setHighlight] = useState<{ left: number; width: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const row = statusRowRef.current;
-    if (!row || !activeStatus) {
-      setHighlight(null);
-      return;
-    }
-    const measure = () => {
-      const btn = row.querySelector<HTMLButtonElement>(`[data-status="${activeStatus}"]`);
-      if (btn) setHighlight({ left: btn.offsetLeft, width: btn.offsetWidth });
-    };
-    measure();
-    // The active button grows a text label that isn't there on any other
-    // button, so its width can change with the viewport (icon sizes, font)
-    // even though `activeStatus` itself hasn't.
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [activeStatus]);
 
   if (authStatus === "loading") {
-    return <div className="h-9 w-full max-w-md animate-pulse rounded-full bg-muted/60" />;
+    return <div className={cn(TRACK_CARD, "h-44 animate-pulse", className)} />;
   }
 
   if (!isAuthed) {
     return (
-      <div className="flex min-w-0 items-center gap-2.5">
-        <BookmarkPlusIcon className="size-4 shrink-0 text-[var(--accent-ink)]" />
-        <span className="text-sm text-muted-foreground">{t("library.tracker.signInBody")}</span>
-        <Button asChild size="sm" className="shrink-0">
+      <section className={cn(TRACK_CARD, className)}>
+        <h3 className={TRACK_HEAD}>
+          <BookmarkIcon />
+          {t("library.tracker.myList")}
+        </h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">{t("library.tracker.signInBody")}</p>
+        <Button asChild className="w-full sm:w-fit">
           <Link to="/login" state={{ from: window.location.pathname }}>
             {t("common.signIn")}
           </Link>
         </Button>
-      </div>
+      </section>
     );
   }
 
@@ -151,26 +108,27 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
   const shownScore = hoverScore ?? entry?.score ?? null;
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-      {/* Status: one segmented pill. The chosen one fills and names itself;
-          the rest are icons with their names on hover, to keep it to one line. */}
-      <div
-        ref={statusRowRef}
-        role="radiogroup"
-        aria-label={t("library.watchStatus")}
-        className="relative flex items-center gap-0.5 rounded-full border border-border/60 bg-card/92 p-0.5"
-      >
-        {highlight && (
-          <span
-            aria-hidden
-            className="absolute inset-y-0.5 rounded-full shadow-md transition-[left,width,background-color] duration-300 ease-out"
-            style={{
-              left: highlight.left,
-              width: highlight.width,
-              backgroundColor: activeStatus ? STATUS_COLOR[activeStatus] : undefined,
-            }}
-          />
+    <section className={cn(TRACK_CARD, className)} aria-label={t("library.tracker.myList")}>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className={TRACK_HEAD}>
+          <BookmarkIcon />
+          {t("library.tracker.myList")}
+        </h3>
+        {entry && (
+          <button
+            type="button"
+            onClick={() => setConfirmRemove(true)}
+            aria-label={t("library.removeFromLibrary", { title })}
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+          >
+            <Trash2Icon className="size-3.5" />
+            {t("library.removeShort")}
+          </button>
         )}
+      </div>
+
+      {/* Where it stands: five named buttons, the chosen one filled. */}
+      <div role="radiogroup" aria-label={t("library.watchStatus")} className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
         {STATUSES.map((s) => {
           const { Icon, text } = STATUS_META[s];
           const active = entry?.status === s;
@@ -180,44 +138,42 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
               type="button"
               role="radio"
               aria-checked={active}
-              data-status={s}
               onClick={() => chooseStatus(s)}
               disabled={upsert.isPending}
-              title={t(`status.${s}`)}
+              style={active ? { backgroundColor: STATUS_COLOR[s] } : undefined}
               className={cn(
-                "group relative z-10 inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium transition-colors duration-200 active:scale-95",
-                active ? CHIP_ON[s] : "text-foreground/75 hover:bg-secondary/70 hover:text-foreground",
+                "inline-flex h-10 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-[13px] font-medium transition-[background-color,border-color,color] duration-200 active:scale-[0.97] max-[359px]:gap-1.5 max-[359px]:text-xs sm:h-9 sm:gap-1.5",
+                active
+                  ? cn("border-transparent", s === "COMPLETED" ? "text-primary-foreground" : "text-white")
+                  : "border-border/70 bg-background/40 text-foreground/80 hover:border-foreground/25 hover:text-foreground",
               )}
             >
-              <Icon
-                className={cn(
-                  "size-4 shrink-0 transition-transform duration-300 group-hover:scale-110",
-                  // Picking a status is a commitment, so the icon lands with
-                  // a pop rather than simply being the icon that is there.
-                  active ? "morph-pop" : text,
-                )}
-              />
-              {active && (
-                <>
-                  <span>{t(`status.${s}`)}</span>
-                  {/* Re-keyed on the status so the stroke redraws every time
-                      the choice changes — it is the answer to the click, not
-                      a badge that happens to be present. */}
-                  <DrawnCheck key={s} className="size-3.5 shrink-0" />
-                </>
-              )}
+              <Icon className={cn("size-4 shrink-0", !active && text)} />
+              <span className="truncate">{t(`status.${s}`)}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Score: ten stars, and a word for the one under the cursor. */}
-      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      {/* The score: ten stars across the card, big enough for a thumb,
+          with what the one under the finger or cursor means. */}
+      <div className="flex flex-col gap-2 border-t border-border/50 pt-3">
+        <div className="flex items-baseline justify-between gap-2 text-xs">
+          <span className="font-medium text-muted-foreground">{t("library.tracker.rate")}</span>
+          {shownScore != null ? (
+            <span key={shownScore} className="animate-in fade-in-0">
+              <span className="font-semibold tabular-nums text-amber-400">{shownScore}</span>
+              <span className="text-muted-foreground"> · {t(`library.tracker.r${shownScore}`)}</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground/70">{t("library.tracker.rateTap")}</span>
+          )}
+        </div>
         <div
-          className="flex items-center"
-          onPointerLeave={() => setHoverScore(null)}
           role="radiogroup"
           aria-label={t("library.tracker.rate")}
+          onPointerLeave={() => setHoverScore(null)}
+          className="grid max-w-[26rem] grid-cols-10 gap-0.5"
         >
           {Array.from({ length: 10 }, (_, i) => {
             const value = i + 1;
@@ -229,20 +185,20 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
                 role="radio"
                 aria-checked={entry?.score === value}
                 aria-label={`${value} — ${t(`library.tracker.r${value}`)}`}
-                onPointerEnter={() => setHoverScore(value)}
+                onPointerEnter={(event) => event.pointerType === "mouse" && setHoverScore(value)}
                 onFocus={() => setHoverScore(value)}
                 onBlur={() => setHoverScore(null)}
                 onClick={() => chooseScore(value)}
                 onAnimationEnd={() => value === popped && setPopped(null)}
                 className={cn(
-                  "grid size-[22px] place-items-center rounded transition-transform sm:size-6 duration-150 hover:scale-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
+                  "grid aspect-square max-h-10 place-items-center rounded-md transition-transform duration-150 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60",
                   popped != null && value <= popped && "star-pop",
                 )}
                 style={popped != null ? { animationDelay: `${i * 25}ms` } : undefined}
               >
                 <StarIcon
                   className={cn(
-                    "size-4 transition-colors duration-150",
+                    "size-[22px] transition-colors duration-150",
                     lit
                       ? hoverScore != null && entry?.score !== hoverScore
                         ? "fill-amber-400/70 text-amber-400/70"
@@ -254,39 +210,9 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
             );
           })}
         </div>
-        {/* Fixed width from sm up, so the row does not shift as the word
-            changes. Below sm there's no room to spare — the word
-            ("отлично", "шедевр"…) is exactly what was running past the
-            edge of the bar, so a phone gets the number alone, and a
-            `max-w`/`truncate` safety net in case even that doesn't fit
-            next to a long status label. */}
-        <span className="max-w-[11ch] truncate text-xs sm:max-w-none sm:w-28">
-          {shownScore != null ? (
-            <span key={shownScore} className="animate-in fade-in font-semibold text-amber-500">
-              {shownScore}
-              <span className="hidden sm:inline"> · {t(`library.tracker.r${shownScore}`)}</span>
-            </span>
-          ) : (
-            <span className="hidden text-muted-foreground/60 sm:inline">
-              {t("library.tracker.rateHint")}
-            </span>
-          )}
-        </span>
       </div>
 
       {entry && <NoteButton note={entry.notes} onSave={(notes) => edit.setNotes(entry, notes)} />}
-
-      {entry && (
-        <button
-          type="button"
-          onClick={() => setConfirmRemove(true)}
-          aria-label={t("library.removeFromLibrary", { title })}
-          title={t("library.removeShort")}
-          className="grid size-8 place-items-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-500"
-        >
-          <Trash2Icon className="size-3.5" />
-        </button>
-      )}
 
       <ConfirmDialog
         open={confirmRemove}
@@ -298,13 +224,13 @@ export function TitleTracker({ anime, title }: { anime: AnimeSummary; title: str
           setConfirmRemove(false);
         }}
       />
-    </div>
+    </section>
   );
 }
 
 /**
- * The note as a pill that shows its first words, so there visibly is one;
- * a dashed pill inviting one otherwise. Edits in a popover.
+ * The note as a button that shows its first words, so there visibly is one;
+ * a dashed one inviting one otherwise. Edits in a popover.
  */
 function NoteButton({ note, onSave }: { note: string | null; onSave: (notes: string | null) => void }) {
   const t = useT();
@@ -329,22 +255,17 @@ function NoteButton({ note, onSave }: { note: string | null; onSave: (notes: str
         <button
           type="button"
           className={cn(
-            "group inline-flex h-9 max-w-52 items-center gap-1.5 rounded-lg border px-3 text-xs transition-all duration-200 hover:-translate-y-0.5",
+            "inline-flex h-9 w-full min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-xs transition-colors duration-200 sm:w-fit sm:max-w-full",
             note
-              ? "border-[var(--accent-line)] bg-[var(--accent-surface-strong)] text-foreground"
-              : "border-dashed border-border/80 text-muted-foreground hover:border-[var(--accent-line)] hover:text-foreground",
+              ? "border-border/70 bg-foreground/[0.05] text-foreground"
+              : "border-dashed border-border/80 text-muted-foreground hover:border-foreground/25 hover:text-foreground",
           )}
         >
-          <NotebookPenIcon
-            className={cn(
-              "size-3.5 shrink-0 transition-transform group-hover:-rotate-12",
-              note && "text-[var(--accent-ink)]",
-            )}
-          />
+          <NotebookPenIcon className="size-3.5 shrink-0" />
           <span className="truncate">{note ?? t("library.tracker.noteTitle")}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-80 flex-col gap-2">
+      <PopoverContent align="start" className="flex w-[min(20rem,calc(100vw-1.5rem))] flex-col gap-2">
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <LockIcon className="size-3" />
           {t("library.tracker.noteTitle")} · {t("library.tracker.notePrivate")}
@@ -359,7 +280,7 @@ function NoteButton({ note, onSave }: { note: string | null; onSave: (notes: str
           maxLength={2000}
           autoFocus
           placeholder={t("library.tracker.noteEmpty")}
-          className="w-full resize-y rounded-lg border border-border/60 bg-transparent p-2 text-sm leading-relaxed outline-none focus-visible:border-[var(--accent-line)] placeholder:text-muted-foreground/60"
+          className="w-full resize-y rounded-lg border border-border/60 bg-transparent p-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/60 focus-visible:border-foreground/30"
         />
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <span className="hidden sm:inline">{t("library.tracker.noteSaveHint")}</span>

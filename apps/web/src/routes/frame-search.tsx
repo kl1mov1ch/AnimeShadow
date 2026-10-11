@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,6 +26,7 @@ import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useFrameSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
 
 const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -59,7 +60,12 @@ function formatTimestamp(seconds: number): string {
  * of the answer landing below the fold. While it searches, a scan line runs
  * over your frame; the best match gets a card of its own, the rest a list.
  */
+/** Hidden for now (see FEATURES.frameSearch): an old link lands on the home page. */
 export function Component() {
+  return FEATURES.frameSearch ? <FrameSearchPage /> : <Navigate to="/" replace />;
+}
+
+function FrameSearchPage() {
   const t = useT();
   const { status } = useAuth();
   const search = useFrameSearch();

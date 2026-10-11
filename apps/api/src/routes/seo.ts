@@ -130,7 +130,6 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
         ["/movies", "0.8"],
         ["/announced", "0.7"],
         ["/collections", "0.6"],
-        ["/frame-search", "0.6"],
         ["/about", "0.3"],
         ["/support", "0.3"],
         ...seasons.map((s): [string, string] => [landingPath({ kind: "season", ...s }), "0.7"]),

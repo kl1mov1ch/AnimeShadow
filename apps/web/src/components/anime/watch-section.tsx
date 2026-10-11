@@ -37,7 +37,7 @@ import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
 import { setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
-import { PlayerSettingsMenu, type QualityChoice } from "@/components/anime/player-settings-menu";
+import { PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
@@ -343,7 +343,7 @@ function PlayerShell({
           disabled={loading}
           onClick={() => onActivate?.(null)}
           aria-label={label}
-          className="group relative -mx-5 block aspect-video overflow-hidden border bg-black sm:mx-0 sm:rounded-xl"
+          className="group relative -mx-4 block aspect-video overflow-hidden border border-x-0 bg-black sm:mx-0 sm:rounded-xl sm:border-x"
         >
           {usable.map((frame, i) => (
             <img
@@ -829,6 +829,17 @@ const RESUME_TAIL_SECONDS = 60;
 const CONTROL_BUTTON =
   "group flex size-8 items-center justify-center rounded-lg transition-all duration-200 active:scale-90";
 
+/** The round buttons in the middle of the picture: skip back, play, skip on. */
+const CENTER_BUTTON =
+  "relative grid place-items-center rounded-full bg-black/50 text-white ring-1 ring-white/10 transition-[transform,background-color] duration-200 active:scale-90";
+
+/**
+ * Controls that have just appeared under a finger don't take that same tap:
+ * a phone sends the click after the tap that showed them, and it landed on
+ * whatever button had appeared there — pausing the episode, say.
+ */
+const FRESH_CONTROLS_MS = 350;
+
 const CONTROLS_HIDE_MS = 2600;
 
 /**
@@ -979,11 +990,13 @@ function CustomHlsPlayer({
   const [buffering, setBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  // Which list of the settings panel is open, if it is.
+  const [menu, setMenu] = useState<SettingsPage | null>(null);
+  const menuOpen = menu != null;
   const settings = usePlayerSettings();
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
-  useDismiss(menuOpen, closeMenu, menuRef);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  // A press outside the player closes the panel; inside, its backdrop does.
+  useDismiss(menuOpen, closeMenu, containerRef);
   // Read from effects and key handlers without re-running them.
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -997,6 +1010,8 @@ function CustomHlsPlayer({
   const hlsRef = useRef<HlsLevels | null>(null);
   const [levels, setLevels] = useState<number[]>([]);
   const [activeHeight, setActiveHeight] = useState<number | null>(null);
+  // The picture's own height, for a stream that comes in one quality only.
+  const [videoHeight, setVideoHeight] = useState(0);
 
   // Load the manifest — native on Safari, hls.js everywhere else. Resumes
   // playback itself if this load was triggered by switching episodes while
@@ -1162,6 +1177,7 @@ function CustomHlsPlayer({
       setMuted(video.muted);
     };
     const onRateChange = () => setSpeed(video.playbackRate);
+    const onResize = () => setVideoHeight(video.videoHeight);
 
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("durationchange", onDurationChange);
@@ -1172,6 +1188,7 @@ function CustomHlsPlayer({
     video.addEventListener("playing", onPlaying);
     video.addEventListener("volumechange", onVolumeChange);
     video.addEventListener("ratechange", onRateChange);
+    video.addEventListener("resize", onResize);
     return () => {
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("durationchange", onDurationChange);
@@ -1182,23 +1199,47 @@ function CustomHlsPlayer({
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("ratechange", onRateChange);
+      video.removeEventListener("resize", onResize);
     };
   }, [isWinner]);
 
   useEffect(() => {
-    const onFsChange = () =>
+    const onFsChange = () => {
       setIsFullscreen(document.fullscreenElement === containerRef.current);
+      if (!document.fullscreenElement) orientation()?.unlock?.();
+    };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
   // Auto-hide once playback is running and nothing's been touched for a
   // bit; paused always keeps the bar up (nothing else to look at then).
+  const controlsVisibleRef = useRef(controlsVisible);
+  controlsVisibleRef.current = controlsVisible;
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  const shownAtRef = useRef(0);
   const wake = () => {
+    if (!controlsVisibleRef.current) shownAtRef.current = performance.now();
     setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (playing && !menuOpenRef.current) {
+    if (playingRef.current && !menuOpenRef.current) {
       hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_MS);
+    }
+  };
+  const toggleControls = () => {
+    if (controlsVisibleRef.current && playingRef.current && !menuOpenRef.current) {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      setControlsVisible(false);
+    } else {
+      wake();
+    }
+  };
+  /** Swallows the click that arrives right after the controls appeared. */
+  const guardFresh = (event: React.MouseEvent) => {
+    if (performance.now() - shownAtRef.current < FRESH_CONTROLS_MS) {
+      event.preventDefault();
+      event.stopPropagation();
     }
   };
   useEffect(() => {
@@ -1206,7 +1247,6 @@ function CustomHlsPlayer({
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
   const togglePlay = () => {
@@ -1217,15 +1257,101 @@ function CustomHlsPlayer({
     wake();
   };
 
-  const skip = (delta: number) => {
+  const skip = (delta: number, show = true) => {
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = Math.min(
       Math.max(0, video.currentTime + delta),
       video.duration || Number.POSITIVE_INFINITY,
     );
-    wake();
+    if (show) wake();
   };
+
+  // Taps on the picture. A touch screen has no hover, so a tap shows or
+  // hides the controls rather than pausing; two quick taps on the left or
+  // right of the picture skip back or on, and every further quick tap on
+  // that side adds another step — the way phone players work. A mouse click
+  // plays or pauses, and a double click is full screen.
+  const tapRef = useRef<{ at: number; side: number; timer: ReturnType<typeof setTimeout> | null }>({
+    at: 0,
+    side: 0,
+    timer: null,
+  });
+  const [burst, setBurst] = useState<{ side: -1 | 1; seconds: number; id: number } | null>(null);
+  const burstRef = useRef(burst);
+  burstRef.current = burst;
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (tapRef.current.timer) clearTimeout(tapRef.current.timer);
+      if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+    },
+    [],
+  );
+
+  const seekBurst = (side: -1 | 1) => {
+    const step = settingsRef.current.step;
+    skip(side * step, false);
+    const prev = burstRef.current;
+    setBurst(
+      prev && prev.side === side
+        ? { ...prev, seconds: prev.seconds + step }
+        : { side, seconds: step, id: performance.now() },
+    );
+    if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+    burstTimerRef.current = setTimeout(() => setBurst(null), 700);
+  };
+
+  const onSurfaceTap = (event: React.PointerEvent<HTMLDivElement>) => {
+    const tap = tapRef.current;
+    const now = performance.now();
+    const quick = now - tap.at < 300;
+    if (event.pointerType === "mouse") {
+      if (event.button !== 0) return;
+      togglePlay();
+      if (quick) {
+        // The first click of the two already paused it: put that back.
+        togglePlay();
+        toggleFullscreen();
+        tap.at = 0;
+      } else {
+        tap.at = now;
+      }
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / Math.max(1, rect.width);
+    const side = x < 0.35 ? -1 : x > 0.65 ? 1 : 0;
+    const bursting = burstRef.current?.side === side;
+    if (side !== 0 && ((quick && tap.side === side) || bursting)) {
+      if (tap.timer) clearTimeout(tap.timer);
+      tap.timer = null;
+      tap.at = now;
+      seekBurst(side as -1 | 1);
+      return;
+    }
+    tap.at = now;
+    tap.side = side;
+    if (tap.timer) clearTimeout(tap.timer);
+    tap.timer = null;
+    // On the sides the controls wait a moment, in case a second tap makes it a skip.
+    if (side === 0) toggleControls();
+    else
+      tap.timer = setTimeout(() => {
+        tap.timer = null;
+        toggleControls();
+      }, 260);
+  };
+
+  const openMenu = (page: SettingsPage) => {
+    setMenu((open) => (open ? null : page));
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    setControlsVisible(true);
+  };
+  // Closing the panel starts the controls' countdown again.
+  useEffect(() => {
+    if (!menuOpen) wake();
+  }, [menuOpen]);
 
   const toggleMute = () => {
     const video = videoRef.current;
@@ -1290,7 +1416,7 @@ function CustomHlsPlayer({
             ...[...levels].reverse().map((height) => ({ value: String(height), label: `${height}p` })),
           ],
         }
-      : { note: t("watch.ctl.qualitySingle") };
+      : { note: t("watch.ctl.qualitySingle"), current: videoHeight > 0 ? `${videoHeight}p` : undefined };
 
   /** iOS Safari has no arbitrary-element fullscreen at all — only the
    * `<video>` itself can go fullscreen there. Everywhere else, the whole
@@ -1314,7 +1440,12 @@ function CustomHlsPlayer({
     const request =
       container?.requestFullscreen?.bind(container) ??
       container?.webkitRequestFullscreen?.bind(container);
-    request?.();
+    // A phone turns the picture on its side with it, as its own players do.
+    void Promise.resolve(request?.())
+      .then(() => {
+        if (window.matchMedia?.("(pointer: coarse)").matches) return orientation()?.lock?.("landscape");
+      })
+      .catch(() => undefined);
   };
 
   const togglePip = () => {
@@ -1381,15 +1512,28 @@ function CustomHlsPlayer({
     "pictureInPictureEnabled" in document &&
     document.pictureInPictureEnabled;
 
+  const qualityLabel =
+    levels.length > 1
+      ? settings.quality !== "auto" && levels.includes(Number(settings.quality))
+        ? `${settings.quality}p`
+        : activeHeight
+          ? `${activeHeight}p`
+          : t("watch.ctl.qualityAuto")
+      : null;
+  const centerVisible = controlsVisible || !playing;
+
   return (
     <div
       ref={containerRef}
       className={cn(
-        "absolute inset-0 size-full bg-black",
+        "@container/player absolute inset-0 size-full select-none bg-black",
         !isWinner && "pointer-events-none opacity-0",
+        // The pointer goes with the controls, as in any player.
+        isWinner && playing && !controlsVisible && !menuOpen && "cursor-none",
       )}
-      onMouseMove={wake}
-      onTouchStart={wake}
+      onPointerMove={(event) => {
+        if (event.pointerType === "mouse") wake();
+      }}
     >
       <video
         ref={videoRef}
@@ -1409,44 +1553,94 @@ function CustomHlsPlayer({
 
       {isWinner && (
         <>
-          {/* Tap/click anywhere on the video toggles play — the bar below
-              handles everything else. Sits under the centred play button
-              (rendered after, so it wins the hit test in that one spot). */}
-          <button
-            type="button"
-            aria-label={playing ? t("watch.pause") : t("watch.play")}
-            onClick={togglePlay}
-            className="absolute inset-0 cursor-pointer"
-          />
+          {/* The picture: clicks and taps, as described at onSurfaceTap. */}
+          <div aria-hidden className="absolute inset-0" onPointerUp={onSurfaceTap} />
 
-          {playing && buffering && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <Loader2Icon className="size-8 animate-spin text-white/80" />
+          {burst && (
+            <div
+              key={burst.id}
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute inset-y-0 z-10 flex w-2/5 animate-in items-center justify-center bg-white/[0.08] duration-150 fade-in-0",
+                burst.side < 0 ? "left-0 rounded-r-[50%]" : "right-0 rounded-l-[50%]",
+              )}
+            >
+              <span className="flex flex-col items-center gap-1 text-white">
+                {burst.side < 0 ? <RotateCcwIcon className="size-6" /> : <RotateCwIcon className="size-6" />}
+                <span className="text-xs font-semibold tabular-nums">
+                  {burst.side < 0 ? "−" : "+"}
+                  {t("watch.ctl.stepValue", { n: burst.seconds })}
+                </span>
+              </span>
             </div>
           )}
 
-          {!playing && (
+          {playing && buffering && (
+            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+              <Loader2Icon className="size-9 animate-spin text-white/85" />
+            </div>
+          )}
+
+          {/* The middle of the picture: skip back, play, skip on — where a
+              thumb is on a phone. With a mouse only the play button, and
+              only while paused; the bar below has the rest. */}
+          <div
+            onClickCapture={guardFresh}
+            className={cn(
+              "pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-[10%] transition-opacity duration-200",
+              centerVisible ? "opacity-100" : "opacity-0",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => skip(-settings.step)}
+              aria-label={t("watch.ctl.back", { n: settings.step })}
+              className={cn(
+                CENTER_BUTTON,
+                "size-11 @md/player:size-12 pointer-fine:hidden",
+                centerVisible && "pointer-events-auto",
+              )}
+            >
+              <RotateCcwIcon className="size-6" />
+              <span className="absolute inset-0 grid place-items-center pt-px text-[9px] font-bold tabular-nums">
+                {settings.step}
+              </span>
+            </button>
             <button
               type="button"
               onClick={togglePlay}
-              aria-label={t("watch.play")}
-              className="group/play absolute inset-0 flex items-center justify-center"
+              aria-label={playing ? t("watch.pause") : t("watch.play")}
+              className={cn(
+                CENTER_BUTTON,
+                "size-14 @md/player:size-16",
+                playing ? "pointer-fine:hidden" : "bg-primary/90 text-primary-foreground ring-primary/40",
+                playing && buffering && "invisible",
+                centerVisible && "pointer-events-auto",
+              )}
             >
-              {/* The site accent, not a grey disc: this is the one moment
-                  the player is the whole screen, so it may as well look
-                  like the rest of AnimeShadow. The ring behind it breathes,
-                  so the button reads as waiting rather than parked. */}
-              <span className="relative flex size-16 items-center justify-center">
-                <span
-                  aria-hidden
-                  className="absolute inset-0 animate-ping rounded-full bg-primary/25 [animation-duration:2.6s] motion-reduce:hidden"
-                />
-                <span className="relative flex size-16 items-center justify-center rounded-full border border-primary/50 bg-primary/90 text-primary-foreground shadow-lg transition-transform duration-300 group-hover/play:scale-105 group-active/play:scale-95">
-                  <PlayIcon className="size-7 translate-x-0.5 fill-current" />
-                </span>
+              <MorphIcon
+                on={playing}
+                off={PlayIcon}
+                onIcon={PauseIcon}
+                className={cn("size-6 fill-current @md/player:size-7", !playing && "translate-x-0.5")}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => skip(settings.step)}
+              aria-label={t("watch.ctl.forward", { n: settings.step })}
+              className={cn(
+                CENTER_BUTTON,
+                "size-11 @md/player:size-12 pointer-fine:hidden",
+                centerVisible && "pointer-events-auto",
+              )}
+            >
+              <RotateCwIcon className="size-6" />
+              <span className="absolute inset-0 grid place-items-center pt-px text-[9px] font-bold tabular-nums">
+                {settings.step}
               </span>
             </button>
-          )}
+          </div>
 
           {/* Offered only while the opening is actually on screen, and only
               where the provider marked it — a guessed skip that lands in the
@@ -1461,7 +1655,7 @@ function CustomHlsPlayer({
                   if (video) video.currentTime = opening.stop;
                   wake();
                 }}
-                className="absolute bottom-20 right-4 z-10 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95"
+                className="absolute bottom-16 right-2 z-20 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95 @lg/player:bottom-20 @lg/player:right-4"
               >
                 <SkipForwardIcon className="size-3.5" />
                 {t("watch.skipOpening")}
@@ -1469,18 +1663,22 @@ function CustomHlsPlayer({
             )}
 
           <div
+            onPointerDown={wake}
+            onClickCapture={guardFresh}
             className={cn(
               // Slides down with the fade rather than only fading: the bar
               // belongs to the bottom edge, so leaving is a movement toward
               // it, the way every other panel on the site leaves.
-              "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 px-3 pb-2 pt-10 transition-all duration-300 ease-out",
+              "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-0.5 px-2 pb-1 pt-8 transition-all duration-300 ease-out @md/player:gap-1 @md/player:px-3 @md/player:pb-2",
               tone.bar,
               controlsVisible
                 ? "translate-y-0 opacity-100"
                 : "pointer-events-none translate-y-2 opacity-0",
             )}
           >
-            <div className="group relative flex h-4 items-center">
+            {/* Taller on a touch screen: a finger needs more than the four
+                pixels a mouse is happy with, and the thumb stays visible. */}
+            <div className="group relative flex h-5 items-center pointer-coarse:h-7">
               <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/15">
                 <div
                   className="h-full bg-white/35 transition-[width] duration-500 ease-out"
@@ -1492,7 +1690,11 @@ function CustomHlsPlayer({
                 min={0}
                 max={duration || 0}
                 step={0.1}
-                onValueChange={([v]) => setScrubTime(v ?? 0)}
+                aria-label={t("watch.ctl.seek")}
+                onValueChange={([v]) => {
+                  setScrubTime(v ?? 0);
+                  wake();
+                }}
                 onValueCommit={([v]) => {
                   const video = videoRef.current;
                   if (video && v != null) video.currentTime = v;
@@ -1503,7 +1705,7 @@ function CustomHlsPlayer({
                 // extra pixel of height earns itself, since this is the
                 // control people actually aim at.
                 className={cn(
-                  "relative [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5",
+                  "relative h-full [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5 pointer-coarse:[&_[data-slot=slider-thumb]]:size-3.5 pointer-coarse:[&_[data-slot=slider-thumb]]:opacity-100",
                   tone.range,
                 )}
               />
@@ -1514,7 +1716,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={togglePlay}
                 aria-label={playing ? t("watch.pause") : t("watch.play")}
-                className={cn(CONTROL_BUTTON, tone.button)}
+                className={cn(CONTROL_BUTTON, tone.button, "pointer-coarse:hidden!")}
               >
                 <MorphIcon
                   on={playing}
@@ -1528,7 +1730,7 @@ function CustomHlsPlayer({
                 onClick={() => skip(-settings.step)}
                 aria-label={t("watch.ctl.back", { n: settings.step })}
                 title={t("watch.ctl.back", { n: settings.step })}
-                className={cn(CONTROL_BUTTON, tone.button, "relative hidden sm:flex")}
+                className={cn(CONTROL_BUTTON, tone.button, "relative hidden @lg/player:flex pointer-coarse:hidden!")}
               >
                 <RotateCcwIcon className="size-4 transition-transform duration-300 group-hover:-rotate-45" />
                 <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none tabular-nums">
@@ -1540,7 +1742,7 @@ function CustomHlsPlayer({
                 onClick={() => skip(settings.step)}
                 aria-label={t("watch.ctl.forward", { n: settings.step })}
                 title={t("watch.ctl.forward", { n: settings.step })}
-                className={cn(CONTROL_BUTTON, tone.button, "relative hidden sm:flex")}
+                className={cn(CONTROL_BUTTON, tone.button, "relative hidden @lg/player:flex pointer-coarse:hidden!")}
               >
                 <RotateCwIcon className="size-4 transition-transform duration-300 group-hover:rotate-45" />
                 <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none tabular-nums">
@@ -1548,10 +1750,11 @@ function CustomHlsPlayer({
                 </span>
               </button>
 
-              {/* Volume — a hover-reveal slider where hover exists at all; a
-                  phone just gets the mute toggle (dragging a sliver-thin
-                  slider on touch fights the page's own scroll gesture). */}
-              <div className="group hidden items-center sm:flex">
+              {/* Volume — a hover-reveal slider where there is a mouse and
+                  room for it; a phone just gets the mute toggle (it has its
+                  own volume buttons, and dragging a sliver-thin slider on
+                  touch fights the page's own scroll gesture). */}
+              <div className="group hidden items-center @md/player:flex pointer-coarse:hidden!">
                 <button
                   type="button"
                   onClick={toggleMute}
@@ -1572,6 +1775,7 @@ function CustomHlsPlayer({
                     min={0}
                     max={1}
                     step={0.05}
+                    aria-label={t("watch.ctl.volume")}
                     onValueChange={([v]) => changeVolume(v ?? 0)}
                     className="w-16 px-1 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-track]]:h-1"
                   />
@@ -1581,7 +1785,7 @@ function CustomHlsPlayer({
                 type="button"
                 onClick={toggleMute}
                 aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                className={cn(CONTROL_BUTTON, tone.button, "sm:hidden")}
+                className={cn(CONTROL_BUTTON, tone.button, "@md/player:hidden pointer-coarse:flex!")}
               >
                 <MorphIcon
                   on={muted || volume === 0}
@@ -1592,54 +1796,53 @@ function CustomHlsPlayer({
                 />
               </button>
 
-              <span className="ml-1 shrink-0 font-display text-[11px] tabular-nums text-white/85">
+              <span className="ml-1 min-w-0 shrink truncate font-display text-[11px] tabular-nums text-white/85 @md/player:text-xs">
                 {formatTime(shownTime)}
-                <span className="text-white/40"> / {formatTime(duration)}</span>
+                <span className="text-white/45"> / {formatTime(duration)}</span>
               </span>
 
               <span className="ml-auto flex shrink-0 items-center gap-0.5">
-                <span ref={menuRef} className="relative flex">
+                {qualityLabel && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setMenuOpen((open) => !open);
-                      setControlsVisible(true);
-                    }}
-                    aria-expanded={menuOpen}
-                    aria-label={t("watch.ctl.settings")}
-                    title={t("watch.ctl.settings")}
+                    onClick={() => openMenu("quality")}
+                    aria-label={`${t("watch.ctl.quality")}: ${qualityLabel}`}
+                    title={t("watch.ctl.quality")}
                     className={cn(
-                      "flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors",
+                      "flex h-8 items-center rounded-lg px-1.5 transition-colors",
                       tone.button,
-                      menuOpen && "bg-white/15 text-white",
+                      menu === "quality" && "bg-white/15",
                     )}
                   >
-                    <Settings2Icon
-                      className={cn("size-4 transition-transform duration-300", menuOpen && "rotate-90")}
-                    />
-                    {speed !== 1 && <span className="tabular-nums">{speedLabel(speed)}</span>}
-                    {activeHeight != null && (
-                      <span className="hidden tabular-nums text-white/70 sm:inline">{activeHeight}p</span>
-                    )}
+                    <span className="rounded-[5px] border border-white/45 px-1 text-[10px] font-semibold leading-4 tabular-nums">
+                      {qualityLabel}
+                    </span>
                   </button>
-                  {menuOpen && (
-                    <PlayerSettingsMenu
-                      className="right-0"
-                      speed={settings.speed}
-                      onSpeed={changeSpeed}
-                      step={settings.step}
-                      onStep={(n) => setPlayerSetting({ step: n })}
-                      quality={quality}
-                    />
+                )}
+                <button
+                  type="button"
+                  onClick={() => openMenu("main")}
+                  aria-expanded={menu === "main"}
+                  aria-label={t("watch.ctl.settings")}
+                  title={t("watch.ctl.settings")}
+                  className={cn(
+                    "flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-1.5 text-xs font-medium transition-colors",
+                    tone.button,
+                    menu === "main" && "bg-white/15 text-white",
                   )}
-                </span>
+                >
+                  <Settings2Icon
+                    className={cn("size-4 transition-transform duration-300", menu === "main" && "rotate-90")}
+                  />
+                  {speed !== 1 && <span className="tabular-nums">{speedLabel(speed)}</span>}
+                </button>
 
                 {canPip && (
                   <button
                     type="button"
                     onClick={togglePip}
                     aria-label={t("watch.pip")}
-                    className={cn(CONTROL_BUTTON, tone.button, "hidden sm:flex")}
+                    className={cn(CONTROL_BUTTON, tone.button, "hidden @lg/player:flex pointer-coarse:hidden!")}
                   >
                     <PictureInPicture2Icon className="size-4" />
                   </button>
@@ -1661,10 +1864,43 @@ function CustomHlsPlayer({
               </span>
             </div>
           </div>
+
+          {/* The settings, inside the picture and never larger than it: on a
+              phone the panel takes the player's corner over the bar, on a
+              big screen it stands just above the bar. A tap beside it
+              closes it. */}
+          {menu && (
+            <div
+              className="absolute inset-0 z-30 flex items-end justify-end bg-black/35 p-2 @lg/player:bg-transparent @lg/player:p-3 @lg/player:pb-14"
+              onClick={(event) => {
+                if (event.target === event.currentTarget) closeMenu();
+              }}
+            >
+              <PlayerSettingsMenu
+                key={menu}
+                initialPage={menu}
+                speed={settings.speed}
+                onSpeed={changeSpeed}
+                step={settings.step}
+                onStep={(n) => setPlayerSetting({ step: n })}
+                quality={quality}
+                onClose={closeMenu}
+              />
+            </div>
+          )}
         </>
       )}
     </div>
   );
+}
+
+/** The screen's orientation lock, where the browser has one (phones). */
+function orientation():
+  | { lock?: (to: string) => Promise<void>; unlock?: () => void }
+  | undefined {
+  return typeof screen === "undefined"
+    ? undefined
+    : (screen.orientation as unknown as { lock?: (to: string) => Promise<void>; unlock?: () => void } | undefined);
 }
 
 function Player({
@@ -2270,7 +2506,8 @@ function Player({
       <div
         className={cn(
           "player-box relative aspect-video overflow-hidden border bg-black",
-          "-mx-5 sm:mx-0 sm:rounded-xl",
+          // Edge to edge on a phone: every pixel of width is picture.
+          "-mx-4 border-x-0 sm:mx-0 sm:rounded-xl sm:border-x",
         )}
       >
         {/* Folded away — into a window outside the browser, or a small one

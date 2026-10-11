@@ -66,6 +66,8 @@ export interface SeoRendererDeps {
 }
 
 const DEFAULT_IMAGE = "/icons/icon-512.png";
+/** The frame search page is hidden on the site for now. */
+const FRAME_SEARCH_PAGE = false;
 /** Pages a search engine has no business indexing. */
 const PRIVATE = [
   /^\/library\/?$/,
@@ -153,7 +155,8 @@ export class SeoRenderer {
     if (collection) return this.collection(collection[1]!);
     const profile = /^\/profile\/([^/]+)$/.exec(path);
     if (profile) return this.profile(profile[1]!);
-    if (path === "/frame-search") return this.frameSearch();
+    // Hidden on the site for now (FEATURES.frameSearch in the web app).
+    if (path === "/frame-search") return FRAME_SEARCH_PAGE ? this.frameSearch() : { redirect: "/" };
     if (path === "/about") return this.about();
     if (path === "/support") return this.support();
     return this.notFound();
@@ -665,7 +668,6 @@ function layout(inner: string): string {
     { href: landingPath({ kind: "season", ...now }), label: `Аниме ${seasonNameRu(now.season, "gen")} ${now.year}` },
     { href: landingPath({ kind: "year", year: now.year }), label: `Аниме ${now.year} года` },
     { href: "/collections", label: "Подборки" },
-    { href: "/frame-search", label: "Поиск по кадру" },
   ])}</footer></main>`;
 }
 

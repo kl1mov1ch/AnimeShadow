@@ -34,6 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { LOCALE_LABELS, LOCALES, type Locale } from "@animeshadow/shared";
 import { useAuth } from "@/hooks/use-auth";
+import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { useI18n } from "@/i18n";
 import { apiRequest } from "@/lib/api";
@@ -114,7 +115,9 @@ function useSurprise(onDone?: () => void) {
  * the page instead of competing with it. On a phone it is the mark, a
  * search button and the menu, at the right edge where a thumb reaches it;
  * search opens the full search window rather than squeezing an input into
- * a second row under the bar.
+ * a second row under the bar. There it also steps aside while the page is
+ * scrolled down and comes back on the way up: on a phone's short screen the
+ * list being read gets the whole height.
  */
 export function SiteHeader() {
   const { t } = useI18n();
@@ -124,6 +127,8 @@ export function SiteHeader() {
   const navRef = useRef<HTMLElement | null>(null);
   const indicator = useNavIndicator(navRef);
   const scrolled = useScrolled();
+  const { down, nearTop } = useScrollDirection();
+  const tuckAway = down && !nearTop && !menuOpen;
 
   const nav: NavItem[] = [
     { to: "/", label: t("nav.discover"), end: true, Icon: HouseIcon },
@@ -142,12 +147,13 @@ export function SiteHeader() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 border-b bg-background/95 transition-[box-shadow,border-color] duration-300",
+        "sticky top-0 z-40 border-b bg-background/95 transition-[transform,box-shadow,border-color] duration-300 ease-out",
         scrolled ? "border-border/60 shadow-lg shadow-black/20" : "border-border/40",
+        tuckAway && "max-md:-translate-y-full max-md:shadow-none",
       )}
     >
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 lg:gap-8">
-        <Wordmark effect="slice" />
+        <Wordmark effect="slice" className="max-[374px]:text-base" />
 
         <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden h-16 items-center lg:flex">
           {nav.map((item) => (
@@ -181,9 +187,11 @@ export function SiteHeader() {
           </div>
           <RandomRoll />
           <div className="hidden items-center md:flex">
-            <HeaderIcon label={t("frameSearch.navLabel")} to="/frame-search">
-              <ScanSearchIcon />
-            </HeaderIcon>
+            {FEATURES.frameSearch && (
+              <HeaderIcon label={t("frameSearch.navLabel")} to="/frame-search">
+                <ScanSearchIcon />
+              </HeaderIcon>
+            )}
             {FEATURES.englishLocale && <LanguageSwitcher />}
             {FEATURES.lightTheme && <ThemeToggle />}
             {(canInstall || isIosSafari) && <InstallAppButton />}
@@ -333,10 +341,12 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
 
         {/* what else */}
         <div className="flex flex-col gap-0.5 px-3">
-          <Link to="/frame-search" onClick={onNavigate} className={row}>
-            <ScanSearchIcon className="size-[18px] shrink-0" />
-            {t("frameSearch.navLabel")}
-          </Link>
+          {FEATURES.frameSearch && (
+            <Link to="/frame-search" onClick={onNavigate} className={row}>
+              <ScanSearchIcon className="size-[18px] shrink-0" />
+              {t("frameSearch.navLabel")}
+            </Link>
+          )}
           <button type="button" onClick={() => void roll()} className={cn(row, "text-left")}>
             <ShuffleIcon className="size-[18px] shrink-0" />
             {t("footer.randomAnime")}

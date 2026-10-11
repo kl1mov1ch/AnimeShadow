@@ -29,4 +29,10 @@ export const FEATURES = {
    * theme to fetch and sync on every page.
    */
   lightTheme: false,
+  /**
+   * Search by a frame (a screenshot → which anime and episode). Off: no
+   * links to it anywhere and /frame-search goes to the home page; the
+   * page, the API and its quota stay as they are.
+   */
+  frameSearch: false,
 } as const;

@@ -2,6 +2,7 @@ import { ANIME_WITH_GENRES_INCLUDE, toSummaryDto } from "@animeshadow/db";
 import { animeQuerySchema, localeQuerySchema } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { TtlCache } from "../lib/cache.js";
 import { contentGuardWhere, resolveAllowAdult } from "../lib/content-guard.js";
 import { NotFoundError } from "../lib/errors.js";
 import { fetchSkipTimes } from "../lib/skip-times.js";
@@ -9,6 +10,13 @@ import { parse } from "../lib/validation.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const slugParams = z.object({ slug: z.string().min(1).max(120) });
+const rollQuery = z.object({ count: z.coerce.number().int().min(1).max(14).default(14) });
+/**
+ * The ids the header's random pick draws from — a few thousand rows that
+ * change only when the catalogue does, so they are read once per ten
+ * minutes instead of on every press of the button.
+ */
+const rollPool = new TtlCache<number[]>(10 * 60_000, 4);
 
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const { catalog, watch, episodeInfo } = fastify.services;
@@ -73,20 +81,24 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     "/anime/roll",
     { preHandler: fastify.optionalAuth },
     async (request) => {
+      const { count } = parse(rollQuery, request.query);
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
-      const pool = await fastify.prisma.anime.findMany({
-        where: {
-          AND: [
-            { score: { gte: 6.8 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
-            contentGuardWhere(allowAdult),
-          ],
-        },
-        select: { id: true },
+      const pool = await rollPool.wrap(allowAdult ? "adult" : "safe", async () => {
+        const rows = await fastify.prisma.anime.findMany({
+          where: {
+            AND: [
+              { score: { gte: 6.8 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
+              contentGuardWhere(allowAdult),
+            ],
+          },
+          select: { id: true },
+        });
+        return rows.map((row) => row.id);
       });
       if (pool.length === 0) throw new NotFoundError("Каталог пуст.");
       const ids = new Set<number>();
-      while (ids.size < Math.min(14, pool.length)) {
-        ids.add(pool[Math.floor(Math.random() * pool.length)]!.id);
+      while (ids.size < Math.min(count, pool.length)) {
+        ids.add(pool[Math.floor(Math.random() * pool.length)]!);
       }
       const rows = await fastify.prisma.anime.findMany({
         where: { id: { in: [...ids] } },

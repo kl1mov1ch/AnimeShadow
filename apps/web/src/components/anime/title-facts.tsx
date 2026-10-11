@@ -8,6 +8,8 @@ import {
   FilmIcon,
   FlagIcon,
   HeartIcon,
+  MinusIcon,
+  PlusIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
@@ -21,7 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { TRACK_CARD, TRACK_HEAD } from "@/components/library/title-tracker";
 import { useLocale, useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,15 @@ interface Fact {
   accent?: boolean;
 }
 
+/** "11 ч 12 мин", "48 мин". */
+function formatMinutes(total: number, t: ReturnType<typeof useT>): string {
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return hours > 0
+    ? `${hours} ${t("detail.quickFacts.h")}${mins ? ` ${mins} ${t("detail.quickFacts.min")}` : ""}`
+    : `${mins} ${t("detail.quickFacts.min")}`;
+}
+
 function useFacts(anime: AnimeDetail) {
   const t = useT();
   const labels = useLabels();
@@ -54,12 +65,7 @@ function useFacts(anime: AnimeDetail) {
 
   const facts: Fact[] = [];
   if (totalMinutes) {
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    const time =
-      hours > 0
-        ? `${hours} ${t("detail.quickFacts.h")}${mins ? ` ${mins} ${t("detail.quickFacts.min")}` : ""}`
-        : `${mins} ${t("detail.quickFacts.min")}`;
+    const time = formatMinutes(totalMinutes, t);
     facts.push({ key: "total", icon: <ClockIcon />, text: t("detail.quickFacts.totalTime", { time }), accent: true });
   }
   if (perEp && episodes > 1) {
@@ -77,27 +83,105 @@ function useFacts(anime: AnimeDetail) {
   if (anime.studios[0]) {
     facts.push({ key: "studio", icon: <BuildingIcon />, text: anime.studios.slice(0, 2).join(", ") });
   }
-  return { facts, perEp, episodes };
+  return { facts, perEp, episodes, totalMinutes };
+}
+
+/** Episodes a day on offer: from one up to the whole show, at most 24. */
+function paceLimit(episodes: number): number {
+  return Math.max(1, Math.min(24, episodes));
 }
 
 /**
- * The "time calculator" — an icon on the tracking bar, nothing else. It used
- * to spell its own name out next to the icon at every width the bar had
- * room for; a tooltip says the same thing on demand instead, the way every
- * other icon-only control on the bar already works.
+ * "How long to watch" on the title page, in plain sight: the whole title's
+ * running time in large type, and — for a series — a pace you set with two
+ * buttons, answered at once with when you would finish and how long a day
+ * that is. It used to be a calculator icon on the tracking bar that a
+ * first-time visitor had no reason to press; the full calculator (finish by
+ * a date, the title's other numbers) still opens from "more".
  */
-export function TitleFacts({ anime, className }: { anime: AnimeDetail; className?: string }) {
+export function WatchTimeCard({ anime, className }: { anime: AnimeDetail; className?: string }) {
   const t = useT();
-  const { facts, perEp, episodes } = useFacts(anime);
-  if (facts.length === 0) return null;
+  const { locale } = useLocale();
+  const { facts, perEp, episodes, totalMinutes } = useFacts(anime);
+  const maxPerDay = paceLimit(episodes);
+  const [perDay, setPerDay] = useState(Math.min(2, maxPerDay));
+  if (!totalMinutes) return null;
+
+  const days = Math.ceil(episodes / perDay);
+  const finish = new Date(Date.now() + Math.max(0, days - 1) * 86_400_000);
+  const finishLabel = finish.toLocaleDateString(locale, { day: "numeric", month: "long" });
+  const stepper =
+    "grid size-9 place-items-center rounded-lg border border-border/70 bg-background/40 text-foreground/80 transition-colors hover:border-foreground/25 hover:text-foreground active:scale-95 disabled:pointer-events-none disabled:opacity-35";
+
   return (
-    <CheatSheet
-      className={className}
-      facts={facts}
-      perEp={perEp}
-      episodes={episodes}
-      label={t("detail.quickFacts.sheet")}
-    />
+    <section className={cn(TRACK_CARD, className)} aria-label={t("detail.quickFacts.cardTitle")}>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className={TRACK_HEAD}>
+          <ClockIcon />
+          {t("detail.quickFacts.cardTitle")}
+        </h3>
+        <CheatSheet
+          facts={facts}
+          perEp={perEp}
+          episodes={episodes}
+          label={t("detail.quickFacts.sheet")}
+          initialPerDay={perDay}
+          trigger={
+            <button
+              type="button"
+              className="inline-flex h-7 items-center gap-0.5 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
+            >
+              {t("detail.quickFacts.details")}
+              <ChevronRightIcon className="size-3.5" />
+            </button>
+          }
+        />
+      </div>
+
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+        <span className="font-display text-2xl tabular-nums leading-none">{formatMinutes(totalMinutes, t)}</span>
+        <span className="text-xs text-muted-foreground">
+          {episodes > 1 && perEp
+            ? t("detail.quickFacts.perEpisode", { episodes, minutes: perEp })
+            : t("detail.quickFacts.film")}
+        </span>
+      </div>
+
+      {episodes > 1 && (
+        <div className="flex flex-col gap-2.5 border-t border-border/50 pt-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-medium text-muted-foreground">{t("detail.quickFacts.paceLabel")}</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPerDay((n) => Math.max(1, n - 1))}
+                disabled={perDay <= 1}
+                aria-label={t("detail.quickFacts.fewer")}
+                className={stepper}
+              >
+                <MinusIcon className="size-4" />
+              </button>
+              <span className="w-9 text-center text-base font-semibold tabular-nums">{perDay}</span>
+              <button
+                type="button"
+                onClick={() => setPerDay((n) => Math.min(maxPerDay, n + 1))}
+                disabled={perDay >= maxPerDay}
+                aria-label={t("detail.quickFacts.more")}
+                className={stepper}
+              >
+                <PlusIcon className="size-4" />
+              </button>
+            </div>
+          </div>
+          <p key={perDay} className="animate-in text-sm leading-snug duration-200 fade-in-0">
+            {t("detail.quickFacts.finish", { days, date: finishLabel })}
+            {perEp != null && (
+              <span className="text-muted-foreground"> · {t("detail.quickFacts.aDay", { minutes: perEp * perDay })}</span>
+            )}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -117,18 +201,22 @@ function CheatSheet({
   perEp,
   episodes,
   label,
-  className,
+  initialPerDay,
+  trigger,
 }: {
   facts: Fact[];
   perEp: number | null;
   episodes: number;
   label: string;
-  className?: string;
+  /** The pace already chosen on the card, to start from. */
+  initialPerDay: number;
+  /** What opens it. */
+  trigger: ReactNode;
 }) {
   const t = useT();
   const { locale } = useLocale();
-  const maxPerDay = Math.max(1, Math.min(24, episodes));
-  const [perDay, setPerDay] = useState(Math.min(2, maxPerDay));
+  const maxPerDay = paceLimit(episodes);
+  const [perDay, setPerDay] = useState(Math.min(initialPerDay, maxPerDay));
   // Two ways to ask the same question: "at this pace, when do I finish" or
   // "by this date, what pace do I need" — the slider drives the first, the
   // calendar the second, and both land on the same days/finish/minutes line
@@ -148,24 +236,13 @@ function CheatSheet({
   const dots = Math.min(days, 40);
 
   return (
-    <Dialog>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              aria-label={label}
-              className={cn(
-                "grid size-8 shrink-0 place-items-center rounded-lg border border-border/60 bg-secondary/40 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary data-[state=open]:border-primary/40 data-[state=open]:text-primary",
-                className,
-              )}
-            >
-              <CalculatorIcon className="size-4" />
-            </button>
-          </DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
+    <Dialog
+      onOpenChange={(open) => {
+        // Opens on the pace the card was showing.
+        if (open) setPerDay(Math.min(initialPerDay, maxPerDay));
+      }}
+    >
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
 
       <DialogContent className="overflow-hidden sm:max-w-sm">
         {/* The site's own mark, faint and oversized in the corner — the

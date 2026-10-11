@@ -183,8 +183,11 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
 
         {/* Two actions on the poster, stacked: keep it for later, and go
             straight to the player. They slide in one after the other under
-            a hover; on a touch screen, with no hover to wait for, the
-            bookmark stays put and the whole poster is the play action. */}
+            a hover. A touch screen gets neither: on a phone-sized poster the
+            bookmark sat on top of the score, and the whole poster already
+            opens the title, where the list controls are. A title already in
+            the list says so at the bottom-left either way. */}
+        {canHover && (
         <div
           className={cn(
             "absolute right-2 z-20 flex flex-col gap-1.5",
@@ -199,9 +202,9 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
                 disabled={addToLibrary.isPending}
                 aria-label={inLibrary ? t("card.inList") : t("card.addToList")}
                 className={cn(
-                  "grid size-8 place-items-center rounded-lg border border-white/10 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-95 motion-reduce:transition-none",
+                  "grid size-7 place-items-center rounded-lg border border-white/10 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-95 motion-reduce:transition-none",
                   inLibrary ? "bg-primary/85 text-primary-foreground" : "bg-black/50 text-white/90 hover:bg-black/70 hover:text-white",
-                  canHover && !inLibrary
+                  !inLibrary
                     ? "translate-x-1.5 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100"
                     : "opacity-100",
                 )}
@@ -218,14 +221,14 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
               {inLibrary ? t("card.inList") : t("card.addToList")}
             </TooltipContent>
           </Tooltip>
-          {canHover && hovered && (
+          {hovered && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
                   to={`${animeHref(anime)}#watch`}
                   viewTransition
                   aria-label={t("card.watch")}
-                  className="grid size-8 translate-x-1.5 place-items-center rounded-lg border border-white/10 bg-black/50 text-white/90 opacity-0 transition-all delay-75 duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-primary hover:text-primary-foreground active:scale-95 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
+                  className="grid size-7 translate-x-1.5 place-items-center rounded-lg border border-white/10 bg-black/50 text-white/90 opacity-0 transition-all delay-75 duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-primary hover:text-primary-foreground active:scale-95 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100 motion-reduce:transition-none"
                 >
                   <PlayIcon className="size-3.5 fill-current" />
                 </Link>
@@ -234,6 +237,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
             </Tooltip>
           )}
         </div>
+        )}
 
         {/* Where it stands in the viewer's own list — the status's icon and
             colour, and for a show being watched, how far along. The same
@@ -257,7 +261,10 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         {/* Top-left: what the title is rated — and, while it has no rating
             yet, how long until it airs. */}
         {anime.score != null && (
-          <ScoreBadge score={anime.score} className="absolute left-2 top-2 z-20" />
+          <ScoreBadge
+            score={anime.score}
+            className="absolute left-1.5 top-1.5 z-20 max-sm:px-1 max-sm:text-[11px] sm:left-2 sm:top-2"
+          />
         )}
         {anime.score == null && countdown ? (
           <span className="absolute left-2 top-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/90">
@@ -320,16 +327,16 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
               <TooltipContent side="top">{labels.airingLabel(anime.airing)}</TooltipContent>
             </Tooltip>
           )}
+          {/* The year alone: "Весна 2021" didn't fit beside the rest at six
+              cards a row, and the season is on the title's page. On a phone
+              the episode count drops out too — three cards a row leave room
+              for two facts, and a cut-off third read as a glitch. */}
           <span className="truncate tabular-nums">
-            {[
-              labels.typeLabel(anime.type),
-              anime.episodes != null && anime.episodes > 1 ? t("watch.episodesCount", { count: anime.episodes }) : null,
-              // The year alone: "Весна 2021" didn't fit beside the rest at
-              // six cards a row, and the season is on the title's page.
-              anime.year,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+            {labels.typeLabel(anime.type)}
+            {anime.episodes != null && anime.episodes > 1 && (
+              <span className="hidden sm:inline"> · {t("watch.episodesCount", { count: anime.episodes })}</span>
+            )}
+            {anime.year ? ` · ${anime.year}` : null}
           </span>
         </p>
       </div>
@@ -368,7 +375,7 @@ function LibraryMark({
         <TooltipTrigger asChild>
           <span
             aria-label={label}
-            className="absolute bottom-2 left-2 z-20 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium transition-opacity duration-200 group-hover:opacity-0"
+            className="absolute bottom-1.5 left-1.5 z-20 inline-flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-medium transition-opacity duration-200 group-hover:opacity-0 sm:bottom-2 sm:left-2 sm:text-[11px]"
           >
             <Icon className={cn("size-3.5", meta.text)} />
             {percent != null && status !== "COMPLETED" && (

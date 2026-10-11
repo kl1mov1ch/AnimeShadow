@@ -1,6 +1,7 @@
 import type { AnimeSummary, Genre, SmartSearchResponse } from "@animeshadow/shared";
 import {
   ArrowDownIcon,
+  ArrowUpIcon,
   ClapperboardIcon,
   DicesIcon,
   LayoutGridIcon,
@@ -14,7 +15,7 @@ import {
   TimerIcon,
   TrophyIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
@@ -22,8 +23,9 @@ import { BrowseFilters, BrowseSearch, type FilterPatch } from "@/components/anim
 import { AnimeGrid, AnimeGridSkeleton, type AnimeViewMode } from "@/components/anime/anime-grid";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { ErrorState, NoResultsState } from "@/components/common/states";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { activeFilterCount, parseBrowseParams, SORT_VALUES } from "@/lib/browse-params";
@@ -57,12 +59,14 @@ function titlesCount(n: number): string {
 /**
  * The catalogue.
  *
- * Top to bottom it reads the way people use it: what this is and how much
- * of it there is, a search box, one-tap lists (ongoing, top, films…), and
- * then the results with their filters. On a computer the filters stand
- * beside the results and scroll with a visible bar when the window is
- * short; on a phone or tablet they open as a sheet from the bottom with
- * the live count on its button. Every choice applies at once.
+ * Top to bottom: the name and how much there is, a search box, one-tap
+ * lists (ongoing, top, films…), a row with the filters and the order, and
+ * the results. Nothing stays pinned over the posters while they scroll:
+ * on a computer the filters stand beside the results; on a phone they open
+ * as a sheet from the bottom, and once the row with their button has
+ * scrolled away, a small "filters · back to top" pill comes back at the
+ * bottom of the screen whenever the list is scrolled up — and keeps out
+ * of the way while it is read down. Every choice applies at once.
  */
 export function Component() {
   const { t } = useI18n();
@@ -70,6 +74,7 @@ export function Component() {
   const params = useMemo(() => parseBrowseParams(searchParams), [searchParams]);
   const isSearch = Boolean(params.q);
   const [view, setView] = useState<AnimeViewMode>(readStoredView);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const changeView = (next: string) => {
     if (next !== "grid" && next !== "list") return;
@@ -121,16 +126,164 @@ export function Component() {
   const total = browse.data?.meta.total;
   const filterCount = activeFilterCount(params);
 
-  const filters = (
-    <BrowseFilters params={params} genres={genres} onChange={(changes) => patch(changes)} onReset={resetFilters} />
+  // The pill at the bottom: only once the toolbar is off the top of the
+  // screen, and only while the list is being scrolled back up.
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarAbove, setToolbarAbove] = useState(false);
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      setToolbarAbove(entry != null && !entry.isIntersecting && entry.boundingClientRect.top < 0);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const { down } = useScrollDirection();
+  const pillShown = toolbarAbove && !down && !sheetOpen;
+
+  const sort = (
+    <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => patch({ orderBy: value })}>
+      <SelectTrigger className="h-10 w-full min-w-0" aria-label={t("browse.sortBy")}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {SORT_VALUES.map((value) => (
+          <SelectItem key={value} value={value}>
+            {t(`sort.${value}`)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 
-  const filterSheet = (
-    <Sheet>
-      <SheetTrigger asChild>
+  const chips = <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />;
+
+  return (
+    <div className="flex flex-col gap-4 sm:gap-5">
+      <header className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-x-4">
+          <h1 className="font-display text-xl sm:text-3xl">{t("browse.pageTitle")}</h1>
+          {total != null && !isSearch && (
+            <p className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-sm">{titlesCount(total)}</p>
+          )}
+        </div>
+        <BrowseSearch params={params} onChange={(changes) => patch(changes)} />
+        <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
+      </header>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)] lg:items-start">
+        <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:border-border/60 lg:bg-card/30 lg:p-4 lg:[scrollbar-color:var(--border)_transparent] lg:[scrollbar-width:thin]">
+          <BrowseFilters params={params} genres={genres} onChange={(changes) => patch(changes)} onReset={resetFilters} />
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
+          {/* The row: filters (on a phone or tablet), the order, and on a
+              wider screen "pick one at random" and grid or list. */}
+          <div ref={toolbarRef} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3.5 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card lg:hidden"
+            >
+              <SlidersHorizontalIcon className="size-4" />
+              {t("browse.filters")}
+              {filterCount > 0 && (
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">
+                  {filterCount}
+                </span>
+              )}
+            </button>
+            {isSearch ? (
+              <h2 className="min-w-0 flex-1 truncate font-display text-lg">«{params.q}»</h2>
+            ) : (
+              <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">{sort}</div>
+            )}
+            {!isSearch && <RandomButton params={params} />}
+            <ViewSwitch view={view} onView={changeView} />
+          </div>
+
+          {/* What is applied, as chips that take themselves off — one line
+              that scrolls sideways on a phone instead of a pile of rows. */}
+          {filterCount > 0 && (
+            <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
+              {chips}
+            </div>
+          )}
+
+          {isSearch ? (
+            <SearchResults
+              query={search}
+              params={params}
+              genres={genres}
+              view={view}
+              onRetry={() => void search.refetch()}
+            />
+          ) : (
+            <CatalogResults params={params} view={view} buildHref={goToPage} />
+          )}
+        </div>
+      </div>
+
+      {/* Filters on a phone: a sheet from the bottom, the order at its top
+          and the live count on its button. */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent
+          side="bottom"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          className="flex max-h-[88dvh] flex-col gap-0 rounded-t-2xl border-t border-border/60 bg-background p-0"
+        >
+          <SheetHeader className="border-b border-border/60 px-4 py-3">
+            <SheetTitle>{t("browse.filters")}</SheetTitle>
+            <SheetDescription className="sr-only">{t("browse.filtersHint")}</SheetDescription>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+            {!isSearch && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">{t("browse.sortBy")}</span>
+                {sort}
+              </div>
+            )}
+            <BrowseFilters
+              params={params}
+              genres={genres}
+              onChange={(changes) => patch(changes)}
+              onReset={resetFilters}
+              heading={false}
+              compact
+            />
+          </div>
+          <div className="flex gap-2 border-t border-border/60 bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {filterCount > 0 && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="h-11 rounded-xl border border-border/70 px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {t("library.side.reset")}
+              </button>
+            )}
+            <SheetClose asChild>
+              <button type="button" className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground">
+                {total != null && !isSearch ? t("browse.showResults", { count: titlesCount(total) }) : t("browse.showResultsBare")}
+              </button>
+            </SheetClose>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <div
+        aria-hidden={!pillShown}
+        className={cn(
+          "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border/70 bg-card/95 p-1 shadow-lg shadow-black/40 transition-[opacity,transform] duration-300 ease-out lg:hidden",
+          pillShown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
+        )}
+      >
         <button
           type="button"
-          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3.5 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card lg:hidden"
+          tabIndex={pillShown ? undefined : -1}
+          onClick={() => setSheetOpen(true)}
+          className="inline-flex h-9 items-center gap-2 rounded-full px-3.5 text-sm font-medium"
         >
           <SlidersHorizontalIcon className="size-4" />
           {t("browse.filters")}
@@ -140,95 +293,55 @@ export function Component() {
             </span>
           )}
         </button>
-      </SheetTrigger>
-      <SheetContent
-        side="bottom"
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        className="flex max-h-[88dvh] flex-col gap-0 rounded-t-2xl border-t border-border/60 bg-background p-0"
-      >
-        <SheetHeader className="border-b border-border/60 px-4 py-3">
-          <SheetTitle>{t("browse.filters")}</SheetTitle>
-          <SheetDescription className="sr-only">{t("browse.filtersHint")}</SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          <BrowseFilters
-            params={params}
-            genres={genres}
-            onChange={(changes) => patch(changes)}
-            onReset={resetFilters}
-            heading={false}
-          />
-        </div>
-        <div className="flex gap-2 border-t border-border/60 bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {filterCount > 0 && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="h-11 rounded-xl border border-border/70 px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {t("library.side.reset")}
-            </button>
-          )}
-          <SheetClose asChild>
-            <button type="button" className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground">
-              {total != null && !isSearch ? t("browse.showResults", { count: titlesCount(total) }) : t("browse.showResultsBare")}
-            </button>
-          </SheetClose>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-
-  const chips = <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />;
-
-  return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-          <h1 className="font-display text-2xl sm:text-3xl">{t("browse.pageTitle")}</h1>
-          {total != null && !isSearch && (
-            <p className="text-sm tabular-nums text-muted-foreground">{titlesCount(total)}</p>
-          )}
-        </div>
-        <BrowseSearch params={params} onChange={(changes) => patch(changes)} />
-        <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
-      </header>
-
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)] lg:items-start">
-        <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:border-border/60 lg:bg-card/30 lg:p-4 lg:[scrollbar-color:var(--border)_transparent] lg:[scrollbar-width:thin]">
-          {filters}
-        </aside>
-
-        <div className="min-w-0">
-          {isSearch ? (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="mr-auto font-display text-xl">«{params.q}»</h2>
-                {filterSheet}
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
-              <SearchResults
-                query={search}
-                params={params}
-                genres={genres}
-                view={view}
-                onRetry={() => void search.refetch()}
-              />
-            </div>
-          ) : (
-            <CatalogResults
-              params={params}
-              view={view}
-              onView={changeView}
-              onChange={(changes) => patch(changes)}
-              buildHref={goToPage}
-              chips={chips}
-              filterSheet={filterSheet}
-            />
-          )}
-        </div>
+        <span aria-hidden className="h-5 w-px bg-border" />
+        <button
+          type="button"
+          tabIndex={pillShown ? undefined : -1}
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label={t("browse.toTop")}
+          className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowUpIcon className="size-4" />
+        </button>
       </div>
     </div>
+  );
+}
+
+/** One title at random from what the filters leave. */
+function RandomButton({ params }: { params: BrowseParams }) {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const [rolling, setRolling] = useState(false);
+  const random = async () => {
+    if (rolling) return;
+    setRolling(true);
+    try {
+      const pick = await apiRequest<{ slug: string }>("/anime/random-from", {
+        query: {
+          ...params,
+          page: undefined,
+          genres: params.genres?.join(","),
+          excludeGenres: params.excludeGenres?.join(","),
+        },
+      });
+      navigate(`/anime/${pick.slug}`, { viewTransition: true });
+    } catch {
+      toast.error(t("browse.randomNone"));
+    } finally {
+      setRolling(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => void random()}
+      aria-label={t("browse.random")}
+      title={t("browse.random")}
+      className="hidden size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-card/60 text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground active:scale-95 sm:ml-auto sm:grid"
+    >
+      <DicesIcon className={cn("size-[18px]", rolling && "animate-spin")} />
+    </button>
   );
 }
 
@@ -435,33 +548,21 @@ function groupTitle(
 /* ---------- the catalogue itself ---------- */
 
 /**
- * The results: a toolbar that stays under the header while the grid
- * scrolls (filters on a phone, what is applied, the order, the view), the
- * grid, and "show more" that keeps adding pages under the ones already on
- * screen — the pager is still there for jumping further.
+ * The results: the grid, and "show more" that keeps adding pages under the
+ * ones already on screen — the pager is still there for jumping further.
  */
 function CatalogResults({
   params,
   view,
-  onView,
-  onChange,
   buildHref,
-  chips,
-  filterSheet,
 }: {
   params: ReturnType<typeof parseBrowseParams>;
   view: AnimeViewMode;
-  onView: (view: string) => void;
-  onChange: (patch: FilterPatch) => void;
   buildHref: (page: number) => string;
-  chips: React.ReactNode;
-  filterSheet: React.ReactNode;
 }) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const first = useBrowse(params);
   const [extra, setExtra] = useState(0);
-  const [rolling, setRolling] = useState(false);
 
   // A new set of filters starts from its first page again.
   const signature = JSON.stringify({ ...params, page: undefined });
@@ -475,93 +576,35 @@ function CatalogResults({
   const nextPage = params.page + pages.length + 1;
   useBrowse({ ...params, page: nextPage }, Boolean(first.data) && !first.isPlaceholderData && nextPage <= lastPage);
 
-  const random = async () => {
-    if (rolling) return;
-    setRolling(true);
-    try {
-      const pick = await apiRequest<{ slug: string }>("/anime/random-from", {
-        query: {
-          ...params,
-          page: undefined,
-          genres: params.genres?.join(","),
-          excludeGenres: params.excludeGenres?.join(","),
-        },
-      });
-      navigate(`/anime/${pick.slug}`, { viewTransition: true });
-    } catch {
-      toast.error(t("browse.randomNone"));
-    } finally {
-      setRolling(false);
-    }
-  };
+  if (first.isError) return <ErrorState onRetry={() => void first.refetch()} />;
+  if (first.isPending) return <AnimeGridSkeleton view={view} />;
+  if (first.data.items.length === 0) return <NoResultsState />;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="sticky top-16 z-20 -mx-4 flex flex-col gap-2 border-b border-border/40 bg-background/95 px-4 py-2.5 lg:mx-0 lg:rounded-xl lg:border lg:border-border/60 lg:px-3">
-        <div className="flex items-center gap-2">
-          {filterSheet}
-          <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => onChange({ orderBy: value })}>
-            <SelectTrigger className="h-10 min-w-0 flex-1 sm:w-52 sm:flex-none" aria-label={t("browse.sortBy")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_VALUES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`sort.${value}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground sm:inline">
-            {first.data ? null : <Loader2Icon className="size-4 animate-spin" />}
-          </span>
-          <button
-            type="button"
-            onClick={() => void random()}
-            aria-label={t("browse.random")}
-            title={t("browse.random")}
-            className="grid size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-card/60 text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground active:scale-95"
-          >
-            <DicesIcon className={cn("size-[18px] transition-transform duration-500", rolling && "animate-spin")} />
-          </button>
-          <ViewSwitch view={view} onView={onView} />
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 empty:hidden">{chips}</div>
-      </div>
-
-      {first.isError ? (
-        <ErrorState onRetry={() => void first.refetch()} />
-      ) : first.isPending ? (
-        <AnimeGridSkeleton view={view} />
-      ) : first.data.items.length === 0 ? (
-        <NoResultsState />
-      ) : (
-        <div
-          className={cn("flex flex-col gap-6 transition-opacity duration-300", first.isPlaceholderData && "opacity-60")}
-          aria-busy={first.isPlaceholderData}
+    <div
+      className={cn("flex flex-col gap-6 transition-opacity duration-300", first.isPlaceholderData && "opacity-60")}
+      aria-busy={first.isPlaceholderData}
+    >
+      <AnimeGrid items={first.data.items} priorityCount={6} view={view} />
+      {pages.map((page) => (
+        <MorePage key={page} params={params} page={page} view={view} />
+      ))}
+      {params.page + pages.length < lastPage && (
+        <button
+          type="button"
+          onClick={() => setExtra((n) => n + 1)}
+          className="group mx-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card/60 px-6 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card active:scale-[0.98] sm:w-auto"
         >
-          <AnimeGrid items={first.data.items} priorityCount={6} view={view} />
-          {pages.map((page) => (
-            <MorePage key={page} params={params} page={page} view={view} />
-          ))}
-          {params.page + pages.length < lastPage && (
-            <button
-              type="button"
-              onClick={() => setExtra((n) => n + 1)}
-              className="group mx-auto inline-flex h-11 items-center gap-2 rounded-xl border border-border/70 bg-card/60 px-6 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card active:scale-[0.98]"
-            >
-              <ArrowDownIcon className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
-              {t("browse.loadMore")}
-            </button>
-          )}
-          <PaginationBar
-            page={params.page + pages.length}
-            hasNextPage={params.page + pages.length < lastPage}
-            totalPages={lastPage}
-            buildHref={buildHref}
-          />
-        </div>
+          <ArrowDownIcon className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
+          {t("browse.loadMore")}
+        </button>
       )}
+      <PaginationBar
+        page={params.page + pages.length}
+        hasNextPage={params.page + pages.length < lastPage}
+        totalPages={lastPage}
+        buildHref={buildHref}
+      />
     </div>
   );
 }
@@ -585,7 +628,7 @@ function ViewSwitch({ view, onView }: { view: AnimeViewMode; onView: (view: stri
     { value: "list", icon: ListIcon, label: t("library.viewList") },
   ] as const;
   return (
-    <div role="radiogroup" className="hidden h-10 items-center gap-0.5 rounded-lg border border-border/70 bg-card/60 p-0.5 sm:flex">
+    <div role="radiogroup" className="hidden h-10 shrink-0 items-center gap-0.5 rounded-lg border border-border/70 bg-card/60 p-0.5 sm:flex">
       {options.map(({ value, icon: Icon, label }) => (
         <button
           key={value}

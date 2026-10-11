@@ -1,6 +1,4 @@
-import { CookieIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 
 const STORAGE_KEY = "animeshadow.cookie-consent.v1";
@@ -33,10 +31,9 @@ export function hasCookieChoice(): boolean {
 }
 
 /**
- * Small, dismissible corner notice — not a full-width bar, not a blocking
- * modal. Anchored to the bottom-right so it never sits over the middle of
- * the viewport (which, on an anime page, is exactly where the player is).
- * Shown once; dismissing it (either button) remembers the choice.
+ * One slim strip at the bottom — a line of text and two buttons, not a card
+ * that covers a third of a phone's screen and the posters under it. On a
+ * computer it sits in the corner. Shown once; either answer is remembered.
  */
 export function CookieConsent() {
   const t = useT();
@@ -76,43 +73,26 @@ export function CookieConsent() {
   return (
     <div
       role="status"
-      className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-3 right-3 z-50 w-[min(15.5rem,calc(100vw-1.5rem))] rounded-xl border border-border/60 bg-card/95 p-3.5 shadow-lg duration-300 sm:bottom-5 sm:right-5"
+      className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-50 flex animate-in flex-wrap items-center justify-end gap-x-2 gap-y-1.5 rounded-xl border border-border/60 bg-card/95 py-2 pl-3 pr-2 shadow-lg shadow-black/30 duration-300 fade-in-0 slide-in-from-bottom-2 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-w-md"
     >
-      <button
-        type="button"
-        onClick={() => choose(false)}
-        aria-label={t("cookies.decline")}
-        className="absolute right-2 top-2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <XIcon className="size-3.5" />
-      </button>
-      <div className="flex items-start gap-2 pr-4">
-        <CookieIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-        <p className="text-xs leading-relaxed text-muted-foreground">{t("cookies.text")}</p>
-      </div>
-      {/* Two visible answers, not one button and a corner cross — declining
-          should be as findable as accepting, not something you have to
-          work out for yourself. */}
-      <div className="mt-3 flex gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="flex-1 text-muted-foreground hover:text-foreground"
+      {/* Beside the buttons where there is room; above them on the narrowest phones. */}
+      <p className="min-w-[10rem] flex-1 text-xs leading-snug text-muted-foreground">{t("cookies.text")}</p>
+      {/* Two visible answers — declining is as easy to find as accepting. */}
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
           onClick={() => choose(false)}
+          className="h-8 shrink-0 rounded-lg px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
         >
           {t("cookies.decline")}
-        </Button>
-        <Button
-          size="sm"
-          className="group relative flex-1 overflow-hidden bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:shadow-md"
+        </button>
+        <button
+          type="button"
           onClick={() => choose(true)}
+          className="h-8 shrink-0 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          <span className="relative z-10">{t("cookies.accept")}</span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-          />
-        </Button>
+          {t("cookies.accept")}
+        </button>
       </div>
     </div>
   );

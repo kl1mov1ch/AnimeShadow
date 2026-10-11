@@ -4,8 +4,6 @@ export const en = {
   roll: {
     title: "Random anime",
     hint: "playable only",
-    loading: "Spinning…",
-    spinning: "Picking…",
     error: "Didn't work — try again",
     watch: "Watch",
     again: "Again",
@@ -77,6 +75,8 @@ export const en = {
     gotIt: "Got it",
   },
   footer: {
+    welcome: "Enjoy the show! Watch anime for free, tick off episodes and keep your own list.",
+    support: "Support the project",
     tagline: "A dark room where all the attention goes to the anime.",
     description:
       "One catalogue, a watch list and per-episode progress — no clutter.",
@@ -221,7 +221,7 @@ export const en = {
     allGenres: "All genres · {count}",
     savedNone: "No saved sets yet",
     hideListedShort: "Hide mine",
-    studioShort: "MAPPA…",
+    studioShort: "Any",
     title: "Browse the catalogue",
     subtitle:
       "Filter by format, status, score, year and genre. Search matches titles in the catalogue.",
@@ -324,6 +324,12 @@ export const en = {
       favorites: "{count} favourites",
       h: "h",
       min: "min",
+      cardTitle: "Time to watch",
+      paceLabel: "Episodes a day",
+      fewer: "Fewer episodes a day",
+      more: "More episodes a day",
+      details: "More",
+      film: "One film",
     },
     notValid: "Not a valid title",
     notValidBody: "That link looks broken.",
@@ -672,6 +678,8 @@ export const en = {
       r8: "Very good",
       r9: "Great",
       r10: "Masterpiece",
+      myList: "My list",
+      rateTap: "Tap a star",
     },
   },
   status: {
@@ -1233,19 +1241,6 @@ export const en = {
     menuNudge: "Set up recommendations",
     signedOutTitle: "You'll need an account",
     signedOutBody: "Sign in to mark titles you like and tune your recommendations.",
-  },
-  slowNet: {
-    title: "Slow connection — we've lightened the page",
-    body: "So everything loads faster, we're holding back the heavy parts:",
-    skipped: {
-      banners: "wide banners",
-      posters: "full-size covers",
-      openings: "background openings",
-      prefetch: "loading ahead",
-    },
-    returns: "They come back on their own once it improves",
-    gotIt: "Got it",
-    close: "Close",
   },
   frameSearch: {
     bestMatch: "Best match",
@@ -1991,6 +1986,7 @@ export const en = {
       frameNote: "A screenshot is enough",
       frameHint: "Upload a frame from an episode to find the title",
       recs: "Recommendations",
+      recsShort: "For you",
       recsNote: "Picked for your taste",
       recsHint: "Built from your list and your scores",
       random: "Random anime",
