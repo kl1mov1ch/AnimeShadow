@@ -4,7 +4,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { ProMark } from "@/components/common/pro-mark";
-import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
+import { AchievementTip, HoloAchievementBadge } from "@/components/holo-achievement-badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
@@ -14,8 +15,8 @@ import { AvatarFrameRing, ProfileTitleBadge } from "../profile-cosmetics";
 import { levelOf } from "../profile-level";
 import { AvatarEditOverlay, BannerEditButtons } from "../profile-media-editor";
 import { ProfileBanner } from "../profile-banner";
-import { ProgressBar } from "../profile-progress";
-import { CountUp, LevelBadge } from "../profile-progression";
+import { LevelBadge, LevelBar } from "../level-visuals";
+import { CountUp } from "../profile-progression";
 import { ShareProfileButton } from "../share-profile";
 import type { ProfileMedia } from "../use-profile-media";
 import { plural } from "./format";
@@ -135,15 +136,23 @@ export function ProfileStage({
           {pinned.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {pinned.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setOpened(a)}
-                  className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] bg-card/60 py-0.5 pl-0.5 pr-3 text-xs transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
-                >
-                  <HoloAchievementBadge id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" className="size-6" />
-                  <span className="max-w-36 truncate">{t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}</span>
-                </button>
+                <Tooltip key={a.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setOpened(a)}
+                      className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] bg-card/60 py-0.5 pl-0.5 pr-3 text-xs transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
+                    >
+                      <span className="achx-tilt">
+                        <HoloAchievementBadge id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" tip={false} className="size-7" />
+                      </span>
+                      <span className="max-w-36 truncate">{t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-64 p-0">
+                    <AchievementTip id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} />
+                  </TooltipContent>
+                </Tooltip>
               ))}
             </div>
           )}
@@ -199,20 +208,29 @@ export function PlayerStrip({ profile }: { profile: PublicProfile }) {
     { label: "средняя оценка", value: s.meanScore != null ? <CountUp value={s.meanScore} decimals={1} /> : "—" },
   ];
   return (
-    <div className="grid gap-3 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:p-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center">
-      <div className="flex items-center gap-3.5 px-1">
-        <LevelBadge info={level} size={58} />
+    <div
+      className={cn(
+        "grid gap-3 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:p-4 lg:items-center",
+        !profile.hidden.stats && "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
+      )}
+    >
+      <div className="flex items-center gap-4 px-1 py-1">
+        {/* Room around the medallion for its rays and crown. */}
+        <span className="grid shrink-0 place-items-center p-2.5 pt-4">
+          <LevelBadge info={level} size={64} />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="truncate">
-              <span className="font-display text-lg">{level.tier.name}</span>
-              <span className="ml-2 text-xs text-muted-foreground">{level.level} уровень</span>
-            </p>
-            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-              {(level.xp - level.floor).toLocaleString("ru-RU")} / {(level.ceiling - level.floor).toLocaleString("ru-RU")}
+          <p className="mb-2 flex items-baseline gap-2 truncate">
+            <span className="font-display text-lg leading-none sm:text-xl" style={{ color: level.tier.colors[0] }}>
+              {level.tier.name}
             </span>
-          </div>
-          <ProgressBar percent={level.progress * 100} style={profile.layout.progressStyle} className="mt-2 h-2.5" />
+            {level.nextTier && (
+              <span className="truncate text-[11px] text-muted-foreground">
+                → «{level.nextTier.name}» с {level.nextTier.from} ур.
+              </span>
+            )}
+          </p>
+          <LevelBar info={level} />
         </div>
       </div>
       {!profile.hidden.stats && (

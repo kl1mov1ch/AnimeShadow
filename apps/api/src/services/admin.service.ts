@@ -721,6 +721,7 @@ export class AdminService {
         data: {
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.isBanned !== undefined ? { isBanned: input.isBanned } : {}),
+          ...(input.bonusXp !== undefined ? { bonusXp: input.bonusXp } : {}),
         },
         select: USER_SUMMARY_SELECT,
       })
@@ -729,6 +730,9 @@ export class AdminService {
     // A ban ends every session the account had; lifting it lets new ones in.
     if (input.isBanned === true) await revokeSessions(this.prisma, targetId);
     else if (input.isBanned === false) forgetSession(targetId);
+    if (input.bonusXp !== undefined) {
+      this.logger?.info({ adminId: callerId, userId: targetId, bonusXp: input.bonusXp }, "admin set a user's bonus experience");
+    }
     const watched = await this.watchSecondsFor([user.id]);
     return toUserSummary(user, watched.get(user.id) ?? 0);
   }

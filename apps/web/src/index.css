@@ -1456,6 +1456,64 @@ body:has([role="dialog"][data-state="open"]) main * {
   will-change: transform;
 }
 
+/* Profile levels and achievements: what moves on a medallion and a bar.
+   Transform and opacity only — nothing is repainted per frame — and all of
+   it stops with reduced motion or inside .lvl-still / .ach-calm. */
+@keyframes lvl-spin { to { rotate: 360deg; } }
+@keyframes lvl-spin-back { to { rotate: -360deg; } }
+@keyframes lvl-pulse { 0%, 100% { opacity: 0.55; scale: 1; } 50% { opacity: 1; scale: 1.08; } }
+@keyframes lvl-shine { 0% { translate: -140% 0; } 55%, 100% { translate: 260% 0; } }
+@keyframes lvl-bar-shine { 0% { translate: -120% 0; } 70%, 100% { translate: 360% 0; } }
+@keyframes lvl-twinkle { 0%, 100% { opacity: 0; scale: 0.3; } 50% { opacity: 1; scale: 1; } }
+@keyframes lvl-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8%; } }
+@keyframes lvl-ember {
+  0% { opacity: 0; translate: 0 0; scale: 1; }
+  15% { opacity: 1; }
+  100% { opacity: 0; translate: calc(var(--dx, 0) * 6px) -260%; scale: 0.3; }
+}
+.lvl-spin { animation: lvl-spin var(--dur, 9s) linear infinite; }
+.lvl-spin-back { animation: lvl-spin-back var(--dur, 18s) linear infinite; }
+.lvl-pulse { animation: lvl-pulse 2.8s ease-in-out infinite; }
+.lvl-shine { animation: lvl-shine 4.2s ease-in-out infinite; }
+.lvl-bar-shine { animation: lvl-bar-shine 3.2s ease-in-out infinite; }
+.lvl-twinkle { animation: lvl-twinkle var(--dur, 2s) ease-in-out var(--delay, 0s) infinite; }
+.lvl-float { animation: lvl-float 3s ease-in-out infinite; }
+.lvl-ember { animation: lvl-ember var(--dur, 2.2s) ease-out var(--delay, 0s) infinite; }
+.lvl-still :is(.lvl-spin, .lvl-spin-back, .lvl-pulse, .lvl-shine, .lvl-twinkle, .lvl-float, .lvl-ember) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.lvl-spin, .lvl-spin-back, .lvl-pulse, .lvl-shine, .lvl-bar-shine, .lvl-twinkle, .lvl-float, .lvl-ember) {
+    animation: none !important;
+  }
+}
+
+/* Achievement medallions (.achx): each one moves a little all the time —
+   a breathing glow, a turning bezel and sigil, a floating mark, a light
+   crossing the face now and then — and tilts toward the pointer. */
+@keyframes achx-breathe { 0%, 100% { opacity: 0.5; scale: 0.96; } 50% { opacity: 0.95; scale: 1.06; } }
+@keyframes achx-sheen { 0%, 62% { translate: -160% 0; } 100% { translate: 320% 0; } }
+@keyframes achx-float { 0%, 100% { translate: 0 2%; } 50% { translate: 0 -4%; } }
+.achx-spin { animation: lvl-spin var(--dur, 18s) linear infinite; }
+.achx-spin-back { animation: lvl-spin-back var(--dur, 26s) linear infinite; }
+.achx-breathe { animation: achx-breathe 3.2s ease-in-out infinite; }
+.achx-sheen { animation: achx-sheen 5.5s ease-in-out infinite; }
+.achx-float { animation: achx-float 3.4s ease-in-out infinite; }
+.achx-medal { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+.achx:hover .achx-medal,
+.achx:focus-visible .achx-medal,
+.group:hover > .achx .achx-medal,
+.group:hover .achx-tilt .achx-medal {
+  transform: perspective(420px) rotateX(10deg) rotateY(-14deg) scale(1.08);
+}
+.achx-still :is(.achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float, .lvl-twinkle, .lvl-ember) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float) { animation: none !important; }
+  .achx-medal { transition: none; }
+}
+
 /* On a computer the hero's frame fades out to the left (under the pitch)
    and to the bottom, into the blurred picture behind; on the right it runs
    to the page's edge. */

@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AdminLevelGrant } from "@/components/admin/admin-level-grant";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -266,6 +267,8 @@ function UserView({ detail }: { detail: AdminUserDetail }) {
             </div>
 
             <ActivityChart daily={detail.activity.daily} />
+
+            <AdminLevelGrant userId={u.id} />
 
             <Section title={t("admin.user.account")}>
               <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">

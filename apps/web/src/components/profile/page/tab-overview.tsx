@@ -52,13 +52,13 @@ export function OverviewTab({
   const shown = (block: string) => !profile.layout.hidden.includes(block as never);
 
   const top = shown("showcase") ? (
-    <div id="showcase" className="scroll-mt-32">
+    <div id="showcase" className="h-full scroll-mt-32">
       <TopFive profile={profile} own={own} />
     </div>
   ) : null;
   const watching = shown("watching") && !profile.hidden.watching ? <WatchingNow profile={profile} own={own} /> : null;
   const feed = shown("activity") && !profile.hidden.activity ? <RecentFeed profile={profile} onMore={() => go("activity")} /> : null;
-  const level = <LevelCard profile={profile} own={own} actions={actions} compact />;
+  const level = <LevelCard profile={profile} own={own} actions={actions} compact className="h-full" />;
   const compare = !own && shown("compare") ? <CompareCard profile={profile} /> : null;
   const genres = !profile.hidden.stats ? <GenresCard profile={profile} /> : null;
   const list = !profile.hidden.list ? <ListBreakdown profile={profile} go={go} /> : null;
@@ -68,8 +68,8 @@ export function OverviewTab({
       <div className="flex flex-col gap-4">
         {top}
         {own && level}
-        {watching}
         {compare}
+        {watching}
         {genres}
         {list}
         {feed}
@@ -77,18 +77,22 @@ export function OverviewTab({
       </div>
     );
   }
+  // Rows, not two columns of different heights: each row's cards share a
+  // top and a bottom edge.
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_22rem] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-      <div className="flex min-w-0 flex-col gap-5">
-        {top}
-        {watching}
-        {feed}
+    <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-12 items-stretch gap-5">
+        <div className={cn("min-w-0", top ? "col-span-8" : "hidden")}>{top}</div>
+        <div className={cn("flex min-w-0 flex-col gap-5", top ? "col-span-4" : "col-span-12")}>
+          {own ? level : (compare ?? level)}
+        </div>
       </div>
-      <div className="flex min-w-0 flex-col gap-5">
-        {level}
-        {compare}
+      {watching}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(19rem,1fr))] items-stretch gap-5 [&>*]:h-full">
+        {feed}
         {genres}
         {list}
+        {!own && compare && level}
       </div>
     </div>
   );
@@ -104,17 +108,18 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
 
   return (
     <Panel
+      className="h-full"
       title="Моя пятёрка"
       icon={CrownIcon}
       action={own ? <PanelAction icon={PencilIcon} onClick={() => setPicking(true)}>Изменить</PanelAction> : undefined}
     >
-      {favorites.length === 0 ? (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">Пять любимых тайтлов — первое, что видят гости профиля.</p>
+      {favorites.length === 0 && (
+        <div className="mb-4">
           <QuickFavorites profile={profile} onPick={() => setPicking(true)} />
         </div>
-      ) : (
-        <ol className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+      )}
+      {(favorites.length > 0 || own) && (
+        <ol className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-4 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           {favorites.map((anime, i) => (
             <li
               key={anime.id}
@@ -184,7 +189,7 @@ function WatchingNow({ profile, own }: { profile: PublicProfile; own: boolean })
 
   return (
     <Panel title={own ? "Продолжить" : "Сейчас смотрит"} icon={TvIcon}>
-      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden">
         {isPending
           ? Array.from({ length: 3 }, (_, i) => <div key={i} className="h-24 w-[78%] shrink-0 animate-pulse rounded-2xl bg-foreground/[0.05] sm:w-auto" />)
           : items.map((item, i) => {
@@ -350,7 +355,7 @@ function CompareCard({ profile }: { profile: PublicProfile }) {
   const { status } = useAuth();
   const labels = useLabels();
   const authed = status === "authenticated";
-  const { data, isPending } = useTasteCompare(profile.id, authed);
+  const { data, isPending, isError } = useTasteCompare(profile.id, authed);
   const r = 34;
   const c = 2 * Math.PI * r;
 
@@ -368,6 +373,8 @@ function CompareCard({ profile }: { profile: PublicProfile }) {
               </Link>
             }
           />
+        ) : isError ? (
+          <EmptyNote icon={GitCompareArrowsIcon} title="Не получилось сравнить" hint="Попробуйте обновить страницу чуть позже." />
         ) : isPending || !data ? (
           <div className="h-24 animate-pulse rounded-2xl bg-foreground/[0.05]" />
         ) : (

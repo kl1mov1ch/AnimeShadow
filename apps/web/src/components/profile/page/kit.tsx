@@ -25,7 +25,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "relative isolate overflow-hidden rounded-3xl border border-[var(--accent-line-soft)] bg-[linear-gradient(180deg,var(--accent-surface),transparent_140%)] p-4 sm:p-5",
+        "relative isolate flex flex-col overflow-hidden rounded-3xl border border-[var(--accent-line-soft)] bg-[linear-gradient(180deg,var(--accent-surface),transparent_140%)] p-4 sm:p-5",
         className,
       )}
     >
@@ -42,7 +42,7 @@ export function Panel({
           {action && <div className="flex shrink-0 items-center gap-1.5">{action}</div>}
         </header>
       )}
-      <div className={bodyClassName}>{children}</div>
+      <div className={cn("min-h-0 flex-1", bodyClassName)}>{children}</div>
     </section>
   );
 }

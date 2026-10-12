@@ -509,6 +509,7 @@ export class ProfileService {
       titleIcon:
         user.proSince != null ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
       totalCommentLikes: standing.totalLikes,
+      bonusXp: user.bonusXp,
       commenterRank: standing.rank,
       totalRankedCommenters: standing.totalRanked,
     };

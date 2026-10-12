@@ -3,7 +3,8 @@ import { ACHIEVEMENT_CATEGORIES, MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/
 import { PinIcon, PinOffIcon, TrophyIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
-import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
+import { AchievementTip, HoloAchievementBadge } from "@/components/holo-achievement-badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 import { useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -157,6 +158,8 @@ export function TrophiesTab({ profile, own }: { profile: PublicProfile; own: boo
                 className="relative animate-in fade-in-0 zoom-in-95"
                 style={{ animationDelay: `${Math.min(i, 20) * 25}ms`, animationFillMode: "backwards" }}
               >
+                <Tooltip>
+                <TooltipTrigger asChild>
                 <button
                   type="button"
                   onClick={() => setOpened(a)}
@@ -167,8 +170,8 @@ export function TrophiesTab({ profile, own }: { profile: PublicProfile; own: boo
                       : "border-[var(--accent-line-soft)] bg-background/30 hover:border-foreground/20",
                   )}
                 >
-                  <span className={cn("transition-[filter,opacity]", st === "locked" && "opacity-40 grayscale")}>
-                    <HoloAchievementBadge id={a.id} rarity={a.rarity} earned={a.earned} earnedAt={a.earnedAt} progress={a.progress} variant="circle" className="size-14" />
+                  <span className={cn("achx-tilt transition-[filter,opacity]", st === "locked" && "opacity-40 grayscale")}>
+                    <HoloAchievementBadge id={a.id} rarity={a.rarity} earned={a.earned} earnedAt={a.earnedAt} progress={a.progress} variant="circle" tip={false} className="size-16" />
                   </span>
                   <span className="line-clamp-2 text-xs font-semibold leading-snug">
                     {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
@@ -196,6 +199,11 @@ export function TrophiesTab({ profile, own }: { profile: PublicProfile; own: boo
                     )}
                   </span>
                 </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-64 p-0">
+                  <AchievementTip id={a.id} rarity={a.rarity} earned={a.earned} earnedAt={a.earnedAt} progress={a.progress} />
+                </TooltipContent>
+                </Tooltip>
                 {own && a.earned && (
                   <button
                     type="button"

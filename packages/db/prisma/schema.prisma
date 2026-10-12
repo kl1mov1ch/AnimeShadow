@@ -54,6 +54,9 @@ model User {
   titlePrefix           String?
   /// Icon key for the title above — one of a fixed curated set, not a URL.
   titleIcon             String?
+  /// Experience granted by an admin on top of what the account earned — the
+  /// profile level is computed from activity plus this.
+  bonusXp               Int      @default(0)
   /// Earned cosmetics, both keys from the catalogues in @animeshadow/shared.
   /// The achievement each one needs is re-checked in profile.service.ts on
   /// every write, so a key here is never trusted on its own.

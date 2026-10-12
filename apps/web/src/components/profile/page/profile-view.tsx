@@ -94,8 +94,8 @@ export function ProfileView({
         profile={profile}
         own={own}
         media={media}
-        onCustomise={() => onCustomise?.("look")}
-        onNeedUsername={() => onCustomise?.("account")}
+        onCustomise={() => onCustomise?.("profile")}
+        onNeedUsername={() => onCustomise?.("profile")}
         onCompare={!own ? () => {
           if (tab !== "overview") open("overview");
           requestAnimationFrame(() => jumpTo("compare"));

@@ -1,13 +1,10 @@
 import type {
-  EarnedAchievement,
   MyProfile,
 } from "@animeshadow/shared";
-import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
+
 import { useState } from "react";
 import {
-  CheckIcon,
   ChevronRightIcon,
-  LinkIcon,
   type LucideIcon,
   MailIcon,
   MonitorSmartphoneIcon,
@@ -16,25 +13,18 @@ import {
   PaletteIcon,
   ShieldCheckIcon,
   SearchIcon,
-  SparklesIcon,
   Trash2Icon,
-  TrophyIcon,
-  UserIcon,
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { AchievementBadge } from "@/components/achievement-badge";
-import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
 
-import { UserTitleBadge } from "@/components/user-title-badge";
 import { PasswordInput, TextInput } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 import {
   Dialog,
@@ -44,13 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/hooks/use-auth";
@@ -59,7 +43,6 @@ import { ApiRequestError } from "@/lib/api";
 
 import { useLabels } from "@/lib/labels";
 import {
-  useAchievements,
   useDeleteAccount,
   useGenrePreferencesStatus,
   useGenres,
@@ -68,7 +51,6 @@ import {
   useReactionGif,
   useResendVerification,
   useSetGenrePreferences,
-  useSetUsername,
   useUpdateProfile,
   useVerifyEmail,
 } from "@/lib/query";
@@ -119,11 +101,12 @@ function PublicView({ username }: { username: string }) {
 }
 
 function OwnView() {
+  const t = useT();
   const { data: profile, isPending } = useMyProfile();
   const [studioOpen, setStudioOpen] = useState(false);
-  const [studioTab, setStudioTab] = useState<StudioTab>("look");
+  const [studioTab, setStudioTab] = useState<StudioTab>("profile");
   if (isPending || !profile) return <ProfileSkeleton />;
-  const openStudio = (tab: StudioTab = "look") => {
+  const openStudio = (tab: StudioTab = "profile") => {
     setStudioTab(tab);
     setStudioOpen(true);
   };
@@ -136,17 +119,15 @@ function OwnView() {
         onOpenChange={setStudioOpen}
         initialTab={studioTab}
         account={<SettingsTab profile={profile} />}
+        taste={
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">{t("profile.settings.genresHint")}</p>
+            <GenrePreferencesSection />
+          </div>
+        }
       />
     </>
   );
-}
-
-/** A small sub-field label, for the rare expanded row with more than one
- * input inside it (identity's username + bio, the PRO title's icon +
- * text) — most rows need no label of their own since the row header
- * already names the setting. */
-function SettingsLabel({ children }: { children: React.ReactNode }) {
-  return <span className="text-xs font-medium text-muted-foreground">{children}</span>;
 }
 
 /** One rounded list, hairline dividers between rows — the Telegram settings-
@@ -256,142 +237,23 @@ function SettingsRow({
   );
 }
 
+/**
+ * The account part of the profile studio: theme (where there is a choice),
+ * the age check, the email, and deleting the account. The profile's face —
+ * avatar, nickname, description, status — and the showcase have their own
+ * sections in the studio.
+ */
 function SettingsTab({ profile }: { profile: MyProfile }) {
   const t = useT();
   const { setTheme, theme } = useTheme();
   const update = useUpdateProfile();
-  const setUsername = useSetUsername();
-  const { data: achievements } = useAchievements();
-
-  const [bio, setBio] = useState(profile.bio ?? "");
-  const [statusValue, setStatusValue] = useState(profile.onlineStatus);
-  const [uname, setUname] = useState(profile.username ?? "");
-  // One row open at a time, accordion-style — the Telegram settings screen
-  // this is modeled on never shows two expanded sub-forms at once either.
+  // One row open at a time, accordion-style.
   const [openRow, setOpenRow] = useState<string | null>(null);
   const toggle = (key: string) => setOpenRow((cur) => (cur === key ? null : key));
-
-  const { data: genreStatus } = useGenrePreferencesStatus();
-
-  const earned = (achievements ?? []).filter((a) => a.earned);
-
-  // One card, one save — claiming a username (only possible once) and
-  // editing the bio used to each need their own button; a viewer editing
-  // both had to click twice for two changes that live in the same place.
-  const usernameClaimable = !profile.username && uname.trim().length >= 3;
-  const bioDirty = bio !== (profile.bio ?? "");
-  const identityDirty = usernameClaimable || bioDirty;
-  const identitySaving = setUsername.isPending || update.isPending;
-
-  const saveIdentity = () => {
-    if (usernameClaimable) {
-      setUsername.mutate(uname, {
-        onSuccess: () => {
-          toast.success(t("profile.settings.usernameSet"));
-          if (bioDirty) update.mutate({ bio: bio || null });
-        },
-        onError: (e) =>
-          toast.error(e instanceof Error ? e.message : t("errors.genericTitle")),
-      });
-    } else if (bioDirty) {
-      update.mutate({ bio: bio || null }, { onSuccess: () => toast.success(t("common.save")) });
-    }
-  };
 
   return (
     <div className="flex flex-col gap-5">
       <SettingsList>
-        <SettingsRow
-          icon={UserIcon}
-          label={t("profile.title")}
-          value={profile.username ? t("profile.handle", { username: profile.username }) : bio || undefined}
-          expanded={openRow === "identity"}
-          onToggle={() => toggle("identity")}
-        >
-          {/* The avatar and the background are edited on the real ones,
-              in the header — this form used to carry a second, smaller
-              copy of the profile to edit instead. */}
-          <div className="flex items-start gap-4">
-
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <SettingsLabel>{t("profile.settings.username")}</SettingsLabel>
-              {/* flex-wrap so a long "copy link" label never fights the
-                  input for space on a narrow phone — it just drops to its
-                  own line instead of forcing the row wider than the screen. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-muted-foreground">@</span>
-                <input
-                  value={uname}
-                  onChange={(e) =>
-                    setUname(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
-                  }
-                  maxLength={20}
-                  disabled={Boolean(profile.username)}
-                  placeholder={t("profile.settings.usernamePlaceholder")}
-                  className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                />
-                {profile.username && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={() => {
-                      navigator.clipboard
-                        ?.writeText(
-                          `${window.location.origin}/profile/@${profile.username}`,
-                        )
-                        .then(() => toast.success(t("seo.linkCopied")))
-                        .catch(() => undefined);
-                    }}
-                  >
-                    <LinkIcon />
-                    <span className="hidden sm:inline">
-                      {t("profile.settings.copyProfileLink")}
-                    </span>
-                  </Button>
-                )}
-              </div>
-              <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {profile.username
-                  ? t("profile.settings.usernameHint")
-                  : t("profile.settings.usernameClaimHint")}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <SettingsLabel>{t("profile.settings.bio")}</SettingsLabel>
-            <textarea
-              value={bio}
-              maxLength={500}
-              onChange={(e) => setBio(e.target.value)}
-              rows={3}
-              className="w-full resize-y rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="🔥 …"
-            />
-            <span className="text-[11px] text-muted-foreground/80">
-              {bio.length}/500 · {t("profile.settings.bioHint")}
-            </span>
-          </div>
-
-          {/* One button for both fields above — a username claim and a bio
-              edit used to each demand their own "Save", which meant two
-              clicks for one visit here. Whichever changed (or both) goes out
-              together. */}
-          <div className="flex justify-end">
-            <Button size="sm" disabled={!identityDirty || identitySaving} onClick={saveIdentity}>
-              {t("profile.settings.save")}
-            </Button>
-          </div>
-        </SettingsRow>
-
-        {/* Theme and status both save the instant you pick them — a
-            two/three-way choice doesn't need a confirmation step, so the
-            picker sits right in the row instead of behind a tap. */}
-        {/* Three choices hidden inside a 32px dropdown, where you could not
-            see the options without opening it and could not tell which was
-            active without reading. They are all on screen now, wide enough
-            to hit, each showing what it actually means. */}
         {FEATURES.lightTheme && (
         <SettingsRow
           icon={PaletteIcon}
@@ -452,34 +314,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
           </div>
         </SettingsRow>
         )}
-
-        <SettingsRow
-          icon={MoonStarIcon}
-          label={t("profile.settings.status")}
-          info={<InfoTooltip>{t("profile.settings.statusHint")}</InfoTooltip>}
-          control={
-            <Select
-              value={statusValue}
-              onValueChange={(v) => {
-                setStatusValue(v as MyProfile["onlineStatus"]);
-                update.mutate({ onlineStatus: v as MyProfile["onlineStatus"] });
-              }}
-            >
-              {/* Narrower on a phone: at 320px the fixed 8rem trigger plus
-                  the icon chip and the label left the label nothing to
-                  truncate into. */}
-              <SelectTrigger className="h-8 w-28 text-xs sm:w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ONLINE">{t("profile.presence.online")}</SelectItem>
-                <SelectItem value="OFFLINE">{t("profile.presence.offline")}</SelectItem>
-                <SelectItem value="DND">{t("profile.presence.dnd")}</SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
-
         <SettingsRow
           icon={ShieldCheckIcon}
           label={t("profile.settings.age.title")}
@@ -495,41 +329,6 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         >
           <AgeVerificationContent profile={profile} update={update} />
         </SettingsRow>
-        {earned.length > 0 && (
-          <SettingsRow
-            icon={TrophyIcon}
-            label={t("profile.settings.showcase")}
-            value={t("profile.settings.showcaseCount", {
-              count: profile.showcaseAchievementIds.length,
-              max: MAX_SHOWCASE_ACHIEVEMENTS,
-            })}
-            expanded={openRow === "showcase"}
-            onToggle={() => toggle("showcase")}
-          >
-            <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-              {t("profile.settings.showcaseHint")}
-            </p>
-            <ShowcaseChips profile={profile} update={update} earned={earned} />
-          </SettingsRow>
-        )}
-
-        <SettingsRow
-          icon={SparklesIcon}
-          label={t("profile.settings.genres")}
-          value={
-            genreStatus?.genreIds.length
-              ? t("profile.settings.genresCount", { count: genreStatus.genreIds.length })
-              : undefined
-          }
-          expanded={openRow === "genres"}
-          onToggle={() => toggle("genres")}
-        >
-          <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-            {t("profile.settings.genresHint")}
-          </p>
-          <GenrePreferencesSection />
-        </SettingsRow>
-
         <EmailVerificationRow
           expanded={openRow === "email"}
           onToggle={() => toggle("email")}
@@ -873,86 +672,6 @@ function AgeVerificationContent({
   );
 }
 
-/** Pick up to MAX_SHOWCASE_ACHIEVEMENTS earned achievements to pin under your name. */
-function ShowcaseChips({
-  profile,
-  update,
-  earned,
-}: {
-  profile: MyProfile;
-  update: ReturnType<typeof useUpdateProfile>;
-  earned: EarnedAchievement[];
-}) {
-  const t = useT();
-  const selected = profile.showcaseAchievementIds;
-
-  const toggle = (id: string) => {
-    const next = selected.includes(id)
-      ? selected.filter((x) => x !== id)
-      : [...selected, id];
-    update.mutate({ showcaseAchievementIds: next });
-  };
-
-  const pinnedInOrder = selected
-    .map((id) => earned.find((a) => a.id === id))
-    .filter((a): a is EarnedAchievement => a != null);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <span className="text-xs tabular-nums text-muted-foreground">
-        {t("profile.settings.showcaseCount", {
-          count: selected.length,
-          max: MAX_SHOWCASE_ACHIEVEMENTS,
-        })}
-      </span>
-
-      {/* Exactly the row a comment or the profile header actually renders —
-          picking a badge below updates this immediately, so there's no
-          guessing what "pinned" will look like next to your name until you
-          go find a comment of yours to check. */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-secondary/20 px-3 py-2 text-xs">
-        <span className="shrink-0 text-muted-foreground/70">{t("common.preview")}:</span>
-        <span className="font-medium">{profile.displayName}</span>
-        <UserTitleBadge prefix={profile.titlePrefix} icon={profile.titleIcon} compact />
-        {pinnedInOrder.length === 0 ? (
-          <span className="text-muted-foreground/60">{t("profile.settings.showcaseEmpty")}</span>
-        ) : (
-          pinnedInOrder.map((a) => <AchievementBadge key={a.id} id={a.id} compact />)
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2.5">
-        {earned.map((a) => {
-          const isSelected = selected.includes(a.id);
-          const atLimit = !isSelected && selected.length >= MAX_SHOWCASE_ACHIEVEMENTS;
-          return (
-            <div key={a.id} className="relative">
-              <HoloAchievementBadge
-                id={a.id}
-                rarity={a.rarity}
-                earned
-                earnedAt={a.earnedAt}
-                variant="circle"
-                // A picker can show every earned badge at once — the full
-                // tilt/foil-loop treatment on all of them simultaneously is
-                // the exact "system load" this is meant to avoid.
-                animated={false}
-                onClick={atLimit ? undefined : () => toggle(a.id)}
-                className={cn(atLimit && "opacity-40", !atLimit && "ring-2 ring-offset-2 ring-offset-card", isSelected ? "ring-primary" : "ring-transparent")}
-              />
-              {isSelected && (
-                <span className="pointer-events-none absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <CheckIcon className="size-2.5" strokeWidth={3} />
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 const MAX_FAVOURITE_GENRES = 30;
 
 /** How much of the full list is shown before "show all". Rendering every
@@ -1159,7 +878,6 @@ function arraysMatchAsSets(a: number[], b: number[]): boolean {
   const set = new Set(b);
   return a.every((v) => set.has(v));
 }
-
 
 function ProfileSkeleton() {
   return (

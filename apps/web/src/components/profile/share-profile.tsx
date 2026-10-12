@@ -8,7 +8,7 @@ import { imageSrc } from "@/lib/format";
 import { SITE_URL } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { levelOf } from "./profile-level";
-import { LevelBadge } from "./profile-progression";
+import { LevelBadge } from "./level-visuals";
 
 /**
  * "Show off my profile": a card with the level, the headline numbers and the
@@ -88,7 +88,7 @@ export function ShareProfileButton({
               {pinned.length > 0 && (
                 <div className="-mt-1 flex justify-center gap-1.5">
                   {pinned.map((a) => (
-                    <HoloAchievementBadge key={a.id} id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" className="size-8" />
+                    <HoloAchievementBadge key={a.id} id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" tip={false} className="size-8" />
                   ))}
                 </div>
               )}

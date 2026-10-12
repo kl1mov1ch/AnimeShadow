@@ -218,6 +218,8 @@ export const publicProfileSchema = z.object({
   profileTitle: profileTitleSchema.nullable().default(null),
   /** Likes received across every comment that's still visible (not deleted). */
   totalCommentLikes: z.number().int(),
+  /** Experience granted by the site's admins, added to the level's own. */
+  bonusXp: z.number().int().default(0),
   /** 1-based standing among everyone who's ever posted a comment, by total
    * likes received — null for an account with no comments at all (nothing
    * to rank). */

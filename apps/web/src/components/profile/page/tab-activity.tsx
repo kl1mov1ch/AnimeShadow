@@ -28,11 +28,15 @@ export function ActivityTab({ profile }: { profile: PublicProfile }) {
   if (profile.hidden.activity) return <LockedNote what="Раздел активности" />;
   return (
     <div className="flex flex-col gap-5">
-      <YearPanel profile={profile} />
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-        <FeedPanel profile={profile} />
-        <RhythmPanel profile={profile} />
+      <div className="grid items-stretch gap-5 lg:grid-cols-12 [&>*]:h-full">
+        <div className="min-w-0 lg:col-span-8">
+          <YearPanel profile={profile} />
+        </div>
+        <div className="min-w-0 lg:col-span-4">
+          <RhythmPanel profile={profile} />
+        </div>
       </div>
+      <FeedPanel profile={profile} />
     </div>
   );
 }
@@ -87,6 +91,7 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
 
   return (
     <Panel
+      className="h-full"
       title={`${year} в аниме`}
       icon={CalendarDaysIcon}
       action={
@@ -95,7 +100,7 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
         ) : undefined
       }
     >
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_15rem]">
+      <div className="flex flex-col gap-4">
         <div className="min-w-0">
           <div ref={scroller} className="relative overflow-x-auto pb-1 [scrollbar-width:thin]">
             <div className="inline-flex flex-col gap-1">
@@ -137,7 +142,7 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
             больше
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-1 xl:content-start">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {isPending
             ? Array.from({ length: 4 }, (_, i) => <div key={i} className="h-12 animate-pulse rounded-2xl bg-foreground/[0.05]" />)
             : tiles.map((tile) => (
@@ -147,7 +152,7 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
                 </div>
               ))}
           {data?.topGenre && (
-            <div className="col-span-2 rounded-2xl bg-primary/10 px-3 py-2 text-xs xl:col-span-1">
+            <div className="col-span-2 rounded-2xl bg-primary/10 px-3 py-2 text-xs sm:col-span-1">
               Главный жанр года: <span className="font-semibold text-primary">{labels.genreLabel(data.topGenre)}</span>
             </div>
           )}
@@ -162,7 +167,7 @@ function RhythmPanel({ profile }: { profile: PublicProfile }) {
   const max = Math.max(1, ...days.map((d) => d.episodes));
   const total = days.reduce((s, d) => s + d.episodes, 0);
   return (
-    <Panel title="Две недели" icon={FlameIcon}>
+    <Panel title="Две недели" icon={FlameIcon} className="h-full">
       <div className="flex h-32 items-end gap-1.5">
         {days.map((d, i) => (
           <div key={d.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1" title={`${new Date(d.day).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}: ${d.episodes} ${plural(d.episodes, "серия", "серии", "серий")}, ${d.minutes} мин`}>

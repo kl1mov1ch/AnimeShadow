@@ -143,8 +143,10 @@ export const adminUpdateUserInputSchema = z
   .object({
     role: roleSchema.optional(),
     isBanned: z.boolean().optional(),
+    /** Experience granted on top of what the account earned (sets the level). */
+    bonusXp: z.number().int().min(0).max(2_000_000_000).optional(),
   })
-  .refine((v) => v.role !== undefined || v.isBanned !== undefined, {
+  .refine((v) => v.role !== undefined || v.isBanned !== undefined || v.bonusXp !== undefined, {
     message: "Nothing to update",
   });
 export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserInputSchema>;
