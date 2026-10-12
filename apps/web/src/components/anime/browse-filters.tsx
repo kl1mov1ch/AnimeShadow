@@ -5,13 +5,15 @@ import {
   BookmarkPlusIcon,
   BuildingIcon,
   CheckIcon,
-  ChevronDownIcon,
+  ChevronUpIcon,
   EyeOffIcon,
   MinusIcon,
+  MonitorPlayIcon,
   PlayCircleIcon,
   PlusIcon,
   RotateCcwIcon,
   SearchIcon,
+  SlidersHorizontalIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
@@ -30,7 +32,6 @@ import { cn } from "@/lib/utils";
 export type FilterPatch = Record<string, string | null>;
 
 const THIS_YEAR = new Date().getFullYear();
-const ANY = "__any";
 
 /** "At least" scores people actually pick. */
 const SCORE_STEPS = [6, 7, 7.5, 8, 8.5, 9] as const;
@@ -94,10 +95,12 @@ export function BrowseSearch({ params, onChange }: { params: BrowseParams; onCha
 }
 
 /**
- * Every filter: a label, then its control. One under another beside the
- * results on a computer; two to a row in the phone's filter sheet, so the
- * whole set fits about one screen instead of three. Everything applies the
- * moment it is picked.
+ * Every filter, out in the open: each one a row of chips you tap — no
+ * dropdown to open first, and what is on is lit. Tapping a lit chip turns
+ * it off. The best-known genres are always on show (the rest a tap away),
+ * with "нужны" and "исключить" as two clear modes. Beside the results on a
+ * computer, in a sheet from the bottom on a phone; everything applies the
+ * moment it is tapped.
  */
 export function BrowseFilters({
   params,
@@ -105,7 +108,6 @@ export function BrowseFilters({
   onChange,
   onReset,
   heading = true,
-  compact = false,
 }: {
   params: BrowseParams;
   genres: Genre[];
@@ -113,7 +115,7 @@ export function BrowseFilters({
   onReset: () => void;
   /** Off inside the filter sheet, which has its own title and reset. */
   heading?: boolean;
-  /** Two selects to a row — the phone's sheet. */
+  /** Kept for the sheet's call; the chips wrap to any width. */
   compact?: boolean;
 }) {
   const t = useT();
@@ -121,7 +123,6 @@ export function BrowseFilters({
   const { status } = useAuth();
   const authed = status === "authenticated";
   const count = activeFilterCount(params);
-  const pair = compact ? "grid grid-cols-2 gap-3" : "flex flex-col gap-4";
 
   const periodKey =
     PERIODS.find((p) => (params.yearFrom ?? null) === p.from && (params.yearTo ?? null) === p.to)?.key ?? null;
@@ -130,14 +131,17 @@ export function BrowseFilters({
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <div className={cn("flex items-center justify-between gap-2", !heading && "hidden")}>
-        <h2 className="text-sm font-semibold">{t("browse.filters")}</h2>
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <SlidersHorizontalIcon className="size-4 text-primary" />
+          {t("browse.filters")}
+        </h2>
         {count > 0 && (
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
+            className="inline-flex animate-in items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors fade-in-0 hover:bg-foreground/[0.05] hover:text-foreground"
           >
             <RotateCcwIcon className="size-3.5" />
             {t("browse.resetCount", { count })}
@@ -145,70 +149,65 @@ export function BrowseFilters({
         )}
       </div>
 
-      <div className={pair}>
-        <FilterSelect
-          label={t("browse.format")}
-          value={params.type ?? null}
-          anyLabel={t("browse.anyShort")}
-          options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
-          onPick={(type) => onChange({ type })}
-        />
-        <FilterSelect
-          label={t("browse.status")}
-          value={params.airing ?? null}
-          anyLabel={t("browse.anyShort")}
-          options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
-          onPick={(airing) => onChange({ airing })}
-        />
-      </div>
+      <ChipGroup
+        label={t("browse.format")}
+        value={params.type ?? null}
+        options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
+        onPick={(type) => onChange({ type })}
+      />
+      <ChipGroup
+        label={t("browse.status")}
+        value={params.airing ?? null}
+        options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
+        onPick={(airing) => onChange({ airing })}
+      />
       <GenrePicker params={params} genres={genres} onChange={onChange} />
-      <div className={pair}>
-        <FilterSelect
-          label={t("browse.yearRange")}
-          value={periodKey}
-          anyLabel={t("browse.anyYear")}
-          options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
-          onPick={(key) => {
-            const period = PERIODS.find((p) => p.key === key);
-            onChange({
-              year: null,
-              yearFrom: period?.from != null ? String(period.from) : null,
-              yearTo: period?.to != null ? String(period.to) : null,
-            });
-          }}
-        />
-        <FilterSelect
-          label={t("browse.scoreRange")}
-          value={params.minScore ? String(params.minScore) : null}
-          anyLabel={t("browse.anyScore")}
-          options={SCORE_STEPS.map((v) => ({ value: String(v), label: t("browse.minScoreValue", { value: v }) }))}
-          onPick={(v) => onChange({ minScore: v, maxScore: null })}
-        />
-      </div>
-      <div className={pair}>
-        <FilterSelect
-          label={t("browse.episodes")}
-          value={episodePreset?.key ?? null}
-          anyLabel={t("browse.anyLength")}
-          options={EPISODE_PRESETS.map((p) => ({
-            value: p.key,
-            label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
-          }))}
-          onPick={(key) => {
-            const preset = EPISODE_PRESETS.find((p) => p.key === key);
-            onChange(
-              preset
-                ? { episodesMin: String(preset.min), episodesMax: preset.max != null ? String(preset.max) : null }
-                : { episodesMin: null, episodesMax: null },
-            );
-          }}
-        />
-        <Field label={t("browse.studio")}>
-          <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
-        </Field>
-      </div>
+      <ChipGroup
+        label={t("browse.yearRange")}
+        value={periodKey}
+        options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+        onPick={(key) => {
+          const period = PERIODS.find((p) => p.key === key);
+          onChange({
+            year: null,
+            yearFrom: period?.from != null ? String(period.from) : null,
+            yearTo: period?.to != null ? String(period.to) : null,
+          });
+        }}
+      />
+      <ChipGroup
+        label={t("browse.scoreRange")}
+        value={params.minScore ? String(params.minScore) : null}
+        options={SCORE_STEPS.map((v) => ({ value: String(v), label: `★ ${v}+` }))}
+        onPick={(v) => onChange({ minScore: v, maxScore: null })}
+      />
+      <ChipGroup
+        label={t("browse.episodes")}
+        value={episodePreset?.key ?? null}
+        options={EPISODE_PRESETS.map((p) => ({
+          value: p.key,
+          label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
+        }))}
+        onPick={(key) => {
+          const preset = EPISODE_PRESETS.find((p) => p.key === key);
+          onChange(
+            preset
+              ? { episodesMin: String(preset.min), episodesMax: preset.max != null ? String(preset.max) : null }
+              : { episodesMin: null, episodesMax: null },
+          );
+        }}
+      />
+      <Field label={t("browse.studio")}>
+        <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
+      </Field>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5 rounded-xl border border-border/50 bg-foreground/[0.02] px-2 py-1">
+        <Switch
+          icon={MonitorPlayIcon}
+          label="Свой плеер, без рекламы"
+          on={params.hasCustomPlayer === true}
+          onClick={() => onChange({ hasCustomPlayer: params.hasCustomPlayer ? null : "1" })}
+        />
         <Switch
           icon={PlayCircleIcon}
           label={t("browse.withPlayerShort")}
@@ -236,9 +235,9 @@ export function BrowseFilters({
 
 function Field({ label, aside, children }: { label: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex min-h-4 items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-h-5 items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{label}</span>
         {aside}
       </div>
       {children}
@@ -246,34 +245,62 @@ function Field({ label, aside, children }: { label: string; aside?: React.ReactN
   );
 }
 
-function FilterSelect({
+const CHIP =
+  "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-[border-color,background-color,color,transform] duration-200 active:scale-95";
+
+function chipClass(state: "on" | "out" | "off"): string {
+  return cn(
+    CHIP,
+    state === "on" && "border-primary/55 bg-primary/15 text-foreground shadow-sm shadow-primary/10",
+    state === "out" && "border-rose-500/45 bg-rose-500/10 text-rose-200 line-through decoration-rose-400/70",
+    state === "off" && "border-border/60 bg-card/40 text-foreground/80 hover:border-foreground/25 hover:text-foreground",
+  );
+}
+
+/** One choice of a few, as chips; the lit one tapped again turns it off. */
+function ChipGroup({
   label,
   value,
-  anyLabel,
   options,
   onPick,
 }: {
   label: string;
   value: string | null;
-  anyLabel: string;
   options: Array<{ value: string; label: string }>;
   onPick: (value: string | null) => void;
 }) {
   return (
-    <Field label={label}>
-      <Select value={value ?? ANY} onValueChange={(v) => onPick(v === ANY ? null : v)}>
-        <SelectTrigger className={cn("h-10 w-full min-w-0", value ? "text-foreground" : "text-muted-foreground")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="max-h-80">
-          <SelectItem value={ANY}>{anyLabel}</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
+    <Field
+      label={label}
+      aside={
+        value && (
+          <button
+            type="button"
+            onClick={() => onPick(null)}
+            className="animate-in text-[11px] text-muted-foreground transition-colors fade-in-0 hover:text-foreground"
+          >
+            Любой
+          </button>
+        )
+      }
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const on = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(on ? null : o.value)}
+              className={chipClass(on ? "on" : "off")}
+            >
+              {on && <CheckIcon className="size-3 animate-in zoom-in-50 text-primary duration-200" />}
               {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            </button>
+          );
+        })}
+      </div>
     </Field>
   );
 }
@@ -297,7 +324,7 @@ function Switch({
       onClick={onClick}
       className="flex h-10 items-center gap-2.5 rounded-lg px-1 text-left text-sm text-foreground/85 transition-colors hover:text-foreground"
     >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <Icon className={cn("size-4 shrink-0 transition-colors", on ? "text-primary" : "text-muted-foreground")} />
       <span className="flex-1 truncate">{label}</span>
       <span className={cn("relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200", on ? "bg-primary" : "bg-foreground/15")}>
         <span
@@ -311,11 +338,16 @@ function Switch({
   );
 }
 
+/** Genres never offered as a filter: hentai is not on the site at all. */
+const HIDDEN_GENRES = new Set(["Хентай", "Hentai", "Эротика", "Erotica"]);
+/** How many of the best-known genres are always on show. */
+const GENRES_SHOWN = 16;
+
 /**
- * Genres: the picked ones on show, the rest a tap away in a searchable
- * list. "Нужны" and "Исключить" are two clear modes — a tap adds the genre
- * to whichever is on — instead of one chip that cycled through three
- * states nobody could guess.
+ * Genres as chips: the sixteen best-known always on show (Этти among them),
+ * the rest a tap away with a search. "Нужны" and "Исключить" are two clear
+ * modes — a tap adds the genre to whichever is on; a lit genre tapped again
+ * comes off. Every chosen genre has to be there, not any one of them.
  */
 function GenrePicker({
   params,
@@ -328,12 +360,17 @@ function GenrePicker({
 }) {
   const t = useT();
   const labels = useLabels();
-  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState(false);
   const [mode, setMode] = useState<"in" | "out">("in");
   const [query, setQuery] = useState("");
   const included = useMemo(() => new Set(params.genres ?? []), [params.genres]);
   const excluded = useMemo(() => new Set(params.excludeGenres ?? []), [params.excludeGenres]);
   const picked = included.size + excluded.size;
+
+  const offered = useMemo(
+    () => genres.filter((g) => (g.count ?? 0) > 0 && !HIDDEN_GENRES.has(g.name)).sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
+    [genres],
+  );
 
   const write = (inc: Set<number>, exc: Set<number>) =>
     onChange({
@@ -343,23 +380,23 @@ function GenrePicker({
   const toggle = (id: number) => {
     const inc = new Set(included);
     const exc = new Set(excluded);
-    if (mode === "in") {
-      exc.delete(id);
-      if (inc.has(id)) inc.delete(id);
-      else inc.add(id);
-    } else {
+    if (inc.has(id) || exc.has(id)) {
       inc.delete(id);
-      if (exc.has(id)) exc.delete(id);
-      else exc.add(id);
-    }
+      exc.delete(id);
+    } else if (mode === "in") inc.add(id);
+    else exc.add(id);
     write(inc, exc);
   };
 
   const q = query.trim().toLowerCase();
-  const shown = [...genres]
-    .filter((g) => !q || labels.genreLabel(g.name).toLowerCase().includes(q))
-    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0));
-  const pickedGenres = genres.filter((g) => included.has(g.id) || excluded.has(g.id));
+  const shown = all
+    ? offered.filter((g) => !q || labels.genreLabel(g.name).toLowerCase().includes(q))
+    : [
+        ...offered.slice(0, GENRES_SHOWN),
+        // A picked genre stays in view even when it is not a top one.
+        ...offered.slice(GENRES_SHOWN).filter((g) => included.has(g.id) || excluded.has(g.id)),
+      ];
+  const more = offered.length - GENRES_SHOWN;
 
   return (
     <Field
@@ -369,119 +406,84 @@ function GenrePicker({
           <button
             type="button"
             onClick={() => onChange({ genres: null, excludeGenres: null })}
-            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="animate-in text-[11px] text-muted-foreground transition-colors fade-in-0 hover:text-foreground"
           >
             {t("common.clear")}
           </button>
         )
       }
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={cn(
-          "flex h-10 w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 text-left text-sm transition-[border-color,background-color] duration-200 hover:border-foreground/20 hover:bg-card",
-          open && "border-foreground/25 bg-card",
-        )}
-      >
-        <span className={cn("min-w-0 flex-1 truncate", picked > 0 ? "text-foreground" : "text-muted-foreground")}>
-          {picked > 0 ? t("browse.genresPicked", { count: picked }) : t("browse.anyGenre")}
-        </span>
-        <ChevronDownIcon className={cn("size-4 shrink-0 opacity-60 transition-transform duration-200", open && "rotate-180")} />
-      </button>
-
-      {pickedGenres.length > 0 && !open && (
-        <div className="flex flex-wrap gap-1.5">
-          {pickedGenres.map((g) => {
-            const out = excluded.has(g.id);
-            return (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  const inc = new Set(included);
-                  const exc = new Set(excluded);
-                  inc.delete(g.id);
-                  exc.delete(g.id);
-                  write(inc, exc);
-                }}
-                title={t("browse.genreRemove")}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
-                  out
-                    ? "border-rose-500/30 text-rose-300/90 hover:border-rose-500/60"
-                    : "border-border/70 bg-foreground/[0.06] text-foreground hover:border-foreground/30",
-                )}
-              >
-                {out ? <MinusIcon className="size-3" /> : <PlusIcon className="size-3" />}
-                {labels.genreLabel(g.name)}
-                <XIcon className="size-3 text-muted-foreground" />
-              </button>
-            );
-          })}
-        </div>
+      <div role="radiogroup" aria-label="Что делать с жанром" className="grid grid-cols-2 rounded-lg bg-foreground/[0.06] p-0.5">
+        {(["in", "out"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            onClick={() => setMode(value)}
+            className={cn(
+              "h-7 rounded-md px-2 text-xs font-medium transition-colors",
+              mode === value
+                ? value === "in"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "bg-rose-500/20 text-rose-200 shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {value === "in" ? "Нужны" : "Исключить"}
+          </button>
+        ))}
+      </div>
+      {all && (
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("browse.genreSearch")}
+          className="h-9 animate-in rounded-lg border border-border/70 bg-background/60 px-3 text-sm outline-none transition-colors fade-in-0 focus:border-foreground/30"
+        />
       )}
-
-      {open && (
-        <div className="flex animate-in flex-col gap-2 rounded-lg border border-border/70 bg-card/80 p-2.5 duration-200 fade-in-0 slide-in-from-top-1">
-          <div role="radiogroup" className="grid grid-cols-2 gap-1 rounded-lg bg-foreground/[0.05] p-0.5">
-            {(["in", "out"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={mode === value}
-                onClick={() => setMode(value)}
-                className={cn(
-                  "h-7 rounded-md text-xs font-medium transition-colors",
-                  mode === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {value === "in" ? t("browse.genreModeIn") : t("browse.genreModeOut")}
-              </button>
-            ))}
-          </div>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("browse.genreSearch")}
-            className="h-9 rounded-lg border border-border/70 bg-background/60 px-3 text-sm outline-none transition-colors focus:border-foreground/30"
-          />
-          <div className="flex max-h-64 flex-wrap content-start gap-1.5 overflow-y-auto pr-0.5 [scrollbar-width:thin]">
-            {shown.map((genre) => {
-              const state = included.has(genre.id) ? "in" : excluded.has(genre.id) ? "out" : "off";
-              return (
-                <button
-                  key={genre.id}
-                  type="button"
-                  onClick={() => toggle(genre.id)}
-                  aria-pressed={state !== "off"}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors duration-150",
-                    state === "in" && "border-primary/40 bg-primary/15 text-foreground",
-                    state === "out" && "border-rose-500/40 bg-rose-500/10 text-rose-200 line-through decoration-rose-400/70",
-                    state === "off" && "border-border/60 text-foreground/80 hover:border-foreground/25 hover:text-foreground",
-                  )}
-                >
-                  {state === "in" && <CheckIcon className="size-3" />}
-                  {state === "out" && <MinusIcon className="size-3" />}
-                  {labels.genreLabel(genre.name)}
-                  {genre.count != null && genre.count > 0 && <span className="tabular-nums opacity-50">{genre.count}</span>}
-                </button>
-              );
-            })}
-            {shown.length === 0 && <p className="text-xs text-muted-foreground">{t("browse.noGenre")}</p>}
-          </div>
+      <div className={cn("flex flex-wrap content-start gap-1.5", all && "max-h-72 overflow-y-auto pr-0.5 [scrollbar-width:thin]")}>
+        {shown.map((genre) => {
+          const state = included.has(genre.id) ? "on" : excluded.has(genre.id) ? "out" : "off";
+          return (
+            <button
+              key={genre.id}
+              type="button"
+              onClick={() => toggle(genre.id)}
+              aria-pressed={state !== "off"}
+              title={state === "off" ? (mode === "in" ? "Добавить" : "Исключить") : t("browse.genreRemove")}
+              className={chipClass(state)}
+            >
+              {state === "on" && <CheckIcon className="size-3 animate-in zoom-in-50 text-primary duration-200" />}
+              {state === "out" && <MinusIcon className="size-3 animate-in zoom-in-50 duration-200" />}
+              {labels.genreLabel(genre.name)}
+            </button>
+          );
+        })}
+        {shown.length === 0 && <p className="text-xs text-muted-foreground">{t("browse.noGenre")}</p>}
+        {more > 0 && (
           <button
             type="button"
-            onClick={() => setOpen(false)}
-            className="h-8 rounded-lg bg-foreground/[0.06] text-xs font-medium text-foreground transition-colors hover:bg-foreground/10"
+            onClick={() => {
+              setAll((v) => !v);
+              setQuery("");
+            }}
+            className={cn(CHIP, "border-dashed border-border/70 text-muted-foreground hover:border-foreground/30 hover:text-foreground")}
           >
-            {t("browse.genresDone")}
+            {all ? (
+              <>
+                <ChevronUpIcon className="size-3.5" />
+                Свернуть
+              </>
+            ) : (
+              <>
+                <PlusIcon className="size-3.5" />
+                Ещё {more}
+              </>
+            )}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </Field>
   );
 }

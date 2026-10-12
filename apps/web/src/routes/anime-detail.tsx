@@ -5,7 +5,6 @@ import {
   BookOpenIcon,
   CalendarIcon,
   ClockIcon,
-  LanguagesIcon,
   LayersIcon,
   ListVideoIcon,
   type LucideIcon,
@@ -20,6 +19,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { ShareQrButton } from "@/components/anime/share-qr";
 import { AnimeRail } from "@/components/anime/anime-rail";
 import { CharacterCard } from "@/components/anime/character-card";
 import { CharacterModal } from "@/components/anime/character-modal";
@@ -309,16 +309,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   airingAt={data.nextEpisode.airingAt}
                 />
               )}
-              {data.translated && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="grid size-6 cursor-default place-items-center rounded-md border border-border/60 text-muted-foreground">
-                      <LanguagesIcon className="size-3.5" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{t("detail.machineTranslated")}</TooltipContent>
-                </Tooltip>
-              )}
+              <ShareQrButton anime={data} />
             </div>
 
             {/* The actions. "Watch" jumps to the player rather than opening

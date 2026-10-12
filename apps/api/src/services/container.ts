@@ -183,6 +183,8 @@ export function createServices(deps: ContainerDeps): Services {
     shikimori,
     logger: deps.logger,
   });
+  // The catalogue's search with filters runs on the search index's names.
+  catalog.useTitleMatcher((q) => search.matchIds(q));
   const frames = new FrameService({
     prisma: deps.prisma,
     logger: deps.logger,

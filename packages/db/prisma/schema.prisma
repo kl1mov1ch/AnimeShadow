@@ -536,6 +536,7 @@ model Anime {
   @@index([popularity])
   @@index([rank])
   @@index([members])
+  @@index([scoredBy(sort: Desc)])
   @@index([airing])
   @@index([year, season])
   @@index([viewCount(sort: Desc)])

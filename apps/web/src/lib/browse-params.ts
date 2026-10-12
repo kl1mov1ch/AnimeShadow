@@ -94,6 +94,7 @@ export function activeFilterCount(params: BrowseParams): number {
     Boolean(params.studio),
     (params.genres?.length ?? 0) + (params.excludeGenres?.length ?? 0) > 0,
     params.hasPlayer === true,
+    params.hasCustomPlayer === true,
     params.hideListed === true,
   ].filter(Boolean).length;
 }

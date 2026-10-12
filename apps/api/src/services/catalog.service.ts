@@ -95,7 +95,9 @@ const CURRENT_YEAR = new Date().getUTCFullYear();
 
 const ORDER_BY_COLUMN: Record<AnimeOrderBy, keyof Prisma.AnimeOrderByWithRelationInput> = {
   score: "score",
-  popularity: "members",
+  // How many rated it: every row has it, where the list count (`members`)
+  // is missing for most of the best-known titles.
+  popularity: "scoredBy",
   rank: "score",
   title: "title",
   start_date: "airedFrom",
@@ -157,6 +159,12 @@ export class CatalogService {
     24 * 60 * 60_000,
     1500,
   );
+  /** Local catalogue pages, a minute each: paging back and forth, and the
+   *  same filters from many visitors, are answered from memory. */
+  private readonly localBrowseCache = new TtlCache<Paginated<AnimeSummary>>(60_000, 800);
+  /** Ids of the titles whose names match a query, best first — from the
+   *  search index (every name a title goes by); set by the container. */
+  private matchTitleIds: ((q: string) => Promise<number[]>) | null = null;
   private seeded = false;
   /** Genre counts only move when the catalogue is re-seeded — no reason to
    *  run the aggregate once per visitor. */
@@ -614,16 +622,33 @@ export class CatalogService {
 
   // -- Browse / search ------------------------------------------------
 
+  /** Lets browse() find titles by any of their names (see SearchService). */
+  useTitleMatcher(match: (q: string) => Promise<number[]>): void {
+    this.matchTitleIds = match;
+  }
+
   async browse(
     query: AnimeQuery,
     allowAdult = false,
     userId?: string,
   ): Promise<Paginated<AnimeSummary>> {
-    if (query.q) return this.search(query, query.q, allowAdult);
-    // Filters Shikimori's list endpoint can't express — ranges, exclusions,
-    // "not already in my list" — run against the local catalogue in SQL, so
-    // they are exact and every page is still exactly perPage long.
-    if (needsLocalFilters(query)) {
+    if (query.q) {
+      // A search with filters: the titles whose names match, then every
+      // filter in SQL — exact, fast, and paged properly. A bare search keeps
+      // Shikimori's relevance ranking.
+      if (this.matchTitleIds && (needsLocalFilters(query) || hasBasicFilters(query))) {
+        const local = await this.searchLocal(query, query.q, allowAdult, userId).catch((error: unknown) => {
+          this.logger.warn({ error }, "local search failed");
+          return null;
+        });
+        if (local) return local;
+      }
+      return this.search(query, query.q, allowAdult);
+    }
+    // The local catalogue answers everything in SQL — every filter exact,
+    // combinable, in tens of milliseconds. Only "airing"/"announced" still
+    // ask Shikimori, which knows new titles before they are playable here.
+    if (needsLocalFilters(query) || !(query.airing === "AIRING" || query.airing === "UPCOMING")) {
       return this.browseFromCache(query, allowAdult, userId);
     }
     // Filters Shikimori's list endpoint has no concept of: studio, and our
@@ -781,19 +806,66 @@ export class CatalogService {
     userId?: string,
   ): Promise<Paginated<AnimeSummary>> {
     await this.ensureSeeded();
-    const where = this.buildWhere(query, allowAdult, userId);
+    const run = async () => {
+      const where = this.buildWhere(query, allowAdult, userId);
+      const skip = (query.page - 1) * query.perPage;
+      const [rows, total] = await this.prisma.$transaction([
+        this.prisma.anime.findMany({
+          where,
+          orderBy: [this.buildOrderBy(query.orderBy, query.sort), { id: "asc" }],
+          skip,
+          take: query.perPage,
+          include: ANIME_WITH_GENRES_INCLUDE,
+        }),
+        this.prisma.anime.count({ where }),
+      ]);
+      return this.page(rows, total, query);
+    };
+    // "Not in my list" is per person; everything else is the same for all.
+    if (query.hideListed && userId) return run();
+    return this.localBrowseCache.wrap(`${allowAdult ? 1 : 0}:${JSON.stringify(query)}`, run);
+  }
+
+  /**
+   * A title search with filters, all local: the ids the search index
+   * matches (every name, typos forgiven), narrowed by the filters in SQL.
+   * In the default order the best name match comes first; any other order
+   * sorts the matches. Null when no name matches — Shikimori gets a look.
+   */
+  private async searchLocal(
+    query: AnimeQuery,
+    q: string,
+    allowAdult: boolean,
+    userId?: string,
+  ): Promise<Paginated<AnimeSummary> | null> {
+    const ids = await this.matchTitleIds!(q);
+    if (ids.length === 0) return null;
+    const where: Prisma.AnimeWhereInput = { AND: [this.buildWhere(query, allowAdult, userId), { id: { in: ids } }] };
     const skip = (query.page - 1) * query.perPage;
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.anime.findMany({
-        where,
-        orderBy: this.buildOrderBy(query.orderBy, query.sort),
-        skip,
-        take: query.perPage,
-        include: ANIME_WITH_GENRES_INCLUDE,
-      }),
-      this.prisma.anime.count({ where }),
-    ]);
-    return this.page(rows, total, query);
+    const byRelevance = (query.orderBy ?? "popularity") === "popularity" && query.sort !== "asc";
+    if (!byRelevance) {
+      const [rows, total] = await this.prisma.$transaction([
+        this.prisma.anime.findMany({
+          where,
+          orderBy: [this.buildOrderBy(query.orderBy, query.sort), { id: "asc" }],
+          skip,
+          take: query.perPage,
+          include: ANIME_WITH_GENRES_INCLUDE,
+        }),
+        this.prisma.anime.count({ where }),
+      ]);
+      return this.page(rows, total, query);
+    }
+    const fitting = new Set((await this.prisma.anime.findMany({ where, select: { id: true } })).map((r) => r.id));
+    const ordered = ids.filter((id) => fitting.has(id));
+    const pageIds = ordered.slice(skip, skip + query.perPage);
+    const rows = await this.prisma.anime.findMany({ where: { id: { in: pageIds } }, include: ANIME_WITH_GENRES_INCLUDE });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return this.page(
+      pageIds.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => r != null),
+      ordered.length,
+      query,
+    );
   }
 
   private async search(
@@ -1705,6 +1777,13 @@ export class CatalogService {
       [ORDER_BY_COLUMN[orderBy]]: { sort, nulls: "last" },
     } as Prisma.AnimeOrderByWithRelationInput;
   }
+}
+
+/** Whether a query narrows the catalogue at all (besides the order). */
+function hasBasicFilters(query: AnimeQuery): boolean {
+  return Boolean(
+    query.type || query.airing || query.season || query.year != null || query.minScore != null || query.genres?.length,
+  );
 }
 
 /** Whether a query uses anything only the local catalogue can answer. */

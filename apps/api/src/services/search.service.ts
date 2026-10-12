@@ -237,6 +237,13 @@ export class SearchService {
     };
   }
 
+  /** Ids of every title whose names match, best first — for the catalogue's
+   *  search with filters (CatalogService.useTitleMatcher). */
+  async matchIds(query: string, limit = 400): Promise<number[]> {
+    const index = await this.searchIndex().catch(() => null);
+    return index ? index.titles.search(query, limit).map((h) => h.id) : [];
+  }
+
   // -- lenses --------------------------------------------------------
 
   /**

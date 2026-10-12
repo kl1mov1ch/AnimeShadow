@@ -87,7 +87,15 @@ export function Component() {
   };
 
   const { data: genres = [] } = useGenres();
-  const search = useSmartSearch(params.q ?? "", isSearch, false);
+  // A search with filters (or another order) is a catalogue query: every
+  // filter applies exactly, in SQL, and it pages. A bare search is the smart
+  // one, in groups — the quick answer at once, the thorough one (characters,
+  // studios, plot) put in its place when it lands.
+  const searchWithFilters =
+    isSearch && (activeFilterCount(params) > 0 || params.hasCustomPlayer === true || (params.orderBy ?? "popularity") !== "popularity");
+  const quickSearch = useSmartSearch(params.q ?? "", isSearch && !searchWithFilters, true);
+  const fullSearch = useSmartSearch(params.q ?? "", isSearch && !searchWithFilters, false);
+  const search = fullSearch.data && fullSearch.data.query === params.q ? fullSearch : quickSearch;
 
   const patch = useCallback(
     (changes: FilterPatch, opts: { resetPage?: boolean } = {}) => {
@@ -122,7 +130,7 @@ export function Component() {
     [searchParams],
   );
 
-  const browse = useBrowse(params, !isSearch);
+  const browse = useBrowse(params, !isSearch || searchWithFilters);
   const total = browse.data?.meta.total;
   const filterCount = activeFilterCount(params);
 
@@ -164,7 +172,7 @@ export function Component() {
       <header className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-x-4">
           <h1 className="font-display text-xl sm:text-3xl">{t("browse.pageTitle")}</h1>
-          {total != null && !isSearch && (
+          {total != null && (!isSearch || searchWithFilters) && (
             <p className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-sm">{titlesCount(total)}</p>
           )}
         </div>
@@ -194,11 +202,8 @@ export function Component() {
                 </span>
               )}
             </button>
-            {isSearch ? (
-              <h2 className="min-w-0 flex-1 truncate font-display text-lg">«{params.q}»</h2>
-            ) : (
-              <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">{sort}</div>
-            )}
+            {isSearch && <h2 className="min-w-0 flex-1 truncate font-display text-lg">«{params.q}»</h2>}
+            <div className={cn("min-w-0", isSearch ? "w-36 shrink-0 sm:w-48" : "flex-1 sm:w-56 sm:flex-none")}>{sort}</div>
             {!isSearch && <RandomButton params={params} />}
             <ViewSwitch view={view} onView={changeView} />
           </div>
@@ -211,7 +216,7 @@ export function Component() {
             </div>
           )}
 
-          {isSearch ? (
+          {isSearch && !searchWithFilters ? (
             <SearchResults
               query={search}
               params={params}
@@ -238,12 +243,10 @@ export function Component() {
             <SheetDescription className="sr-only">{t("browse.filtersHint")}</SheetDescription>
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-            {!isSearch && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">{t("browse.sortBy")}</span>
-                {sort}
-              </div>
-            )}
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{t("browse.sortBy")}</span>
+              {sort}
+            </div>
             <BrowseFilters
               params={params}
               genres={genres}
@@ -265,7 +268,9 @@ export function Component() {
             )}
             <SheetClose asChild>
               <button type="button" className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground">
-                {total != null && !isSearch ? t("browse.showResults", { count: titlesCount(total) }) : t("browse.showResultsBare")}
+                {total != null && (!isSearch || searchWithFilters)
+                  ? t("browse.showResults", { count: titlesCount(total) })
+                  : t("browse.showResultsBare")}
               </button>
             </SheetClose>
           </div>
