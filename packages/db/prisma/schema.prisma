@@ -702,6 +702,20 @@ model Genre {
   preferredBy UserGenrePreference[]
 }
 
+/// A search someone actually made — Enter, or a result picked — for the
+/// search window's "what people look for now". `who` is the account id or a
+/// short hash of the address, only ever counted, so a phrase needs two
+/// different people before it shows.
+model SearchLog {
+  id        String   @id @default(cuid())
+  term      String
+  who       String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([term])
+}
+
 model GenreOnAnime {
   anime   Anime @relation(fields: [animeId], references: [id], onDelete: Cascade)
   animeId Int

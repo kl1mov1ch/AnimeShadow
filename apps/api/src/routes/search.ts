@@ -1,4 +1,4 @@
-import { frameSearchInputSchema, localeQuerySchema, searchQuerySchema } from "@animeshadow/shared";
+import { frameSearchInputSchema, localeQuerySchema, searchLogInputSchema, searchQuerySchema, type SearchPulse } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { resolveAllowAdult } from "../lib/content-guard.js";
 import { parse } from "../lib/validation.js";
@@ -40,6 +40,39 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
         }));
       reply.header("cache-control", "public, max-age=300");
       return { items };
+    },
+  );
+
+  // A search someone made, for "what people look for now". Fire and forget.
+  fastify.post(
+    "/search/log",
+    { preHandler: fastify.optionalAuth, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { term } = parse(searchLogInputSchema, request.body);
+      await fastify.services.search.logQuery(term, request.userId ?? null, request.ip);
+      reply.code(204);
+    },
+  );
+
+  // The empty search window: what people look for now, titles being
+  // watched (to fill in while there are few searches), the genres watched most.
+  fastify.get(
+    "/search/pulse",
+    { preHandler: fastify.optionalAuth },
+    async (request, reply): Promise<SearchPulse> => {
+      const { lang } = parse(localeQuerySchema, request.query);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const [pulse, discover] = await Promise.all([
+        fastify.services.search.pulse(allowAdult),
+        fastify.services.catalog.getDiscover(lang, allowAdult),
+      ]);
+      const seen = new Set<number>();
+      const hot = [...discover.trendingNow, ...discover.topAiring]
+        .filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
+        .slice(0, 8)
+        .map((a) => ({ id: a.id, slug: a.slug, title: a.title, titleLocalized: a.titleLocalized }));
+      reply.header("cache-control", "public, max-age=120");
+      return { searches: pulse.searches, hot, genres: pulse.genres };
     },
   );
 

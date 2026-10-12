@@ -1,6 +1,6 @@
 import {
   ANIME_WITH_GENRES_INCLUDE,
-  type Prisma,
+  Prisma,
   type PrismaClient,
   persistAnimeSummaries,
   toSummaryDto,
@@ -18,7 +18,9 @@ import type {
   SearchScope,
   SmartSearchResponse,
 } from "@animeshadow/shared";
+import { createHash } from "node:crypto";
 import { TtlCache } from "../lib/cache.js";
+import { isProfane } from "../lib/profanity.js";
 import { isAdultRating, isHentaiRating, withContentGuard } from "../lib/content-guard.js";
 import { FuzzyTitleIndex, queryVariants, titleKey } from "../lib/fuzzy-title.js";
 import { fitsFilters, hasFilters, type ParsedQuery, parseQuery } from "../lib/search-query.js";
@@ -97,6 +99,7 @@ export class SearchService {
   private readonly logger: SearchLogger;
   private readonly cache = new TtlCache<SmartSearchResponse>(5 * 60_000, 256);
   private readonly similarCache = new TtlCache<AnimeSummary[]>(12 * 60 * 60_000, 400);
+  private readonly pulseCache = new TtlCache<{ searches: Array<{ term: string; count: number }>; genres: Array<{ id: number; name: string }> }>(5 * 60_000, 4);
   private index: SearchIndex | null = null;
   private indexBuiltAt = 0;
   private indexBuild: Promise<SearchIndex> | null = null;
@@ -105,6 +108,50 @@ export class SearchService {
     this.prisma = deps.prisma;
     this.shikimori = deps.shikimori;
     this.logger = deps.logger;
+  }
+
+  /**
+   * Notes a search someone actually made. Only the phrase and who (an
+   * account, or a short hash of the address) are kept — never shown, only
+   * counted. Junk and swearing are dropped here.
+   */
+  async logQuery(term: string, userId: string | null, ip: string): Promise<void> {
+    const clean = term.toLowerCase().replace(/\s+/g, " ").trim();
+    if (clean.length < 2 || clean.length > 60 || isProfane(clean) || /https?:|www\.|@/.test(clean)) return;
+    const who = userId ?? `ip:${createHash("sha256").update(ip).digest("hex").slice(0, 16)}`;
+    // One note per person per phrase a day is enough to count them.
+    const since = new Date(Date.now() - 24 * 60 * 60_000);
+    const seen = await this.prisma.searchLog.findFirst({ where: { term: clean, who, createdAt: { gte: since } }, select: { id: true } });
+    if (!seen) await this.prisma.searchLog.create({ data: { term: clean, who } });
+  }
+
+  /**
+   * What people look for this week — a phrase needs at least two different
+   * people behind it — and the genres whose titles are watched the most.
+   */
+  async pulse(allowAdult: boolean): Promise<{ searches: Array<{ term: string; count: number }>; genres: Array<{ id: number; name: string }> }> {
+    return this.pulseCache.wrap(allowAdult ? "adult" : "safe", async () => {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60_000);
+      const [terms, genres] = await Promise.all([
+        this.prisma.$queryRaw<Array<{ term: string; n: number }>>`
+          SELECT "term", COUNT(DISTINCT "who")::int AS n
+          FROM "SearchLog" WHERE "createdAt" >= ${since}
+          GROUP BY "term" HAVING COUNT(DISTINCT "who") >= 2
+          ORDER BY n DESC, MAX("createdAt") DESC LIMIT 10
+        `,
+        this.prisma.$queryRaw<Array<{ id: number; name: string }>>`
+          SELECT g."id", g."name"
+          FROM "Genre" g
+          JOIN "GenreOnAnime" ga ON ga."genreId" = g."id"
+          JOIN "Anime" a ON a."id" = ga."animeId"
+          WHERE ${allowAdult ? Prisma.sql`TRUE` : Prisma.sql`g."name" NOT IN ('Hentai', 'Erotica')`}
+          GROUP BY g."id", g."name"
+          ORDER BY SUM(a."viewCount") DESC, COUNT(*) DESC
+          LIMIT 10
+        `,
+      ]);
+      return { searches: terms.map((t) => ({ term: t.term, count: t.n })), genres };
+    });
   }
 
   async search(

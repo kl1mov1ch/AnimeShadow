@@ -108,3 +108,16 @@ export const frameSearchResponseSchema = z.object({
   framesSearched: z.number().int().nonnegative(),
 });
 export type FrameSearchResponse = z.infer<typeof frameSearchResponseSchema>;
+
+/** A search someone actually made — sent on Enter or on picking a result. */
+export const searchLogInputSchema = z.object({
+  term: z.string().trim().min(2).max(60),
+});
+
+/** What the empty search window offers: what people look for now, titles
+ *  being watched, and the genres watched most. */
+export interface SearchPulse {
+  searches: Array<{ term: string; count: number }>;
+  hot: Array<{ id: number; slug: string; title: string; titleLocalized: string | null }>;
+  genres: Array<{ id: number; name: string }>;
+}

@@ -1,4 +1,4 @@
-import type { AnimeSummary } from "@animeshadow/shared";
+import type { AnimeSummary, CollectionSummary } from "@animeshadow/shared";
 import { Loader2Icon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,7 +8,9 @@ import {
   groupHeading,
   IdleState,
   LoadingRows,
-  MOOD_CHIPS,
+  CollectionResults,
+  ModeSwitch,
+  type SearchMode,
   pushRecent,
   readRecent,
   ResultGroup,
@@ -32,7 +34,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useI18n } from "@/i18n";
 import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
+import { logSearch, useGenrePreferences, useGenres, useSearchPulse, useSmartSearch } from "@/lib/query";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
 /** Room for eight in the palette — it's a full surface, not a dropdown
@@ -55,7 +57,7 @@ export function SearchCommandDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const labels = useLabels();
   const { status } = useAuth();
@@ -67,6 +69,8 @@ export function SearchCommandDialog({
   const isAuthed = status === "authenticated";
   const { data: genres = [] } = useGenres();
   const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed);
+  const { data: pulse } = useSearchPulse(open);
+  const [mode, setMode] = useState<SearchMode>("anime");
   const favoriteGenres = favoriteGenreIds
     .map((id) => genres.find((g) => g.id === id))
     .filter((g): g is NonNullable<typeof g> => g != null)
@@ -83,7 +87,7 @@ export function SearchCommandDialog({
   }, [open]);
 
   const showResults = debounced.length >= 2;
-  const { data, isFetching } = useSmartSearch(debounced, open && showResults);
+  const { data, isFetching } = useSmartSearch(debounced, open && showResults && mode === "anime");
   const matches = useTitleMatches(data?.flat ?? [], debounced);
 
   const close = useCallback(() => setOpen(false), []);
@@ -94,19 +98,37 @@ export function SearchCommandDialog({
       if (!q) return;
       setRecent(pushRecent(q));
       close();
+      if (mode === "collections") {
+        navigate(`/collections?q=${encodeURIComponent(q)}`);
+        return;
+      }
+      logSearch(q);
       navigate(`/browse?q=${encodeURIComponent(q)}`);
     },
-    [close, navigate],
+    [close, navigate, mode],
   );
 
   const goToAnime = useCallback(
     (anime: AnimeSummary) => {
-      if (term.trim()) setRecent(pushRecent(term.trim()));
+      if (term.trim()) {
+        setRecent(pushRecent(term.trim()));
+        logSearch(term);
+      }
       close();
       navigate(animeHref(anime));
     },
     [close, navigate, term],
   );
+
+  const goToCollection = (collection: CollectionSummary) => {
+    close();
+    navigate(`/collections/${collection.id}`);
+  };
+
+  const goToAnimeId = (anime: { id: number; slug: string }) => {
+    close();
+    navigate(animeHref(anime));
+  };
 
   const pickGenre = (id: number) => {
     close();
@@ -138,7 +160,7 @@ export function SearchCommandDialog({
               autoFocus
               value={term}
               onChange={(event) => setTerm(event.target.value)}
-              placeholder={t("search.placeholder")}
+              placeholder={mode === "anime" ? t("search.placeholder") : t("search.hintCollections")}
               aria-label={t("search.open")}
               className="h-14 w-full bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground/70"
             />
@@ -162,22 +184,26 @@ export function SearchCommandDialog({
             </div>
           </div>
 
+          <div className="border-b border-border/50 px-3 py-2">
+            <ModeSwitch mode={mode} onMode={setMode} />
+          </div>
           <CommandList className="max-h-[min(68vh,34rem)]">
-            {!showResults ? (
+            {mode === "collections" ? (
+              <div className="p-1">
+                <CollectionResults term={debounced} onSelect={goToCollection} onSeeAll={submit} />
+              </div>
+            ) : !showResults ? (
               <IdleState
                 recent={recent}
                 onClearRecent={() => {
                   clearRecent();
                   setRecent([]);
                 }}
-                moods={MOOD_CHIPS.map((m) => (locale === "ru" ? m.ru : m.en))}
                 onPick={setTerm}
-                recentLabel={t("search.recent")}
-                clearLabel={t("common.clear")}
-                moodLabel={t("search.tryMood")}
-                favoriteGenres={favoriteGenres}
-                favoriteGenresLabel={t("search.forYou")}
+                pulse={pulse}
+                onPickAnime={goToAnimeId}
                 onPickGenre={pickGenre}
+                favoriteGenres={favoriteGenres}
               />
             ) : isFetching && !data ? (
               <LoadingRows count={5} />

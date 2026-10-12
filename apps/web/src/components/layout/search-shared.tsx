@@ -1,10 +1,11 @@
-import type { AnimeSummary, SearchGroup } from "@animeshadow/shared";
+import type { AnimeSummary, CollectionSummary, SearchGroup, SearchPulse } from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ClockIcon, SparklesIcon } from "lucide-react";
+import { ClockIcon, FlameIcon, FolderHeartIcon, LayersIcon, SearchIcon, SparklesIcon, TvIcon } from "lucide-react";
 import { useMemo } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
+import { useCollections } from "@/lib/query";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -26,17 +27,6 @@ const RECENT_MAX = 6;
 /** Total rows across every result group combined, so a dropdown never needs
  *  its own scrollbar — "see all results" is the way to the rest. */
 export const MAX_DROPDOWN_RESULTS = 6;
-
-export const MOOD_CHIPS: Array<{ ru: string; en: string }> = [
-  { ru: "грустное", en: "sad" },
-  { ru: "весёлое", en: "funny" },
-  { ru: "экшен", en: "action" },
-  { ru: "романтика", en: "romance" },
-  { ru: "исекай", en: "isekai" },
-  { ru: "про космос", en: "space" },
-  { ru: "уютное", en: "cozy" },
-  { ru: "детектив", en: "detective" },
-];
 
 export function readRecent(): string[] {
   try {
@@ -148,49 +138,80 @@ export function Chip({
   );
 }
 
+/** What the search looks through: titles, or people's collections. */
+export type SearchMode = "anime" | "collections";
+
+export function ModeSwitch({ mode, onMode }: { mode: SearchMode; onMode: (mode: SearchMode) => void }) {
+  const { t } = useI18n();
+  const options: Array<{ id: SearchMode; label: string; icon: typeof TvIcon }> = [
+    { id: "anime", label: t("search.modeAnime"), icon: TvIcon },
+    { id: "collections", label: t("search.modeCollections"), icon: LayersIcon },
+  ];
+  return (
+    <div role="tablist" className="grid grid-cols-2 gap-1 rounded-xl bg-foreground/[0.05] p-1">
+      {options.map((o) => {
+        const on = o.id === mode;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            // The field keeps the focus: switching is not leaving the search.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onMode(o.id)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-[background-color,color,box-shadow] duration-200",
+              on ? "bg-card text-foreground shadow-sm ring-1 ring-[var(--accent-line-soft)]" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <o.icon className={cn("size-3.5", on && "text-primary")} />
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function IdleState({
   recent,
   onClearRecent,
-  moods,
   onPick,
-  recentLabel,
-  clearLabel,
-  moodLabel,
-  favoriteGenres,
-  favoriteGenresLabel,
+  pulse,
+  onPickAnime,
   onPickGenre,
+  favoriteGenres,
 }: {
   recent: string[];
   onClearRecent: () => void;
-  moods: string[];
+  /** Fills the field with a phrase. */
   onPick: (value: string) => void;
-  recentLabel: string;
-  clearLabel: string;
-  moodLabel: string;
-  favoriteGenres: Array<{ id: number; label: string }>;
-  favoriteGenresLabel: string;
+  pulse: SearchPulse | undefined;
+  onPickAnime: (anime: { id: number; slug: string }) => void;
   onPickGenre: (id: number) => void;
+  favoriteGenres: Array<{ id: number; label: string }>;
 }) {
-  // One running counter across all three sections, so the chips cascade in
-  // as a single wave instead of three simultaneous ones.
+  const { t } = useI18n();
+  const labels = useLabels();
+  // One running counter across the sections, so the chips cascade in as a
+  // single wave instead of several at once.
   let order = 0;
+  const searches = pulse?.searches ?? [];
+  // While few people have searched yet, titles being watched fill in.
+  const hot = searches.length < 4 ? (pulse?.hot ?? []).slice(0, 6 - searches.length) : [];
   return (
     <div className="flex flex-col gap-3.5 p-3">
-      {/* Three distinct sections, not one shared bucket — history is
-          something you did, favourite genres and mood are things you might
-          want, and mixing all three together made it unclear which chip
-          would search for a phrase and which would jump straight to a
-          genre. */}
       {recent.length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
-            <SectionLabel>{recentLabel}</SectionLabel>
+            <SectionLabel>{t("search.recent")}</SectionLabel>
             <button
               type="button"
               onClick={onClearRecent}
               className="text-[11px] text-muted-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
             >
-              {clearLabel}
+              {t("common.clear")}
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -203,17 +224,50 @@ export function IdleState({
           </div>
         </div>
       )}
+      {searches.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>{t("search.searchedNow")}</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {searches.map((s) => (
+              <Chip key={s.term} index={order++} onClick={() => onPick(s.term)}>
+                <FlameIcon className="size-3 shrink-0 text-orange-400" />
+                {s.term}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
+      {hot.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>{t("search.watchedNow")}</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {hot.map((a) => (
+              <Chip key={a.id} index={order++} onClick={() => onPickAnime(a)}>
+                <TvIcon className="size-3 shrink-0 opacity-70" />
+                <span className="max-w-[14rem] truncate">{labels.title({ title: a.title, titleLocalized: a.titleLocalized, titleEnglish: null })}</span>
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
+      {(pulse?.genres.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>{t("search.popularGenres")}</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {pulse!.genres.map((g) => (
+              <Chip key={g.id} index={order++} onClick={() => onPickGenre(g.id)}>
+                {labels.genreLabel(g.name)}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
       {favoriteGenres.length > 0 && (
         <div className="flex flex-col gap-2">
-          <SectionLabel>{favoriteGenresLabel}</SectionLabel>
+          <SectionLabel>{t("search.forYou")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {favoriteGenres.map((genre) => (
-              <Chip
-                key={genre.id}
-                index={order++}
-                accent
-                onClick={() => onPickGenre(genre.id)}
-              >
+              <Chip key={genre.id} index={order++} accent onClick={() => onPickGenre(genre.id)}>
                 <SparklesIcon className="size-3 shrink-0" />
                 {genre.label}
               </Chip>
@@ -221,17 +275,71 @@ export function IdleState({
           </div>
         </div>
       )}
-      <div className="flex flex-col gap-2">
-        <SectionLabel>{moodLabel}</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {moods.map((value) => (
-            <Chip key={value} index={order++} onClick={() => onPick(value)}>
-              {value}
-            </Chip>
-          ))}
-        </div>
-      </div>
+      {!pulse && recent.length === 0 && <LoadingRows count={2} />}
     </div>
+  );
+}
+
+/**
+ * Collections in the search: the most popular while nothing is typed, the
+ * ones that match once something is, and a way to all of them.
+ */
+export function CollectionResults({
+  term,
+  onSelect,
+  onSeeAll,
+}: {
+  term: string;
+  onSelect: (collection: CollectionSummary) => void;
+  onSeeAll: (query: string) => void;
+}) {
+  const { t } = useI18n();
+  const q = term.trim();
+  const searching = q.length >= 2;
+  const { data, isPending } = useCollections({ ...(searching ? { q } : {}), sort: "popular", page: 1, perPage: 6 });
+  if (isPending && !data) return <LoadingRows count={4} />;
+  const items = data?.items ?? [];
+  if (items.length === 0) {
+    return <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t("search.collectionsNone")}</p>;
+  }
+  return (
+    <CommandGroup
+      heading={searching ? t("search.collectionsFound") : t("search.popularCollections")}
+      className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
+    >
+      {items.map((c, i) => {
+        const cover = c.cover.find((x) => x.image)?.image ?? null;
+        return (
+          <CommandItem
+            key={c.id}
+            value={`collection-${c.id}`}
+            onSelect={() => onSelect(c)}
+            className="group animate-in fade-in slide-in-from-top-1 gap-2.5 rounded-xl py-1.5 duration-200 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected=true]:ring-1 data-[selected=true]:ring-primary/20"
+            style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
+          >
+            <span className="grid h-12 w-[34px] shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground">
+              {cover ? <img src={imageSrc(cover)} alt="" loading="lazy" className="size-full object-cover" /> : <FolderHeartIcon className="size-4" />}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="truncate text-sm font-medium leading-snug">{c.title}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {t("search.collectionMeta", { n: c.animeCount, author: c.author.displayName })}
+              </span>
+            </span>
+          </CommandItem>
+        );
+      })}
+      {searching && (
+        <CommandItem
+          value="collections-see-all"
+          onSelect={() => onSeeAll(q)}
+          className="mt-1 justify-center rounded-lg bg-primary/10 py-2 text-sm font-semibold text-primary data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground"
+        >
+          <SearchIcon />
+          <span className="truncate">{t("search.collectionsAll", { query: q })}</span>
+        </CommandItem>
+      )}
+    </CommandGroup>
   );
 }
 

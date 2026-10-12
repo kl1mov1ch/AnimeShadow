@@ -52,6 +52,7 @@ import type {
   RecommendationItem,
   ResetPasswordInput,
   SearchScope,
+  SearchPulse,
   SmartSearchResponse,
   SocialSummary,
   FollowKind,
@@ -175,6 +176,24 @@ export interface TrendingPick {
 }
 
 /** What the empty search window offers: a few titles being watched now. */
+/** What the empty search window shows: searches now, titles watched, top genres. */
+export function useSearchPulse(enabled: boolean) {
+  const { locale } = useLocale();
+  return useQuery({
+    queryKey: ["search", "pulse", locale],
+    enabled,
+    staleTime: 2 * 60_000,
+    queryFn: ({ signal }) => apiRequest<SearchPulse>("/search/pulse", { signal, query: { lang: locale } }),
+  });
+}
+
+/** Notes a search someone made — on Enter or on a result picked. Never waited for. */
+export function logSearch(term: string): void {
+  const q = term.trim();
+  if (q.length < 2 || q.length > 60) return;
+  void apiRequest<void>("/search/log", { method: "POST", body: { term: q } }).catch(() => undefined);
+}
+
 export function useSearchTrending(enabled: boolean) {
   const { locale } = useLocale();
   return useQuery({

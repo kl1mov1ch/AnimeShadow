@@ -1,19 +1,21 @@
-import type { AnimeSummary } from "@animeshadow/shared";
+import type { AnimeSummary, CollectionSummary } from "@animeshadow/shared";
 import { Loader2Icon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   budgetGroups,
   clearRecent,
+  CollectionResults,
   groupHeading,
   IdleState,
   LoadingRows,
   MAX_DROPDOWN_RESULTS,
-  MOOD_CHIPS,
+  ModeSwitch,
   pushRecent,
   readRecent,
   ResultGroup,
   Sheen,
+  type SearchMode,
   shortcutLabel,
   useTitleMatches,
 } from "@/components/layout/search-shared";
@@ -28,7 +30,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useI18n } from "@/i18n";
 import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useGenrePreferences, useGenres, useSmartSearch } from "@/lib/query";
+import { logSearch, useGenrePreferences, useGenres, useSearchPulse, useSmartSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
@@ -39,7 +41,7 @@ import { SlicedGlyph } from "@/components/brand/sliced-glyph";
  * to SearchCommandDialog, which is mounted exactly once in AppShell.
  */
 export function SearchBox() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const { status } = useAuth();
@@ -55,6 +57,8 @@ export function SearchBox() {
   if (open && !wasOpened) setWasOpened(true);
   const { data: genres = [] } = useGenres(wasOpened);
   const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed && wasOpened);
+  const { data: pulse } = useSearchPulse(wasOpened);
+  const [mode, setMode] = useState<SearchMode>("anime");
   const favoriteGenres = favoriteGenreIds
     .map((id) => genres.find((g) => g.id === id))
     .filter((g): g is NonNullable<typeof g> => g != null)
@@ -62,16 +66,6 @@ export function SearchBox() {
     .map((g) => ({ id: g.id, label: labels.genreLabel(g.name) }));
 
   const [term, setTerm] = useState("");
-  // The full hint ("title, character or a vibe") never fit a header-sized
-  // field — it was cut off mid-word. Three short ones taking turns say the
-  // same thing and each fits.
-  const hints = [t("search.hintTitle"), t("search.hintCharacter"), t("search.hintMood")];
-  const [hintIndex, setHintIndex] = useState(0);
-  useEffect(() => {
-    if (term) return;
-    const id = setInterval(() => setHintIndex((i) => (i + 1) % 3), 3_200);
-    return () => clearInterval(id);
-  }, [term]);
   const [recent, setRecent] = useState<string[]>([]);
   const debounced = useDebouncedValue(term.trim(), 220);
 
@@ -89,7 +83,7 @@ export function SearchBox() {
   }, [open]);
 
   const showResults = debounced.length >= 2;
-  const { data, isFetching } = useSmartSearch(debounced, open && showResults);
+  const { data, isFetching } = useSmartSearch(debounced, open && showResults && mode === "anime");
   const matches = useTitleMatches(data?.flat ?? [], debounced);
 
   const submit = useCallback(
@@ -99,20 +93,40 @@ export function SearchBox() {
       setRecent(pushRecent(q));
       setOpen(false);
       inputRef.current?.blur();
+      if (mode === "collections") {
+        navigate(`/collections?q=${encodeURIComponent(q)}`);
+        return;
+      }
+      logSearch(q);
       navigate(`/browse?q=${encodeURIComponent(q)}`);
     },
-    [navigate],
+    [navigate, mode],
   );
 
   const goToAnime = useCallback(
     (anime: AnimeSummary) => {
-      if (term.trim()) setRecent(pushRecent(term.trim()));
+      if (term.trim()) {
+        setRecent(pushRecent(term.trim()));
+        logSearch(term);
+      }
       setOpen(false);
       inputRef.current?.blur();
       navigate(animeHref(anime));
     },
     [navigate, term],
   );
+
+  const goToCollection = (collection: CollectionSummary) => {
+    setOpen(false);
+    inputRef.current?.blur();
+    navigate(`/collections/${collection.id}`);
+  };
+
+  const goToAnimeId = (anime: { id: number; slug: string }) => {
+    setOpen(false);
+    inputRef.current?.blur();
+    navigate(animeHref(anime));
+  };
 
   const pick = (value: string) => {
     setTerm(value);
@@ -165,6 +179,10 @@ export function SearchBox() {
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
+            onKeyDown={(event) => {
+              // Enter with nothing picked in the list searches the phrase.
+              if (event.key === "Enter" && term.trim().length >= 2 && !document.querySelector("[cmdk-item][data-selected=true]")) submit(term);
+            }}
             aria-label={t("search.open")}
             className="h-10 w-full rounded-lg bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
           />
@@ -174,14 +192,7 @@ export function SearchBox() {
               aria-hidden
               className="pointer-events-none absolute left-9 right-20 overflow-hidden text-sm text-muted-foreground/80"
             >
-              {/* Keyed on the index, so each hint mounts fresh and plays its
-                  own entrance — the swap reads as a gentle roll upward. */}
-              <span
-                key={hintIndex}
-                className="animate-in fade-in slide-in-from-bottom-2 block truncate duration-500 motion-reduce:animate-none"
-              >
-                {hints[hintIndex]}
-              </span>
+              <span className="block truncate">{mode === "anime" ? t("search.hintTitle") : t("search.hintCollections")}</span>
             </span>
           )}
 
@@ -225,22 +236,26 @@ export function SearchBox() {
             {/* Tall enough that the now-capped result list (6 items) and the
                 idle suggestions never actually need to scroll — the ceiling
                 is a safety net, not the normal path. */}
+            <div className="border-b border-border/50 p-2">
+              <ModeSwitch mode={mode} onMode={setMode} />
+            </div>
             <CommandList className="max-h-[min(80vh,32rem)]">
-              {!showResults ? (
+              {mode === "collections" ? (
+                <div className="p-1">
+                  <CollectionResults term={debounced} onSelect={goToCollection} onSeeAll={submit} />
+                </div>
+              ) : !showResults ? (
                 <IdleState
                   recent={recent}
                   onClearRecent={() => {
                     clearRecent();
                     setRecent([]);
                   }}
-                  moods={MOOD_CHIPS.map((m) => (locale === "ru" ? m.ru : m.en))}
                   onPick={pick}
-                  recentLabel={t("search.recent")}
-                  clearLabel={t("common.clear")}
-                  moodLabel={t("search.tryMood")}
-                  favoriteGenres={favoriteGenres}
-                  favoriteGenresLabel={t("search.forYou")}
+                  pulse={pulse}
+                  onPickAnime={goToAnimeId}
                   onPickGenre={pickGenre}
+                  favoriteGenres={favoriteGenres}
                 />
               ) : isFetching && !data ? (
                 <LoadingRows />

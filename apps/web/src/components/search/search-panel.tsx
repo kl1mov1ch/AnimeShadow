@@ -24,9 +24,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { useSearchTrending } from "@/lib/query";
+import { Link } from "react-router-dom";
+import { useSearchPulse, useSearchTrending } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { MOOD_CHIPS } from "@/components/layout/search-shared";
 import {
   catalogHrefFor,
   hasParsedFilters,
@@ -36,15 +36,6 @@ import {
 } from "./search-engine";
 
 /** What the search window can teach by example — each one a feature. */
-const EXAMPLES: Array<{ q: string; hint: string }> = [
-  { q: "похоже на Наруто", hint: "похожие тайтлы" },
-  { q: "фильмы 2020", hint: "фильтры словами" },
-  { q: "онгоинги романтика", hint: "жанр и статус" },
-  { q: "Вторжение гигантов", hint: "другие названия" },
-  { q: "JJK", hint: "сокращения" },
-  { q: "аниме 90-х", hint: "десятилетия" },
-];
-
 const GROUP_ICON: Record<SearchReason, LucideIcon> = {
   title: TypeIcon,
   similar: ShapesIcon,
@@ -529,6 +520,7 @@ const CHIP =
 
 function IdleState({ engine, recent, onClearRecent, onOpenAnime }: SearchPanelProps) {
   const { data: trending } = useSearchTrending(true);
+  const { data: pulse } = useSearchPulse(true);
   const labels = useLabels();
   const fill = (q: string) => engine.setTerm(q);
   return (
@@ -608,42 +600,45 @@ function IdleState({ engine, recent, onClearRecent, onOpenAnime }: SearchPanelPr
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <SectionLabel>Умный поиск понимает</SectionLabel>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-          {EXAMPLES.map(({ q, hint }, i) => (
-            <button
-              key={q}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => fill(q)}
-              style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
-              className="group flex animate-in flex-col items-start gap-0.5 rounded-xl border border-border/50 bg-card/50 px-2.5 py-2 text-left duration-300 fade-in-0 slide-in-from-bottom-1 transition-colors hover:border-primary/40 hover:bg-primary/[0.06]"
-            >
-              <span className="truncate text-xs font-semibold text-foreground group-hover:text-primary">{q}</span>
-              <span className="truncate text-[10.5px] text-muted-foreground">{hint}</span>
-            </button>
-          ))}
+      {(pulse?.searches.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Сейчас ищут</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {pulse!.searches.map((x, i) => (
+              <button
+                key={x.term}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => fill(x.term)}
+                style={{ animationDelay: `${i * 25}ms`, animationFillMode: "backwards" }}
+                className={CHIP}
+              >
+                <FlameIcon className="size-3 text-orange-400" />
+                {x.term}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex flex-col gap-2">
-        <SectionLabel>Под настроение</SectionLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {MOOD_CHIPS.map((m, i) => (
-            <button
-              key={m.ru}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => fill(m.ru)}
-              style={{ animationDelay: `${i * 25}ms`, animationFillMode: "backwards" }}
-              className={CHIP}
-            >
-              {m.ru}
-            </button>
-          ))}
+      {(pulse?.genres.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Популярные жанры</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {pulse!.genres.map((g, i) => (
+              <Link
+                key={g.id}
+                to={`/browse?genres=${g.id}`}
+                onMouseDown={(e) => e.preventDefault()}
+                style={{ animationDelay: `${i * 25}ms`, animationFillMode: "backwards" }}
+                className={CHIP}
+              >
+                {labels.genreLabel(g.name)}
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
