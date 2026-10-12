@@ -27,7 +27,7 @@ import { useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
 
-type StudioTab = "look" | "blocks" | "privacy" | "account" | "list";
+export type StudioTab = "look" | "blocks" | "privacy" | "account" | "list";
 
 const TABS: Array<{ id: StudioTab; icon: typeof PaletteIcon }> = [
   { id: "look", icon: PaletteIcon },
@@ -54,15 +54,23 @@ export function ProfileStudio({
   open,
   onOpenChange,
   account,
+  initialTab = "look",
 }: {
   profile: MyProfile;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The account settings form, which lives with the profile page. */
   account: React.ReactNode;
+  /** The section it opens on — a profile task opens it where its setting is. */
+  initialTab?: StudioTab;
 }) {
   const t = useT();
-  const [tab, setTab] = useState<StudioTab>("look");
+  const [tab, setTab] = useState<StudioTab>(initialTab);
+  const [lastOpen, setLastOpen] = useState(open);
+  if (open !== lastOpen) {
+    setLastOpen(open);
+    if (open) setTab(initialTab);
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

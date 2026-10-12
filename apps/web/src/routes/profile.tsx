@@ -6,8 +6,14 @@ import type {
   Rank,
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import {
+  ActivityIcon,
+  CalendarDaysIcon,
+  GitCompareArrowsIcon,
+  HeartIcon,
+  LayersIcon,
+  ThumbsUpIcon,
   Settings2Icon,
   CheckCircle2Icon,
   CheckIcon,
@@ -104,6 +110,18 @@ import { ProfileProgress } from "@/components/profile/profile-progress";
 import { useProfileAccentStyle } from "@/components/profile/profile-accent";
 import { FEATURES } from "@/lib/features";
 import { CollectionsShelf, TasteDna, TrophyHall } from "@/components/profile/profile-collection";
+import {
+  CountUp,
+  LevelBadge,
+  LevelCard,
+  type ProfileSection,
+  type ProfileTaskActions,
+  SectionNav,
+} from "@/components/profile/profile-progression";
+import { jumpTo, levelOf } from "@/components/profile/profile-level";
+import { ShareProfileButton } from "@/components/profile/share-profile";
+import type { StudioTab } from "@/components/profile/profile-studio";
+import type { ProfileMedia } from "@/components/profile/use-profile-media";
 
 export function Component() {
   const t = useT();
@@ -162,25 +180,43 @@ function PublicView({ username }: { username: string }) {
 function OwnView() {
   const { data: profile, isPending } = useMyProfile();
   const [studioOpen, setStudioOpen] = useState(false);
+  const [studioTab, setStudioTab] = useState<StudioTab>("look");
   if (isPending || !profile) return <ProfileSkeleton />;
+  const openStudio = (tab: StudioTab = "look") => {
+    setStudioTab(tab);
+    setStudioOpen(true);
+  };
   return (
     <>
-      <ProfilePage profile={profile} own onCustomise={() => setStudioOpen(true)} />
+      <ProfilePage profile={profile} own onCustomise={openStudio} />
       <ProfileStudio
         profile={profile}
         open={studioOpen}
         onOpenChange={setStudioOpen}
+        initialTab={studioTab}
         account={<SettingsTab profile={profile} />}
       />
     </>
   );
 }
 
+const SECTIONS: ProfileSection[] = [
+  { id: "overview", label: "Обзор", icon: SparklesIcon },
+  { id: "trophies", label: "Трофеи", icon: TrophyIcon },
+  { id: "taste", label: "Вкус", icon: HeartIcon },
+  { id: "showcase", label: "Пятёрка", icon: StarIcon },
+  { id: "activity", label: "Активность", icon: ActivityIcon },
+  { id: "year", label: "Год", icon: CalendarDaysIcon },
+  { id: "collections", label: "Подборки", icon: LayersIcon },
+];
+
 /**
- * The whole profile, one page: who it is, the numbers, then what they've
- * been watching on the left and what they like and have won on the right.
- * There are no tabs — every part is a block the owner can move or hide —
- * and exactly one button changes anything: "customise", in the header.
+ * The whole profile, one page, in parts a row of pills under the header
+ * jumps between: who it is (with the level, and "share"), the numbers, the
+ * level with where the experience came from — and, on one's own page, the
+ * tasks that grow the profile — then trophies, taste, the top five,
+ * activity, the year and collections. Two columns on a computer, one on a
+ * phone with the level right after the numbers.
  */
 function ProfilePage({
   profile,
@@ -189,35 +225,69 @@ function ProfilePage({
 }: {
   profile: PublicProfile;
   own: boolean;
-  onCustomise?: () => void;
+  onCustomise?: (tab?: StudioTab) => void;
 }) {
+  const navigate = useNavigate();
+  // Unconditional, as hooks must be: on a profile that is not yours it
+  // simply never gets a button wired to it.
+  const media = useProfileMedia(profile);
+  const actions: ProfileTaskActions | undefined = own
+    ? {
+        pickAvatar: media.pickAvatar,
+        pickBanner: media.pickBanner,
+        openStudio: (tab) => onCustomise?.(tab),
+        jump: jumpTo,
+        go: (to) => navigate(to),
+      }
+    : undefined;
+  const block = "scroll-mt-32";
+
   return (
     <ProfileShell profile={profile}>
-      <ProfileHero profile={profile} stats={profile.stats} editable={own} onOpenSettings={onCustomise} />
-      {!profile.hidden.stats && (
-        <StatsBar
-          stats={profile.stats}
-          achievementsEarned={profile.achievements.filter((a) => a.earned).length}
-        />
-      )}
-      {/* Trophies and taste, side by side under the numbers — full blocks of
-          their own rather than a narrow column that stuck to the screen and
-          slid along beside everything else. */}
+      <ProfileHero
+        profile={profile}
+        stats={profile.stats}
+        editable={own}
+        media={media}
+        onOpenSettings={() => onCustomise?.("look")}
+        onNeedUsername={() => onCustomise?.("account")}
+      />
+      <SectionNav sections={SECTIONS} />
+      <div id="overview" className={cn("flex flex-col gap-4", block)}>
+        {!profile.hidden.stats && <StatsBar profile={profile} />}
+        <LevelCard profile={profile} own={own} actions={actions} className="lg:hidden" />
+      </div>
       {/* Two independent columns, masonry-style: each block is as tall as
-          its own content and the next one follows right under it. A grid of
-          pairs stretched every block to its neighbour's height and left the
-          shorter one with an empty bottom. */}
+          its own content and the next one follows right under it. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
         <div className="flex min-w-0 flex-col gap-4">
-          <TrophyHall profile={profile} own={own} />
-          <ProfileBlocks profile={profile} own={own} only={["showcase", "year"]} />
-          <CollectionsShelf profile={profile} own={own} />
+          <div id="trophies" className={block}>
+            <TrophyHall profile={profile} own={own} />
+          </div>
+          <div id="showcase" className={block}>
+            <ProfileBlocks profile={profile} own={own} only={["showcase"]} />
+          </div>
+          <div id="year" className={cn("cv-auto", block)}>
+            <ProfileBlocks profile={profile} own={own} only={["year"]} />
+          </div>
+          <div id="collections" className={cn("cv-auto", block)}>
+            <CollectionsShelf profile={profile} own={own} />
+          </div>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          <TasteDna profile={profile} own={own} />
-          {/* The comparison only exists on someone else's profile — which
-              is also where this column tends to run short. */}
-          <ProfileBlocks profile={profile} own={own} only={["watching", "activity", "compare"]} />
+          <LevelCard profile={profile} own={own} actions={actions} className="hidden lg:block" />
+          <div id="taste" className={block}>
+            <TasteDna profile={profile} own={own} />
+          </div>
+          <div id="activity" className={cn("flex flex-col gap-4", block)}>
+            <ProfileBlocks profile={profile} own={own} only={["watching", "activity"]} />
+          </div>
+          {/* The comparison only exists on someone else's profile. */}
+          {!own && (
+            <div id="compare" className={block}>
+              <ProfileBlocks profile={profile} own={own} only={["compare"]} />
+            </div>
+          )}
         </div>
       </div>
     </ProfileShell>
@@ -225,56 +295,58 @@ function ProfilePage({
 }
 
 /**
- * Everything the profile counts, on one line: the five numbers a visitor
- * actually scans for, hairline-separated rather than five separate floating
- * cards. Every one of them is a number the server really keeps — there is
- * no "followers" here because there is no following.
+ * Everything the profile counts: six numbers that count up as they come
+ * into view, each with what it means. Every one is a number the server
+ * really keeps.
  */
-function StatsBar({
-  stats,
-  achievementsEarned,
-}: {
-  stats: ProfileStats;
-  achievementsEarned: number;
-}) {
+function StatsBar({ profile }: { profile: PublicProfile }) {
   const t = useT();
-  const cells: Array<{ icon: LucideIcon; value: string; label: string }> = [
-    { icon: FilmIcon, value: String(stats.episodesWatched), label: t("profile.summary.totalEpisodes") },
-    {
-      icon: CheckCircle2Icon,
-      value: String(stats.titlesCompleted),
-      label: t("profile.summary.completedTitles"),
-    },
-    { icon: TrophyIcon, value: String(achievementsEarned), label: t("profile.tabs.achievements") },
+  const stats = profile.stats;
+  const earned = profile.achievements.filter((a) => a.earned).length;
+  const hours = Math.floor(stats.hoursWatched);
+  const cells: Array<{ icon: LucideIcon; value: React.ReactNode; label: string; sub?: string }> = [
+    { icon: FilmIcon, value: <CountUp value={stats.episodesWatched} />, label: t("profile.summary.totalEpisodes") },
+    { icon: CheckCircle2Icon, value: <CountUp value={stats.titlesCompleted} />, label: t("profile.summary.completedTitles") },
     {
       icon: ClockIcon,
-      value: fmtDuration(t, stats.hoursWatched * 3600),
+      value: hours >= 1 ? <><CountUp value={hours} /> ч</> : fmtDuration(t, stats.hoursWatched * 3600),
       label: t("profile.summary.totalTime"),
+      sub: hours >= 24 ? `≈ ${Math.round(hours / 24)} дн. без перерыва` : undefined,
     },
     {
       icon: StarIcon,
-      value: stats.meanScore != null ? stats.meanScore.toFixed(1) : "—",
+      value: stats.meanScore != null ? <CountUp value={stats.meanScore} decimals={1} /> : "—",
       label: t("profile.summary.meanScore"),
+    },
+    {
+      icon: TrophyIcon,
+      value: <CountUp value={earned} />,
+      label: t("profile.tabs.achievements"),
+      sub: `из ${profile.achievements.length}`,
+    },
+    {
+      icon: ThumbsUpIcon,
+      value: <CountUp value={profile.totalCommentLikes} />,
+      label: "Лайков на комментариях",
+      sub: profile.commenterRank != null ? `#${profile.commenterRank} из ${profile.totalRankedCommenters}` : undefined,
     },
   ];
 
   return (
-    // gap-px over the border colour draws the hairlines between cells at
-    // every breakpoint on its own — no per-cell border rules that have to
-    // know which column they landed in.
-    <div className="reveal-group grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/60 bg-border/60 sm:grid-cols-3 lg:grid-cols-5">
-      {cells.map(({ icon: Icon, value, label }, i) => (
+    <div className="reveal-group grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      {cells.map(({ icon: Icon, value, label, sub }, i) => (
         <div
           key={label}
           style={{ "--i": i } as CSSProperties}
-          className="reveal group flex items-center gap-3 bg-card/60 px-4 py-3.5 transition-colors hover:bg-card"
+          className="reveal group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/50 px-3.5 py-3 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card"
         >
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6">
             <Icon className="size-4" />
           </span>
           <span className="flex min-w-0 flex-col">
-            <span className="truncate font-display text-lg leading-none tabular-nums">{value}</span>
-            <span className="truncate text-[11px] text-muted-foreground">{label}</span>
+            <span className="truncate font-display text-lg leading-none tabular-nums sm:text-xl">{value}</span>
+            <span className="mt-1 truncate text-[11px] leading-tight text-muted-foreground">{label}</span>
+            {sub && <span className="truncate text-[10px] text-muted-foreground/70">{sub}</span>}
           </span>
         </div>
       ))}
@@ -324,20 +396,23 @@ function ProfileHero({
   profile,
   stats,
   editable = false,
+  media,
   onOpenSettings,
+  onNeedUsername,
 }: {
   profile: PublicProfile;
   stats: ProfileStats;
   /** Only the account's own page gets the hover-to-edit affordance — a
    * visitor on someone else's profile has nothing to edit here. */
   editable?: boolean;
+  media: ProfileMedia;
   /** Opens the settings dialog. Absent on someone else's profile. */
   onOpenSettings?: () => void;
+  /** Own profile without a nickname: opens where one is taken. */
+  onNeedUsername?: () => void;
 }) {
   const t = useT();
-  // Unconditional, as hooks must be: on a profile that is not yours it
-  // simply never gets a button wired to it.
-  const media = useProfileMedia(profile);
+  const level = useMemo(() => levelOf(profile), [profile]);
   const { locale } = useLocale();
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
   const memberSince = new Date(profile.memberSince).toLocaleDateString(locale, {
@@ -419,6 +494,15 @@ function ProfileHero({
                 of the name being squeezed to a few characters. */}
             <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1 pb-1">
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => jumpTo("overview")}
+                  title={`${level.level} уровень · ${level.tier.name}`}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/35 py-0.5 pl-0.5 pr-2.5 text-[11px] font-semibold transition-colors hover:border-white/25"
+                >
+                  <LevelBadge info={level} size={24} />
+                  {level.tier.name}
+                </button>
                 {/* The body face, not the wide display one: a nickname set
                     in it ran half across the header. */}
                 <h1 className="flex min-w-0 items-center gap-1.5 text-2xl font-bold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-[1.75rem]">
@@ -443,16 +527,28 @@ function ProfileHero({
                 they sit at the right end of the identity row, on a narrow
                 one they wrap under it on their own line. */}
             {/* The one control on the page that changes the profile. */}
-            {editable && (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="mb-1 inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5 active:scale-95"
-              >
-                <Settings2Icon className="size-4" />
-                {t("profile.studio.open")}
-              </button>
-            )}
+            <div className="mb-1 flex w-full shrink-0 items-center gap-2 sm:w-auto">
+              <ShareProfileButton profile={profile} own={editable} onNeedUsername={onNeedUsername} className="flex-1 justify-center sm:flex-none" />
+              {editable ? (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="inline-flex h-10 flex-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95 sm:flex-none"
+                >
+                  <Settings2Icon className="size-4" />
+                  {t("profile.studio.open")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => jumpTo("compare")}
+                  className="inline-flex h-10 flex-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95 sm:flex-none"
+                >
+                  <GitCompareArrowsIcon className="size-4" />
+                  Сравнить вкусы
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Rank, as a real position between two real numbers. */}
