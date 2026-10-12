@@ -9,6 +9,7 @@ import {
   IdleState,
   LoadingRows,
   CollectionResults,
+  GenreResults,
   ModeSwitch,
   type SearchMode,
   pushRecent,
@@ -71,6 +72,8 @@ export function SearchCommandDialog({
   const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed);
   const { data: pulse } = useSearchPulse(open);
   const [mode, setMode] = useState<SearchMode>("anime");
+  // A genre picked from the chips: its top titles show in the panel.
+  const [genre, setGenre] = useState<{ id: number; label: string } | null>(null);
   const favoriteGenres = favoriteGenreIds
     .map((id) => genres.find((g) => g.id === id))
     .filter((g): g is NonNullable<typeof g> => g != null)
@@ -125,15 +128,7 @@ export function SearchCommandDialog({
     navigate(`/collections/${collection.id}`);
   };
 
-  const goToAnimeId = (anime: { id: number; slug: string }) => {
-    close();
-    navigate(animeHref(anime));
-  };
 
-  const pickGenre = (id: number) => {
-    close();
-    navigate(`/browse?genres=${id}`);
-  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -159,7 +154,10 @@ export function SearchCommandDialog({
             <input
               autoFocus
               value={term}
-              onChange={(event) => setTerm(event.target.value)}
+              onChange={(event) => {
+                setTerm(event.target.value);
+                setGenre(null);
+              }}
               placeholder={mode === "anime" ? t("search.placeholder") : t("search.hintCollections")}
               aria-label={t("search.open")}
               className="h-14 w-full bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground/70"
@@ -192,6 +190,18 @@ export function SearchCommandDialog({
               <div className="p-1">
                 <CollectionResults term={debounced} onSelect={goToCollection} onSeeAll={submit} />
               </div>
+            ) : !showResults && genre ? (
+              <div className="p-1">
+                <GenreResults
+                  genre={genre}
+                  onSelect={goToAnime}
+                  onBack={() => setGenre(null)}
+                  onSeeAll={(id) => {
+                    close();
+                    navigate(`/browse?genres=${id}`);
+                  }}
+                />
+              </div>
             ) : !showResults ? (
               <IdleState
                 recent={recent}
@@ -201,9 +211,8 @@ export function SearchCommandDialog({
                 }}
                 onPick={setTerm}
                 pulse={pulse}
-                onPickAnime={goToAnimeId}
-                onPickGenre={pickGenre}
                 favoriteGenres={favoriteGenres}
+                onPickGenre={setGenre}
               />
             ) : isFetching && !data ? (
               <LoadingRows count={5} />

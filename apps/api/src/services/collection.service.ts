@@ -97,6 +97,9 @@ export class CollectionService {
         blocks: blocks as unknown as Prisma.InputJsonValue,
         animeIds: animeIdsOf(blocks),
         published: input.published,
+        layout: input.layout,
+        accent: input.accent,
+        allowComments: input.allowComments,
       },
     });
     return this.detail(row.id, userId, true);
@@ -117,6 +120,9 @@ export class CollectionService {
         blocks: blocks as unknown as Prisma.InputJsonValue,
         animeIds: animeIdsOf(blocks),
         published: input.published,
+        layout: input.layout,
+        accent: input.accent,
+        allowComments: input.allowComments,
       },
     });
     return this.detail(id, userId, true);
@@ -202,10 +208,20 @@ export class CollectionService {
     const anime: Record<number, AnimeSummary> = {};
     for (const a of animeRows) anime[a.id] = toSummaryDto(a);
     const blocks = (row.blocks as unknown as CollectionBlock[]).filter(
-      (b) => b.type === "text" || anime[b.animeId] != null,
+      (b) => b.type !== "anime" || anime[b.animeId] != null,
     );
     const [summary] = await this.summaries([row], animeRows);
-    return { ...summary!, blocks, anime, myRating: mine?.value ?? null, ratingDist, canEdit: own || isAdmin };
+    return {
+      ...summary!,
+      blocks,
+      anime,
+      layout: (row.layout as CollectionDetail["layout"]) ?? "list",
+      accent: row.accent,
+      allowComments: row.allowComments,
+      myRating: mine?.value ?? null,
+      ratingDist,
+      canEdit: own || isAdmin,
+    };
   }
 
   // ---------------------------------------------------------------- ratings
@@ -255,8 +271,9 @@ export class CollectionService {
   }
 
   async addComment(userId: string, id: string, body: string, replyToId?: string): Promise<CollectionComment> {
-    const collection = await this.prisma.collection.findUnique({ where: { id }, select: { published: true, userId: true } });
+    const collection = await this.prisma.collection.findUnique({ where: { id }, select: { published: true, userId: true, allowComments: true } });
     if (!collection || !collection.published) throw new NotFoundError("Подборка не найдена.");
+    if (!collection.allowComments) throw new ForbiddenError("Автор отключил комментарии к этой подборке.");
     if (isProfane(body)) throw new BadRequestError("Комментарий не прошёл фильтр — перефразируйте, пожалуйста.");
 
     // A reply hangs off its thread's top comment however deep the one it
@@ -483,7 +500,22 @@ export class CollectionService {
 
   /** Text and notes go through the same filter as comments. */
   private assertClean(input: CollectionInput): void {
-    const texts = [input.title, input.summary, ...input.blocks.map((b) => (b.type === "text" ? b.text : b.note))];
+    const texts = [
+      input.title,
+      input.summary,
+      ...input.blocks.flatMap((b) => {
+        switch (b.type) {
+          case "anime":
+            return [b.note, b.watchTip];
+          case "quote":
+            return [b.text, b.by];
+          case "divider":
+            return [];
+          default:
+            return [b.text];
+        }
+      }),
+    ];
     if (texts.some((t) => t && isProfane(t))) {
       throw new BadRequestError("Текст подборки не прошёл фильтр — перефразируйте, пожалуйста.");
     }

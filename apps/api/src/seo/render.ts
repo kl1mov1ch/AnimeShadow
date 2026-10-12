@@ -496,6 +496,8 @@ export class SeoRenderer {
         ${blocks
           .map((b) => {
             if (b.type === "text" && b.text) return `<p>${esc(b.text)}</p>`;
+            if (b.type === "heading" && b.text) return `<h2>${esc(b.text)}</h2>`;
+            if ((b.type === "quote" || b.type === "callout") && b.text) return `<p>${esc(b.text)}</p>`;
             const a = b.animeId != null ? byId.get(b.animeId) : undefined;
             if (!a) return "";
             const title = a.titleLocalized ?? a.title;

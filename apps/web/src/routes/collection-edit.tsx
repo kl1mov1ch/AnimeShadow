@@ -1,22 +1,38 @@
 import {
+  CALLOUT_VARIANTS,
+  COLLECTION_ACCENTS,
+  COLLECTION_LAYOUTS,
   COLLECTION_TAGS,
   type CollectionBlock,
   type CollectionCoverItem,
+  type CollectionLayout,
   type CollectionTag,
   MAX_COLLECTION_TAGS,
 } from "@animeshadow/shared";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  BadgeCheckIcon,
   EyeIcon,
   EyeOffIcon,
   FilmIcon,
+  HeadingIcon,
+  LayoutGridIcon,
+  LayoutListIcon,
+  LightbulbIcon,
   Loader2Icon,
+  MessageSquareIcon,
+  MessageSquareOffIcon,
+  MinusIcon,
+  PaletteIcon,
   PlusIcon,
+  QuoteIcon,
   SaveIcon,
   SearchIcon,
+  StarIcon,
   TextIcon,
   Trash2Icon,
+  TrophyIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
@@ -78,9 +94,12 @@ export function Component() {
         summary: c?.summary ?? "",
         tags: c?.tags ?? [],
         published: c?.published ?? true,
+        layout: c?.layout ?? "list",
+        accent: c?.accent ?? null,
+        allowComments: c?.allowComments ?? true,
         blocks: (c?.blocks ?? [{ type: "text", text: "" } as CollectionBlock]).map((b) => ({ ...b, key: nextKey() })),
         anime: Object.fromEntries(
-          Object.values(c?.anime ?? {}).map((a) => [a.id, { id: a.id, slug: a.slug, title: a.title, image: a.imageLargeUrl ?? a.imageUrl }]),
+          Object.values(c?.anime ?? {}).map((a) => [a.id, { id: a.id, slug: a.slug, title: a.titleLocalized ?? a.title, image: a.imageLargeUrl ?? a.imageUrl }]),
         ),
       }}
     />
@@ -97,6 +116,9 @@ function Editor({
     summary: string;
     tags: CollectionTag[];
     published: boolean;
+    layout: CollectionLayout;
+    accent: string | null;
+    allowComments: boolean;
     blocks: Draft[];
     anime: Record<number, AnimeCard>;
   };
@@ -109,6 +131,9 @@ function Editor({
   const [summary, setSummary] = useState(initial.summary);
   const [tags, setTags] = useState<CollectionTag[]>(initial.tags);
   const [published, setPublished] = useState(initial.published);
+  const [layout, setLayout] = useState<CollectionLayout>(initial.layout);
+  const [accent, setAccent] = useState<string | null>(initial.accent);
+  const [allowComments, setAllowComments] = useState(initial.allowComments);
   const [blocks, setBlocks] = useState<Draft[]>(initial.blocks);
   const [anime, setAnime] = useState<Record<number, AnimeCard>>(initial.anime);
 
@@ -136,7 +161,7 @@ function Editor({
       return;
     }
     setAnime((m) => ({ ...m, [a.id]: a }));
-    insertAt(index, { type: "anime", animeId: a.id, note: "" });
+    insertAt(index, { type: "anime", animeId: a.id, note: "", score: null, mustWatch: false, spoiler: false, watchTip: "" });
   };
 
   const cover: CollectionCoverItem[] = blocks
@@ -148,9 +173,22 @@ function Editor({
   const submit = () => {
     const clean = blocks
       .map(({ key: _k, ...b }) => b as CollectionBlock)
-      .filter((b) => b.type === "anime" || b.text.trim().length > 0);
+      // Empty paragraphs, sections, quotes and callouts are dropped; a divider is a divider.
+      .filter((b) => b.type === "anime" || b.type === "divider" || b.text.trim().length > 0);
     save.mutate(
-      { id, input: { title: title.trim(), summary: summary.trim(), tags, published, blocks: clean } },
+      {
+        id,
+        input: {
+          title: title.trim(),
+          summary: summary.trim(),
+          tags,
+          published,
+          blocks: clean,
+          layout,
+          accent: accent as (typeof COLLECTION_ACCENTS)[number] | null,
+          allowComments,
+        },
+      },
       {
         onSuccess: (saved) => {
           toast.success(t("collections.editor.saved"));
@@ -182,7 +220,7 @@ function Editor({
         />
 
         <div className="flex flex-col gap-2">
-          <Inserter onText={() => insertAt(0, { type: "text", text: "" })} onAnime={(a) => addAnime(0, a)} />
+          <Inserter onAdd={(b) => insertAt(0, b)} onAnime={(a) => addAnime(0, a)} />
           {blocks.map((block, i) => (
             <div key={block.key} className="flex flex-col gap-2">
               <BlockEditor
@@ -194,7 +232,7 @@ function Editor({
                 onMove={(dir) => move(block.key, dir)}
                 onRemove={() => removeBlock(block.key)}
               />
-              <Inserter onText={() => insertAt(i + 1, { type: "text", text: "" })} onAnime={(a) => addAnime(i + 1, a)} />
+              <Inserter onAdd={(b) => insertAt(i + 1, b)} onAnime={(a) => addAnime(i + 1, a)} />
             </div>
           ))}
         </div>
@@ -231,6 +269,73 @@ function Editor({
               );
             })}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <PaletteIcon className="size-3.5" />
+            {t("collections.editor.look")}
+          </span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {COLLECTION_LAYOUTS.map((l) => {
+              const Icon = l === "list" ? LayoutListIcon : l === "ranked" ? TrophyIcon : LayoutGridIcon;
+              const on = layout === l;
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLayout(l)}
+                  title={t(`collections.editor.layoutHint.${l}` as "collections.editor.layoutHint.list")}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-xl border px-1 py-2 text-[11px] font-semibold transition-colors",
+                    on ? "border-primary bg-primary/10 text-primary" : "border-border/70 text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {t(`collections.editor.layout.${l}` as "collections.editor.layout.list")}
+                </button>
+              );
+            })}
+          </div>
+          <p className="-mt-1 text-[11px] text-muted-foreground">{t(`collections.editor.layoutHint.${layout}` as "collections.editor.layoutHint.list")}</p>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold text-muted-foreground">{t("collections.editor.accent")}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAccent(null)}
+                className={cn(
+                  "h-7 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+                  accent == null ? "border-primary bg-primary/10 text-primary" : "border-border/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t("collections.editor.accentNone")}
+              </button>
+              {COLLECTION_ACCENTS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={c}
+                  onClick={() => setAccent(c)}
+                  className={cn("size-7 rounded-full ring-offset-2 ring-offset-card transition-transform hover:scale-110", accent === c && "ring-2 ring-foreground")}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAllowComments((v) => !v)}
+            className="flex items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3 py-2 text-left text-sm transition-colors hover:border-primary"
+          >
+            {allowComments ? <MessageSquareIcon className="size-4 text-primary" /> : <MessageSquareOffIcon className="size-4 text-muted-foreground" />}
+            <span className="flex-1">
+              <span className="block font-semibold">{t("collections.editor.comments")}</span>
+              <span className="block text-[11px] text-muted-foreground">
+                {allowComments ? t("collections.editor.commentsOn") : t("collections.editor.commentsOff")}
+              </span>
+            </span>
+          </button>
         </div>
 
         <div className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3.5">
@@ -300,6 +405,90 @@ function BlockEditor({
     </div>
   );
 
+  if (block.type === "divider") {
+    return (
+      <div className="flex items-center gap-2 rounded-2xl border border-dashed border-[var(--accent-line-soft)] px-3 py-2">
+        <MinusIcon className="size-4 text-muted-foreground" />
+        <span className="h-px flex-1 bg-[var(--accent-line-soft)]" />
+        <div className="flex gap-1">
+          <IconBtn label="↑" disabled={first} onClick={() => onMove(-1)} icon={ArrowUpIcon} />
+          <IconBtn label="↓" disabled={last} onClick={() => onMove(1)} icon={ArrowDownIcon} />
+          <IconBtn label={t("common.delete")} onClick={onRemove} icon={Trash2Icon} danger />
+        </div>
+      </div>
+    );
+  }
+  if (block.type === "heading") {
+    return (
+      <div className="flex gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/40 p-2.5">
+        <HeadingIcon className="mt-1.5 size-4 shrink-0 text-primary" />
+        <input
+          value={block.text}
+          onChange={(e) => onChange({ text: e.target.value })}
+          maxLength={120}
+          placeholder={t("collections.editor.headingPh")}
+          className="min-w-0 flex-1 bg-transparent font-display text-xl outline-none placeholder:text-muted-foreground/50"
+        />
+        {controls}
+      </div>
+    );
+  }
+  if (block.type === "quote") {
+    return (
+      <div className="flex gap-2 rounded-2xl border-l-4 border-primary bg-card/40 p-2.5">
+        <QuoteIcon className="mt-1 size-4 shrink-0 text-primary" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <AutoTextarea
+            value={block.text}
+            onChange={(text) => onChange({ text })}
+            maxLength={600}
+            placeholder={t("collections.editor.quotePh")}
+            className="text-[15px] italic leading-relaxed"
+          />
+          <input
+            value={block.by}
+            onChange={(e) => onChange({ by: e.target.value })}
+            maxLength={80}
+            placeholder={t("collections.editor.quoteByPh")}
+            className="h-8 rounded-lg border border-border/70 bg-card/60 px-2 text-xs outline-none focus:border-primary"
+          />
+        </div>
+        {controls}
+      </div>
+    );
+  }
+  if (block.type === "callout") {
+    return (
+      <div className="flex gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/40 p-2.5">
+        <LightbulbIcon className="mt-1 size-4 shrink-0 text-amber-400" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex gap-1">
+            {CALLOUT_VARIANTS.map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => onChange({ variant: v })}
+                className={cn(
+                  "rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                  block.variant === v ? "border-primary bg-primary/10 text-primary" : "border-border/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t(`collections.editor.callout.${v}` as "collections.editor.callout.tip")}
+              </button>
+            ))}
+          </div>
+          <AutoTextarea
+            value={block.text}
+            onChange={(text) => onChange({ text })}
+            maxLength={1000}
+            placeholder={t("collections.editor.calloutPh")}
+            className="text-sm leading-relaxed"
+          />
+        </div>
+        {controls}
+      </div>
+    );
+  }
   if (block.type === "text") {
     return (
       <div className="flex gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/40 p-2.5">
@@ -321,6 +510,37 @@ function BlockEditor({
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="line-clamp-2 font-display text-base leading-tight">{anime?.title ?? `#${block.animeId}`}</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <label className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-card/60 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+            <StarIcon className="size-3 text-amber-400" />
+            {t("collections.editor.myScore")}
+            <select
+              value={block.score ?? ""}
+              onChange={(e) => onChange({ score: e.target.value ? Number(e.target.value) : null })}
+              className="bg-transparent font-semibold text-foreground outline-none"
+            >
+              <option value="">{t("collections.editor.noScore")}</option>
+              {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ToggleTag on={block.mustWatch} onClick={() => onChange({ mustWatch: !block.mustWatch })} icon={BadgeCheckIcon}>
+            {t("collections.editor.mustWatch")}
+          </ToggleTag>
+          <ToggleTag on={block.spoiler} onClick={() => onChange({ spoiler: !block.spoiler })} icon={EyeOffIcon}>
+            {t("collections.editor.spoiler")}
+          </ToggleTag>
+        </div>
+        <input
+          value={block.watchTip}
+          onChange={(e) => onChange({ watchTip: e.target.value })}
+          maxLength={120}
+          placeholder={t("collections.editor.watchTipPh")}
+          className="h-8 rounded-lg border border-border/70 bg-card/60 px-2 text-xs outline-none focus:border-primary"
+        />
         <AutoTextarea
           value={block.note}
           onChange={(note) => onChange({ note })}
@@ -331,6 +551,23 @@ function BlockEditor({
       </div>
       {controls}
     </div>
+  );
+}
+
+function ToggleTag({ on, onClick, icon: Icon, children }: { on: boolean; onClick: () => void; icon: typeof StarIcon; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold transition-colors",
+        on ? "border-primary bg-primary/15 text-primary" : "border-border/70 text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="size-3" />
+      {children}
+    </button>
   );
 }
 
@@ -398,34 +635,47 @@ function AutoTextarea({
   );
 }
 
-/** "+ text" / "+ anime" between blocks; the anime button opens a search. */
-function Inserter({ onText, onAnime }: { onText: () => void; onAnime: (a: AnimeCard) => void }) {
+/** Between blocks: add text, an anime (opens a search), a section, a quote, a callout or a divider. */
+function Inserter({ onAdd, onAnime }: { onAdd: (b: CollectionBlock) => void; onAnime: (a: AnimeCard) => void }) {
   const t = useT();
   const [picking, setPicking] = useState(false);
+  const small =
+    "inline-flex items-center gap-1 rounded-md border border-border/70 bg-card/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary";
   return (
     <div className="flex flex-col gap-2">
       <div className="group flex items-center gap-2">
         <span className="h-px flex-1 bg-[var(--accent-line-soft)]" />
-        <button
-          type="button"
-          onClick={onText}
-          className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-card/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-        >
-          <TextIcon className="size-3" />
-          {t("collections.editor.addText")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPicking((p) => !p)}
-          aria-pressed={picking}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors",
-            picking ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-card/60 text-muted-foreground hover:border-primary hover:text-primary",
-          )}
-        >
-          <FilmIcon className="size-3" />
-          {t("collections.editor.addAnime")}
-        </button>
+        <div className="flex flex-wrap justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPicking((p) => !p)}
+            aria-pressed={picking}
+            className={cn(small, picking && "border-primary bg-primary text-primary-foreground hover:text-primary-foreground")}
+          >
+            <FilmIcon className="size-3" />
+            {t("collections.editor.addAnime")}
+          </button>
+          <button type="button" onClick={() => onAdd({ type: "text", text: "" })} className={small}>
+            <TextIcon className="size-3" />
+            {t("collections.editor.addText")}
+          </button>
+          <button type="button" onClick={() => onAdd({ type: "heading", text: "" })} className={small}>
+            <HeadingIcon className="size-3" />
+            {t("collections.editor.addHeading")}
+          </button>
+          <button type="button" onClick={() => onAdd({ type: "quote", text: "", by: "" })} className={small}>
+            <QuoteIcon className="size-3" />
+            {t("collections.editor.addQuote")}
+          </button>
+          <button type="button" onClick={() => onAdd({ type: "callout", variant: "tip", text: "" })} className={small}>
+            <LightbulbIcon className="size-3" />
+            {t("collections.editor.addCallout")}
+          </button>
+          <button type="button" onClick={() => onAdd({ type: "divider" })} className={small}>
+            <MinusIcon className="size-3" />
+            {t("collections.editor.addDivider")}
+          </button>
+        </div>
         <span className="h-px flex-1 bg-[var(--accent-line-soft)]" />
       </div>
       {picking && (

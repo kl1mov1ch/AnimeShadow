@@ -6,6 +6,7 @@ import {
   budgetGroups,
   clearRecent,
   CollectionResults,
+  GenreResults,
   groupHeading,
   IdleState,
   LoadingRows,
@@ -59,6 +60,8 @@ export function SearchBox() {
   const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed && wasOpened);
   const { data: pulse } = useSearchPulse(wasOpened);
   const [mode, setMode] = useState<SearchMode>("anime");
+  // A genre picked from the chips: its top titles show in the panel.
+  const [genre, setGenre] = useState<{ id: number; label: string } | null>(null);
   const favoriteGenres = favoriteGenreIds
     .map((id) => genres.find((g) => g.id === id))
     .filter((g): g is NonNullable<typeof g> => g != null)
@@ -122,11 +125,6 @@ export function SearchBox() {
     navigate(`/collections/${collection.id}`);
   };
 
-  const goToAnimeId = (anime: { id: number; slug: string }) => {
-    setOpen(false);
-    inputRef.current?.blur();
-    navigate(animeHref(anime));
-  };
 
   const pick = (value: string) => {
     setTerm(value);
@@ -134,11 +132,6 @@ export function SearchBox() {
     setOpen(true);
   };
 
-  const pickGenre = (id: number) => {
-    setOpen(false);
-    inputRef.current?.blur();
-    navigate(`/browse?genres=${id}`);
-  };
 
   return (
     <div ref={rootRef} className="relative w-full min-w-0 sm:w-[min(360px,42vw)]">
@@ -176,6 +169,7 @@ export function SearchBox() {
             value={term}
             onChange={(event) => {
               setTerm(event.target.value);
+              setGenre(null);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
@@ -226,7 +220,7 @@ export function SearchBox() {
           // Same width as the input right above it, not a fixed size of its
           // own — a dropdown wider than what it hangs off of read as
           // visually disconnected from the search box.
-          <div className="animate-in fade-in-0 slide-in-from-top-1 zoom-in-95 absolute left-0 right-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-border/60 bg-popover/95 text-popover-foreground shadow-xl shadow-black/20 duration-200">
+          <div className="animate-in fade-in-0 slide-in-from-top-1 zoom-in-95 absolute right-0 top-full z-50 mt-2 w-[min(32rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border/60 bg-popover/95 text-popover-foreground shadow-xl shadow-black/20 duration-200">
             {/* The header's own hairline, repeated — it's what marks a
                 surface as belonging to the site rather than to the browser. */}
             <div
@@ -244,6 +238,19 @@ export function SearchBox() {
                 <div className="p-1">
                   <CollectionResults term={debounced} onSelect={goToCollection} onSeeAll={submit} />
                 </div>
+              ) : !showResults && genre ? (
+                <div className="p-1">
+                  <GenreResults
+                    genre={genre}
+                    onSelect={goToAnime}
+                    onBack={() => setGenre(null)}
+                    onSeeAll={(id) => {
+                      setOpen(false);
+                      inputRef.current?.blur();
+                      navigate(`/browse?genres=${id}`);
+                    }}
+                  />
+                </div>
               ) : !showResults ? (
                 <IdleState
                   recent={recent}
@@ -253,9 +260,8 @@ export function SearchBox() {
                   }}
                   onPick={pick}
                   pulse={pulse}
-                  onPickAnime={goToAnimeId}
-                  onPickGenre={pickGenre}
                   favoriteGenres={favoriteGenres}
+                  onPickGenre={setGenre}
                 />
               ) : isFetching && !data ? (
                 <LoadingRows />

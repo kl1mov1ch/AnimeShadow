@@ -1,11 +1,11 @@
 import type { AnimeSummary, CollectionSummary, SearchGroup, SearchPulse } from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ClockIcon, FlameIcon, FolderHeartIcon, LayersIcon, SearchIcon, SparklesIcon, TvIcon } from "lucide-react";
+import { ArrowLeftIcon, ClockIcon, FlameIcon, FolderHeartIcon, LayersIcon, SearchIcon, SparklesIcon, TvIcon } from "lucide-react";
 import { useMemo } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
-import { useCollections } from "@/lib/query";
+import { useBrowse, useCollections } from "@/lib/query";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -179,18 +179,18 @@ export function IdleState({
   onClearRecent,
   onPick,
   pulse,
-  onPickAnime,
-  onPickGenre,
   favoriteGenres,
+  onPickGenre,
 }: {
   recent: string[];
   onClearRecent: () => void;
-  /** Fills the field with a phrase. */
+  /** Fills the field with a phrase — the results show right here; only
+   *  "see all" goes on to the catalog. */
   onPick: (value: string) => void;
   pulse: SearchPulse | undefined;
-  onPickAnime: (anime: { id: number; slug: string }) => void;
-  onPickGenre: (id: number) => void;
   favoriteGenres: Array<{ id: number; label: string }>;
+  /** Shows the genre's most popular titles right here. */
+  onPickGenre: (genre: { id: number; label: string }) => void;
 }) {
   const { t } = useI18n();
   const labels = useLabels();
@@ -242,7 +242,7 @@ export function IdleState({
           <SectionLabel>{t("search.watchedNow")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {hot.map((a) => (
-              <Chip key={a.id} index={order++} onClick={() => onPickAnime(a)}>
+              <Chip key={a.id} index={order++} onClick={() => onPick(labels.title({ title: a.title, titleLocalized: a.titleLocalized, titleEnglish: null }))}>
                 <TvIcon className="size-3 shrink-0 opacity-70" />
                 <span className="max-w-[14rem] truncate">{labels.title({ title: a.title, titleLocalized: a.titleLocalized, titleEnglish: null })}</span>
               </Chip>
@@ -255,7 +255,7 @@ export function IdleState({
           <SectionLabel>{t("search.popularGenres")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {pulse!.genres.map((g) => (
-              <Chip key={g.id} index={order++} onClick={() => onPickGenre(g.id)}>
+              <Chip key={g.id} index={order++} onClick={() => onPickGenre({ id: g.id, label: labels.genreLabel(g.name) })}>
                 {labels.genreLabel(g.name)}
               </Chip>
             ))}
@@ -267,7 +267,7 @@ export function IdleState({
           <SectionLabel>{t("search.forYou")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {favoriteGenres.map((genre) => (
-              <Chip key={genre.id} index={order++} accent onClick={() => onPickGenre(genre.id)}>
+              <Chip key={genre.id} index={order++} accent onClick={() => onPickGenre(genre)}>
                 <SparklesIcon className="size-3 shrink-0" />
                 {genre.label}
               </Chip>
@@ -276,6 +276,77 @@ export function IdleState({
         </div>
       )}
       {!pulse && recent.length === 0 && <LoadingRows count={2} />}
+    </div>
+  );
+}
+
+/**
+ * A genre picked in the search: its most popular titles, right in the
+ * panel, and a way on to the whole genre in the catalog.
+ */
+export function GenreResults({
+  genre,
+  onSelect,
+  onSeeAll,
+  onBack,
+}: {
+  genre: { id: number; label: string };
+  onSelect: (anime: AnimeSummary) => void;
+  onSeeAll: (id: number) => void;
+  onBack: () => void;
+}) {
+  const { t } = useI18n();
+  const labels = useLabels();
+  const { data, isPending } = useBrowse({ genres: [genre.id], orderBy: "popularity", sort: "desc", page: 1, perPage: 6 });
+  const items = data?.items ?? [];
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2 px-3 pb-1 pt-2.5">
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onBack}
+          aria-label={t("common.back")}
+          className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <ArrowLeftIcon className="size-4" />
+        </button>
+        <SectionLabel>{t("search.genreTop", { genre: genre.label })}</SectionLabel>
+      </div>
+      {isPending && !data ? (
+        <LoadingRows count={4} />
+      ) : (
+        <CommandGroup>
+          {items.map((anime, i) => (
+            <CommandItem
+              key={anime.id}
+              value={`genre-${anime.id}`}
+              onSelect={() => onSelect(anime)}
+              className="group animate-in fade-in slide-in-from-top-1 gap-2.5 rounded-xl py-1.5 duration-200 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected=true]:ring-1 data-[selected=true]:ring-primary/20"
+              style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
+            >
+              <span className="h-12 w-[34px] shrink-0 overflow-hidden rounded-md bg-muted">
+                {anime.imageUrl && <img src={imageSrc(anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-sm font-medium leading-snug">{labels.title(anime)}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime)].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+              {anime.score != null && <span className="shrink-0 text-xs font-semibold tabular-nums text-amber-500">★ {anime.score.toFixed(1)}</span>}
+            </CommandItem>
+          ))}
+          <CommandItem
+            value="genre-see-all"
+            onSelect={() => onSeeAll(genre.id)}
+            className="mt-1 justify-center rounded-lg bg-primary/10 py-2 text-sm font-semibold text-primary data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground"
+          >
+            <SearchIcon />
+            <span className="truncate">{t("search.genreAll", { genre: genre.label })}</span>
+          </CommandItem>
+        </CommandGroup>
+      )}
     </div>
   );
 }

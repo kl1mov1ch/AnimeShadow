@@ -38,9 +38,42 @@ const anime = z.object({
   animeId: z.number().int().positive(),
   /** The author's own words: why this one is here. */
   note: z.string().trim().max(1500).default(""),
+  /** The author's own score, 1–10. */
+  score: z.number().int().min(1).max(10).nullable().default(null),
+  /** "Watch this one no matter what" — a badge on the card. */
+  mustWatch: z.boolean().default(false),
+  /** The note gives the plot away: hidden until asked for. */
+  spoiler: z.boolean().default(false),
+  /** How to watch it — "from season 2", "the film first". */
+  watchTip: z.string().trim().max(120).default(""),
 });
-export const collectionBlockSchema = z.discriminatedUnion("type", [text, anime]);
+/** A section of the collection — its title also goes into the contents. */
+const heading = z.object({
+  type: z.literal("heading"),
+  text: z.string().trim().min(1).max(120),
+});
+const quote = z.object({
+  type: z.literal("quote"),
+  text: z.string().trim().min(1).max(600),
+  /** Who said it — a character, an author. */
+  by: z.string().trim().max(80).default(""),
+});
+export const CALLOUT_VARIANTS = ["tip", "warning", "info"] as const;
+export type CalloutVariant = (typeof CALLOUT_VARIANTS)[number];
+const callout = z.object({
+  type: z.literal("callout"),
+  variant: z.enum(CALLOUT_VARIANTS).default("tip"),
+  text: z.string().trim().min(1).max(1000),
+});
+const divider = z.object({ type: z.literal("divider") });
+export const collectionBlockSchema = z.discriminatedUnion("type", [text, anime, heading, quote, callout, divider]);
 export type CollectionBlock = z.infer<typeof collectionBlockSchema>;
+
+/** How the anime are laid out: one under another, a numbered top, a grid of posters. */
+export const COLLECTION_LAYOUTS = ["list", "ranked", "grid"] as const;
+export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
+/** The colours an author can give a collection. */
+export const COLLECTION_ACCENTS = ["#f43f5e", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"] as const;
 
 export const collectionInputSchema = z
   .object({
@@ -49,6 +82,9 @@ export const collectionInputSchema = z
     tags: z.array(z.enum(COLLECTION_TAGS)).max(MAX_COLLECTION_TAGS).default([]),
     blocks: z.array(collectionBlockSchema).min(1).max(80),
     published: z.boolean().default(true),
+    layout: z.enum(COLLECTION_LAYOUTS).default("list"),
+    accent: z.enum(COLLECTION_ACCENTS).nullable().default(null),
+    allowComments: z.boolean().default(true),
   })
   .refine((c) => c.blocks.some((b) => b.type === "anime"), {
     message: "Добавьте в подборку хотя бы одно аниме.",
@@ -108,6 +144,9 @@ export interface CollectionSummary {
 
 export interface CollectionDetail extends CollectionSummary {
   blocks: CollectionBlock[];
+  layout: CollectionLayout;
+  accent: string | null;
+  allowComments: boolean;
   /** Every anime the blocks mention, by id. */
   anime: Record<number, AnimeSummary>;
   /** The viewer's own rating, 1–5, if they gave one. */

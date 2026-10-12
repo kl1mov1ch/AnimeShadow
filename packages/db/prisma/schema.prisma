@@ -762,6 +762,11 @@ model Collection {
   /// The anime in `blocks`, in order — for the cover and for search.
   animeIds     Int[]    @default([])
   published    Boolean  @default(true)
+  /// list | ranked | grid
+  layout       String   @default("list")
+  /// One of the palette's colours, or none.
+  accent       String?
+  allowComments Boolean @default(true)
   viewCount    Int      @default(0)
   ratingSum    Int      @default(0)
   ratingCount  Int      @default(0)

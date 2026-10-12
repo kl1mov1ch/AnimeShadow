@@ -1,5 +1,12 @@
-import type { AnimeSummary, CollectionComment, CollectionDetail } from "@animeshadow/shared";
+import type { AnimeSummary, CollectionBlock, CollectionComment, CollectionDetail } from "@animeshadow/shared";
 import {
+  AlertTriangleIcon,
+  BadgeCheckIcon,
+  EyeOffIcon,
+  InfoIcon,
+  LightbulbIcon,
+  ListOrderedIcon,
+  TvIcon,
   ArrowRightIcon,
   BarChart3Icon,
   CalendarIcon,
@@ -13,7 +20,7 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { CoverFlow } from "@/components/collections/cover-flow";
@@ -83,7 +90,11 @@ function Article({ collection: c }: { collection: CollectionDetail }) {
   const authorHref = c.author.username ? `/profile/${c.author.username}` : null;
 
   return (
-    <article className="mx-auto flex max-w-4xl flex-col gap-6 py-4 sm:py-6">
+    <article
+      className="mx-auto flex max-w-4xl flex-col gap-6 py-4 sm:py-6"
+      // The author's colour, for every accent on the page.
+      style={c.accent ? ({ "--primary": c.accent, "--ring": c.accent } as CSSProperties) : undefined}
+    >
       <Hero collection={c} />
 
       <header className="flex flex-col gap-3">
@@ -161,24 +172,17 @@ function Article({ collection: c }: { collection: CollectionDetail }) {
         </div>
       </header>
 
-      <div className="flex flex-col gap-5">
-        {c.blocks.map((block, i) =>
-          block.type === "text" ? (
-            <div key={i} className="flex flex-col gap-3 text-[15px] leading-relaxed text-foreground/90 sm:text-base">
-              {block.text.split(/\n{2,}/).map((para, j) => (
-                <p key={j} className="whitespace-pre-line">
-                  {para}
-                </p>
-              ))}
-            </div>
-          ) : c.anime[block.animeId] ? (
-            <AnimeEmbed key={i} anime={c.anime[block.animeId]!} note={block.note} author={c.author.displayName} index={animeIndex(c, i)} />
-          ) : null,
-        )}
-      </div>
+      <Overview collection={c} />
+      <Body collection={c} />
 
       <RatePanel collection={c} />
-      <Comments collectionId={c.id} />
+      {c.allowComments ? (
+        <Comments collectionId={c.id} />
+      ) : (
+        <p className="rounded-2xl border border-dashed border-[var(--accent-line-soft)] p-4 text-center text-sm text-muted-foreground">
+          {t("collections.commentsClosed")}
+        </p>
+      )}
     </article>
   );
 }
@@ -188,12 +192,225 @@ function animeIndex(c: CollectionDetail, blockIndex: number): number {
   return c.blocks.slice(0, blockIndex + 1).filter((b) => b.type === "anime").length;
 }
 
-function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note: string; author: string; index: number }) {
+type AnimeBlock = Extract<CollectionBlock, { type: "anime" }>;
+
+/** What's inside, at a glance: the sections (as links) and the totals. */
+function Overview({ collection: c }: { collection: CollectionDetail }) {
+  const t = useT();
+  const headings = c.blocks.flatMap((b, i) => (b.type === "heading" ? [{ i, text: b.text }] : []));
+  const list = Object.values(c.anime);
+  const episodes = list.reduce((sum, a) => sum + (a.episodes ?? 0), 0);
+  const hours = Math.round((episodes * 24) / 60);
+  const scored = list.filter((a) => a.score != null);
+  const avg = scored.length > 0 ? scored.reduce((sum, a) => sum + a.score!, 0) / scored.length : null;
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <TvIcon className="size-4 text-primary" />
+        <span className="font-semibold">{t("collections.totals", { n: c.animeCount, eps: episodes, hours })}</span>
+        {avg != null && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <StarIcon className="size-3.5 fill-amber-400 text-amber-400" />
+            {t("collections.avgScore", { score: avg.toFixed(2) })}
+          </span>
+        )}
+      </p>
+      {headings.length >= 2 && (
+        <nav className="flex flex-col gap-1.5 border-t border-[var(--accent-line-soft)] pt-3">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <ListOrderedIcon className="size-3.5" />
+            {t("collections.contents")}
+          </span>
+          <ol className="flex flex-col gap-1">
+            {headings.map((h, n) => (
+              <li key={h.i}>
+                <a href={`#sec-${h.i}`} className="text-sm transition-colors hover:text-primary">
+                  <span className="mr-2 tabular-nums text-muted-foreground">{n + 1}.</span>
+                  {h.text}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The body: every block in order. In a grid collection, anime that follow
+ * one another share a grid of posters; text, sections and the rest break it.
+ */
+function Body({ collection: c }: { collection: CollectionDetail }) {
+  const out: ReactNode[] = [];
+  let tiles: ReactNode[] = [];
+  const flush = () => {
+    if (tiles.length === 0) return;
+    out.push(
+      <div key={`grid-${out.length}`} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {tiles}
+      </div>,
+    );
+    tiles = [];
+  };
+  c.blocks.forEach((block, i) => {
+    if (block.type === "anime") {
+      const anime = c.anime[block.animeId];
+      if (!anime) return;
+      const index = animeIndex(c, i);
+      if (c.layout === "grid") {
+        tiles.push(<AnimeTile key={i} anime={anime} block={block} index={index} />);
+        return;
+      }
+      flush();
+      out.push(<AnimeEmbed key={i} anime={anime} block={block} author={c.author.displayName} index={index} ranked={c.layout === "ranked"} />);
+      return;
+    }
+    flush();
+    out.push(<PlainBlock key={i} block={block} index={i} />);
+  });
+  flush();
+  return <div className="flex flex-col gap-5">{out}</div>;
+}
+
+const CALLOUT_LOOK = {
+  tip: { icon: LightbulbIcon, tone: "border-amber-400/40 bg-amber-400/10 text-amber-100", iconTone: "text-amber-400" },
+  warning: { icon: AlertTriangleIcon, tone: "border-rose-500/40 bg-rose-500/10 text-rose-100", iconTone: "text-rose-400" },
+  info: { icon: InfoIcon, tone: "border-sky-400/40 bg-sky-400/10 text-sky-100", iconTone: "text-sky-400" },
+} as const;
+
+function PlainBlock({ block, index }: { block: Exclude<CollectionBlock, AnimeBlock>; index: number }) {
+  const t = useT();
+  switch (block.type) {
+    case "text":
+      return (
+        <div className="flex flex-col gap-3 text-[15px] leading-relaxed text-foreground/90 sm:text-base">
+          {block.text.split(/\n{2,}/).map((para, j) => (
+            <p key={j} className="whitespace-pre-line">
+              {para}
+            </p>
+          ))}
+        </div>
+      );
+    case "heading":
+      return (
+        <h2 id={`sec-${index}`} className="scroll-mt-24 border-l-4 border-primary pl-3 font-display text-2xl leading-tight sm:text-3xl">
+          {block.text}
+        </h2>
+      );
+    case "quote":
+      return (
+        <figure className="relative rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 px-5 py-4 pl-12">
+          <QuoteIcon className="absolute left-4 top-4 size-5 text-primary" />
+          <blockquote className="whitespace-pre-line text-lg italic leading-relaxed">{block.text}</blockquote>
+          {block.by && <figcaption className="mt-2 text-sm font-semibold text-muted-foreground">— {block.by}</figcaption>}
+        </figure>
+      );
+    case "callout": {
+      const look = CALLOUT_LOOK[block.variant];
+      return (
+        <aside className={cn("flex gap-3 rounded-2xl border p-4 text-sm leading-relaxed", look.tone)}>
+          <look.icon className={cn("mt-0.5 size-5 shrink-0", look.iconTone)} />
+          <div className="min-w-0">
+            <p className="mb-0.5 text-xs font-bold uppercase tracking-wide opacity-80">
+              {t(`collections.editor.callout.${block.variant}` as "collections.editor.callout.tip")}
+            </p>
+            <p className="whitespace-pre-line text-foreground/90">{block.text}</p>
+          </div>
+        </aside>
+      );
+    }
+    case "divider":
+      return (
+        <div aria-hidden className="flex items-center gap-3 py-1 text-primary/60">
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--accent-line-soft)]" />
+          <span className="font-display text-sm">影</span>
+          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--accent-line-soft)]" />
+        </div>
+      );
+  }
+}
+
+/** The author's note — or, marked as a spoiler, a button that shows it. */
+function Note({ block, author, compact = false }: { block: AnimeBlock; author?: string; compact?: boolean }) {
+  const t = useT();
+  const [shown, setShown] = useState(!block.spoiler);
+  if (!block.note) return null;
+  if (!shown) {
+    return (
+      <button
+        type="button"
+        onClick={() => setShown(true)}
+        className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-dashed border-[var(--accent-line-soft)] px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+      >
+        <EyeOffIcon className="size-3.5" />
+        {t("collections.showSpoiler")}
+      </button>
+    );
+  }
+  if (compact) return <p className="line-clamp-3 text-xs text-muted-foreground">{block.note}</p>;
+  return (
+    <blockquote className="relative mt-1 rounded-xl border-l-2 border-primary bg-card/60 p-3 pl-9 text-sm leading-relaxed">
+      <QuoteIcon className="absolute left-2.5 top-3 size-4 text-primary/70" />
+      <span className="whitespace-pre-line">{block.note}</span>
+      {author && <span className="mt-1.5 block text-[11px] font-semibold text-muted-foreground">— {author}</span>}
+    </blockquote>
+  );
+}
+
+/** The author's own marks on a title: their score, "must watch", how to watch. */
+function Marks({ block }: { block: AnimeBlock }) {
+  const t = useT();
+  if (block.score == null && !block.mustWatch) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {block.score != null && (
+        <span title={t("collections.authorScore")} className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-1.5 py-0.5 text-xs font-bold text-primary">
+          <StarIcon className="size-3 fill-current" />
+          {block.score}/10
+        </span>
+      )}
+      {block.mustWatch && (
+        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-xs font-semibold text-emerald-300">
+          <BadgeCheckIcon className="size-3" />
+          {t("collections.mustWatch")}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function AnimeEmbed({
+  anime,
+  block,
+  author,
+  index,
+  ranked,
+}: {
+  anime: AnimeSummary;
+  block: AnimeBlock;
+  author: string;
+  index: number;
+  ranked: boolean;
+}) {
   const t = useT();
   const labels = useLabels();
   const meta = [labels.typeLabel(anime.type), labels.seasonYearLabel(anime)].filter(Boolean).join(" · ");
   return (
-    <section className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:flex-row sm:p-4">
+    <section
+      className={cn(
+        "relative flex flex-col gap-3 overflow-hidden rounded-2xl border bg-[var(--accent-surface)] p-3 sm:flex-row sm:p-4",
+        block.mustWatch ? "border-primary/50" : "border-[var(--accent-line-soft)]",
+      )}
+    >
+      {ranked && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-2 -top-6 select-none font-display text-[7rem] leading-none text-primary/10 sm:text-[9rem]"
+        >
+          {index}
+        </span>
+      )}
       <Link to={animeHref(anime)} viewTransition className="group relative shrink-0 self-center sm:self-start">
         <span className="block aspect-[2/3] w-32 overflow-hidden rounded-xl border border-border/70 sm:w-36">
           {anime.imageUrl && (
@@ -205,16 +422,22 @@ function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note:
             />
           )}
         </span>
-        <span className="absolute -left-2 -top-2 grid size-8 place-items-center rounded-full bg-primary font-display text-sm text-primary-foreground shadow-lg">
-          {index}
+        <span
+          className={cn(
+            "absolute -left-2 -top-2 grid place-items-center rounded-full bg-primary font-display text-primary-foreground shadow-lg",
+            ranked ? "size-11 text-lg" : "size-8 text-sm",
+          )}
+        >
+          {ranked ? `#${index}` : index}
         </span>
       </Link>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2">
         <Link to={animeHref(anime)} viewTransition className="font-display text-xl leading-tight transition-colors hover:text-primary">
           {labels.title(anime)}
         </Link>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {meta && <span>{meta}</span>}
+          {anime.episodes != null && <span>· {anime.episodes} эп.</span>}
           {anime.score != null && (
             <span className="inline-flex items-center gap-0.5 font-semibold text-amber-500">
               <StarIcon className="size-3 fill-current" />
@@ -222,6 +445,7 @@ function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note:
             </span>
           )}
         </div>
+        <Marks block={block} />
         {anime.genres.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {anime.genres.slice(0, 4).map((g) => (
@@ -231,12 +455,14 @@ function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note:
             ))}
           </div>
         )}
-        {note ? (
-          <blockquote className="relative mt-1 rounded-xl border-l-2 border-primary bg-card/60 p-3 pl-9 text-sm leading-relaxed">
-            <QuoteIcon className="absolute left-2.5 top-3 size-4 text-primary/70" />
-            <span className="whitespace-pre-line">{note}</span>
-            <span className="mt-1.5 block text-[11px] font-semibold text-muted-foreground">— {author}</span>
-          </blockquote>
+        {block.watchTip && (
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-sky-500/10 px-2 py-1 text-xs text-sky-200">
+            <InfoIcon className="size-3.5 text-sky-400" />
+            {block.watchTip}
+          </p>
+        )}
+        {block.note ? (
+          <Note block={block} author={author} />
         ) : (
           anime.synopsis && <p className="line-clamp-3 text-sm text-muted-foreground">{anime.synopsis}</p>
         )}
@@ -250,6 +476,42 @@ function AnimeEmbed({ anime, note, author, index }: { anime: AnimeSummary; note:
         </Link>
       </div>
     </section>
+  );
+}
+
+/** A grid collection's card: the poster, its place, the title, the author's marks. */
+function AnimeTile({ anime, block, index }: { anime: AnimeSummary; block: AnimeBlock; index: number }) {
+  const labels = useLabels();
+  return (
+    <div className={cn("flex flex-col gap-2 rounded-2xl border bg-[var(--accent-surface)] p-2", block.mustWatch ? "border-primary/50" : "border-[var(--accent-line-soft)]")}>
+      <Link to={animeHref(anime)} viewTransition className="group relative block">
+        <span className="block aspect-[2/3] overflow-hidden rounded-xl bg-muted">
+          {anime.imageUrl && (
+            <img
+              src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          )}
+        </span>
+        <span className="absolute left-1.5 top-1.5 grid size-7 place-items-center rounded-full bg-primary font-display text-xs text-primary-foreground shadow">{index}</span>
+        {block.score != null && (
+          <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white">
+            <StarIcon className="size-3 fill-amber-400 text-amber-400" />
+            {block.score}
+          </span>
+        )}
+      </Link>
+      <Link to={animeHref(anime)} viewTransition className="line-clamp-2 px-0.5 text-sm font-semibold leading-snug transition-colors hover:text-primary">
+        {labels.title(anime)}
+      </Link>
+      {block.mustWatch && <Marks block={{ ...block, score: null }} />}
+      {block.watchTip && <p className="px-0.5 text-[11px] text-sky-300">{block.watchTip}</p>}
+      <div className="px-0.5">
+        <Note block={block} compact />
+      </div>
+    </div>
   );
 }
 
