@@ -1,8 +1,8 @@
 import type { MyProfile, PublicUser } from "@animeshadow/shared";
-import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarFrameRing } from "@/components/profile/profile-cosmetics";
 import { imageSrc } from "@/lib/format";
+import { useMyProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,7 +12,9 @@ import { cn } from "@/lib/utils";
  * picked in the studio shows here at once); nothing is fetched for it.
  */
 export function HeaderAvatar({ user, className }: { user: PublicUser; className?: string }) {
-  const { data: profile } = useQuery<MyProfile>({ queryKey: ["me", "profile"], enabled: false });
+  // Never fetched from here — only read when already loaded; the hook
+  // carries the query function, so a refetch elsewhere has one.
+  const { data: profile } = useMyProfile(false);
   const frame = profile?.avatarFrame ?? user.avatarFrame ?? null;
   const avatarUrl = profile?.avatarUrl ?? user.avatarUrl;
   const initials = user.displayName

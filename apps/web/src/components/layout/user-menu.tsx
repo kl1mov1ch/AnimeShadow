@@ -15,13 +15,11 @@ import {
   WandSparklesIcon,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ProMark } from "@/components/common/pro-mark";
 import { HeaderAvatar } from "@/components/layout/header-avatar";
-import { LevelBadge, LevelBar } from "@/components/profile/level-visuals";
 import { ProfileTitleBadge } from "@/components/profile/profile-cosmetics";
-import { levelOf } from "@/components/profile/profile-level";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -51,7 +49,6 @@ export function UserMenu() {
   // The card on top needs the profile — asked for only once the menu opens
   // (and already there if the profile page was visited).
   const { data: profile } = useMyProfile(authed && open);
-  const level = useMemo(() => (profile ? levelOf(profile) : null), [profile]);
 
   if (!authed || !user) {
     return (
@@ -91,7 +88,7 @@ export function UserMenu() {
           {needsSetup && <span aria-hidden className="absolute right-0 top-0 size-2.5 rounded-full bg-primary ring-2 ring-background" />}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={10} className="w-[19.5rem] overflow-hidden rounded-2xl border-[var(--accent-line-soft)] p-0">
+      <DropdownMenuContent align="end" sideOffset={10} className="w-64 overflow-hidden rounded-2xl border-[var(--accent-line-soft)] p-0">
         {/* Who you are: the cover, the face in its frame, the name with its
             marks, and how far the next level is. The whole card is the way
             to the profile. */}
@@ -119,30 +116,10 @@ export function UserMenu() {
               <ChevronRightIcon className="mb-2 size-4 shrink-0 text-muted-foreground transition-transform group-hover/card:translate-x-0.5" />
             </span>
             {profile?.profileTitle && (
-              <span className="relative mt-2 block px-4">
+              <span className="relative mt-2 block px-4 pb-3">
                 <ProfileTitleBadge title={profile.profileTitle} tip={false} />
               </span>
             )}
-            <span className="relative mx-4 mb-3 mt-3 flex items-center gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-3 py-2.5">
-              {level ? (
-                <>
-                  <LevelBadge info={level} size={30} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="truncate font-semibold" style={{ color: level.tier.colors[0] }}>
-                        {level.tier.name}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {t("userMenu.toNext", { n: level.level + 1, xp: (level.ceiling - level.xp).toLocaleString("ru-RU") })}
-                      </span>
-                    </span>
-                    <LevelBar info={level} labels={false} className="mt-1.5" />
-                  </span>
-                </>
-              ) : (
-                <span className="h-[30px] w-full animate-pulse rounded-lg bg-foreground/[0.06]" />
-              )}
-            </span>
           </Link>
         </DropdownMenuItem>
 
@@ -156,16 +133,15 @@ export function UserMenu() {
           </DropdownMenuItem>
         )}
 
-        {/* Where to go, as tiles: one look, one tap. */}
-        <div className="grid grid-cols-3 gap-1.5 px-2 pb-2">
-          <Tile to="/profile" icon={UserIcon} label={t("userMenu.profile")} />
-          <Tile to="/library" icon={LibraryIcon} label={t("userMenu.list")} />
-          <Tile to="/profile?tab=people" icon={UsersIcon} label={t("userMenu.friends")} />
-          <Tile to="/profile?tab=trophies" icon={TrophyIcon} label={t("userMenu.trophies")} />
-          <Tile to="/profile?tab=collections" icon={FolderHeartIcon} label={t("userMenu.collections")} />
-          <Tile to="/recommendations" icon={WandSparklesIcon} label={t("userMenu.forYou")} />
+        <DropdownMenuSeparator className="mx-0 my-0" />
+        <div className="flex flex-col p-1.5">
+          <Row to="/profile" icon={UserIcon}>{t("userMenu.profile")}</Row>
+          <Row to="/library" icon={LibraryIcon}>{t("userMenu.list")}</Row>
+          <Row to="/profile?tab=people" icon={UsersIcon}>{t("userMenu.friends")}</Row>
+          <Row to="/profile?tab=trophies" icon={TrophyIcon}>{t("userMenu.trophies")}</Row>
+          <Row to="/profile?tab=collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
+          <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
         </div>
-
         <DropdownMenuSeparator className="mx-0 my-0" />
         <div className="flex flex-col p-1.5">
           <Row to="/profile?studio=profile" icon={Settings2Icon}>
@@ -181,18 +157,10 @@ export function UserMenu() {
           )}
         </div>
 
-        {/* Support, as a card of its own rather than one more line. */}
-        <DropdownMenuItem asChild className="mx-2 mb-1.5 rounded-xl border border-amber-400/25 bg-gradient-to-r from-amber-400/10 via-rose-500/10 to-violet-500/10 px-3 py-2.5 focus:bg-amber-400/15">
-          <Link to="/support">
-            <SparklesIcon className="text-amber-300" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-sm font-semibold">{t("userMenu.support")}</span>
-              <span className="truncate text-[11px] text-muted-foreground">{t("userMenu.supportHint")}</span>
-            </span>
-            <ChevronRightIcon className="size-4 text-muted-foreground" />
-          </Link>
-        </DropdownMenuItem>
-
+        <DropdownMenuSeparator className="mx-0 my-0" />
+        <div className="flex flex-col p-1.5">
+          <Row to="/support" icon={SparklesIcon}>{t("userMenu.support")}</Row>
+        </div>
         <DropdownMenuSeparator className="mx-0 my-0" />
         <div className="p-1.5">
           <DropdownMenuItem
@@ -209,17 +177,6 @@ export function UserMenu() {
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function Tile({ to, icon: Icon, label }: { to: string; icon: ComponentType<{ className?: string }>; label: string }) {
-  return (
-    <DropdownMenuItem asChild className="group/tile flex flex-col items-center justify-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] bg-foreground/[0.02] px-1 py-3 text-center focus:border-primary/40 focus:bg-primary/10">
-      <Link to={to}>
-        <Icon className="size-5 text-primary transition-transform duration-200 group-hover/tile:-translate-y-0.5 group-focus/tile:-translate-y-0.5" />
-        <span className="w-full truncate text-[11px] font-medium">{label}</span>
-      </Link>
-    </DropdownMenuItem>
   );
 }
 
