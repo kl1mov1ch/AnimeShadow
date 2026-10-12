@@ -83,10 +83,10 @@ export function OverviewTab({
         {compare}
         {watching}
         {friends}
-        {wall}
         {genres}
         {list}
         {feed}
+        {wall}
       </div>
     );
   }
@@ -178,7 +178,7 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
           {favorites.map((anime, i) => (
             <li
               key={anime.id}
-              className="w-[34%] shrink-0 snap-start animate-in fade-in-0 slide-in-from-bottom-2 sm:w-auto"
+              className="w-[30%] shrink-0 snap-start animate-in fade-in-0 slide-in-from-bottom-2 sm:w-auto"
               style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
             >
               <Link to={animeHref(anime)} viewTransition className="group block">
@@ -208,7 +208,7 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
           {own &&
             favorites.length < 5 &&
             Array.from({ length: 5 - favorites.length }, (_, i) => (
-              <li key={`empty-${i}`} className="w-[34%] shrink-0 snap-start sm:w-auto">
+              <li key={`empty-${i}`} className={cn("w-[30%] shrink-0 snap-start sm:block sm:w-auto", i > 0 && "hidden")}>
                 <button
                   type="button"
                   onClick={() => setPicking(true)}
@@ -238,9 +238,9 @@ function WatchingNow({ profile, own }: { profile: PublicProfile; own: boolean })
 
   return (
     <Panel title={own ? "Продолжить" : "Сейчас смотрит"} icon={TvIcon}>
-      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3 [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 [&::-webkit-scrollbar]:hidden">
         {isPending
-          ? Array.from({ length: 3 }, (_, i) => <div key={i} className="h-24 w-[78%] shrink-0 animate-pulse rounded-2xl bg-foreground/[0.05] sm:w-auto" />)
+          ? Array.from({ length: 3 }, (_, i) => <div key={i} className="h-24 w-[16rem] max-w-[78%] shrink-0 animate-pulse rounded-2xl bg-foreground/[0.05]" />)
           : items.map((item, i) => {
               const episodes = item.anime.episodes ?? null;
               const done = item.completed ? item.episode : Math.max(0, item.episode - 1);
@@ -250,17 +250,9 @@ function WatchingNow({ profile, own }: { profile: PublicProfile; own: boolean })
                   key={item.anime.id}
                   to={own ? `${animeHref(item.anime)}#watch` : animeHref(item.anime)}
                   viewTransition
-                  className="group relative flex w-[78%] shrink-0 snap-start gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-background/40 p-2.5 transition-[border-color,transform] duration-300 animate-in fade-in-0 hover:-translate-y-0.5 hover:border-primary/40 sm:w-auto"
+                  className="group relative flex w-[16rem] max-w-[78%] shrink-0 snap-start gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-background/40 p-2.5 transition-[border-color,transform] duration-300 animate-in fade-in-0 hover:-translate-y-0.5 hover:border-primary/40"
                   style={{ animationDelay: `${i * 50}ms`, animationFillMode: "backwards" }}
                 >
-                  {item.anime.imageUrl && (
-                    <img
-                      aria-hidden
-                      src={imageSrc(item.anime.imageUrl)}
-                      alt=""
-                      className="pointer-events-none absolute inset-0 -z-10 size-full scale-125 object-cover opacity-[0.12] blur-xl"
-                    />
-                  )}
                   <span className="relative h-[4.5rem] w-12 shrink-0 overflow-hidden rounded-xl bg-muted">
                     {item.anime.imageUrl && <img src={imageSrc(item.anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
                     {own && (

@@ -1509,6 +1509,14 @@ body:has([role="dialog"][data-state="open"]) main * {
 .group:hover .achx-tilt .achx-medal {
   transform: translateY(-4%) scale(1.05);
 }
+/* Phones and tablets: the medallions, badges and titles stand still. A
+   few dozen looping layers are nothing on a desktop and a stutter on a
+   cheap phone; the hover effects never ran there anyway. */
+@media (hover: none) {
+  :is(.achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float, .lvl-spin, .lvl-spin-back, .lvl-pulse, .lvl-shine, .lvl-bar-shine, .lvl-twinkle, .lvl-float, .lvl-ember, .ptitle-sheen) {
+    animation: none !important;
+  }
+}
 .achx-still :is(.achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float, .lvl-twinkle, .lvl-ember) {
   animation: none;
 }

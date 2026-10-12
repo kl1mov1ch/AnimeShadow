@@ -155,7 +155,7 @@ export function TrophiesTab({ profile, own }: { profile: PublicProfile; own: boo
             return (
               <li
                 key={a.id}
-                className="relative animate-in fade-in-0 zoom-in-95"
+                className="relative animate-in fade-in-0 zoom-in-95 [contain-intrinsic-size:auto_220px] [content-visibility:auto]"
                 style={{ animationDelay: `${Math.min(i, 20) * 25}ms`, animationFillMode: "backwards" }}
               >
                 <Tooltip>

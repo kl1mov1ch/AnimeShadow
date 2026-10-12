@@ -15,7 +15,9 @@ export const FEATURES = {
    * Avatar frames — earned with achievements, levels and support. One
    * element per avatar; on independently of the rest of the styling above.
    */
-  avatarFrames: true,
+  // Hidden for now — the frames, their picker and the frame rewards all
+  // stay in the code; set back to true to bring them back everywhere.
+  avatarFrames: false,
   /**
    * Looping effects on achievements and titles (shimmer, glow, embers).
    * Off: the same badges, still.

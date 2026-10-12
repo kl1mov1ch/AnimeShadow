@@ -323,7 +323,7 @@ function QuestList({ profile, quests, actions }: { profile: PublicProfile; quest
                 type="button"
                 onClick={() => look.run(actions)}
                 title={look.how}
-                className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-background/40 px-3 py-2.5 text-left transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.06] active:scale-[0.99]"
+                className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-[var(--accent-line-soft)] bg-background/40 px-3 py-2.5 text-left transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.06] active:scale-[0.99]"
               >
                 <span className="relative grid size-9 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
                   <look.icon className="size-4" />
@@ -352,7 +352,7 @@ function QuestList({ profile, quests, actions }: { profile: PublicProfile; quest
                     <span className="rounded-md bg-primary/12 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">+{q.reward}</span>
                   )}
                   <span className="inline-flex items-center text-[11px] font-medium text-foreground/80 transition-colors group-hover:text-primary">
-                    {look.cta}
+                    <span className="hidden sm:inline">{look.cta}</span>
                     <ChevronRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>
                 </span>

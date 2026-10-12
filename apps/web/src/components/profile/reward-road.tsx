@@ -1,10 +1,11 @@
 import type { Cosmetic, LevelTier, PublicProfile } from "@animeshadow/shared";
 import { AVATAR_FRAMES, LEVEL_TIERS, PROFILE_TITLES, levelOf, xpForLevel } from "@animeshadow/shared";
-import { CheckIcon, GemIcon, LockIcon } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GemIcon, GiftIcon, LockIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { useUpdateProfile } from "@/lib/query";
+import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/utils";
 import { FrameFx, FrameRing, hasFrame } from "./frame-fx";
 import { LevelBadge } from "./level-visuals";
@@ -19,7 +20,7 @@ function roadNodes(): Array<{ level: number; rewards: Reward[] }> {
   const byLevel = new Map<number, Reward[]>();
   const add = (level: number, reward: Reward) => byLevel.set(level, [...(byLevel.get(level) ?? []), reward]);
   for (const tier of LEVEL_TIERS) if (tier.from > 1) add(tier.from, { kind: "tier", tier });
-  for (const f of AVATAR_FRAMES as readonly Cosmetic[]) if (f.level != null) add(f.level, { kind: "frame", id: f.id });
+  if (FEATURES.avatarFrames) for (const f of AVATAR_FRAMES as readonly Cosmetic[]) if (f.level != null) add(f.level, { kind: "frame", id: f.id });
   for (const t of PROFILE_TITLES as readonly Cosmetic[]) if (t.level != null) add(t.level, { kind: "title", id: t.id });
   return [...byLevel.entries()].sort((a, b) => a[0] - b[0]).map(([level, rewards]) => ({ level, rewards }));
 }
@@ -49,10 +50,42 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
     : 0;
   const fill = passed === 0 ? frac * NODE * 0.5 : (passed - 0.5 + (next ? frac : 0)) * NODE;
 
+  // Our own scrollbar: where the view is along the road, and how much of it shows.
+  const [view, setView] = useState({ at: 0, size: 1 });
+  const frame = useRef(0);
+  const sync = useCallback(() => {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      const el = scroller.current;
+      if (!el) return;
+      const max = el.scrollWidth - el.clientWidth;
+      setView({ at: max > 0 ? el.scrollLeft / max : 0, size: Math.min(1, el.clientWidth / Math.max(1, el.scrollWidth)) });
+    });
+  }, []);
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollLeft = Math.max(0, fill - el.clientWidth / 2);
-  }, [fill]);
+    if (!el) return;
+    el.scrollLeft = Math.max(0, fill - el.clientWidth / 2);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame.current);
+    };
+  }, [fill, sync]);
+  const step = (dir: -1 | 1) => {
+    const el = scroller.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  };
+  const jump = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scroller.current;
+    if (!el) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const at = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    el.scrollTo({ left: at * (el.scrollWidth - el.clientWidth), behavior: "smooth" });
+  };
+  const xpLeft = next ? Math.max(0, xpForLevel(next.level) - info.xp) : 0;
 
   const wear = (reward: Reward) => {
     if (reward.kind === "frame") update.mutate({ avatarFrame: reward.id });
@@ -60,8 +93,37 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div ref={scroller} className="-mx-4 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] sm:-mx-5 sm:px-5">
+    <div className="flex flex-col gap-3">
+      {/* The next reward, in words: what it is and how far. */}
+      <div className="flex items-center gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-background/40 px-3 py-2.5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary">
+          <GiftIcon className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          {next ? (
+            <>
+              <span className="block truncate text-sm font-semibold">{next.rewards.map((r) => rewardName(r, t)).join(" · ")}</span>
+              <span className="block text-[11px] text-muted-foreground">
+                на {next.level} ур. — через {next.level - level} ур., ещё {xpLeft.toLocaleString("ru-RU")} опыта
+              </span>
+              <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-foreground/10">
+                <span className="block h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${Math.max(3, frac * 100)}%` }} />
+              </span>
+            </>
+          ) : (
+            <span className="block text-sm font-semibold">Все награды за уровни получены</span>
+          )}
+        </span>
+        <span className="shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+          <b className="block text-sm text-foreground">{passed}</b>из {nodes.length}
+        </span>
+      </div>
+
+      <div
+        ref={scroller}
+        onScroll={sync}
+        className="-mx-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 [&::-webkit-scrollbar]:hidden"
+      >
         <ol className="relative flex" style={{ width: nodes.length * NODE }}>
           {/* The road, and how far along it the account is. */}
           <span aria-hidden className="absolute top-[30px] h-1.5 rounded-full bg-foreground/10" style={{ left: NODE / 2, width: (nodes.length - 1) * NODE }} />
@@ -144,6 +206,36 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
           })}
         </ol>
       </div>
+
+      {/* Our own scrollbar: arrows and a track to tap along. */}
+      {view.size < 1 && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Назад"
+            disabled={view.at <= 0.001}
+            onClick={() => step(-1)}
+            className="grid size-7 shrink-0 place-items-center rounded-full border border-[var(--accent-line-soft)] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-30"
+          >
+            <ChevronLeftIcon className="size-4" />
+          </button>
+          <div onPointerDown={jump} className="relative h-1.5 flex-1 cursor-pointer rounded-full bg-foreground/10">
+            <span
+              className="absolute inset-y-0 rounded-full bg-primary/70"
+              style={{ width: `${view.size * 100}%`, left: `${view.at * (1 - view.size) * 100}%` }}
+            />
+          </div>
+          <button
+            type="button"
+            aria-label="Вперёд"
+            disabled={view.at >= 0.999}
+            onClick={() => step(1)}
+            className="grid size-7 shrink-0 place-items-center rounded-full border border-[var(--accent-line-soft)] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-30"
+          >
+            <ChevronRightIcon className="size-4" />
+          </button>
+        </div>
+      )}
       <SupporterRow profile={profile} own={own} />
     </div>
   );
@@ -186,7 +278,7 @@ function FrameThumb({ frame, profile }: { frame: string; profile: PublicProfile 
 function SupporterRow({ profile, own }: { profile: PublicProfile; own: boolean }) {
   const t = useT();
   const update = useUpdateProfile();
-  const frames = (AVATAR_FRAMES as readonly Cosmetic[]).filter((f) => f.pro);
+  const frames = FEATURES.avatarFrames ? (AVATAR_FRAMES as readonly Cosmetic[]).filter((f) => f.pro) : [];
   const titles = (PROFILE_TITLES as readonly Cosmetic[]).filter((f) => f.pro);
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-400/25 bg-gradient-to-r from-amber-400/10 via-pink-500/5 to-transparent px-3 py-2.5">
@@ -204,6 +296,7 @@ function SupporterRow({ profile, own }: { profile: PublicProfile; own: boolean }
         <ProfileTitleBadge key={f.id} title={f.id} />
       ))}
       {own &&
+        frames.length > 0 &&
         (profile.isPro ? (
           <button
             type="button"

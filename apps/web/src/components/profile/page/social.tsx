@@ -31,6 +31,7 @@ import {
   useSuggestedPeople,
   useWall,
 } from "@/lib/query";
+import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/utils";
 import { ago, plural } from "./format";
 import { frameGlow, hasFrame } from "../frame-fx";
@@ -71,7 +72,7 @@ function NameMarks({ user, className }: { user: UserCard; className?: string }) 
 
 /** The colour of the frame someone wears — their accent in a list. */
 function accentOf(user: UserCard): string | null {
-  return user.avatarFrame && hasFrame(user.avatarFrame) ? frameGlow(user.avatarFrame) : null;
+  return FEATURES.avatarFrames && user.avatarFrame && hasFrame(user.avatarFrame) ? frameGlow(user.avatarFrame) : null;
 }
 
 /**
@@ -163,7 +164,12 @@ export function SocialLine({ userId, onOpen, className }: { userId: string; onOp
     { kind: "following", n: data.following, word: plural(data.following, "подписка", "подписки", "подписок") },
   ];
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+    <div
+      className={cn(
+        "-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:gap-2 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
+    >
       {items.map((it) => {
         const rel = RELATION[it.kind];
         return (
@@ -171,13 +177,13 @@ export function SocialLine({ userId, onOpen, className }: { userId: string; onOp
             key={it.kind}
             type="button"
             onClick={() => onOpen(it.kind)}
-            className="group inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-black/30 pl-1 pr-3 text-sm backdrop-blur-sm transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-black/45"
+            className="group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/30 pl-0.5 pr-2.5 text-xs transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-black/45 sm:h-9 sm:gap-2 sm:pl-1 sm:pr-3 sm:text-sm"
           >
-            <span className={cn("grid size-7 place-items-center rounded-full ring-1", rel.tone)}>
-              <rel.icon className="size-3.5" />
+            <span className={cn("grid size-6 place-items-center rounded-full ring-1 sm:size-7", rel.tone)}>
+              <rel.icon className="size-3 sm:size-3.5" />
             </span>
             {it.kind === "friends" && data.friendFaces.length > 0 && (
-              <span className="flex -space-x-2">
+              <span className="hidden -space-x-2 sm:flex">
                 {data.friendFaces.slice(0, 3).map((f) => (
                   <Face key={f.id} user={f} size={22} />
                 ))}
@@ -189,7 +195,7 @@ export function SocialLine({ userId, onOpen, className }: { userId: string; onOp
         );
       })}
       {data.followsYou && !data.isFollowing && (
-        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-sky-500/15 px-2.5 text-[11px] font-medium text-sky-300 ring-1 ring-sky-400/30">
+        <span className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-sky-500/15 px-2.5 text-[11px] font-medium text-sky-300 ring-1 ring-sky-400/30">
           <UsersIcon className="size-3" />
           подписан(а) на вас
         </span>
@@ -205,7 +211,7 @@ export function PersonCard({ person, index = 0, mark }: { person: UserCard; inde
   const top = (
     <>
       <span className="relative">
-        {person.avatarFrame ? (
+        {FEATURES.avatarFrames && person.avatarFrame ? (
           <FramedFace user={person} size={68} />
         ) : (
           <Face user={person} size={68} className={cn("ring-2", rel ? rel.ring : "ring-[var(--accent-line-soft)]")} />
@@ -414,7 +420,7 @@ export function WallPanel({ profile, own }: { profile: PublicProfile; own: boole
             return (
               <li
                 key={p.id}
-                className="group flex gap-3.5 rounded-2xl border border-[var(--accent-line-soft)] bg-background/30 p-3 transition-colors animate-in fade-in-0 slide-in-from-bottom-1 hover:bg-foreground/[0.03]"
+                className="group flex gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-background/30 p-2.5 transition-colors animate-in fade-in-0 slide-in-from-bottom-1 [contain-intrinsic-size:auto_88px] [content-visibility:auto] hover:bg-foreground/[0.03] sm:gap-3.5 sm:p-3"
                 style={{
                   animationDelay: `${Math.min(i, 10) * 30}ms`,
                   animationFillMode: "backwards",
@@ -495,7 +501,7 @@ export function FriendsActivity({ userId }: { userId: string }) {
   const { data, isPending } = useFriendsActivity();
   const { data: social } = useSocial(userId);
   if (!isPending && (data?.length ?? 0) === 0) {
-    return <Suggestions title={social && social.following > 0 ? "Кого ещё добавить в друзья" : "Найдите друзей — подпишитесь на интересных людей"} />;
+    return <Suggestions title={social && social.following > 0 ? "Кого ещё добавить" : "Найдите друзей — подпишитесь на интересных людей"} />;
   }
   return (
     <Panel title="Что смотрят друзья" icon={ActivityIcon}>

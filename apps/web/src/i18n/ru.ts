@@ -11,7 +11,7 @@ export const ru: Dict = {
     collections: "Подборки",
     forYou: "Для вас",
     customise: "Настроить профиль",
-    look: "Рамки и приписки",
+    look: "Оформление",
     admin: "Админка",
     support: "Поддержать проект",
     supportHint: "PRO-рамки и своя приписка",

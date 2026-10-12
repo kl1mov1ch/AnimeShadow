@@ -80,7 +80,7 @@ export function ProfileStage({
   // with the shade and the pencil on the picture only: the frame, the
   // level medallion and the presence dot stay on top, untouched.
   const face = (
-    <div className="relative grid size-28 place-items-center overflow-hidden rounded-full bg-card font-display text-4xl sm:size-36">
+    <div className="relative grid size-24 place-items-center overflow-hidden rounded-full bg-card font-display text-4xl sm:size-36">
       {profile.avatarUrl ? <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" /> : initial}
       {own && (
         <span className="pointer-events-none absolute inset-0 hidden place-items-center bg-black/45 text-white opacity-0 transition-opacity duration-200 group-hover/face:opacity-100 sm:grid">
@@ -149,7 +149,7 @@ export function ProfileStage({
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:pt-10">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <h1 className="min-w-0 font-display text-[1.9rem] leading-none tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
+            <h1 className="min-w-0 font-display text-[1.65rem] leading-none tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
               {profile.displayName}
             </h1>
             {profile.isPro && <ProMark />}
@@ -167,19 +167,19 @@ export function ProfileStage({
           </p>
           {profile.bio && <Bio text={profile.bio} />}
           {pinned.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <div className="-mx-4 mt-1 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
               {pinned.map((a) => (
                 <Tooltip key={a.id}>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       onClick={() => setOpened(a)}
-                      className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] bg-card/60 py-0.5 pl-0.5 pr-3 text-xs transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40"
+                      className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] bg-card/60 py-0.5 pl-0.5 pr-2.5 text-[11px] transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40 sm:pr-3 sm:text-xs"
                     >
                       <span className="achx-tilt">
-                        <HoloAchievementBadge id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" tip={false} className="size-7" />
+                        <HoloAchievementBadge id={a.id} rarity={a.rarity} earned earnedAt={a.earnedAt} variant="circle" tip={false} className="size-6 sm:size-7" />
                       </span>
-                      <span className="max-w-36 truncate">{t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}</span>
+                      <span className="max-w-28 truncate sm:max-w-36">{t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}</span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-64 p-0">
@@ -322,7 +322,7 @@ export function PlayerStrip({ profile }: { profile: PublicProfile }) {
     >
       <div className="flex items-center gap-4 px-1 py-1">
         {/* Room around the medallion for its rays and crown. */}
-        <span className="grid shrink-0 place-items-center p-2.5 pt-4">
+        <span className="grid shrink-0 place-items-center p-1.5 pt-3 sm:p-2.5 sm:pt-4">
           <LevelBadge info={level} size={64} />
         </span>
         <div className="min-w-0 flex-1">

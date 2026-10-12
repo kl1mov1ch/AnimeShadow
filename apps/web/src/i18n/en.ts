@@ -9,7 +9,7 @@ export const en = {
     collections: "Collections",
     forYou: "For you",
     customise: "Edit profile",
-    look: "Frames and titles",
+    look: "Appearance",
     admin: "Admin panel",
     support: "Support the project",
     supportHint: "PRO frames and a title of your own",
