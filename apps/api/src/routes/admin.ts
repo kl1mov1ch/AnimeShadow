@@ -3,6 +3,8 @@ import {
   adminBreakdownQuerySchema,
   adminCommentQuerySchema,
   adminMonitoringQuerySchema,
+  adminReportQuerySchema,
+  adminResolveReportsInputSchema,
   adminSetPasswordInputSchema,
   adminUpdateUserInputSchema,
   adminUserQuerySchema,
@@ -100,6 +102,18 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/admin/comments", guard, async (request) => {
     const query = parse(adminCommentQuerySchema, request.query);
     return admin.listComments(query);
+  });
+
+  fastify.get("/admin/reports", guard, async (request) => {
+    const query = parse(adminReportQuerySchema, request.query);
+    return admin.listReports(query);
+  });
+
+  // The decision closes every open complaint about the profile.
+  fastify.post("/admin/reports/:id/resolve", guard, async (request) => {
+    const { id } = parse(idParams, request.params);
+    const input = parse(adminResolveReportsInputSchema, request.body);
+    return admin.resolveReports(request.userId!, id, input);
   });
 
   fastify.delete("/admin/comments/:id", guard, async (request, reply) => {

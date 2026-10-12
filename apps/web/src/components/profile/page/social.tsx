@@ -125,16 +125,16 @@ export function FollowButton({ userId, compact = false, className }: { userId: s
  * with its mark, its colour and its number, each a button to the list.
  * Friends come first and carry a few faces.
  */
-export function SocialLine({ userId, onOpen }: { userId: string; onOpen: (kind: FollowKind) => void }) {
+export function SocialLine({ userId, onOpen, className }: { userId: string; onOpen: (kind: FollowKind) => void; className?: string }) {
   const { data } = useSocial(userId);
-  if (!data) return <span className="mt-1 h-9 w-72 animate-pulse rounded-full bg-foreground/[0.06]" />;
+  if (!data) return <span className={cn("h-9 w-72 animate-pulse rounded-full bg-foreground/[0.06]", className)} />;
   const items: Array<{ kind: FollowKind; n: number; word: string }> = [
     { kind: "friends", n: data.friends, word: plural(data.friends, "друг", "друга", "друзей") },
     { kind: "followers", n: data.followers, word: plural(data.followers, "подписчик", "подписчика", "подписчиков") },
     { kind: "following", n: data.following, word: plural(data.following, "подписка", "подписки", "подписок") },
   ];
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-2">
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {items.map((it) => {
         const rel = RELATION[it.kind];
         return (

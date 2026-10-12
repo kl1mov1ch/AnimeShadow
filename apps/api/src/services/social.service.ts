@@ -1,5 +1,14 @@
-import { Prisma, type PrismaClient } from "@animeshadow/db";
-import type { FollowKind, FriendEvent, SocialSummary, UserCard, WallPage, WallPost } from "@animeshadow/shared";
+import type { Prisma, PrismaClient } from "@animeshadow/db";
+import type {
+  CreateProfileReportInput,
+  FollowKind,
+  FriendEvent,
+  ProfileReportResult,
+  SocialSummary,
+  UserCard,
+  WallPage,
+  WallPost,
+} from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "../lib/errors.js";
 import type { ProfileInsightsService } from "./profile-insights.service.js";
@@ -77,6 +86,26 @@ export class SocialService {
     await this.prisma.follow.createMany({ data: [{ followerId: viewerId, followingId: targetId }], skipDuplicates: true });
     this.feedCache.delete(viewerId);
     return this.summary(targetId, viewerId);
+  }
+
+  /**
+   * A complaint about a profile, for the admins. One open complaint per
+   * person per profile: sending again updates it instead of piling up.
+   */
+  async report(reporterId: string, targetId: string, input: CreateProfileReportInput): Promise<ProfileReportResult> {
+    if (reporterId === targetId) throw new BadRequestError("Нельзя пожаловаться на свой профиль.");
+    await this.ensureUser(targetId);
+    const comment = input.comment?.trim() || null;
+    const open = await this.prisma.profileReport.findFirst({
+      where: { reporterId, targetId, status: "OPEN" },
+      select: { id: true },
+    });
+    if (open) {
+      await this.prisma.profileReport.update({ where: { id: open.id }, data: { reason: input.reason, comment } });
+      return { already: true };
+    }
+    await this.prisma.profileReport.create({ data: { reporterId, targetId, reason: input.reason, comment } });
+    return { already: false };
   }
 
   async unfollow(viewerId: string, targetId: string): Promise<SocialSummary> {

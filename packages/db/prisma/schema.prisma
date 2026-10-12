@@ -118,6 +118,9 @@ model User {
   /// Posts on this account's profile wall, and posts it wrote on others'.
   wallPosts          WallPost[]      @relation("WallOwner")
   wallWritten        WallPost[]      @relation("WallAuthor")
+  reportsAgainst     ProfileReport[] @relation("ReportTarget")
+  reportsFiled       ProfileReport[] @relation("ReportAuthor")
+  reportsHandled     ProfileReport[] @relation("ReportModerator")
 }
 
 /// One account following another. Mutual = friends.
@@ -146,6 +149,32 @@ model WallPost {
 
   @@index([ownerId, createdAt])
   @@index([authorId])
+}
+
+/// A complaint about a profile — its picture, cover, name or description,
+/// or how its owner behaves. Admins review them in the admin panel; one
+/// decision closes every open complaint about the same profile.
+model ProfileReport {
+  id           String    @id @default(cuid())
+  target       User      @relation("ReportTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  targetId     String
+  reporter     User      @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId   String
+  reason       String // spam | abuse | content | impersonation | other
+  comment      String?
+  status       String    @default("OPEN") // OPEN | RESOLVED | DISMISSED
+  /// What was done: avatar | banner | bio | wall | ban.
+  measures     String[]  @default([])
+  note         String?
+  moderator    User?     @relation("ReportModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
+  moderatorId  String?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([targetId, status])
+  @@index([reporterId, targetId])
 }
 
 enum VerificationPurpose {

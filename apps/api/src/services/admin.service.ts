@@ -15,6 +15,10 @@ import {
   type AdminCommentSummary,
   type AdminOverview,
   type AdminOverviewTop,
+  type AdminReportGroup,
+  type AdminReportQuery,
+  type AdminResolveReportsInput,
+  type AdminResolveReportsResult,
   type AdminSummary,
   type AdminTimelinePoint,
   type AdminUpdateUserInput,
@@ -23,6 +27,9 @@ import {
   type AdminUserSummary,
   paginated,
   type Paginated,
+  type ReportMeasure,
+  type ReportReason,
+  type ReportStatus,
 } from "@animeshadow/shared";
 import bcrypt from "bcryptjs";
 import { TtlCache } from "../lib/cache.js";
@@ -210,6 +217,15 @@ export class AdminService {
   /** The admin page's header: the tab badges and today's two pills. Three
    *  cheap counts, read on every tab — the overview itself is not. */
   async summary(): Promise<AdminSummary> {
+    // Not cached with the rest: a new complaint should show on the badge at once.
+    const [base, reportsOpen] = await Promise.all([
+      this.cachedSummary(),
+      this.prisma.profileReport.count({ where: { status: "OPEN" } }),
+    ]);
+    return { ...base, reportsOpen };
+  }
+
+  private async cachedSummary(): Promise<Omit<AdminSummary, "reportsOpen">> {
     return this.overviewCache.wrap("summary", async () => {
       const since = startOfUtcDay(new Date());
       const [users, comments, today] = await Promise.all([
@@ -229,7 +245,7 @@ export class AdminService {
           guests: today.find((r) => !r.registered)?.visitors ?? 0,
         },
       };
-    }) as Promise<AdminSummary>;
+    }) as Promise<Omit<AdminSummary, "reportsOpen">>;
   }
 
   /**
@@ -990,5 +1006,138 @@ export class AdminService {
       total,
       hasNextPage: skip + rows.length < total,
     });
+  }
+
+  // ---- complaints about profiles ----
+
+  /**
+   * Complaints, one card per reported profile, the most recently reported
+   * first: the profile as it is now, every complaint under the filter, how
+   * many are still open and the last decision taken.
+   */
+  async listReports(query: AdminReportQuery): Promise<Paginated<AdminReportGroup>> {
+    const status: ReportStatus | null =
+      query.status === "open" ? "OPEN" : query.status === "resolved" ? "RESOLVED" : query.status === "dismissed" ? "DISMISSED" : null;
+    const where: Prisma.ProfileReportWhereInput = status ? { status } : {};
+    const skip = (query.page - 1) * query.perPage;
+
+    const [groups, totalRows] = await Promise.all([
+      this.prisma.profileReport.groupBy({
+        by: ["targetId"],
+        where,
+        _max: { createdAt: true },
+        orderBy: { _max: { createdAt: "desc" } },
+        skip,
+        take: query.perPage,
+      }),
+      this.prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT COUNT(DISTINCT "targetId") AS n FROM "ProfileReport"
+        WHERE ${status ? Prisma.sql`"status" = ${status}` : Prisma.sql`TRUE`}
+      `,
+    ]);
+    const total = Number(totalRows[0]?.n ?? 0);
+    const ids = groups.map((g) => g.targetId);
+    if (ids.length === 0) return paginated([], { page: query.page, perPage: query.perPage, total, hasNextPage: false });
+
+    const person = { id: true, displayName: true, username: true, avatarUrl: true } satisfies Prisma.UserSelect;
+    const [targets, reports, open, decided] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { ...person, bannerUrl: true, bio: true, isBanned: true, role: true, createdAt: true },
+      }),
+      this.prisma.profileReport.findMany({
+        where: { ...where, targetId: { in: ids } },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+        select: { id: true, targetId: true, reason: true, comment: true, status: true, createdAt: true, reporter: { select: person } },
+      }),
+      this.prisma.profileReport.groupBy({ by: ["targetId"], where: { targetId: { in: ids }, status: "OPEN" }, _count: { _all: true } }),
+      this.prisma.profileReport.findMany({
+        where: { targetId: { in: ids }, status: { not: "OPEN" } },
+        orderBy: { resolvedAt: "desc" },
+        distinct: ["targetId"],
+        select: { targetId: true, status: true, measures: true, note: true, resolvedAt: true, moderator: { select: { displayName: true } } },
+      }),
+    ]);
+
+    const items: AdminReportGroup[] = groups.flatMap((g) => {
+      const target = targets.find((t) => t.id === g.targetId);
+      if (!target) return [];
+      const mine = reports.filter((r) => r.targetId === g.targetId);
+      const byReason = new Map<ReportReason, number>();
+      for (const r of mine) byReason.set(r.reason as ReportReason, (byReason.get(r.reason as ReportReason) ?? 0) + 1);
+      const last = decided.find((d) => d.targetId === g.targetId);
+      return [
+        {
+          target: { ...target, createdAt: target.createdAt.toISOString() },
+          open: open.find((o) => o.targetId === g.targetId)?._count._all ?? 0,
+          total: mine.length,
+          reasons: [...byReason].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count),
+          lastAt: (g._max.createdAt ?? new Date()).toISOString(),
+          reports: mine.slice(0, 20).map((r) => ({
+            id: r.id,
+            reason: r.reason as ReportReason,
+            comment: r.comment,
+            status: r.status as ReportStatus,
+            createdAt: r.createdAt.toISOString(),
+            reporter: r.reporter,
+          })),
+          decision: last
+            ? {
+                status: last.status as "RESOLVED" | "DISMISSED",
+                measures: last.measures as ReportMeasure[],
+                note: last.note,
+                at: (last.resolvedAt ?? new Date()).toISOString(),
+                by: last.moderator?.displayName ?? null,
+              }
+            : null,
+        },
+      ];
+    });
+
+    return paginated(items, { page: query.page, perPage: query.perPage, total, hasNextPage: skip + groups.length < total });
+  }
+
+  /**
+   * A decision about a reported profile: dismiss, or take measures — clear
+   * its picture, cover or description, take down what it wrote on walls,
+   * ban it. Closes every open complaint about it at once.
+   */
+  async resolveReports(callerId: string, targetId: string, input: AdminResolveReportsInput): Promise<AdminResolveReportsResult> {
+    const open = await this.prisma.profileReport.count({ where: { targetId, status: "OPEN" } });
+    if (open === 0) throw new NotFoundError("No open complaints about this profile.");
+    const measures = input.action === "resolve" ? [...new Set(input.measures)] : [];
+    if (measures.includes("ban") && callerId === targetId) throw new BadRequestError("You can't ban yourself.");
+
+    const profile: Prisma.UserUpdateInput = {
+      ...(measures.includes("avatar") ? { avatarUrl: null } : {}),
+      ...(measures.includes("banner") ? { bannerUrl: null } : {}),
+      ...(measures.includes("bio") ? { bio: null } : {}),
+      ...(measures.includes("ban") ? { isBanned: true } : {}),
+    };
+    const now = new Date();
+    const steps: Prisma.PrismaPromise<unknown>[] = [];
+    if (Object.keys(profile).length > 0) steps.push(this.prisma.user.update({ where: { id: targetId }, data: profile }));
+    if (measures.includes("wall")) {
+      steps.push(this.prisma.wallPost.updateMany({ where: { authorId: targetId, deletedAt: null }, data: { deletedAt: now } }));
+    }
+    const results = await this.prisma.$transaction([
+      ...steps,
+      this.prisma.profileReport.updateMany({
+        where: { targetId, status: "OPEN" },
+        data: {
+          status: input.action === "resolve" ? "RESOLVED" : "DISMISSED",
+          measures,
+          note: input.note?.trim() || null,
+          moderatorId: callerId,
+          resolvedAt: now,
+        },
+      }),
+    ]);
+    const closed = results[results.length - 1] as Prisma.BatchPayload;
+    // A ban ends every session the account had.
+    if (measures.includes("ban")) await revokeSessions(this.prisma, targetId);
+    this.logger?.info({ adminId: callerId, userId: targetId, action: input.action, measures }, "admin decided on profile complaints");
+    return { closed: closed.count };
   }
 }

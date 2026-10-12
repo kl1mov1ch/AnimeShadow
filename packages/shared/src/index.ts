@@ -20,6 +20,7 @@ export * from "./landing.js";
 export * from "./social.js";
 export * from "./levels.js";
 export * from "./quests.js";
+export * from "./reports.js";
 
 const DIACRITICS = /[̀-ͯ]/g;
 const NON_SLUG = /[^a-z0-9]+/g;

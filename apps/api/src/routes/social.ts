@@ -1,4 +1,4 @@
-import { createWallPostInputSchema, followKindSchema } from "@animeshadow/shared";
+import { createProfileReportInputSchema, createWallPostInputSchema, followKindSchema } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { parse } from "../lib/validation.js";
@@ -66,6 +66,18 @@ export const socialRoutes: FastifyPluginAsync = async (fastify) => {
       const { postId } = parse(postParams, request.params);
       await social.remove(postId, request.userId!);
       reply.code(204);
+    },
+  );
+
+  // A handful an hour is plenty for an honest person.
+  fastify.post(
+    "/users/:id/report",
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 10, timeWindow: "1 hour" } } },
+    async (request, reply) => {
+      const { id } = parse(userParams, request.params);
+      const input = parse(createProfileReportInputSchema, request.body);
+      reply.code(201);
+      return social.report(request.userId!, id, input);
     },
   );
 

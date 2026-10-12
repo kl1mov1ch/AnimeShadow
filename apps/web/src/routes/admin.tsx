@@ -1,6 +1,7 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import {
   ChartLineIcon,
+  FlagIcon,
   GaugeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
@@ -14,6 +15,7 @@ import { AdminAnalyticsTab } from "@/components/admin/admin-analytics";
 import { AdminComments } from "@/components/admin/admin-comments";
 import { AdminMonitoringTab } from "@/components/admin/admin-monitoring";
 import { AdminOverviewTab } from "@/components/admin/admin-overview";
+import { AdminReports } from "@/components/admin/admin-reports";
 import { LiveDot } from "@/components/admin/admin-ui";
 import { AdminUsers } from "@/components/admin/admin-users";
 import { PageHero } from "@/components/common/page-hero";
@@ -23,7 +25,7 @@ import { useLocale, useT } from "@/i18n";
 import { useAdminSummary } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-const TABS = ["overview", "analytics", "monitoring", "users", "comments"] as const;
+const TABS = ["overview", "analytics", "monitoring", "users", "comments", "reports"] as const;
 type AdminTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
@@ -32,6 +34,7 @@ const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   monitoring: GaugeIcon,
   users: UsersIcon,
   comments: MessageSquareIcon,
+  reports: FlagIcon,
 };
 
 function isAdminTab(value: string | null): value is AdminTab {
@@ -73,7 +76,7 @@ function AdminPanel() {
   const overview = useAdminSummary();
 
   const counts: Partial<Record<AdminTab, number>> = overview.data
-    ? { users: overview.data.users, comments: overview.data.comments }
+    ? { users: overview.data.users, comments: overview.data.comments, reports: overview.data.reportsOpen }
     : {};
   const today = overview.data?.today;
   const updatedAt = overview.dataUpdatedAt
@@ -140,8 +143,13 @@ function AdminPanel() {
             >
               <Icon className="size-4" />
               {t(`admin.tabs.${value}` as "admin.tabs.users")}
-              {count != null && (
-                <span className={cn("rounded px-1.5 text-[10px] tabular-nums", active ? "bg-black/20" : "bg-primary/10 text-primary")}>
+              {count != null && !(value === "reports" && count === 0) && (
+                <span
+                  className={cn(
+                    "rounded px-1.5 text-[10px] tabular-nums",
+                    active ? "bg-black/20" : value === "reports" ? "bg-rose-500 font-bold text-white" : "bg-primary/10 text-primary",
+                  )}
+                >
                   {count.toLocaleString()}
                 </span>
               )}
@@ -156,6 +164,7 @@ function AdminPanel() {
         {tab === "monitoring" && <AdminMonitoringTab />}
         {tab === "users" && <AdminUsers />}
         {tab === "comments" && <AdminComments />}
+        {tab === "reports" && <AdminReports />}
       </div>
     </div>
   );

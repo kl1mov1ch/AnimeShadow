@@ -1098,6 +1098,45 @@ export function useAdminDeleteComment() {
   });
 }
 
+import type {
+  AdminReportGroup,
+  AdminReportQuery,
+  AdminResolveReportsInput,
+  AdminResolveReportsResult,
+  CreateProfileReportInput,
+  ProfileReportResult,
+} from "@animeshadow/shared";
+
+export function useAdminReports(params: AdminListParams<AdminReportQuery>, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "reports", params],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<Paginated<AdminReportGroup>>("/admin/reports", { signal, query: params }),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminResolveReports() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ targetId, input }: { targetId: string; input: AdminResolveReportsInput }) =>
+      apiRequest<AdminResolveReportsResult>(`/admin/reports/${targetId}/resolve`, { method: "POST", body: input }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["admin", "reports"] });
+      void client.invalidateQueries({ queryKey: ["admin", "summary"] });
+      void client.invalidateQueries({ queryKey: ["admin", "user"] });
+    },
+  });
+}
+
+/** A complaint about someone's profile, for the admins. */
+export function useReportProfile(userId: string) {
+  return useMutation({
+    mutationFn: (input: CreateProfileReportInput) =>
+      apiRequest<ProfileReportResult>(`/users/${userId}/report`, { method: "POST", body: input }),
+  });
+}
+
 /* ---------------- profile history & list portability ---------------- */
 
 import type {

@@ -1,5 +1,5 @@
 import type { EarnedAchievement, FollowKind, PublicProfile, Rank } from "@animeshadow/shared";
-import { GitCompareArrowsIcon, Loader2Icon, MessageSquarePlusIcon, PencilIcon, Settings2Icon, ShuffleIcon } from "lucide-react";
+import { ChevronDownIcon, GitCompareArrowsIcon, Loader2Icon, MessageSquarePlusIcon, PencilIcon, Settings2Icon, ShuffleIcon } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
@@ -20,6 +20,7 @@ import { CountUp } from "../profile-progression";
 import { ShareProfileButton } from "../share-profile";
 import type { ProfileMedia } from "../use-profile-media";
 import { plural } from "./format";
+import { ReportProfileButton } from "./report-profile";
 import { FollowButton, SocialLine } from "./social";
 
 const RANK_RING: Record<Rank, string> = {
@@ -67,7 +68,6 @@ export function ProfileStage({
 }) {
   const t = useT();
   const level = useMemo(() => levelOf(profile), [profile]);
-  const [bioOpen, setBioOpen] = useState(false);
   const [opened, setOpened] = useState<EarnedAchievement | null>(null);
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
   const since = new Date(profile.memberSince).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
@@ -153,12 +153,13 @@ export function ProfileStage({
         )}
       </div>
 
-      <div className="relative z-10 -mt-16 flex flex-col gap-4 sm:-mt-20 lg:flex-row lg:items-end lg:gap-6">
-        <div className="w-fit self-start lg:self-auto">
+      <div className="relative z-10 -mt-16 flex flex-col gap-4 sm:-mt-20 xl:flex-row xl:items-end xl:gap-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <div className="w-fit shrink-0 self-start sm:self-auto">
           {avatar}
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:pb-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:pt-10">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h1 className="min-w-0 font-display text-[1.9rem] leading-none tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
               {profile.displayName}
@@ -176,20 +177,7 @@ export function ProfileStage({
             )}
             <span className="text-muted-foreground/70">· на сайте с {since}</span>
           </p>
-          <SocialLine userId={profile.id} onOpen={onPeople} />
-          {profile.bio && (
-            <button
-              type="button"
-              onClick={() => setBioOpen((v) => !v)}
-              className={cn(
-                "max-w-2xl text-left text-sm leading-relaxed text-foreground/85 [overflow-wrap:anywhere]",
-                !bioOpen && "line-clamp-2",
-              )}
-              title={bioOpen ? "Свернуть" : "Развернуть"}
-            >
-              {profile.bio}
-            </button>
-          )}
+          {profile.bio && <Bio text={profile.bio} />}
           {pinned.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {pinned.map((a) => (
@@ -215,12 +203,15 @@ export function ProfileStage({
           )}
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap lg:pb-1">
+        </div>
+
+        <div className="flex shrink-0 flex-col gap-3 xl:items-end xl:pb-1">
+        <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
           <ShareProfileButton
             profile={profile}
             own={own}
             onNeedUsername={onNeedUsername}
-            className="h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:gap-2 sm:px-4 lg:flex-none"
+            className="order-3 h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:order-none sm:gap-2 sm:px-4 lg:flex-none"
           />
           {own ? (
             <button
@@ -233,13 +224,13 @@ export function ProfileStage({
             </button>
           ) : (
             <>
-              <FollowButton userId={profile.id} className="order-first basis-full sm:order-none sm:basis-auto sm:flex-1 lg:flex-none" />
+              <FollowButton userId={profile.id} className="order-1 grow basis-[calc(100%-3.25rem)] sm:order-none sm:basis-auto sm:flex-1 lg:flex-none" />
               {onWrite && (
                 <button
                   type="button"
                   onClick={onWrite}
                   title="Написать на стене"
-                  className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:gap-2 sm:px-4 lg:flex-none"
+                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none"
                 >
                   <MessageSquarePlusIcon className="size-4 shrink-0" />
                   <span className="truncate">Написать</span>
@@ -250,18 +241,68 @@ export function ProfileStage({
                   type="button"
                   onClick={onCompare}
                   title="Сравнить вкусы"
-                  className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:gap-2 sm:px-4 lg:flex-none"
+                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none"
                 >
                   <GitCompareArrowsIcon className="size-4 shrink-0" />
                   <span className="truncate">Сравнить</span>
                 </button>
               )}
+              <ReportProfileButton userId={profile.id} name={profile.displayName} className="order-2 sm:order-none" />
             </>
           )}
+        </div>
+        {/* Friends, followers, following — under the buttons, on the right. */}
+        <SocialLine userId={profile.id} onOpen={onPeople} className="xl:justify-end" />
         </div>
       </div>
       <AchievementDetailDialog achievement={opened} onOpenChange={(open) => !open && setOpened(null)} />
     </section>
+  );
+}
+
+/**
+ * The description: two lines, and the rest opens smoothly — the height
+ * runs from two lines to the whole text and back, the last line fading
+ * while it's closed.
+ */
+function Bio({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [size, setSize] = useState({ full: 0, line: 22 });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setSize({ full: el.scrollHeight, line: parseFloat(getComputedStyle(el).lineHeight) || 22 });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
+  const closed = Math.round(size.line * 2);
+  const long = size.full > closed + 1;
+  const fade = long && !open ? "linear-gradient(to bottom, #000 45%, transparent)" : undefined;
+  return (
+    <div className="max-w-2xl">
+      <div
+        className="overflow-hidden transition-[max-height] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+        style={{ maxHeight: long ? (open ? size.full : closed) : undefined, maskImage: fade, WebkitMaskImage: fade }}
+      >
+        <p ref={ref} className="whitespace-pre-line text-sm leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">
+          {text}
+        </p>
+      </div>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
+        >
+          {open ? "Свернуть" : "Читать полностью"}
+          <ChevronDownIcon className={cn("size-3.5 transition-transform duration-300", open && "rotate-180")} />
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -47,6 +47,8 @@ export type AdminWindow = (typeof ADMIN_WINDOWS)[number];
 export interface AdminSummary {
   users: number;
   comments: number;
+  /** Complaints about profiles still waiting for a decision. */
+  reportsOpen: number;
   today: { registered: number; guests: number };
 }
 

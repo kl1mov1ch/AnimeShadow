@@ -19,6 +19,7 @@ export function ConfirmDialog({
   description,
   onConfirm,
   pending,
+  confirmLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +27,8 @@ export function ConfirmDialog({
   description?: string;
   onConfirm: () => void;
   pending?: boolean;
+  /** The confirming button's words — "Удалить" unless the action is something else. */
+  confirmLabel?: string;
 }) {
   const t = useT();
   return (
@@ -62,7 +65,7 @@ export function ConfirmDialog({
             }}
           >
             {pending && <Spinner data-icon="inline-start" />}
-            {t("common.delete")}
+            {confirmLabel ?? t("common.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>
