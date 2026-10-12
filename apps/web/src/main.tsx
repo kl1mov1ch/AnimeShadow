@@ -9,13 +9,17 @@ import { I18nProvider } from "@/i18n";
 import { queryClient } from "@/lib/query";
 import { router } from "@/router";
 
-// A view transition that another navigation cut short rejects its promise
-// with an AbortError nobody awaits — clicking two links quickly is enough.
-// It means "the newer page won", which is exactly right, so it is not
-// reported as an uncaught error. Anything else still is.
+// A view transition that is cut short rejects its promise with an error
+// nobody awaits: an AbortError when another navigation wins (two quick
+// clicks), an InvalidStateError when the tab is hidden mid-way ("Document
+// hidden"). Either way the page simply changes without the animation, which
+// is right, so it is not reported as an uncaught error. Anything else still is.
 window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason as { name?: string; message?: string } | undefined;
-  if (reason?.name === "AbortError" && /transition/i.test(reason.message ?? "")) {
+  if (
+    (reason?.name === "AbortError" || reason?.name === "InvalidStateError") &&
+    /transition/i.test(reason.message ?? "")
+  ) {
     event.preventDefault();
   }
 });
