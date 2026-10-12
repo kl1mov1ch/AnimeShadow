@@ -2,6 +2,7 @@ import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@ani
 import type {
   GuestSessionInput,
   MyProfile,
+  ProfileCounters,
   ProfileLayout,
   ProfilePrivacy,
   Visibility,
@@ -21,6 +22,8 @@ import {
   profilePrivacySchema,
   PROFILE_TITLES,
   cosmeticUnlocked,
+  earnedSources,
+  levelOf,
 } from "@animeshadow/shared";
 import { computeIsAdult } from "../lib/content-guard.js";
 import { watchSecondsTotal, watchSessionsTotal } from "../lib/metrics.js";
@@ -114,7 +117,9 @@ export class ProfileService {
       select: { profilePrivacy: true },
     });
     if (!owner) throw new NotFoundError("Профиль не найден.");
-    return allowed(readPrivacy(owner.profilePrivacy)[part], viewerId);
+    const level = readPrivacy(owner.profilePrivacy)[part];
+    const friend = level === "friends" && viewerId ? await this.areFriends(ownerId, viewerId) : false;
+    return allowed(level, viewerId, friend);
   }
 
   async getMine(userId: string): Promise<MyProfile> {
@@ -149,17 +154,23 @@ export class ProfileService {
     // Checked here rather than trusted from the client: the ids are public,
     // so the request is the one place this can actually be enforced.
     if (input.avatarFrame !== undefined || input.profileTitle !== undefined) {
-      const earned = await this.achievements.list(userId);
-      const earnedIds = earned.filter((a) => a.earned).map((a) => a.id);
+      // The level comes from the same formula the page shows (levels.ts),
+      // over the account's own profile.
+      const own = await this.build(userId, userId);
+      const has = {
+        earnedIds: own.achievements.filter((a) => a.earned).map((a) => a.id),
+        level: levelOf(own).level,
+        pro: own.isPro,
+      };
       if (
         input.avatarFrame != null &&
-        !cosmeticUnlocked(AVATAR_FRAMES, input.avatarFrame, earnedIds)
+        !cosmeticUnlocked(AVATAR_FRAMES, input.avatarFrame, has)
       ) {
         throw new BadRequestError("Эта рамка ещё не открыта.");
       }
       if (
         input.profileTitle != null &&
-        !cosmeticUnlocked(PROFILE_TITLES, input.profileTitle, earnedIds)
+        !cosmeticUnlocked(PROFILE_TITLES, input.profileTitle, has)
       ) {
         throw new BadRequestError("Эта приписка ещё не открыта.");
       }
@@ -445,23 +456,35 @@ export class ProfileService {
 
   // ---- internals ----
 
+  /** Whether the two follow each other — "friends" in the privacy settings. */
+  private async areFriends(a: string, b: string): Promise<boolean> {
+    const n = await this.prisma.follow.count({
+      where: { OR: [{ followerId: a, followingId: b }, { followerId: b, followingId: a }] },
+    });
+    return n === 2;
+  }
+
   private async build(userId: string, viewerId: string | null): Promise<PublicProfile> {
-    const [user, stats, achievements, standing] = await Promise.all([
+    const [user, stats, achievements, standing, counters] = await Promise.all([
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
       this.computeStats(userId),
       this.achievements.list(userId),
       this.getCommenterStanding(userId),
+      this.counters(userId),
     ]);
 
     // Privacy is decided here, once, and every block downstream only has to
     // honour a boolean.
     const privacy = readPrivacy(user.profilePrivacy);
     const own = viewerId === userId;
+    // Only asked when some part is for friends only.
+    const friend =
+      !own && viewerId && Object.values(privacy).includes("friends") ? await this.areFriends(userId, viewerId) : false;
     const hidden = {
-      list: !own && !allowed(privacy.list, viewerId),
-      stats: !own && !allowed(privacy.stats, viewerId),
-      activity: !own && !allowed(privacy.activity, viewerId),
-      watching: !own && !allowed(privacy.watching, viewerId),
+      list: !own && !allowed(privacy.list, viewerId, friend),
+      stats: !own && !allowed(privacy.stats, viewerId, friend),
+      activity: !own && !allowed(privacy.activity, viewerId, friend),
+      watching: !own && !allowed(privacy.watching, viewerId, friend),
     };
 
     const favoriteRows =
@@ -476,7 +499,7 @@ export class ProfileService {
       .filter((row): row is (typeof favoriteRows)[number] => row != null)
       .map(toSummaryDto);
 
-    return {
+    const profile: PublicProfile = {
       id: user.id,
       layout: readLayout(user.profileLayout),
       favorites,
@@ -510,9 +533,35 @@ export class ProfileService {
         user.proSince != null ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
       totalCommentLikes: standing.totalLikes,
       bonusXp: user.bonusXp,
+      counters: hidden.list ? { ...counters, rated: 0, listed: 0 } : counters,
+      hiddenXp: 0,
       commenterRank: standing.rank,
       totalRankedCommenters: standing.totalRanked,
     };
+    // What the hidden parts are worth goes along as one number, so the
+    // level is the same for every viewer.
+    if (hidden.stats || hidden.list) {
+      const xpOf = (p: PublicProfile) => earnedSources(p).reduce((sum, s) => sum + s.xp, 0);
+      profile.hiddenXp = Math.max(0, xpOf({ ...profile, stats, counters }) - xpOf(profile));
+    }
+    return profile;
+  }
+
+  /** The numbers behind the endless tasks. */
+  private async counters(userId: string): Promise<ProfileCounters> {
+    const [rated, listed, comments, followers, friends] = await Promise.all([
+      this.prisma.libraryEntry.count({ where: { userId, score: { not: null } } }),
+      this.prisma.libraryEntry.count({ where: { userId } }),
+      this.prisma.comment.count({ where: { userId, deletedAt: null } }),
+      this.prisma.follow.count({ where: { followingId: userId } }),
+      this.prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT count(*) AS n
+        FROM "Follow" a
+        JOIN "Follow" b ON b."followerId" = a."followingId" AND b."followingId" = a."followerId"
+        WHERE a."followerId" = ${userId}
+      `,
+    ]);
+    return { rated, listed, comments, followers, friends: Number(friends[0]?.n ?? 0) };
   }
 
   /** 1-based rank by total likes received across every (non-deleted)
@@ -707,9 +756,10 @@ const EMPTY_STATS: ProfileStats = {
   topRated: [],
 };
 
-function allowed(visibility: Visibility, viewerId: string | null): boolean {
+function allowed(visibility: Visibility, viewerId: string | null, friend = false): boolean {
   if (visibility === "public") return true;
   if (visibility === "users") return viewerId != null;
+  if (visibility === "friends") return friend;
   return false;
 }
 

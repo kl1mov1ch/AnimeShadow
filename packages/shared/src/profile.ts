@@ -20,6 +20,17 @@ export interface Cosmetic {
   id: string;
   /** Achievement id from ACHIEVEMENTS, or null for "everyone has this". */
   requires: string | null;
+  /** Reached at this profile level (see levels.ts). */
+  level?: number;
+  /** For those who support the site (PRO / a donation). */
+  pro?: boolean;
+}
+
+/** What an account has, for deciding what it may wear. */
+export interface CosmeticContext {
+  earnedIds: readonly string[];
+  level: number;
+  pro: boolean;
 }
 
 /** Rings drawn around the avatar. Ten, plus the bare one. */
@@ -35,6 +46,15 @@ export const AVATAR_FRAMES = [
   { id: "spectrum", requires: "genre-expert" },
   { id: "eclipse", requires: "completionist" },
   { id: "aurum", requires: "veteran" },
+  // The road of levels: a frame every few steps.
+  { id: "spark", requires: null, level: 3 },
+  { id: "jade", requires: null, level: 10 },
+  { id: "amethyst", requires: null, level: 25 },
+  { id: "inferno", requires: null, level: 50 },
+  { id: "celestial", requires: null, level: 100 },
+  { id: "sovereign", requires: null, level: 200 },
+  // For those who support the site.
+  { id: "aurora", requires: null, pro: true },
 ] as const satisfies readonly Cosmetic[];
 
 export const AVATAR_FRAME_IDS = AVATAR_FRAMES.map((f) => f.id);
@@ -61,6 +81,10 @@ export const PROFILE_TITLES = [
   { id: "completionist", requires: "completionist" },
   { id: "old-guard", requires: "veteran" },
   { id: "patron", requires: "patron" },
+  { id: "regular", requires: null, level: 15 },
+  { id: "season-veteran", requires: null, level: 50 },
+  { id: "shadow-lord", requires: null, level: 350 },
+  { id: "benefactor", requires: null, pro: true },
 ] as const satisfies readonly Cosmetic[];
 
 export const PROFILE_TITLE_IDS = PROFILE_TITLES.map((t) => t.id);
@@ -69,15 +93,18 @@ export const profileTitleSchema = z.enum(
 );
 export type ProfileTitle = (typeof PROFILE_TITLES)[number]["id"];
 
-/** Whether an account that earned `earnedIds` may wear `id`. */
+/** Whether an account may wear `id`: its achievement, level and support all there. */
 export function cosmeticUnlocked(
   catalog: readonly Cosmetic[],
   id: string,
-  earnedIds: readonly string[],
+  has: CosmeticContext | readonly string[],
 ): boolean {
-  const entry = catalog.find((c) => c.id === id);
+  const ctx: CosmeticContext = Array.isArray(has) ? { earnedIds: has, level: 1, pro: false } : (has as CosmeticContext);
+  const entry = catalog.find((c) => c.id === id) as Cosmetic | undefined;
   if (!entry) return false;
-  return entry.requires == null || earnedIds.includes(entry.requires);
+  if (entry.level != null && ctx.level < entry.level) return false;
+  if (entry.pro && !ctx.pro) return false;
+  return entry.requires == null || ctx.earnedIds.includes(entry.requires);
 }
 
 export const rankSchema = z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]);
@@ -135,6 +162,19 @@ export const profileStatsSchema = z.object({
 });
 export type ProfileStats = z.infer<typeof profileStatsSchema>;
 
+export const profileCountersSchema = z.object({
+  /** Titles in the list with a score. */
+  rated: z.number().int(),
+  /** Titles in the list at all. */
+  listed: z.number().int(),
+  /** Comments still up. */
+  comments: z.number().int(),
+  followers: z.number().int(),
+  /** Accounts that follow back. */
+  friends: z.number().int(),
+});
+export type ProfileCounters = z.infer<typeof profileCountersSchema>;
+
 /**
  * The profile's movable blocks. The header, the stats line and the
  * achievements stay put; these are what a viewer arranges.
@@ -172,7 +212,7 @@ export const DEFAULT_PROFILE_LAYOUT: ProfileLayout = {
 };
 
 /** Who may see one part of a profile. "users" means signed-in accounts. */
-export const visibilitySchema = z.enum(["public", "users", "private"]);
+export const visibilitySchema = z.enum(["public", "users", "friends", "private"]);
 export type Visibility = z.infer<typeof visibilitySchema>;
 
 export const profilePrivacySchema = z.object({
@@ -220,6 +260,12 @@ export const publicProfileSchema = z.object({
   totalCommentLikes: z.number().int(),
   /** Experience granted by the site's admins, added to the level's own. */
   bonusXp: z.number().int().default(0),
+  /** The numbers behind the endless tasks. Rated and listed are zero when
+   *  the list is hidden from this viewer. */
+  counters: profileCountersSchema.default({ rated: 0, listed: 0, comments: 0, followers: 0, friends: 0 }),
+  /** Experience from the parts hidden from this viewer — one sum, so the
+   *  level reads the same for everyone without showing what's behind it. */
+  hiddenXp: z.number().int().default(0),
   /** 1-based standing among everyone who's ever posted a comment, by total
    * likes received — null for an account with no comments at all (nothing
    * to rank). */

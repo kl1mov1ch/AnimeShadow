@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { QuickFavorites, ShowcasePicker } from "../profile-blocks";
 import { LevelCard, type ProfileTaskActions } from "../profile-progression";
 import { ago, STATUS_COLOR, STATUS_ORDER, type ListStatus } from "./format";
+import { FriendsActivity, WallPanel } from "./social";
 import { EmptyNote, Panel, PanelAction } from "./kit";
 
 export type OverviewGo = (tab: "list" | "trophies" | "activity" | "collections", status?: ListStatus) => void;
@@ -51,7 +52,8 @@ export function OverviewTab({
   const wide = useMediaQuery("(min-width: 1024px)");
   const shown = (block: string) => !profile.layout.hidden.includes(block as never);
 
-  const top = shown("showcase") ? (
+  // A visitor sees no empty showcase, so it takes no room either.
+  const top = shown("showcase") && (own || profile.favorites.length > 0) ? (
     <div id="showcase" className="h-full scroll-mt-32">
       <TopFive profile={profile} own={own} />
     </div>
@@ -59,9 +61,11 @@ export function OverviewTab({
   const watching = shown("watching") && !profile.hidden.watching ? <WatchingNow profile={profile} own={own} /> : null;
   const feed = shown("activity") && !profile.hidden.activity ? <RecentFeed profile={profile} onMore={() => go("activity")} /> : null;
   const level = <LevelCard profile={profile} own={own} actions={actions} compact className="h-full" />;
-  const compare = !own && shown("compare") ? <CompareCard profile={profile} /> : null;
+  const compare = !own && shown("compare") && !profile.hidden.list ? <CompareCard profile={profile} /> : null;
   const genres = !profile.hidden.stats ? <GenresCard profile={profile} /> : null;
   const list = !profile.hidden.list ? <ListBreakdown profile={profile} go={go} /> : null;
+  const wall = <WallPanel profile={profile} own={own} />;
+  const friends = own ? <FriendsActivity userId={profile.id} /> : null;
 
   if (!wide) {
     return (
@@ -70,6 +74,8 @@ export function OverviewTab({
         {own && level}
         {compare}
         {watching}
+        {friends}
+        {wall}
         {genres}
         {list}
         {feed}
@@ -81,19 +87,22 @@ export function OverviewTab({
   // top and a bottom edge.
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-12 items-stretch gap-5">
-        <div className={cn("min-w-0", top ? "col-span-8" : "hidden")}>{top}</div>
-        <div className={cn("flex min-w-0 flex-col gap-5", top ? "col-span-4" : "col-span-12")}>
-          {own ? level : (compare ?? level)}
+      {top && (
+        <div className="grid grid-cols-12 items-stretch gap-5">
+          <div className="col-span-8 min-w-0">{top}</div>
+          <div className="col-span-4 flex min-w-0 flex-col gap-5">{own ? level : (compare ?? level)}</div>
         </div>
-      </div>
+      )}
       {watching}
+      {friends}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(19rem,1fr))] items-stretch gap-5 [&>*]:h-full">
+        {!top && compare}
         {feed}
         {genres}
         {list}
-        {!own && compare && level}
+        {(!top || (!own && compare)) && level}
       </div>
+      {wall}
     </div>
   );
 }
@@ -137,12 +146,6 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
                     />
                   )}
                   <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
-                  <span
-                    aria-hidden
-                    className="absolute -bottom-3 left-1.5 font-display text-[4.5rem] leading-none text-transparent [-webkit-text-stroke:2px_rgb(255_255_255/0.85)] drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)] sm:text-[5rem]"
-                  >
-                    {i + 1}
-                  </span>
                   {anime.score != null && (
                     <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
                       <StarIcon className="size-3 fill-amber-400 text-amber-400" />
@@ -167,7 +170,7 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
                 >
                   <span className="flex flex-col items-center gap-1 text-xs">
                     <BookmarkPlusIcon className="size-5" />
-                    {favorites.length + i + 1}
+                    Добавить
                   </span>
                 </button>
               </li>

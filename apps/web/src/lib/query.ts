@@ -53,11 +53,18 @@ import type {
   ResetPasswordInput,
   SearchScope,
   SmartSearchResponse,
+  SocialSummary,
+  FollowKind,
+  UserCard,
+  WallPage,
+  WallPost,
+  FriendEvent,
   UpsertLibraryInput,
   WatchResponse,
 } from "@animeshadow/shared";
 import {
   QueryClient,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -1307,4 +1314,103 @@ export function useDeleteCollectionComment(id: string) {
 /** Counted once per visitor per day on the server. */
 export function recordCollectionView(id: string, visitorId: string): Promise<void> {
   return apiRequest<void>(`/collections/${id}/view`, { method: "POST", body: { visitorId } });
+}
+
+// ---------------------------------------------------------------------------
+// People: following, friends, the profile wall, friends' activity
+// ---------------------------------------------------------------------------
+
+export function useSocial(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["social", userId],
+    enabled: Boolean(userId),
+    queryFn: ({ signal }) => apiRequest<SocialSummary>(`/users/${userId}/social`, { signal }),
+    staleTime: 30_000,
+  });
+}
+
+/** Follow or unfollow; the counts and the button change at once. */
+export function useFollow(userId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (follow: boolean) =>
+      apiRequest<SocialSummary>(`/users/${userId}/follow`, { method: follow ? "POST" : "DELETE" }),
+    onMutate: async (follow) => {
+      await client.cancelQueries({ queryKey: ["social", userId] });
+      const before = client.getQueryData<SocialSummary>(["social", userId]);
+      if (before) {
+        client.setQueryData<SocialSummary>(["social", userId], {
+          ...before,
+          isFollowing: follow,
+          followers: Math.max(0, before.followers + (follow ? 1 : -1)),
+          friends: before.followsYou ? Math.max(0, before.friends + (follow ? 1 : -1)) : before.friends,
+        });
+      }
+      return { before };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.before) client.setQueryData(["social", userId], ctx.before);
+    },
+    onSuccess: (data) => {
+      client.setQueryData(["social", userId], data);
+      void client.invalidateQueries({ queryKey: ["people"] });
+      void client.invalidateQueries({ queryKey: ["friends-activity"] });
+    },
+  });
+}
+
+export function usePeople(userId: string | undefined, kind: FollowKind, enabled = true) {
+  return useQuery({
+    queryKey: ["people", userId, kind],
+    enabled: Boolean(userId) && enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: UserCard[] }>(`/users/${userId}/people`, { signal, query: { kind } }).then((r) => r.items),
+    staleTime: 30_000,
+  });
+}
+
+export function useSuggestedPeople(enabled = true) {
+  return useQuery({
+    queryKey: ["people", "suggested"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<{ items: UserCard[] }>("/people/suggested", { signal }).then((r) => r.items),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useWall(userId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: ["wall", userId],
+    enabled: Boolean(userId),
+    initialPageParam: null as string | null,
+    queryFn: ({ signal, pageParam }) =>
+      apiRequest<WallPage>(`/users/${userId}/wall`, { signal, query: { cursor: pageParam ?? undefined } }),
+    getNextPageParam: (last) => last.nextCursor,
+    staleTime: 30_000,
+  });
+}
+
+export function usePostToWall(userId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => apiRequest<WallPost>(`/users/${userId}/wall`, { method: "POST", body: { body } }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["wall", userId] }),
+  });
+}
+
+export function useDeleteWallPost(userId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (postId: string) => apiRequest<void>(`/wall/${postId}`, { method: "DELETE" }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["wall", userId] }),
+  });
+}
+
+export function useFriendsActivity(enabled = true) {
+  return useQuery({
+    queryKey: ["friends-activity"],
+    enabled,
+    queryFn: ({ signal }) => apiRequest<{ items: FriendEvent[] }>("/me/friends/activity", { signal }).then((r) => r.items),
+    staleTime: 60_000,
+  });
 }

@@ -10,7 +10,6 @@ import {
   WandSparklesIcon,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,18 +23,9 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
-import { imageSrc } from "@/lib/format";
 import { useRecommendationsStatus } from "@/lib/query";
+import { HeaderAvatar } from "@/components/layout/header-avatar";
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 export function UserMenu() {
   const t = useT();
@@ -84,12 +74,7 @@ export function UserMenu() {
           className="relative"
           aria-label={t("common.account")}
         >
-          <Avatar className="size-9 ring-1 ring-border/70 ring-offset-2 ring-offset-background transition-shadow hover:ring-foreground/30">
-            {user.avatarUrl && <AvatarImage src={imageSrc(user.avatarUrl)} alt="" />}
-            <AvatarFallback className="text-xs font-semibold">
-              {initials(user.displayName)}
-            </AvatarFallback>
-          </Avatar>
+          <HeaderAvatar user={user} />
           {needsSetup && (
             <span
               aria-hidden

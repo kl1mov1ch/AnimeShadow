@@ -27,7 +27,6 @@ import { RandomRoll } from "@/components/layout/random-roll";
 import { SearchBox } from "@/components/layout/search-box";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MorphIcon } from "@/components/ui/morph-icon";
 import { Separator } from "@/components/ui/separator";
@@ -38,11 +37,11 @@ import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { useI18n } from "@/i18n";
 import { apiRequest } from "@/lib/api";
-import { imageSrc } from "@/lib/format";
 import { useRecommendationsStatus } from "@/lib/query";
 import { OPEN_SEARCH_EVENT } from "@/lib/search-events";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
+import { HeaderAvatar } from "@/components/layout/header-avatar";
 
 interface NavItem {
   to: string;
@@ -278,12 +277,7 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
               onClick={onNavigate}
               className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/60 p-3 transition-colors hover:bg-card"
             >
-              <Avatar className="size-10">
-                {user.avatarUrl && <AvatarImage src={imageSrc(user.avatarUrl)} alt="" />}
-                <AvatarFallback className="text-sm font-semibold">
-                  {user.displayName.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <HeaderAvatar user={user} className="size-10" />
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-medium">{user.displayName}</span>
                 <span className="truncate text-xs text-muted-foreground">{user.email}</span>

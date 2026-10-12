@@ -644,6 +644,7 @@ function toPublicUser(user: User): PublicUser {
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    avatarFrame: user.avatarFrame,
     createdAt: user.createdAt.toISOString(),
     role: user.role === "ADMIN" ? "ADMIN" : "USER",
     emailVerified: user.emailVerifiedAt != null,

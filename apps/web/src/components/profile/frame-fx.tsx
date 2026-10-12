@@ -41,6 +41,22 @@ const RINGS: Record<string, RingSpec> = {
   spectrum: { colors: ["#f43f5e", "#f59e0b", "#84cc16", "#06b6d4", "#6366f1", "#d946ef", "#f43f5e"], turn: 5, glow: "#d946ef" },
   eclipse: { colors: ["#000000", "#1e1b4b", "#ffffff", "#a855f7", "#000000", "#000000"], turn: -14, glow: "#a855f7" },
   aurum: { colors: ["#78350f", "#fbbf24", "#fffbeb", "#d97706", "#fde68a", "#78350f"], turn: 7, glow: "#fbbf24" },
+  // The road of levels, and the supporters' own.
+  spark: { colors: ["#e0f2fe", "#ffffff", "#7dd3fc", "#f0f9ff", "#38bdf8", "#e0f2fe"], turn: 6, glow: "#7dd3fc" },
+  jade: { colors: ["#064e3b", "#34d399", "#d1fae5", "#10b981", "#047857", "#064e3b"], turn: 11, glow: "#34d399" },
+  amethyst: { colors: ["#3b0764", "#a855f7", "#f3e8ff", "#7c3aed", "#c084fc", "#3b0764"], turn: 9, glow: "#a855f7" },
+  inferno: { colors: ["#450a0a", "#ef4444", "#fde047", "#f97316", "#b91c1c", "#450a0a"], turn: 2.6, glow: "#ef4444" },
+  celestial: { colors: ["#0c1445", "#93c5fd", "#ffffff", "#6366f1", "#e0e7ff", "#0c1445"], turn: 14, glow: "#93c5fd" },
+  sovereign: { colors: ["#4c0519", "#e11d48", "#fde047", "#fff7d6", "#be123c", "#4c0519"], turn: 8, glow: "#fde047" },
+  aurora: { colors: ["#22d3ee", "#a3e635", "#f472b6", "#818cf8", "#34d399", "#22d3ee"], turn: 6, glow: "#f472b6" },
+};
+
+/** Newer frames borrow the motion of an older one with the same mood. */
+const FX_OF: Record<string, string> = {
+  inferno: "ember",
+  celestial: "midnight",
+  sovereign: "aurum",
+  aurora: "spectrum",
 };
 
 /** The band sits where the avatar's edge meets the frame box's rim. */
@@ -83,7 +99,7 @@ export function FrameFx({ frame, small = false }: { frame: string; small?: boole
   const n = (full: number) => (small ? Math.ceil(full / 2) : full);
   const list = (count: number) => Array.from({ length: count }, (_, i) => i);
 
-  switch (frame) {
+  switch (FX_OF[frame] ?? frame) {
     case "ember":
       return (
         <Clip>

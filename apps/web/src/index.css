@@ -1506,12 +1506,41 @@ body:has([role="dialog"][data-state="open"]) main * {
 .group:hover .achx-tilt .achx-medal {
   transform: perspective(420px) rotateX(10deg) rotateY(-14deg) scale(1.08);
 }
+/* The mark turns into another under the pointer — the two swap places with
+   a turn, like the site's other morphing icons. */
+.achx-glyph { transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.achx-glyph-b { opacity: 0; transform: rotate(-120deg) scale(0.3); }
+:is(.achx:hover, .achx:focus-visible, .group:hover .achx-tilt) .achx-glyph-a { opacity: 0; transform: rotate(120deg) scale(0.3); }
+:is(.achx:hover, .achx:focus-visible, .group:hover .achx-tilt) .achx-glyph-b { opacity: 1; transform: none; }
 .achx-still :is(.achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float, .lvl-twinkle, .lvl-ember) {
   animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float) { animation: none !important; }
   .achx-medal { transition: none; }
+}
+
+/* Profile titles (.ptitle): a light crosses now and then; under the
+   pointer the badge lifts and glows, its mark turns, sparks fly off and the
+   text does its own trick. Transform and opacity only. */
+@keyframes ptitle-burst {
+  0% { opacity: 0; translate: -50% -50%; scale: 0.3; }
+  25% { opacity: 1; }
+  100% { opacity: 0; translate: calc(-50% + var(--x)) calc(-50% + var(--y)); scale: 1.2; }
+}
+.ptitle { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease; }
+.ptitle:hover { transform: translateY(-1px) scale(1.06); box-shadow: 0 0 16px -2px var(--t1); }
+.ptitle-sheen { animation: achx-sheen 6s ease-in-out infinite; }
+.ptitle-icon { transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.ptitle:hover .ptitle-icon { transform: rotate(-16deg) scale(1.3); }
+.ptitle-spark { opacity: 0; translate: -50% -50%; }
+.ptitle:hover .ptitle-spark { animation: ptitle-burst 0.7s ease-out var(--d, 0s) both; }
+.ptitle[data-fx="neon"]:hover .ptitle-text { animation: title-neon 1.4s steps(1) infinite; }
+.ptitle[data-fx="glitch"]:hover .ptitle-text { animation: title-glitch 0.9s steps(1) infinite; }
+.ptitle[data-fx="aurora"]:hover { box-shadow: 0 0 14px -2px var(--t1), 0 0 22px -6px var(--t2); }
+@media (prefers-reduced-motion: reduce) {
+  .ptitle, .ptitle-icon { transition: none; }
+  .ptitle-sheen, .ptitle:hover .ptitle-spark, .ptitle:hover .ptitle-text { animation: none !important; }
 }
 
 /* On a computer the hero's frame fades out to the left (under the pitch)

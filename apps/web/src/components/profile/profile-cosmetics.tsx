@@ -1,7 +1,11 @@
 import type { PublicProfile } from "@animeshadow/shared";
 import {
   CheckCheckIcon,
+  CoffeeIcon,
   CompassIcon,
+  CrownIcon,
+  HeartHandshakeIcon,
+  MedalIcon,
   FootprintsIcon,
   GemIcon,
   LibraryIcon,
@@ -19,7 +23,8 @@ import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { FrameFx, FrameRing, frameGlow, hasFrame } from "@/components/profile/frame-fx";
 import { useT } from "@/i18n";
 import { useCountUp } from "@/lib/use-count-up";
-import { dealFx } from "@/lib/fx";
+import { requirementText, titleCosmetic } from "@/lib/cosmetics";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
 
@@ -47,9 +52,13 @@ export function AvatarFrameRing({
   frame,
   fallback,
   badge,
+  cap = true,
   children,
 }: {
   frame: PublicProfile["avatarFrame"];
+  /** The 影 mark on top of the ring — off where there is no room above it,
+   *  like the header. */
+  cap?: boolean;
   /** The rank ring, used when no frame is worn. */
   fallback: string;
   /** Only shown on a worn frame — the caps sit on the ring, so with no ring
@@ -57,7 +66,7 @@ export function AvatarFrameRing({
   badge?: FrameBadge;
   children: ReactNode;
 }) {
-  if (!FEATURES.profileCustomization || !frame || !hasFrame(frame)) {
+  if (!FEATURES.avatarFrames || !frame || !hasFrame(frame)) {
     return (
       <div className={cn("rounded-full ring-4 ring-offset-2 ring-offset-card", fallback)}>
         {children}
@@ -74,13 +83,13 @@ export function AvatarFrameRing({
           so the mark reads as set into the frame rather than parked above
           it. No percentages: `top-0` plus a half-translate lands on the
           edge at every avatar size. */}
-      <span
+      {cap && <span
         aria-hidden
         className="frame-cap-mark absolute left-1/2 top-0 z-20 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-card bg-card text-[color:var(--cap)] shadow-lg"
         style={{ "--cap": frameGlow(frame) } as React.CSSProperties}
       >
         <LogoGlyph className="size-4" />
-      </span>
+      </span>}
 
       {badge && <FrameCapBadge badge={badge} colour={frameGlow(frame)} />}
     </div>
@@ -127,9 +136,9 @@ export function FramePreview({ frame, className }: { frame: string; className?: 
 }
 
 /**
- * How each title looks: its own mark, its two colours, and how it moves.
- * "shimmer" runs a gradient across the text, "neon" flickers, "glitch"
- * jitters, "aurora" drifts slowly — so two titles never look alike.
+ * How each title looks: its own mark, its two colours, and what it does
+ * under the pointer — "shimmer" sweeps a light, "neon" flickers, "glitch"
+ * jitters, "aurora" glows in both colours — so two titles never look alike.
  */
 const TITLE_STYLE: Record<
   string,
@@ -146,47 +155,111 @@ const TITLE_STYLE: Record<
   completionist: { icon: CheckCheckIcon, c1: "#10b981", c2: "#67e8f9", fx: "aurora" },
   "old-guard": { icon: ShieldIcon, c1: "#f59e0b", c2: "#fff1c1", fx: "shimmer" },
   patron: { icon: GemIcon, c1: "#f472b6", c2: "#60a5fa", fx: "aurora" },
+  regular: { icon: CoffeeIcon, c1: "#2dd4bf", c2: "#ccfbf1", fx: "shimmer" },
+  "season-veteran": { icon: MedalIcon, c1: "#fb923c", c2: "#ffedd5", fx: "neon" },
+  "shadow-lord": { icon: CrownIcon, c1: "#e11d48", c2: "#c4b5fd", fx: "glitch" },
+  benefactor: { icon: HeartHandshakeIcon, c1: "#f472b6", c2: "#fde68a", fx: "aurora" },
 };
 
+/** Where the sparks fly when a title is hovered: x, y in px, delay in s. */
+const SPARKS: Array<[number, number, number]> = [
+  [-14, -12, 0],
+  [12, -14, 0.05],
+  [20, 2, 0.1],
+  [-20, 4, 0.08],
+  [4, -18, 0.12],
+];
+
 /**
- * The line under the name, as a small animated badge — each title with its
- * own mark, colours and motion. Fixed, earned, and hideable: picking
- * nothing is a real choice.
+ * The line under the name, as a small living badge — each title with its
+ * own mark and colours. A light crosses it now and then; under the pointer
+ * it lifts and glows, its mark turns, sparks fly off it and its text does
+ * its own trick, and a card says what the title is and how it was (or is)
+ * earned. Fixed, earned, and hideable: picking nothing is a real choice.
  */
+/** A title as a small round mark — its icon on its own colours — for
+ *  places with no room for the whole badge. */
+export function TitleMark({ title, size = 46, className }: { title: string; size?: number; className?: string }) {
+  const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
+  const Icon = style.icon;
+  return (
+    <span
+      aria-hidden
+      className={cn("grid shrink-0 place-items-center rounded-full text-white shadow-lg ring-2 ring-white/20", className)}
+      style={{ width: size, height: size, background: `linear-gradient(135deg, ${style.c1}, ${style.c2})`, boxShadow: `0 6px 18px -6px ${style.c1}` }}
+    >
+      <Icon className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" style={{ width: size * 0.45, height: size * 0.45 }} />
+    </span>
+  );
+}
+
 export function ProfileTitleBadge({
   title,
   className,
+  tip = true,
+  size = "sm",
 }: {
-  title: PublicProfile["profileTitle"];
+  title: PublicProfile["profileTitle"] | string;
   className?: string;
+  /** The card on hover. Off inside a picker, which shows its own. */
+  tip?: boolean;
+  size?: "sm" | "md";
 }) {
   const t = useT();
   if (!title) return null;
   const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
   const Icon = style.icon;
   const label = t(`profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer");
-  return (
+  const cosmetic = titleCosmetic(title);
+
+  const badge = (
     <span
-      onPointerEnter={dealFx}
+      data-fx={style.fx}
       className={cn(
-        "fx-tag inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tracking-wide",
-        FEATURES.richEffects ? ["title-badge", `title-${style.fx}`] : "title-still",
+        "ptitle relative isolate inline-flex shrink-0 cursor-default items-center gap-1 overflow-visible rounded-full border font-bold tracking-wide",
+        size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
         className,
       )}
       style={
         {
           "--t1": style.c1,
           "--t2": style.c2,
-          "--title-glow": `color-mix(in srgb, ${style.c1} 55%, transparent)`,
           borderColor: `color-mix(in srgb, ${style.c1} 55%, transparent)`,
-          background: `color-mix(in srgb, ${style.c1} 14%, transparent)`,
+          background: `linear-gradient(120deg, color-mix(in srgb, ${style.c1} 20%, transparent), color-mix(in srgb, ${style.c2} 8%, transparent))`,
         } as React.CSSProperties
       }
     >
-      <Icon className="size-3" style={{ color: style.c1 }} />
-      <span className="title-text" data-text={label}>
+      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
+        <span className="ptitle-sheen absolute inset-y-0 left-0 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent" />
+      </span>
+      <Icon className={cn("ptitle-icon relative", size === "md" ? "size-3.5" : "size-3")} style={{ color: style.c1 }} />
+      <span
+        className="ptitle-text relative"
+        style={{ backgroundImage: `linear-gradient(90deg, ${style.c1}, ${style.c2})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
+      >
         {label}
       </span>
+      {SPARKS.map(([x, y, d], i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="ptitle-spark pointer-events-none absolute left-1/2 top-1/2 size-1 rounded-full"
+          style={{ "--x": `${x}px`, "--y": `${y}px`, "--d": `${d}s`, background: i % 2 ? style.c1 : style.c2, boxShadow: `0 0 6px ${style.c1}` } as React.CSSProperties}
+        />
+      ))}
     </span>
+  );
+
+  if (!tip) return badge;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-60">
+        <span className="flex flex-col gap-0.5">
+          <span className="font-semibold">Приписка «{label}»</span>
+          {cosmetic && <span className="text-xs opacity-80">{requirementText(cosmetic, t as never)}</span>}
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }

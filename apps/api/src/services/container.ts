@@ -37,6 +37,7 @@ import { SearchService } from "./search.service.js";
 import { TranslationService } from "./translation.service.js";
 import { EpisodeInfoService } from "./episode-info.service.js";
 import { ProfileInsightsService } from "./profile-insights.service.js";
+import { SocialService } from "./social.service.js";
 import {
   chainTranslators,
   GoogleTranslator,
@@ -89,6 +90,7 @@ export interface Services {
   admin: AdminService;
   episodeInfo: EpisodeInfoService;
   insights: ProfileInsightsService;
+  social: SocialService;
   collections: CollectionService;
   facts: FactsService;
   adminAnalytics: AdminAnalyticsService;
@@ -266,6 +268,7 @@ export function createServices(deps: ContainerDeps): Services {
     admin,
     episodeInfo,
     insights,
+    social: new SocialService({ prisma: deps.prisma, insights }),
     collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
     facts: new FactsService({ prisma: deps.prisma }),
     adminAnalytics: new AdminAnalyticsService({ prisma: adminPrisma }),

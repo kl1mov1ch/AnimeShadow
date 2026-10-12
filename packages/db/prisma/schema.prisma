@@ -111,6 +111,41 @@ model User {
   collections        Collection[]
   collectionRatings  CollectionRating[]
   collectionComments CollectionComment[]
+  /// People this account follows, and people who follow it. Two follows
+  /// both ways make two friends.
+  following          Follow[]        @relation("Following")
+  followers          Follow[]        @relation("Followers")
+  /// Posts on this account's profile wall, and posts it wrote on others'.
+  wallPosts          WallPost[]      @relation("WallOwner")
+  wallWritten        WallPost[]      @relation("WallAuthor")
+}
+
+/// One account following another. Mutual = friends.
+model Follow {
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@index([followerId, createdAt])
+}
+
+/// A message left on someone's profile.
+model WallPost {
+  id        String    @id @default(cuid())
+  owner     User      @relation("WallOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId   String
+  author    User      @relation("WallAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+  body      String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([ownerId, createdAt])
+  @@index([authorId])
 }
 
 enum VerificationPurpose {

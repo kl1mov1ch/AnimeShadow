@@ -47,6 +47,8 @@ export const publicUserSchema = z.object({
   email: z.string().email(),
   displayName: z.string(),
   avatarUrl: z.string().nullable().default(null),
+  /** The frame the account wears — drawn on its avatar in the header too. */
+  avatarFrame: z.string().nullable().default(null),
   createdAt: z.string(),
   role: roleSchema.default("USER"),
   /// Every account created through normal signup already confirmed a code

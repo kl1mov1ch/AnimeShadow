@@ -17,6 +17,9 @@ export * from "./admin.js";
 export * from "./collections.js";
 export * from "./genres.js";
 export * from "./landing.js";
+export * from "./social.js";
+export * from "./levels.js";
+export * from "./quests.js";
 
 const DIACRITICS = /[̀-ͯ]/g;
 const NON_SLUG = /[^a-z0-9]+/g;

@@ -1,5 +1,5 @@
-import type { EarnedAchievement, PublicProfile, Rank } from "@animeshadow/shared";
-import { GitCompareArrowsIcon, Settings2Icon } from "lucide-react";
+import type { EarnedAchievement, FollowKind, PublicProfile, Rank } from "@animeshadow/shared";
+import { GitCompareArrowsIcon, Loader2Icon, MessageSquarePlusIcon, PencilIcon, Settings2Icon, ShuffleIcon } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
@@ -13,13 +13,14 @@ import { cn } from "@/lib/utils";
 import { PresenceDot } from "../identity-extras";
 import { AvatarFrameRing, ProfileTitleBadge } from "../profile-cosmetics";
 import { levelOf } from "../profile-level";
-import { AvatarEditOverlay, BannerEditButtons } from "../profile-media-editor";
+import { BannerEditButtons } from "../profile-media-editor";
 import { ProfileBanner } from "../profile-banner";
 import { LevelBadge, LevelBar } from "../level-visuals";
 import { CountUp } from "../profile-progression";
 import { ShareProfileButton } from "../share-profile";
 import type { ProfileMedia } from "../use-profile-media";
 import { plural } from "./format";
+import { FollowButton, SocialLine } from "./social";
 
 const RANK_RING: Record<Rank, string> = {
   NOVICE: "ring-muted-foreground/40",
@@ -50,6 +51,8 @@ export function ProfileStage({
   onCustomise,
   onCompare,
   onNeedUsername,
+  onPeople,
+  onWrite,
 }: {
   profile: PublicProfile;
   own: boolean;
@@ -57,6 +60,10 @@ export function ProfileStage({
   onCustomise?: () => void;
   onCompare?: () => void;
   onNeedUsername?: () => void;
+  /** Opens the followers / following / friends list. */
+  onPeople: (kind: FollowKind) => void;
+  /** Takes one to the wall, cursor in the field. */
+  onWrite?: () => void;
 }) {
   const t = useT();
   const level = useMemo(() => levelOf(profile), [profile]);
@@ -69,17 +76,66 @@ export function ProfileStage({
     .map((id) => profile.achievements.find((a) => a.id === id && a.earned))
     .filter((a): a is EarnedAchievement => a != null);
 
+  // The picture itself — on one's own profile a button that changes it,
+  // with the shade and the pencil on the picture only: the frame, the
+  // level medallion and the presence dot stay on top, untouched.
+  const face = (
+    <div className="relative grid size-28 place-items-center overflow-hidden rounded-full bg-card font-display text-4xl sm:size-36">
+      {profile.avatarUrl ? <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" /> : initial}
+      {own && (
+        <span className="pointer-events-none absolute inset-0 hidden place-items-center bg-black/45 text-white opacity-0 transition-opacity duration-200 group-hover/face:opacity-100 sm:grid">
+          {media.avatarBusy ? <Loader2Icon className="size-6 animate-spin" /> : <PencilIcon className="size-6" />}
+        </span>
+      )}
+    </div>
+  );
   const avatar = (
     <div className="relative shrink-0">
       <AvatarFrameRing frame={profile.avatarFrame} fallback={RANK_RING[profile.rank]}>
-        <div className="grid size-28 place-items-center overflow-hidden rounded-full bg-card font-display text-4xl sm:size-36">
-          {profile.avatarUrl ? <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" /> : initial}
-        </div>
+        {own ? (
+          <button
+            type="button"
+            onClick={media.pickAvatar}
+            disabled={media.avatarBusy}
+            aria-label="Сменить аватар"
+            className="group/face block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          >
+            {face}
+          </button>
+        ) : (
+          face
+        )}
       </AvatarFrameRing>
-      <PresenceDot status={profile.onlineStatus} className="right-2 top-2 sm:right-3 sm:top-3" />
-      <span className="absolute -bottom-1 -left-1 rounded-full bg-background p-0.5 shadow-lg shadow-black/40" title={`${level.level} уровень · ${level.tier.name}`}>
+      <PresenceDot status={profile.onlineStatus} className="right-2 top-2 z-20 sm:right-3 sm:top-3" />
+      <span className="absolute -bottom-1 -left-1 z-20 rounded-full bg-background p-0.5 shadow-lg shadow-black/40" title={`${level.level} уровень · ${level.tier.name}`}>
         <LevelBadge info={level} size={44} />
       </span>
+      {own && (
+        <>
+          {/* Always in sight, so changing the picture is never a guess; on a
+              desktop the face also darkens under the pointer. */}
+          <button
+            type="button"
+            onClick={media.pickAvatar}
+            disabled={media.avatarBusy}
+            aria-label="Сменить аватар"
+            title="Сменить аватар"
+            className="absolute bottom-0 left-1/2 z-20 grid size-8 -translate-x-1/2 translate-y-1/3 place-items-center rounded-full border-2 border-background bg-card text-foreground shadow-md transition-[transform,background-color] hover:scale-110 hover:bg-primary hover:text-primary-foreground"
+          >
+            {media.avatarBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : <PencilIcon className="size-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={media.randomAvatar}
+            disabled={media.avatarBusy}
+            aria-label="Случайный аватар"
+            title="Случайный аватар"
+            className="absolute -bottom-0.5 -right-0.5 z-20 grid size-8 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-transform hover:scale-110 disabled:pointer-events-none disabled:opacity-60"
+          >
+            <ShuffleIcon className="size-3.5" />
+          </button>
+        </>
+      )}
     </div>
   );
 
@@ -99,7 +155,7 @@ export function ProfileStage({
 
       <div className="relative z-10 -mt-16 flex flex-col gap-4 sm:-mt-20 lg:flex-row lg:items-end lg:gap-6">
         <div className="w-fit self-start lg:self-auto">
-          {own ? <AvatarEditOverlay media={media}>{avatar}</AvatarEditOverlay> : avatar}
+          {avatar}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:pb-1">
@@ -120,6 +176,7 @@ export function ProfileStage({
             )}
             <span className="text-muted-foreground/70">· на сайте с {since}</span>
           </p>
+          <SocialLine userId={profile.id} onOpen={onPeople} />
           {profile.bio && (
             <button
               type="button"
@@ -158,8 +215,13 @@ export function ProfileStage({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 lg:pb-1">
-          <ShareProfileButton profile={profile} own={own} onNeedUsername={onNeedUsername} className="h-11 flex-1 justify-center rounded-xl lg:flex-none" />
+        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap lg:pb-1">
+          <ShareProfileButton
+            profile={profile}
+            own={own}
+            onNeedUsername={onNeedUsername}
+            className="h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:gap-2 sm:px-4 lg:flex-none"
+          />
           {own ? (
             <button
               type="button"
@@ -170,16 +232,31 @@ export function ProfileStage({
               {t("profile.studio.open")}
             </button>
           ) : (
-            onCompare && (
-              <button
-                type="button"
-                onClick={onCompare}
-                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95 lg:flex-none"
-              >
-                <GitCompareArrowsIcon className="size-4" />
-                Сравнить вкусы
-              </button>
-            )
+            <>
+              <FollowButton userId={profile.id} className="order-first basis-full sm:order-none sm:basis-auto sm:flex-1 lg:flex-none" />
+              {onWrite && (
+                <button
+                  type="button"
+                  onClick={onWrite}
+                  title="Написать на стене"
+                  className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:gap-2 sm:px-4 lg:flex-none"
+                >
+                  <MessageSquarePlusIcon className="size-4 shrink-0" />
+                  <span className="truncate">Написать</span>
+                </button>
+              )}
+              {onCompare && (
+                <button
+                  type="button"
+                  onClick={onCompare}
+                  title="Сравнить вкусы"
+                  className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:gap-2 sm:px-4 lg:flex-none"
+                >
+                  <GitCompareArrowsIcon className="size-4 shrink-0" />
+                  <span className="truncate">Сравнить</span>
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
