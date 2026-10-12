@@ -137,11 +137,10 @@ export function LibraryTile({
           <p className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">{title}</p>
           <p className="truncate text-[10px] text-white/65">{metaLine(entry, labels)}</p>
         </div>
-        <ProgressLine entry={entry} className="absolute inset-x-0 bottom-0 h-[3px] rounded-none bg-white/15" />
       </Link>
 
-      <div className="flex items-center justify-between gap-1">
-        <ProgressStepper entry={entry} edit={edit} />
+      <div className="flex items-center gap-1">
+        <ProgressStepper entry={entry} edit={edit} compact className="flex-1" />
         <div className="flex items-center gap-0.5">
           {entry.notes && (
             <NotebookPenIcon className="size-3 text-primary" aria-label={t("library.notesLabel")} />
@@ -225,8 +224,7 @@ export function LibraryRow({
 
       <div className="col-start-2 col-end-4 flex items-center gap-3 md:contents">
         <div className="flex flex-col gap-1 md:px-1">
-          <ProgressStepper entry={entry} edit={edit} className="justify-center" />
-          <ProgressLine entry={entry} className="hidden md:block" />
+          <ProgressStepper entry={entry} edit={edit} />
         </div>
         <div className="text-center text-xs">
           {entry.score != null ? <UserScore score={entry.score} className="font-semibold" /> : <span className="text-muted-foreground/40">—</span>}

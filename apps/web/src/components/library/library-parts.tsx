@@ -52,43 +52,64 @@ export function ProgressLine({ entry, className }: { entry: LibraryEntry; classN
   );
 }
 
-/** −1 / count / +1. The count itself is the progress label. */
+/**
+ * The episode counter: "−", the count over the total — the box itself fills
+ * with the status colour as far as the title is watched — and a big "+1",
+ * the one tapped most. Tap the count to type a number.
+ */
 export function ProgressStepper({
   entry,
   edit,
   className,
+  compact = false,
 }: {
   entry: LibraryEntry;
   edit: LibraryEdit;
   className?: string;
+  /** A narrow card on a phone: no "−" (typing the number covers it). */
+  compact?: boolean;
 }) {
   const t = useT();
   const total = entry.anime.episodes ?? 0;
   const done = total > 0 && entry.progress >= total;
+  // Unknown length: a sliver for anything started, so "watching" never
+  // looks identical to "not started".
+  const percent = progressPercent(entry) ?? (entry.progress > 0 ? 8 : 0);
   return (
-    <div className={cn("flex items-center gap-0.5", className)}>
+    <div className={cn("flex min-w-0 items-center gap-1", className)}>
       <button
         type="button"
         onClick={() => edit.step(entry, -1)}
         disabled={entry.progress <= 0}
         aria-label={t("library.minusOne")}
         title={t("library.minusOne")}
-        className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+        className={cn(
+          "grid size-8 shrink-0 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-30",
+          compact && "max-sm:hidden",
+        )}
       >
-        <MinusIcon className="size-3" />
+        <MinusIcon className="size-3.5" />
       </button>
-      <span className="min-w-[3.25rem] text-center text-xs tabular-nums text-muted-foreground">
-        <EpisodeInput entry={entry} edit={edit} />/{total > 0 ? total : "?"}
-      </span>
+      <div className="relative flex h-8 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-foreground/[0.06] text-xs tabular-nums">
+        <span
+          aria-hidden
+          className={cn("absolute inset-y-0 left-0 opacity-35 transition-[width] duration-500", STATUS_META[entry.status].bar)}
+          style={{ width: `${percent}%` }}
+        />
+        <span className="relative truncate px-1">
+          <EpisodeInput entry={entry} edit={edit} />
+          <span className="text-muted-foreground">/{total > 0 ? total : "?"}</span>
+        </span>
+      </div>
       <button
         type="button"
         onClick={() => edit.step(entry, 1)}
         disabled={done}
         aria-label={t("library.plusOne")}
         title={t("library.plusOne")}
-        className="flex size-6 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-30"
+        className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-lg bg-primary px-2 text-xs font-bold text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
       >
-        <PlusIcon className="size-3" />
+        <PlusIcon className="size-3.5" />1
       </button>
     </div>
   );
