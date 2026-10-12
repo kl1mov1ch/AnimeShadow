@@ -352,7 +352,7 @@ function ShowcaseBlock({ profile, own }: { profile: PublicProfile; own: boolean 
   );
 }
 
-function ShowcasePicker({
+export function ShowcasePicker({
   open,
   onOpenChange,
   current,
@@ -458,7 +458,7 @@ function ShowcasePicker({
  * and, when the owner has scored anything, their best-rated titles — one
  * tap puts all of them in, or one at a time.
  */
-function QuickFavorites({ profile, onPick }: { profile: PublicProfile; onPick: () => void }) {
+export function QuickFavorites({ profile, onPick }: { profile: PublicProfile; onPick: () => void }) {
   const t = useT();
   const update = useUpdateProfile();
   const picks = profile.stats.topRated;

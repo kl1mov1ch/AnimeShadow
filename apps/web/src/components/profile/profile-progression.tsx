@@ -16,9 +16,8 @@ import {
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
-import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { cn } from "@/lib/utils";
-import { jumpTo, LEVEL_TIERS, type LevelInfo, levelOf } from "./profile-level";
+import { LEVEL_TIERS, type LevelInfo, levelOf } from "./profile-level";
 
 /* ------------------------------------------------------------------------ */
 /* The level badge                                                           */
@@ -118,11 +117,14 @@ export function LevelCard({
   profile,
   own,
   actions,
+  compact = false,
   className,
 }: {
   profile: PublicProfile;
   own: boolean;
   actions?: ProfileTaskActions;
+  /** Without the badge and the bar — for a page that already shows them. */
+  compact?: boolean;
   className?: string;
 }) {
   const info = useMemo(() => levelOf(profile), [profile]);
@@ -141,7 +143,21 @@ export function LevelCard({
       )}
     >
       <LogoWatermark className="-right-10 -top-12 size-52 rotate-12 text-foreground/[0.04]" />
-      <div className="flex items-center gap-4">
+      {compact && (
+        <div className="flex items-center gap-2.5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[var(--accent-surface-strong)] text-[var(--accent-ink)] ring-1 ring-[var(--accent-line-soft)]">
+            <ZapIcon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-display text-base leading-tight sm:text-lg">Прокачка</p>
+            <p className="text-[11px] text-muted-foreground">
+              {info.xp.toLocaleString("ru-RU")} опыта · до {info.level + 1} ур. ещё{" "}
+              <span className="font-semibold tabular-nums text-foreground/85">{toNext.toLocaleString("ru-RU")}</span>
+            </p>
+          </div>
+        </div>
+      )}
+      <div className={cn("flex items-center gap-4", compact && "hidden")}>
         <LevelBadge info={info} size={64} />
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Уровень профиля</p>
@@ -262,94 +278,6 @@ export function LevelCard({
     </section>
   );
 }
-
-/* ------------------------------------------------------------------------ */
-/* Section navigation                                                        */
-/* ------------------------------------------------------------------------ */
-
-export interface ProfileSection {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-/**
- * The page's parts as a row of pills that stays under the site header while
- * the page scrolls: the one being read is lit, a tap glides to another. On a
- * phone it scrolls sideways.
- */
-export function SectionNav({ sections }: { sections: ProfileSection[] }) {
-  const [active, setActive] = useState(sections[0]?.id ?? "");
-  const rowRef = useRef<HTMLDivElement>(null);
-  // On a phone the site header tucks away while the page scrolls down —
-  // the row then takes its place at the very top.
-  const { down, nearTop } = useScrollDirection();
-  const tucked = down && !nearTop;
-
-  useEffect(() => {
-    const els = sections.map((s) => document.getElementById(s.id)).filter((el): el is HTMLElement => el != null);
-    if (els.length === 0 || typeof IntersectionObserver === "undefined") return;
-    const visible = new Map<string, number>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) visible.set(e.target.id, e.isIntersecting ? e.intersectionRatio : 0);
-        // The topmost section that is on screen.
-        const first = sections.find((s) => (visible.get(s.id) ?? 0) > 0);
-        if (first) setActive(first.id);
-      },
-      { rootMargin: "-120px 0px -45% 0px", threshold: [0, 0.01, 0.25] },
-    );
-    for (const el of els) observer.observe(el);
-    return () => observer.disconnect();
-  }, [sections]);
-
-  // Keep the lit pill in view on a phone.
-  useEffect(() => {
-    const row = rowRef.current;
-    const pill = row?.querySelector<HTMLElement>(`[data-section="${active}"]`);
-    if (!row || !pill) return;
-    const left = pill.offsetLeft - row.clientWidth / 2 + pill.clientWidth / 2;
-    row.scrollTo({ left, behavior: "smooth" });
-  }, [active]);
-
-  const jump = (id: string) => {
-    jumpTo(id);
-    setActive(id);
-  };
-
-  return (
-    <nav
-      aria-label="Разделы профиля"
-      className={cn(
-        "sticky z-20 -mx-4 bg-background/95 px-4 py-2 transition-[top] duration-300 ease-out sm:mx-0 sm:rounded-2xl sm:border sm:border-border/50 sm:bg-card/85 sm:px-2 sm:shadow-lg sm:shadow-black/20 md:top-16",
-        tucked ? "max-md:top-0" : "max-md:top-14",
-      )}
-    >
-      <div ref={rowRef} className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {sections.map(({ id, label, icon: Icon }) => {
-          const on = active === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              data-section={id}
-              onClick={() => jump(id)}
-              aria-current={on}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-[background-color,color] duration-300",
-                on ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
-
 
 /* ------------------------------------------------------------------------ */
 /* Numbers that count up                                                     */

@@ -1,32 +1,17 @@
 import type {
   EarnedAchievement,
   MyProfile,
-  ProfileStats,
-  PublicProfile,
-  Rank,
 } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
-import { type CSSProperties, useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  ActivityIcon,
-  CalendarDaysIcon,
-  GitCompareArrowsIcon,
-  HeartIcon,
-  LayersIcon,
-  ThumbsUpIcon,
-  Settings2Icon,
-  CheckCircle2Icon,
   CheckIcon,
   ChevronRightIcon,
-  ClockIcon,
-  FilmIcon,
-  FootprintsIcon,
   LinkIcon,
   type LucideIcon,
   MailIcon,
   MonitorSmartphoneIcon,
   MoonStarIcon,
-  StarIcon,
   SunIcon,
   PaletteIcon,
   ShieldCheckIcon,
@@ -38,21 +23,19 @@ import {
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Link, useNavigate, useParams, } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AchievementDetailDialog } from "@/components/achievement-detail-dialog";
+
 import { AchievementBadge } from "@/components/achievement-badge";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
-import {
-  fmtDuration,
-  } from "@/components/anime/progress-row";
+
 import { UserTitleBadge } from "@/components/user-title-badge";
 import { PasswordInput, TextInput } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 import {
   Dialog,
   DialogContent,
@@ -71,9 +54,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocale, useT } from "@/i18n";
+import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
-import { imageSrc } from "@/lib/format";
+
 import { useLabels } from "@/lib/labels";
 import {
   useAchievements,
@@ -90,38 +73,12 @@ import {
   useVerifyEmail,
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { ProfileBanner } from "@/components/profile/profile-banner";
-import { ProMark } from "@/components/common/pro-mark";
-import { PresenceDot } from "@/components/profile/identity-extras";
-import {
-  AvatarEditOverlay,
-  BannerEditButtons,
-} from "@/components/profile/profile-media-editor";
-import { useProfileMedia } from "@/components/profile/use-profile-media";
-import {
-  AvatarFrameRing,
-  ProfileTitleBadge,
-} from "@/components/profile/profile-cosmetics";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
-import { ProfileBlocks } from "@/components/profile/profile-blocks";
+
 import { useSettingsMatch } from "@/components/profile/profile-settings-extras";
 import { ProfileStudio } from "@/components/profile/profile-studio";
-import { ProfileProgress } from "@/components/profile/profile-progress";
-import { useProfileAccentStyle } from "@/components/profile/profile-accent";
+import { ProfileView } from "@/components/profile/page/profile-view";
 import { FEATURES } from "@/lib/features";
-import { CollectionsShelf, TasteDna, TrophyHall } from "@/components/profile/profile-collection";
-import {
-  CountUp,
-  LevelBadge,
-  LevelCard,
-  type ProfileSection,
-  type ProfileTaskActions,
-  SectionNav,
-} from "@/components/profile/profile-progression";
-import { jumpTo, levelOf } from "@/components/profile/profile-level";
-import { ShareProfileButton } from "@/components/profile/share-profile";
 import type { StudioTab } from "@/components/profile/profile-studio";
-import type { ProfileMedia } from "@/components/profile/use-profile-media";
 
 export function Component() {
   const t = useT();
@@ -133,7 +90,7 @@ export function Component() {
   if (status === "loading") return <ProfileSkeleton />;
   if (status !== "authenticated") {
     return (
-      <ProfileShell>
+      <div className="mx-auto w-full max-w-[1400px] py-10">
         <EmptyState
           title={t("profile.signedOut.title")}
           description={t("profile.signedOut.body")}
@@ -143,38 +100,22 @@ export function Component() {
             </Button>
           }
         />
-      </ProfileShell>
+      </div>
     );
   }
   return <OwnView />;
 }
 
-/**
- * One page container for every profile view — public and own alike — so both
- * read as the same surface at the same width and vertical rhythm.
- */
-function ProfileShell({
-  children,
-  profile,
-}: {
-  children: React.ReactNode;
-  profile?: { accentColor: string | null; avatarUrl: string | null; layout: { autoAccent: boolean } };
-}) {
-  const style = useProfileAccentStyle(profile);
-  return (
-    <div style={style} className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 sm:gap-6">
-      {children}
-    </div>
-  );
-}
-
 function PublicView({ username }: { username: string }) {
   const t = useT();
+  const { user } = useAuth();
   const { data, isPending, isError } = usePublicProfile(username);
   if (isPending) return <ProfileSkeleton />;
   if (isError || !data)
     return <ErrorState title={t("errors.notFoundTitle")} message={t("errors.notFoundBody")} />;
-  return <ProfilePage profile={data} own={false} />;
+  // One's own profile opened by its public address is still one's own page.
+  if (user && data.id === user.id) return <OwnView />;
+  return <ProfileView profile={data} own={false} />;
 }
 
 function OwnView() {
@@ -188,7 +129,7 @@ function OwnView() {
   };
   return (
     <>
-      <ProfilePage profile={profile} own onCustomise={openStudio} />
+      <ProfileView profile={profile} own onCustomise={openStudio} />
       <ProfileStudio
         profile={profile}
         open={studioOpen}
@@ -199,428 +140,6 @@ function OwnView() {
     </>
   );
 }
-
-const SECTIONS: ProfileSection[] = [
-  { id: "overview", label: "Обзор", icon: SparklesIcon },
-  { id: "trophies", label: "Трофеи", icon: TrophyIcon },
-  { id: "taste", label: "Вкус", icon: HeartIcon },
-  { id: "showcase", label: "Пятёрка", icon: StarIcon },
-  { id: "activity", label: "Активность", icon: ActivityIcon },
-  { id: "year", label: "Год", icon: CalendarDaysIcon },
-  { id: "collections", label: "Подборки", icon: LayersIcon },
-];
-
-/**
- * The whole profile, one page, in parts a row of pills under the header
- * jumps between: who it is (with the level, and "share"), the numbers, the
- * level with where the experience came from — and, on one's own page, the
- * tasks that grow the profile — then trophies, taste, the top five,
- * activity, the year and collections. Two columns on a computer, one on a
- * phone with the level right after the numbers.
- */
-function ProfilePage({
-  profile,
-  own,
-  onCustomise,
-}: {
-  profile: PublicProfile;
-  own: boolean;
-  onCustomise?: (tab?: StudioTab) => void;
-}) {
-  const navigate = useNavigate();
-  // Unconditional, as hooks must be: on a profile that is not yours it
-  // simply never gets a button wired to it.
-  const media = useProfileMedia(profile);
-  const actions: ProfileTaskActions | undefined = own
-    ? {
-        pickAvatar: media.pickAvatar,
-        pickBanner: media.pickBanner,
-        openStudio: (tab) => onCustomise?.(tab),
-        jump: jumpTo,
-        go: (to) => navigate(to),
-      }
-    : undefined;
-  const block = "scroll-mt-32";
-
-  return (
-    <ProfileShell profile={profile}>
-      <ProfileHero
-        profile={profile}
-        stats={profile.stats}
-        editable={own}
-        media={media}
-        onOpenSettings={() => onCustomise?.("look")}
-        onNeedUsername={() => onCustomise?.("account")}
-      />
-      <SectionNav sections={SECTIONS} />
-      <div id="overview" className={cn("flex flex-col gap-4", block)}>
-        {!profile.hidden.stats && <StatsBar profile={profile} />}
-        <LevelCard profile={profile} own={own} actions={actions} className="lg:hidden" />
-      </div>
-      {/* Two independent columns, masonry-style: each block is as tall as
-          its own content and the next one follows right under it. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div id="trophies" className={block}>
-            <TrophyHall profile={profile} own={own} />
-          </div>
-          <div id="showcase" className={block}>
-            <ProfileBlocks profile={profile} own={own} only={["showcase"]} />
-          </div>
-          <div id="year" className={cn("cv-auto", block)}>
-            <ProfileBlocks profile={profile} own={own} only={["year"]} />
-          </div>
-          <div id="collections" className={cn("cv-auto", block)}>
-            <CollectionsShelf profile={profile} own={own} />
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-col gap-4">
-          <LevelCard profile={profile} own={own} actions={actions} className="hidden lg:block" />
-          <div id="taste" className={block}>
-            <TasteDna profile={profile} own={own} />
-          </div>
-          <div id="activity" className={cn("flex flex-col gap-4", block)}>
-            <ProfileBlocks profile={profile} own={own} only={["watching", "activity"]} />
-          </div>
-          {/* The comparison only exists on someone else's profile. */}
-          {!own && (
-            <div id="compare" className={block}>
-              <ProfileBlocks profile={profile} own={own} only={["compare"]} />
-            </div>
-          )}
-        </div>
-      </div>
-    </ProfileShell>
-  );
-}
-
-/**
- * Everything the profile counts: six numbers that count up as they come
- * into view, each with what it means. Every one is a number the server
- * really keeps.
- */
-function StatsBar({ profile }: { profile: PublicProfile }) {
-  const t = useT();
-  const stats = profile.stats;
-  const earned = profile.achievements.filter((a) => a.earned).length;
-  const hours = Math.floor(stats.hoursWatched);
-  const cells: Array<{ icon: LucideIcon; value: React.ReactNode; label: string; sub?: string }> = [
-    { icon: FilmIcon, value: <CountUp value={stats.episodesWatched} />, label: t("profile.summary.totalEpisodes") },
-    { icon: CheckCircle2Icon, value: <CountUp value={stats.titlesCompleted} />, label: t("profile.summary.completedTitles") },
-    {
-      icon: ClockIcon,
-      value: hours >= 1 ? <><CountUp value={hours} /> ч</> : fmtDuration(t, stats.hoursWatched * 3600),
-      label: t("profile.summary.totalTime"),
-      sub: hours >= 24 ? `≈ ${Math.round(hours / 24)} дн. без перерыва` : undefined,
-    },
-    {
-      icon: StarIcon,
-      value: stats.meanScore != null ? <CountUp value={stats.meanScore} decimals={1} /> : "—",
-      label: t("profile.summary.meanScore"),
-    },
-    {
-      icon: TrophyIcon,
-      value: <CountUp value={earned} />,
-      label: t("profile.tabs.achievements"),
-      sub: `из ${profile.achievements.length}`,
-    },
-    {
-      icon: ThumbsUpIcon,
-      value: <CountUp value={profile.totalCommentLikes} />,
-      label: "Лайков на комментариях",
-      sub: profile.commenterRank != null ? `#${profile.commenterRank} из ${profile.totalRankedCommenters}` : undefined,
-    },
-  ];
-
-  return (
-    <div className="reveal-group grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      {cells.map(({ icon: Icon, value, label, sub }, i) => (
-        <div
-          key={label}
-          style={{ "--i": i } as CSSProperties}
-          className="reveal group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/50 px-3.5 py-3 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card"
-        >
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6">
-            <Icon className="size-4" />
-          </span>
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate font-display text-lg leading-none tabular-nums sm:text-xl">{value}</span>
-            <span className="mt-1 truncate text-[11px] leading-tight text-muted-foreground">{label}</span>
-            {sub && <span className="truncate text-[10px] text-muted-foreground/70">{sub}</span>}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const RANK_RING: Record<Rank, string> = {
-  NOVICE: "ring-muted-foreground/40",
-  ADVANCED: "ring-emerald-500/70",
-  EXPERT: "ring-sky-500/70",
-  LEGEND: "ring-amber-400/80",
-};
-
-const RANK_DOT: Record<Rank, string> = {
-  NOVICE: "bg-muted-foreground/60",
-  ADVANCED: "bg-emerald-500",
-  EXPERT: "bg-sky-500",
-  LEGEND: "bg-amber-400",
-};
-
-/** A tinted chip per rank instead of a plain grey box with a coloured dot —
- * the rank badge is the one thing in the hero that's actually earned, so it
- * gets to look like it. */
-const RANK_CHIP: Record<Rank, string> = {
-  NOVICE: "border-border/60 bg-secondary/40",
-  ADVANCED: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  EXPERT: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
-  LEGEND: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-};
-
-/**
- * Avatar anchors the block, the name is the loudest thing on the page, and
- * rank/PRO live in their own labelled rail on the right instead of trailing
- * the name as a row of look-alike badges.
- */
-/**
- * Identity and stats used to be two separate blocks (a hero card, then a
- * stat-cards row below it) — one surface now: a small square of "who this
- * is" on the left (avatar, name, pinned achievements with their actual
- * names underneath instead of bare unlabelled circles), and the numbers
- * plus the list charts filling the rest of the row, so it reads as one
- * finished card instead of a tall square next to a short one with empty
- * space trailing it.
- */
-function ProfileHero({
-  profile,
-  stats,
-  editable = false,
-  media,
-  onOpenSettings,
-  onNeedUsername,
-}: {
-  profile: PublicProfile;
-  stats: ProfileStats;
-  /** Only the account's own page gets the hover-to-edit affordance — a
-   * visitor on someone else's profile has nothing to edit here. */
-  editable?: boolean;
-  media: ProfileMedia;
-  /** Opens the settings dialog. Absent on someone else's profile. */
-  onOpenSettings?: () => void;
-  /** Own profile without a nickname: opens where one is taken. */
-  onNeedUsername?: () => void;
-}) {
-  const t = useT();
-  const level = useMemo(() => levelOf(profile), [profile]);
-  const { locale } = useLocale();
-  const initial = (profile.displayName || "?").charAt(0).toUpperCase();
-  const memberSince = new Date(profile.memberSince).toLocaleDateString(locale, {
-    month: "long",
-    year: "numeric",
-  });
-  // Order preserved server-side (first = leftmost); only ever contains ids
-  // the user has actually earned (re-checked on every profile read).
-  const pinned = profile.showcaseAchievementIds
-    .map((id) => profile.achievements.find((a) => a.id === id && a.earned))
-    .filter((a): a is EarnedAchievement => a != null);
-  const [opened, setOpened] = useState<EarnedAchievement | null>(null);
-
-  const avatar = (
-    <div className="relative shrink-0">
-      {/* The rank ring is the fallback, so an account that never opens the
-          picker looks exactly as it did before frames existed. The badge on
-          the ring's foot is the real episode count — the same number the
-          stats bar below shows, not a decoration. */}
-      <AvatarFrameRing
-        frame={profile.avatarFrame}
-        fallback={RANK_RING[profile.rank]}
-        badge={{
-          icon: FootprintsIcon,
-          value: stats.episodesWatched,
-          label: t("profile.summary.totalEpisodes"),
-        }}
-      >
-        <div className="flex size-24 items-center justify-center overflow-hidden rounded-full bg-card font-display text-3xl sm:size-28">
-          {profile.avatarUrl ? (
-            <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" />
-          ) : (
-            initial
-          )}
-        </div>
-      </AvatarFrameRing>
-      <PresenceDot status={profile.onlineStatus} className="bottom-1.5 right-1.5" />
-    </div>
-  );
-
-  return (
-    <>
-      <header className="reveal-group relative overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)]">
-        {/* The picture fills the whole header, top to bottom and edge to
-            edge — the identity sits on it, not under a strip cut out of it.
-            A GIF plays here as uploaded. */}
-        <ProfileBanner
-          url={profile.bannerUrl}
-          accent={profile.accentColor}
-          editable={false}
-          className="absolute inset-0 h-full"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent"
-        />
-        <div className="relative h-28 sm:h-40">
-          {/* Sized to the band, not to the band it used to be: at 13rem
-              over an 7rem strip the mark was twice the height of the thing
-              it sat on, so all anyone saw was a cropped blob. */}
-          <SlicedGlyph className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-[3.5rem] leading-none text-white/[0.06] sm:text-[4.5rem]" />
-          {/* On the real background, not on a preview of it inside a
-              settings form — change it, roll one, or take it off. */}
-          {editable && (
-            <div className="absolute right-2 top-2 sm:right-3 sm:top-3">
-              <BannerEditButtons media={media} />
-            </div>
-          )}
-        </div>
-
-        {/* The identity rides up over the banner's lower edge, the way the
-            reference has it — one row, not a card parked in a column. */}
-        <div className="relative -mt-14 flex flex-col gap-4 px-4 pb-5 sm:-mt-16 sm:px-8 sm:pb-6">
-          <div className="flex flex-wrap items-end gap-4">
-            {editable ? <AvatarEditOverlay media={media}>{avatar}</AvatarEditOverlay> : avatar}
-
-            {/* basis-60 rather than a bare flex-1: when the row runs out of
-                width it is the actions that drop to their own line, instead
-                of the name being squeezed to a few characters. */}
-            <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1 pb-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => jumpTo("overview")}
-                  title={`${level.level} уровень · ${level.tier.name}`}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/35 py-0.5 pl-0.5 pr-2.5 text-[11px] font-semibold transition-colors hover:border-white/25"
-                >
-                  <LevelBadge info={level} size={24} />
-                  {level.tier.name}
-                </button>
-                {/* The body face, not the wide display one: a nickname set
-                    in it ran half across the header. */}
-                <h1 className="flex min-w-0 items-center gap-1.5 text-2xl font-bold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-[1.75rem]">
-                  <span className="min-w-0">{profile.displayName}</span>
-                  {profile.isPro && <ProMark />}
-                </h1>
-                <ProfileTitleBadge title={profile.profileTitle} />
-              </div>
-              {profile.username && (
-                <p className="truncate text-sm text-muted-foreground">
-                  {t("profile.handle", { username: profile.username })}
-                </p>
-              )}
-              {profile.bio && (
-                <p className="line-clamp-2 max-w-2xl text-sm leading-relaxed text-foreground/85">
-                  {profile.bio}
-                </p>
-              )}
-            </div>
-
-            {/* In the flow, not pinned over the banner — on a wide screen
-                they sit at the right end of the identity row, on a narrow
-                one they wrap under it on their own line. */}
-            {/* The one control on the page that changes the profile. */}
-            <div className="mb-1 flex w-full shrink-0 items-center gap-2 sm:w-auto">
-              <ShareProfileButton profile={profile} own={editable} onNeedUsername={onNeedUsername} className="flex-1 justify-center sm:flex-none" />
-              {editable ? (
-                <button
-                  type="button"
-                  onClick={onOpenSettings}
-                  className="inline-flex h-10 flex-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95 sm:flex-none"
-                >
-                  <Settings2Icon className="size-4" />
-                  {t("profile.studio.open")}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => jumpTo("compare")}
-                  className="inline-flex h-10 flex-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95 sm:flex-none"
-                >
-                  <GitCompareArrowsIcon className="size-4" />
-                  Сравнить вкусы
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Rank, as a real position between two real numbers. */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1",
-                RANK_CHIP[profile.rank],
-              )}
-            >
-              <span aria-hidden className={cn("size-1.5 rounded-full", RANK_DOT[profile.rank])} />
-              <span className="text-[11px] font-medium">
-                {t(`profile.rank.${profile.rank.toLowerCase()}` as "profile.rank.novice")}
-              </span>
-              <InfoTooltip side="bottom" className="size-3.5 opacity-70 hover:opacity-100">
-                {t("profile.rank.hint")}
-              </InfoTooltip>
-            </div>
-
-            {/* The bar under the name — styled and measured the way the
-                owner chose in the studio. */}
-            <ProfileProgress profile={profile} />
-
-            <p className="shrink-0 text-[11px] text-muted-foreground/70">
-              {t("profile.memberSince", { date: memberSince })}
-            </p>
-          </div>
-
-          {pinned.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {pinned.map((a) => (
-                <Tooltip key={a.id}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => setOpened(a)}
-                      className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-card/60 py-1 pl-1 pr-3 text-xs transition-colors hover:border-primary/40 hover:text-primary"
-                    >
-                      <HoloAchievementBadge
-                        id={a.id}
-                        rarity={a.rarity}
-                        earned
-                        earnedAt={a.earnedAt}
-                        variant="circle"
-                        className="size-6"
-                      />
-                      <span className="max-w-32 truncate">
-                        {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
-                      </span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {t(`achievements.items.${a.id}.title` as "achievements.items.critic.title")}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          )}
-        </div>
-      </header>
-      <AchievementDetailDialog
-        achievement={opened}
-        onOpenChange={(open) => !open && setOpened(null)}
-      />
-      {editable && media.elements}
-    </>
-  );
-}
-
-
-
-
 
 /** A small sub-field label, for the rare expanded row with more than one
  * input inside it (identity's username + bio, the PRO title's icon +
@@ -1644,50 +1163,23 @@ function arraysMatchAsSets(a: number[], b: number[]): boolean {
 
 function ProfileSkeleton() {
   return (
-    <ProfileShell>
-      {/* Shapes match what actually loads — rounded to the same radius as
-          the real hero and stat cards, so the page does not visibly change
-          geometry the moment data arrives. */}
-      {/* Hero: banner, then the identity row riding up over it, then the
-          rank bar — the same three bands the real header has, at the same
-          heights, so nothing shifts when the data lands. */}
-      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/40">
-        <Skeleton className="h-40 w-full rounded-none sm:h-56" />
-        <div className="-mt-14 flex flex-col gap-4 px-4 pb-4 sm:-mt-16 sm:px-6 sm:pb-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <Skeleton className="size-24 shrink-0 rounded-full sm:size-28" />
-            <div className="flex flex-1 basis-60 flex-col gap-2 pb-1">
-              <Skeleton className="h-7 w-48" />
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-4 w-64" />
-            </div>
-            <Skeleton className="h-9 w-44 shrink-0 rounded-full" />
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
+      <div className="relative -mt-6 sm:-mt-10">
+        <Skeleton className="full-bleed h-44 rounded-none sm:h-60 lg:h-72" />
+        <div className="relative -mt-16 flex flex-col gap-4 sm:-mt-20 lg:flex-row lg:items-end">
+          <Skeleton className="size-28 rounded-full sm:size-36" />
+          <div className="flex flex-1 flex-col gap-2">
+            <Skeleton className="h-9 w-56" />
+            <Skeleton className="h-4 w-72" />
           </div>
-          <Skeleton className="h-8 w-full rounded-full" />
         </div>
       </div>
-
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/60 bg-border/60 sm:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-[4.25rem] rounded-none" />
-        ))}
+      <Skeleton className="h-24 rounded-3xl" />
+      <Skeleton className="h-12 rounded-xl" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <Skeleton className="h-80 rounded-3xl" />
+        <Skeleton className="h-80 rounded-3xl" />
       </div>
-
-      <Skeleton className="h-14 rounded-2xl" />
-
-      <div className="gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-5">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-            <Skeleton className="h-80 rounded-2xl" />
-            <Skeleton className="h-80 rounded-2xl" />
-          </div>
-          <Skeleton className="h-48 rounded-2xl" />
-        </div>
-        <div className="mt-4 flex flex-col gap-4 lg:mt-0">
-          <Skeleton className="h-44 rounded-2xl" />
-          <Skeleton className="h-56 rounded-2xl" />
-        </div>
-      </div>
-    </ProfileShell>
+    </div>
   );
 }
