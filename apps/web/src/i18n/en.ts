@@ -1,6 +1,20 @@
 export const en = {
   brand: { tagline: "A screening room for anime." },
   nav: { collections: "Collections", discover: "Discover", browse: "Browse", library: "My list", admin: "Admin" },
+  userMenu: {
+    profile: "Profile",
+    list: "My list",
+    friends: "Friends",
+    trophies: "Trophies",
+    collections: "Collections",
+    forYou: "For you",
+    customise: "Edit profile",
+    look: "Frames and titles",
+    admin: "Admin panel",
+    support: "Support the project",
+    supportHint: "PRO frames and a title of your own",
+    toNext: "{xp} XP to level {n}",
+  },
   roll: {
     title: "Random anime",
     hint: "playable only",

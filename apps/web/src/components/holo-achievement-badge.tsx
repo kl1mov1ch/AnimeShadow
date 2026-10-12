@@ -128,14 +128,6 @@ const TIER: Record<
   legendary: { from: "#fff5bf", via: "#f5b400", to: "#b3560a", ink: "#3a1a00", glow: "rgba(255,170,30,0.75)", clip: "circle(50% at 50% 50%)" },
 };
 
-/** What an earned medallion's mark turns into under the pointer: its rarity's sign. */
-const RARITY_MARK: Record<AchievementRarity, LucideIcon> = {
-  common: MedalIcon,
-  rare: StarIcon,
-  epic: GemIcon,
-  legendary: CrownIcon,
-};
-
 /** A stable number per achievement — its hue, teeth and timing come from it. */
 function seed(id: string): number {
   let h = 2166136261;
@@ -170,7 +162,6 @@ export function HoloAchievementBadge({
   const t = useT();
   const tier = TIER[rarity];
   const Icon = ICONS[id] ?? SparklesIcon;
-  const Morph = earned ? RARITY_MARK[rarity] : TargetIcon;
   const title = t(`achievements.items.${id}.title` as "achievements.items.critic.title");
   const rarityLabel = t(`achievements.rarity.${rarity}` as "achievements.rarity.common");
   const percent =
@@ -244,20 +235,13 @@ export function HoloAchievementBadge({
         />
       )}
 
-      {/* The mark, and under the pointer what it turns into: the rarity's
-          sign once earned, the goal while not. */}
+      {/* The mark, floating in the middle. */}
       <span className={cn("absolute inset-0 grid place-items-center", earned && "achx-float")} style={{ animationDelay: delay }}>
         <Icon
           aria-hidden
           strokeWidth={2.2}
-          className="achx-glyph achx-glyph-a col-start-1 row-start-1 h-[38%] w-[38%] drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]"
+          className="h-[38%] w-[38%] drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]"
           style={{ color: earned ? tier.ink : "rgba(160,165,180,0.45)" }}
-        />
-        <Morph
-          aria-hidden
-          strokeWidth={2.2}
-          className="achx-glyph achx-glyph-b col-start-1 row-start-1 h-[38%] w-[38%] drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]"
-          style={{ color: earned ? tier.ink : "rgba(200,205,220,0.75)" }}
         />
       </span>
 

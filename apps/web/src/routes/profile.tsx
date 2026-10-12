@@ -2,7 +2,7 @@ import type {
   MyProfile,
 } from "@animeshadow/shared";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronRightIcon,
   type LucideIcon,
@@ -17,7 +17,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorState } from "@/components/common/states";
@@ -100,11 +100,23 @@ function PublicView({ username }: { username: string }) {
   return <ProfileView profile={data} own={false} />;
 }
 
+const STUDIO_TABS: StudioTab[] = ["profile", "look", "showcase", "taste", "privacy", "list", "account"];
+
 function OwnView() {
   const t = useT();
   const { data: profile, isPending } = useMyProfile();
   const [studioOpen, setStudioOpen] = useState(false);
   const [studioTab, setStudioTab] = useState<StudioTab>("profile");
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("studio");
+  useEffect(() => {
+    if (!asked || !profile) return;
+    setStudioTab(STUDIO_TABS.find((tab) => tab === asked) ?? "profile");
+    setStudioOpen(true);
+    const next = new URLSearchParams(params);
+    next.delete("studio");
+    setParams(next, { replace: true, preventScrollReset: true });
+  }, [asked, profile, params, setParams]);
   if (isPending || !profile) return <ProfileSkeleton />;
   const openStudio = (tab: StudioTab = "profile") => {
     setStudioTab(tab);

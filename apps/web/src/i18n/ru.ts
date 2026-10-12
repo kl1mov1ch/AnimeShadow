@@ -3,6 +3,20 @@ import type { Dict } from "./en";
 export const ru: Dict = {
   brand: { tagline: "Зал для просмотра аниме." },
   nav: { collections: "Подборки", discover: "Главная", browse: "Каталог", library: "Мой список", admin: "Админка" },
+  userMenu: {
+    profile: "Профиль",
+    list: "Мой список",
+    friends: "Друзья",
+    trophies: "Трофеи",
+    collections: "Подборки",
+    forYou: "Для вас",
+    customise: "Настроить профиль",
+    look: "Рамки и приписки",
+    admin: "Админка",
+    support: "Поддержать проект",
+    supportHint: "PRO-рамки и своя приписка",
+    toNext: "до {n} ур. — {xp} опыта",
+  },
   roll: {
     title: "Случайное аниме",
     hint: "только с плеером",

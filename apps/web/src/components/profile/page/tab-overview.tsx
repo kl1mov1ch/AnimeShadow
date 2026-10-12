@@ -15,7 +15,7 @@ import {
   TvIcon,
   type LucideIcon,
 } from "lucide-react";
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -58,12 +58,20 @@ export function OverviewTab({
       <TopFive profile={profile} own={own} />
     </div>
   ) : null;
+  // Only what has something in it: on someone else's profile an empty
+  // block is just a hole. The owner keeps theirs — empty, they say what
+  // will appear there.
+  const feedOn = shown("activity") && !profile.hidden.activity;
+  const { data: feedItems } = useUserFeed(profile.id, feedOn);
+  const { data: listItems } = useUserList(profile.id, !profile.hidden.list);
   const watching = shown("watching") && !profile.hidden.watching ? <WatchingNow profile={profile} own={own} /> : null;
-  const feed = shown("activity") && !profile.hidden.activity ? <RecentFeed profile={profile} onMore={() => go("activity")} /> : null;
-  const level = <LevelCard profile={profile} own={own} actions={actions} compact className="h-full" />;
+  const feed = feedOn && (own || feedItems === undefined || feedItems.length > 0) ? <RecentFeed profile={profile} onMore={() => go("activity")} /> : null;
+  // The level and the owner's tasks are their own business: a visitor sees
+  // the level in the strip above, not the progress behind it.
+  const level = own ? <LevelCard profile={profile} own actions={actions} compact className="h-full" /> : null;
   const compare = !own && shown("compare") && !profile.hidden.list ? <CompareCard profile={profile} /> : null;
-  const genres = !profile.hidden.stats ? <GenresCard profile={profile} /> : null;
-  const list = !profile.hidden.list ? <ListBreakdown profile={profile} go={go} /> : null;
+  const genres = !profile.hidden.stats && profile.stats.topGenres.length > 0 ? <GenresCard profile={profile} /> : null;
+  const list = !profile.hidden.list && (listItems === undefined || listItems.length > 0) ? <ListBreakdown profile={profile} go={go} /> : null;
   const wall = <WallPanel profile={profile} own={own} />;
   const friends = own ? <FriendsActivity userId={profile.id} /> : null;
 
@@ -71,7 +79,7 @@ export function OverviewTab({
     return (
       <div className="flex flex-col gap-4">
         {top}
-        {own && level}
+        {level}
         {compare}
         {watching}
         {friends}
@@ -79,30 +87,68 @@ export function OverviewTab({
         {genres}
         {list}
         {feed}
-        {!own && level}
       </div>
     );
   }
-  // Rows, not two columns of different heights: each row's cards share a
-  // top and a bottom edge.
+  // Beside the top five: the owner's progress, or for a visitor how their
+  // tastes match. Everything else in even rows that fill the width.
+  const side = own ? level : compare;
   return (
     <div className="flex flex-col gap-5">
       {top && (
         <div className="grid grid-cols-12 items-stretch gap-5">
-          <div className="col-span-8 min-w-0">{top}</div>
-          <div className="col-span-4 flex min-w-0 flex-col gap-5">{own ? level : (compare ?? level)}</div>
+          <div className={cn("min-w-0", side ? "col-span-8" : "col-span-12")}>{top}</div>
+          {side && <div className="col-span-4 flex min-w-0 flex-col gap-5">{side}</div>}
         </div>
       )}
       {watching}
       {friends}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(19rem,1fr))] items-stretch gap-5 [&>*]:h-full">
-        {!top && compare}
-        {feed}
-        {genres}
-        {list}
-        {(!top || (!own && compare)) && level}
-      </div>
+      <EvenRows items={[top ? null : side, feed, genres, list]} />
       {wall}
+    </div>
+  );
+}
+
+const LG_SPAN: Record<number, string> = { 6: "lg:col-span-6", 12: "lg:col-span-12" };
+const XL_SPAN: Record<number, string> = { 4: "xl:col-span-4", 6: "xl:col-span-6", 12: "xl:col-span-12" };
+
+/** How many go in each row: up to three, and never one left alone under three. */
+function rowSizes(n: number): number[] {
+  if (n <= 3) return [n];
+  if (n === 4) return [2, 2];
+  const rows: number[] = [];
+  let left = n;
+  while (left > 4) {
+    rows.push(3);
+    left -= 3;
+  }
+  return [...rows, ...(left === 4 ? [2, 2] : [left])];
+}
+
+/**
+ * Cards in rows that always fill the width: one alone takes it all, two
+ * halve it, three take a third each, four make two pairs, five are three
+ * and two. On a narrower screen, pairs — the last one full when they're odd.
+ * Every card in a row is as tall as the tallest.
+ */
+function EvenRows({ items }: { items: ReactNode[] }) {
+  const cards = items.filter(Boolean);
+  if (cards.length === 0) return null;
+  const spans = rowSizes(cards.length).flatMap((size) => Array.from({ length: size }, () => 12 / size));
+  return (
+    <div className="grid grid-cols-12 items-stretch gap-5">
+      {cards.map((card, i) => (
+        <div
+          key={i}
+          className={cn(
+            "col-span-12 min-w-0 [&>*]:h-full",
+            LG_SPAN[cards.length % 2 === 1 && i === cards.length - 1 ? 12 : 6],
+            XL_SPAN[spans[i]!],
+          )}
+        >
+          {card}
+        </div>
+      ))}
     </div>
   );
 }
@@ -363,8 +409,8 @@ function CompareCard({ profile }: { profile: PublicProfile }) {
   const c = 2 * Math.PI * r;
 
   return (
-    <div id="compare" className="scroll-mt-32">
-      <Panel title="Совпадение вкусов" icon={GitCompareArrowsIcon}>
+    <div id="compare" className="h-full scroll-mt-32">
+      <Panel title="Совпадение вкусов" icon={GitCompareArrowsIcon} className="h-full">
         {!authed ? (
           <EmptyNote
             icon={GitCompareArrowsIcon}

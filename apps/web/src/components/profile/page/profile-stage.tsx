@@ -112,18 +112,6 @@ export function ProfileStage({
       </span>
       {own && (
         <>
-          {/* Always in sight, so changing the picture is never a guess; on a
-              desktop the face also darkens under the pointer. */}
-          <button
-            type="button"
-            onClick={media.pickAvatar}
-            disabled={media.avatarBusy}
-            aria-label="Сменить аватар"
-            title="Сменить аватар"
-            className="absolute bottom-0 left-1/2 z-20 grid size-8 -translate-x-1/2 translate-y-1/3 place-items-center rounded-full border-2 border-background bg-card text-foreground shadow-md transition-[transform,background-color] hover:scale-110 hover:bg-primary hover:text-primary-foreground"
-          >
-            {media.avatarBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : <PencilIcon className="size-3.5" />}
-          </button>
           <button
             type="button"
             onClick={media.randomAvatar}

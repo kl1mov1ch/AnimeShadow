@@ -25,6 +25,10 @@ const CARD_SELECT = {
   avatarUrl: true,
   proSince: true,
   onlineStatus: true,
+  avatarFrame: true,
+  profileTitle: true,
+  titlePrefix: true,
+  titleIcon: true,
 } satisfies Prisma.UserSelect;
 type CardRow = Prisma.UserGetPayload<{ select: typeof CARD_SELECT }>;
 
@@ -309,6 +313,11 @@ export class SocialService {
       isPro: r.proSince != null,
       onlineStatus: (r.onlineStatus as UserCard["onlineStatus"]) ?? "OFFLINE",
       episodes: eps.get(r.id) ?? 0,
+      avatarFrame: r.avatarFrame as UserCard["avatarFrame"],
+      profileTitle: r.profileTitle as UserCard["profileTitle"],
+      // PRO-only, as on the profile: a lapsed subscription shows no custom title.
+      titlePrefix: r.proSince != null ? r.titlePrefix : null,
+      titleIcon: r.proSince != null ? (r.titleIcon as UserCard["titleIcon"]) : null,
       following: following.has(r.id),
       followsYou: followsYou.has(r.id),
     }));

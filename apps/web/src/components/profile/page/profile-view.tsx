@@ -1,5 +1,5 @@
 import type { PublicProfile } from "@animeshadow/shared";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { FollowKind } from "@animeshadow/shared";
 import { useSocial, useUserCollections, useUserList } from "@/lib/query";
@@ -54,6 +54,37 @@ export function ProfileView({
   const { data: list } = useUserList(profile.id, !profile.hidden.list);
   const { data: collections } = useUserCollections(profile.id);
 
+  // When a shorter tab replaces a longer one, the page would shrink under the
+  // reader and the browser would yank the view up. The block keeps just the
+  // height that holds the view where it is, and gives it back as they scroll up.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [floor, setFloor] = useState(0);
+  const needed = () => {
+    const el = bodyRef.current;
+    if (!el) return 0;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const below = document.documentElement.scrollHeight - (top + el.offsetHeight);
+    return Math.max(0, Math.ceil(window.scrollY + window.innerHeight - top - below));
+  };
+  const holdHeight = () => setFloor(needed());
+  const holding = floor > 0;
+  useEffect(() => {
+    if (!holding) return;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const need = needed();
+        setFloor((f) => (need < f ? need : f));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [holding]);
+
   const open = (next: Tab, nextStatus?: ListStatus | "ALL", nextKind?: FollowKind) => {
     const p = new URLSearchParams(params);
     if (next === "overview") p.delete("tab");
@@ -62,12 +93,9 @@ export function ProfileView({
     else p.delete("status");
     if (next === "people" && nextKind) p.set("people", nextKind);
     else if (next !== "people") p.delete("people");
-    setParams(p, { replace: true });
-    // Back to the top of the tabs if the page had scrolled past them.
-    requestAnimationFrame(() => {
-      const nav = document.querySelector<HTMLElement>('nav[aria-label="Разделы профиля"]');
-      if (nav && nav.getBoundingClientRect().top < 0) jumpTo("profile-tabs-anchor");
-    });
+    // The page stays where it is: switching a tab or a filter is not a new page.
+    holdHeight();
+    setParams(p, { replace: true, preventScrollReset: true });
   };
 
   /** A block of the overview: switch to it first if another tab is open,
@@ -123,7 +151,12 @@ export function ProfileView({
       <PlayerStrip profile={profile} />
       <span id="profile-tabs-anchor" className="-mb-5 block scroll-mt-28" />
       <ProfileTabs tabs={tabs} value={tab} onChange={(id) => open(id)} />
-      <div key={tab} className="min-h-[50vh] animate-in duration-300 fade-in-0 slide-in-from-bottom-1">
+      <div
+        ref={bodyRef}
+        key={tab}
+        style={floor > 0 ? { minHeight: `max(50vh, ${floor}px)` } : undefined}
+        className="min-h-[50vh] animate-in duration-300 fade-in-0 slide-in-from-bottom-1"
+      >
         {tab === "overview" && <OverviewTab profile={profile} own={own} actions={actions} go={open} />}
         {tab === "people" && <PeopleTab profile={profile} own={own} kind={kind} onKind={(k) => open("people", undefined, k)} />}
         {tab === "list" && <ListTab profile={profile} status={status} onStatus={(s) => open("list", s)} />}

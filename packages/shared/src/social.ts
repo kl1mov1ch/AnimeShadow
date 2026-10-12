@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { feedEventSchema } from "./profile.js";
+import { avatarFrameSchema, feedEventSchema, profileTitleSchema, titleIconSchema } from "./profile.js";
 
 /** Someone, as a list of people shows them. */
 export const userCardSchema = z.object({
@@ -11,6 +11,12 @@ export const userCardSchema = z.object({
   onlineStatus: z.enum(["ONLINE", "OFFLINE", "DND"]),
   /** Episodes watched — a quick measure of how active they are. */
   episodes: z.number().int(),
+  /** What they wear on their profile, so they look like themselves everywhere. */
+  avatarFrame: avatarFrameSchema.nullable().default(null),
+  profileTitle: profileTitleSchema.nullable().default(null),
+  /** The PRO custom title; null without PRO. */
+  titlePrefix: z.string().nullable().default(null),
+  titleIcon: titleIconSchema.nullable().default(null),
   /** The viewer follows them / they follow the viewer. */
   following: z.boolean(),
   followsYou: z.boolean(),

@@ -64,7 +64,7 @@ export function TrophiesTab({ profile, own }: { profile: PublicProfile; own: boo
     update.mutate({ showcaseAchievementIds: next });
   };
 
-  const r = 42;
+  const r = 44;
   const c = 2 * Math.PI * r;
 
   return (
@@ -72,24 +72,24 @@ export function TrophiesTab({ profile, own }: { profile: PublicProfile; own: boo
       {/* The summary: share earned, and earned per rarity. */}
       <div className="flex flex-col gap-4 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:flex-row sm:items-center sm:p-5">
         <div className="flex items-center gap-4">
-          <span className="relative grid size-24 shrink-0 place-items-center">
+          <span className="relative grid size-28 shrink-0 place-items-center">
             <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90" aria-hidden>
-              <circle cx="50" cy="50" r={r} fill="none" strokeWidth="9" className="stroke-foreground/10" />
+              <circle cx="50" cy="50" r={r} fill="none" strokeWidth="7" className="stroke-foreground/10" />
               <circle
                 cx="50"
                 cy="50"
                 r={r}
                 fill="none"
-                strokeWidth="9"
+                strokeWidth="7"
                 strokeLinecap="round"
                 className="stroke-primary transition-[stroke-dashoffset] duration-1000"
                 strokeDasharray={c}
                 strokeDashoffset={c * (1 - share / 100)}
               />
             </svg>
-            <span className="text-center">
-              <span className="block font-display text-2xl leading-none tabular-nums">{share}%</span>
-              <span className="text-[10px] text-muted-foreground">открыто</span>
+            <span className="flex flex-col items-center gap-1 text-center">
+              <span className="font-display text-xl leading-none tabular-nums">{share}%</span>
+              <span className="text-[10px] leading-none text-muted-foreground">открыто</span>
             </span>
           </span>
           <div>

@@ -14,7 +14,9 @@ import {
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ProMark } from "@/components/common/pro-mark";
 import { MorphIcon } from "@/components/ui/morph-icon";
+import { UserTitleBadge } from "@/components/user-title-badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { animeHref, imageSrc } from "@/lib/format";
@@ -31,6 +33,8 @@ import {
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { ago, plural } from "./format";
+import { frameGlow, hasFrame } from "../frame-fx";
+import { AvatarFrameRing, ProfileTitleBadge } from "../profile-cosmetics";
 import { EmptyNote, Panel } from "./kit";
 
 function profileHref(user: Pick<UserCard, "username">): string | null {
@@ -43,6 +47,31 @@ function Face({ user, size = 40, className }: { user: Pick<UserCard, "displayNam
       {user.avatarUrl ? <img src={imageSrc(user.avatarUrl)} alt="" loading="lazy" className="size-full object-cover" /> : user.displayName.charAt(0).toUpperCase()}
     </span>
   );
+}
+
+/** A face in the frame its owner wears — plain when they wear none. */
+function FramedFace({ user, size, className }: { user: UserCard; size: number; className?: string }) {
+  return (
+    <AvatarFrameRing frame={user.avatarFrame} fallback="ring-0 ring-offset-0" cap={false}>
+      <Face user={user} size={size} className={className} />
+    </AvatarFrameRing>
+  );
+}
+
+/** A name with what goes beside it: PRO, the earned title, the PRO title. */
+function NameMarks({ user, className }: { user: UserCard; className?: string }) {
+  return (
+    <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1", className)}>
+      {user.isPro && <ProMark className="text-xs" />}
+      <ProfileTitleBadge title={user.profileTitle} />
+      <UserTitleBadge prefix={user.titlePrefix} icon={user.titleIcon} compact />
+    </span>
+  );
+}
+
+/** The colour of the frame someone wears — their accent in a list. */
+function accentOf(user: UserCard): string | null {
+  return user.avatarFrame && hasFrame(user.avatarFrame) ? frameGlow(user.avatarFrame) : null;
 }
 
 /**
@@ -176,7 +205,11 @@ export function PersonCard({ person, index = 0, mark }: { person: UserCard; inde
   const top = (
     <>
       <span className="relative">
-        <Face user={person} size={68} className={cn("ring-2", rel ? rel.ring : "ring-[var(--accent-line-soft)]")} />
+        {person.avatarFrame ? (
+          <FramedFace user={person} size={68} />
+        ) : (
+          <Face user={person} size={68} className={cn("ring-2", rel ? rel.ring : "ring-[var(--accent-line-soft)]")} />
+        )}
         {person.onlineStatus === "ONLINE" && (
           <span className="absolute right-0.5 top-0.5 size-3 rounded-full bg-emerald-400 ring-2 ring-background" title="На сайте" />
         )}
@@ -187,6 +220,7 @@ export function PersonCard({ person, index = 0, mark }: { person: UserCard; inde
         )}
       </span>
       <span className="mt-1 block w-full truncate text-sm font-semibold">{person.displayName}</span>
+      <NameMarks user={person} className="justify-center" />
       <span className="block w-full truncate text-[11px] text-muted-foreground">
         {person.username ? `@${person.username}` : "без ника"} · {person.episodes.toLocaleString("ru-RU")} {plural(person.episodes, "серия", "серии", "серий")}
       </span>
@@ -376,28 +410,38 @@ export function WallPanel({ profile, own }: { profile: PublicProfile; own: boole
         <ul className="flex flex-col gap-3">
           {items.map((p, i) => {
             const href = profileHref(p.author);
+            const accent = accentOf(p.author);
             return (
               <li
                 key={p.id}
-                className="group flex gap-3 rounded-2xl border border-transparent p-2 transition-colors animate-in fade-in-0 slide-in-from-bottom-1 hover:border-[var(--accent-line-soft)] hover:bg-foreground/[0.02]"
-                style={{ animationDelay: `${Math.min(i, 10) * 30}ms`, animationFillMode: "backwards" }}
+                className="group flex gap-3.5 rounded-2xl border border-[var(--accent-line-soft)] bg-background/30 p-3 transition-colors animate-in fade-in-0 slide-in-from-bottom-1 hover:bg-foreground/[0.03]"
+                style={{
+                  animationDelay: `${Math.min(i, 10) * 30}ms`,
+                  animationFillMode: "backwards",
+                  ...(accent ? { borderColor: `color-mix(in srgb, ${accent} 35%, transparent)`, backgroundImage: `linear-gradient(90deg, color-mix(in srgb, ${accent} 10%, transparent), transparent 45%)` } : {}),
+                }}
               >
-                {href ? (
-                  <Link to={href} className="shrink-0">
-                    <Face user={p.author} size={38} />
-                  </Link>
-                ) : (
-                  <Face user={p.author} size={38} />
-                )}
+                <span className="shrink-0 p-1">
+                  {href ? (
+                    <Link to={href} className="block">
+                      <FramedFace user={p.author} size={42} />
+                    </Link>
+                  ) : (
+                    <FramedFace user={p.author} size={42} />
+                  )}
+                </span>
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-baseline gap-2">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     {href ? (
-                      <Link to={href} className="truncate text-sm font-semibold hover:text-primary">
+                      <Link to={href} className="truncate text-sm font-semibold hover:text-primary" style={accent ? { color: accent } : undefined}>
                         {p.author.displayName}
                       </Link>
                     ) : (
-                      <span className="truncate text-sm font-semibold">{p.author.displayName}</span>
+                      <span className="truncate text-sm font-semibold" style={accent ? { color: accent } : undefined}>
+                        {p.author.displayName}
+                      </span>
                     )}
+                    <NameMarks user={p.author} />
                     <span className="shrink-0 text-[11px] text-muted-foreground">{ago(p.createdAt)}</span>
                   </p>
                   <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 [overflow-wrap:anywhere]">{p.body}</p>
