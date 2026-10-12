@@ -1,6 +1,7 @@
 import { COLLECTION_SORTS, COLLECTION_TAGS, type CollectionSort, type CollectionTag } from "@animeshadow/shared";
 import {
   BarChart3Icon,
+  BookmarkIcon,
   DicesIcon,
   FlameIcon,
   type LucideIcon,
@@ -68,7 +69,8 @@ export function Component() {
   const q = useDebouncedValue(search.trim(), 300);
   const [rolls, setRolls] = useState(0);
 
-  const { data, isPending } = useCollections({ sort, tag, q: q || undefined, page, perPage: 18 });
+  const saved = authed && params.get("scope") === "saved";
+  const { data, isPending } = useCollections({ sort, tag, q: q || undefined, page, perPage: 18, ...(saved ? { scope: "saved" as const } : {}) });
   const curated = useCuratedCollections();
   const { data: mine } = useMyCollectionsStats(authed);
   const limit = mine?.limit;
@@ -131,7 +133,7 @@ export function Component() {
         </div>
       </header>
 
-      {page === 1 && !q && !tag && <CuratedHub data={curated.data} pending={curated.isPending} />}
+      {page === 1 && !q && !tag && !saved && <CuratedHub data={curated.data} pending={curated.isPending} />}
 
       <section className="flex flex-col gap-3">
         <h2 className="font-display text-lg sm:text-xl">{t("collections.fromViewers")}</h2>
@@ -163,6 +165,12 @@ export function Component() {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+            {authed && (
+              <button type="button" aria-pressed={saved} onClick={() => set({ scope: saved ? null : "saved" })} className={chip(saved)}>
+                <BookmarkIcon className={cn("size-4", saved && "fill-current text-primary")} />
+                Избранное
+              </button>
+            )}
             {COLLECTION_SORTS.map((s) => {
               const Icon = SORT_ICON[s];
               return (

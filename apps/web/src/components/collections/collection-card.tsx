@@ -1,5 +1,6 @@
 import type { CollectionSummary, CollectionTag } from "@animeshadow/shared";
-import { EyeIcon, LayersIcon, LockIcon, MessageSquareIcon, StarIcon } from "lucide-react";
+import { EyeIcon,
+  HeartIcon, LayersIcon, LockIcon, MessageSquareIcon, StarIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ProMark } from "@/components/common/pro-mark";
 import { useT } from "@/i18n";
@@ -162,6 +163,12 @@ export function CollectionCard({
             {collection.author.isPro && <ProMark className="text-xs" />}
           </span>
           <RatingBadge avg={collection.ratingAvg} count={0} />
+          {collection.likeCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-rose-400">
+              <HeartIcon className="size-3 fill-current" />
+              {collection.likeCount}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 text-muted-foreground">
             <EyeIcon className="size-3" />
             {collection.viewCount}

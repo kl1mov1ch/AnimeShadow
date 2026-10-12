@@ -103,6 +103,8 @@ export const collectionQuerySchema = z.object({
   sort: z.enum(COLLECTION_SORTS).default("popular"),
   tag: z.enum(COLLECTION_TAGS).optional(),
   q: z.string().trim().max(100).optional(),
+  /** "saved": only the ones the viewer keeps. */
+  scope: z.enum(["all", "saved"]).default("all"),
   page: z.coerce.number().int().positive().default(1),
   perPage: z.coerce.number().int().positive().max(48).default(18),
 });
@@ -138,6 +140,7 @@ export interface CollectionSummary {
   ratingAvg: number | null;
   ratingCount: number;
   commentCount: number;
+  likeCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -149,10 +152,13 @@ export interface CollectionDetail extends CollectionSummary {
   allowComments: boolean;
   /** Every anime the blocks mention, by id. */
   anime: Record<number, AnimeSummary>;
-  /** The viewer's own rating, 1–5, if they gave one. */
+  /** The viewer's own rating, 1–10, if they gave one. */
   myRating: number | null;
-  /** How many 1s … 5s. */
-  ratingDist: [number, number, number, number, number];
+  /** How many 1s … 10s. */
+  ratingDist: number[];
+  /** The viewer liked it / keeps it in their saved collections. */
+  liked: boolean;
+  favorited: boolean;
   canEdit: boolean;
 }
 
@@ -162,7 +168,7 @@ export interface CollectionLimit {
   max: number | null;
 }
 
-export const collectionRatingSchema = z.object({ value: z.number().int().min(1).max(5) });
+export const collectionRatingSchema = z.object({ value: z.number().int().min(1).max(10) });
 
 export const collectionCommentInputSchema = z.object({
   body: z.string().trim().min(1).max(2000),
@@ -200,8 +206,8 @@ export interface CollectionStats {
   };
   /** Last 30 days, oldest first, zero-filled. */
   daily: Array<{ date: string; views: number; comments: number }>;
-  /** How many 1s … 5s. */
-  ratings: [number, number, number, number, number];
+  /** How many 1s … 10s. */
+  ratings: number[];
 }
 
 /** The author's overview across all their collections. */

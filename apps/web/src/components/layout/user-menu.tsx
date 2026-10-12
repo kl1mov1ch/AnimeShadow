@@ -4,14 +4,10 @@ import {
   LibraryIcon,
   LogInIcon,
   LogOutIcon,
-  PaletteIcon,
   Settings2Icon,
   ShieldCheckIcon,
   SparklesIcon,
-  TrophyIcon,
-  UserIcon,
   UserPlusIcon,
-  UsersIcon,
   WandSparklesIcon,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
@@ -88,7 +84,7 @@ export function UserMenu() {
           {needsSetup && <span aria-hidden className="absolute right-0 top-0 size-2.5 rounded-full bg-primary ring-2 ring-background" />}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={10} className="w-64 overflow-hidden rounded-2xl border-[var(--accent-line-soft)] p-0">
+      <DropdownMenuContent align="end" sideOffset={10} className="w-[min(15.5rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border-[var(--accent-line-soft)] p-0">
         {/* Who you are: the cover, the face in its frame, the name with its
             marks, and how far the next level is. The whole card is the way
             to the profile. */}
@@ -133,32 +129,15 @@ export function UserMenu() {
           </DropdownMenuItem>
         )}
 
+        {/* The card above is the way to the profile; below, only places
+            that are not the profile, and settings. */}
         <DropdownMenuSeparator className="mx-0 my-0" />
         <div className="flex flex-col p-1.5">
-          <Row to="/profile" icon={UserIcon}>{t("userMenu.profile")}</Row>
           <Row to="/library" icon={LibraryIcon}>{t("userMenu.list")}</Row>
-          <Row to="/profile?tab=people" icon={UsersIcon}>{t("userMenu.friends")}</Row>
-          <Row to="/profile?tab=trophies" icon={TrophyIcon}>{t("userMenu.trophies")}</Row>
-          <Row to="/profile?tab=collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
+          <Row to="/collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
           <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
-        </div>
-        <DropdownMenuSeparator className="mx-0 my-0" />
-        <div className="flex flex-col p-1.5">
-          <Row to="/profile?studio=profile" icon={Settings2Icon}>
-            {t("userMenu.customise")}
-          </Row>
-          <Row to="/profile?studio=look" icon={PaletteIcon}>
-            {t("userMenu.look")}
-          </Row>
-          {user.role === "ADMIN" && (
-            <Row to="/admin" icon={ShieldCheckIcon}>
-              {t("userMenu.admin")}
-            </Row>
-          )}
-        </div>
-
-        <DropdownMenuSeparator className="mx-0 my-0" />
-        <div className="flex flex-col p-1.5">
+          <Row to="/profile?studio=profile" icon={Settings2Icon}>{t("userMenu.customise")}</Row>
+          {user.role === "ADMIN" && <Row to="/admin" icon={ShieldCheckIcon}>{t("userMenu.admin")}</Row>}
           <Row to="/support" icon={SparklesIcon}>{t("userMenu.support")}</Row>
         </div>
         <DropdownMenuSeparator className="mx-0 my-0" />

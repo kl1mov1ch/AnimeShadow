@@ -86,6 +86,18 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
     return result;
   });
 
+  // A heart and a save: put to set, delete to take back.
+  for (const path of ["like", "favorite"] as const) {
+    fastify.put(`/collections/:id/${path}`, { preHandler: fastify.authenticate, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request) => {
+      const { id } = parse(idParams, request.params);
+      return path === "like" ? collections.like(request.userId!, id, true) : collections.favorite(request.userId!, id, true);
+    });
+    fastify.delete(`/collections/:id/${path}`, { preHandler: fastify.authenticate, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request) => {
+      const { id } = parse(idParams, request.params);
+      return path === "like" ? collections.like(request.userId!, id, false) : collections.favorite(request.userId!, id, false);
+    });
+  }
+
   fastify.get("/collections/:id/comments", { preHandler: fastify.optionalAuth }, async (request) => {
     const { id } = parse(idParams, request.params);
     return collections.comments(id, request.userId, await isAdmin(request));

@@ -511,22 +511,7 @@ function BlockEditor({
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="line-clamp-2 font-display text-base leading-tight">{anime?.title ?? `#${block.animeId}`}</span>
         <div className="flex flex-wrap items-center gap-1.5">
-          <label className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-card/60 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-            <StarIcon className="size-3 text-amber-400" />
-            {t("collections.editor.myScore")}
-            <select
-              value={block.score ?? ""}
-              onChange={(e) => onChange({ score: e.target.value ? Number(e.target.value) : null })}
-              className="bg-transparent font-semibold text-foreground outline-none"
-            >
-              <option value="">{t("collections.editor.noScore")}</option>
-              {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ScorePicker value={block.score} onChange={(score) => onChange({ score })} />
           <ToggleTag on={block.mustWatch} onClick={() => onChange({ mustWatch: !block.mustWatch })} icon={BadgeCheckIcon}>
             {t("collections.editor.mustWatch")}
           </ToggleTag>
@@ -551,6 +536,38 @@ function BlockEditor({
       </div>
       {controls}
     </div>
+  );
+}
+
+/** The author's own score: "—" or one of ten small buttons. */
+function ScorePicker({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  const t = useT();
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 rounded-md border border-border/70 bg-card/60 p-0.5 pl-1.5 text-[11px] text-muted-foreground">
+      <StarIcon className="size-3 text-amber-400" />
+      <span className="mr-0.5">{t("collections.editor.myScore")}</span>
+      <button
+        type="button"
+        onClick={() => onChange(null)}
+        className={cn("h-5 rounded px-1 font-semibold", value == null ? "bg-foreground/15 text-foreground" : "hover:text-foreground")}
+        title={t("collections.editor.noScore")}
+      >
+        —
+      </button>
+      {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          className={cn(
+            "grid h-5 min-w-5 place-items-center rounded px-0.5 font-bold tabular-nums transition-colors",
+            value === n ? "bg-primary text-primary-foreground" : value != null && n < value ? "bg-primary/20 text-primary" : "hover:bg-foreground/10 hover:text-foreground",
+          )}
+        >
+          {n}
+        </button>
+      ))}
+    </span>
   );
 }
 

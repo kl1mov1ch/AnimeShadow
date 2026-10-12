@@ -1317,6 +1317,39 @@ export function useDeleteCollection() {
   });
 }
 
+/** A heart on a collection: shown at once, the server catches up. */
+export function useLikeCollection(id: string) {
+  const client = useQueryClient();
+  const key = ["collections", "one", id];
+  return useMutation({
+    mutationFn: (on: boolean) =>
+      apiRequest<{ liked: boolean; likeCount: number }>(`/collections/${id}/like`, { method: on ? "PUT" : "DELETE" }),
+    onMutate: (on) => {
+      const before = client.getQueryData<CollectionDetail>(key);
+      if (before) client.setQueryData<CollectionDetail>(key, { ...before, liked: on, likeCount: Math.max(0, before.likeCount + (on ? 1 : -1)) });
+      return { before };
+    },
+    onError: (_e, _on, ctx) => ctx?.before && client.setQueryData(key, ctx.before),
+    onSuccess: (r) => client.setQueryData<CollectionDetail>(key, (old) => (old ? { ...old, ...r } : old)),
+  });
+}
+
+/** Keeping a collection in one's saved list. */
+export function useFavoriteCollection(id: string) {
+  const client = useQueryClient();
+  const key = ["collections", "one", id];
+  return useMutation({
+    mutationFn: (on: boolean) => apiRequest<{ favorited: boolean }>(`/collections/${id}/favorite`, { method: on ? "PUT" : "DELETE" }),
+    onMutate: (on) => {
+      const before = client.getQueryData<CollectionDetail>(key);
+      if (before) client.setQueryData<CollectionDetail>(key, { ...before, favorited: on });
+      return { before };
+    },
+    onError: (_e, _on, ctx) => ctx?.before && client.setQueryData(key, ctx.before),
+    onSettled: () => void client.invalidateQueries({ queryKey: ["collections", "list"] }),
+  });
+}
+
 export function useRateCollection(id: string) {
   const client = useQueryClient();
   return useMutation({

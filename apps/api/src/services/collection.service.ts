@@ -138,8 +138,12 @@ export class CollectionService {
   // ---------------------------------------------------------------- read
 
   async list(query: CollectionQuery, viewerId?: string): Promise<Paginated<CollectionSummary>> {
+    if (query.scope === "saved" && !viewerId) {
+      return paginated([], { page: query.page, perPage: query.perPage, total: 0, hasNextPage: false });
+    }
     const where: Prisma.CollectionWhereInput = {
       published: true,
+      ...(query.scope === "saved" ? { savedBy: { some: { userId: viewerId! } } } : {}),
       ...(query.tag ? { tags: { has: query.tag } } : {}),
       ...(query.q ? { title: { contains: query.q, mode: "insensitive" } } : {}),
     };
@@ -159,7 +163,6 @@ export class CollectionService {
       }),
       this.prisma.collection.count({ where }),
     ]);
-    void viewerId;
     const items = await this.summaries(rows);
     return paginated(items, {
       page: query.page,
@@ -203,8 +206,14 @@ export class CollectionService {
         : null,
       this.prisma.collectionRating.groupBy({ by: ["value"], where: { collectionId: id }, _count: { _all: true } }),
     ]);
-    const ratingDist: [number, number, number, number, number] = [0, 0, 0, 0, 0];
-    for (const r of dist) if (r.value >= 1 && r.value <= 5) ratingDist[r.value - 1] = r._count._all;
+    const ratingDist = Array.from({ length: 10 }, () => 0);
+    for (const r of dist) if (r.value >= 1 && r.value <= 10) ratingDist[r.value - 1] = r._count._all;
+    const [liked, favorited] = viewerId
+      ? await Promise.all([
+          this.prisma.collectionLike.count({ where: { collectionId: id, userId: viewerId } }),
+          this.prisma.collectionFavorite.count({ where: { collectionId: id, userId: viewerId } }),
+        ])
+      : [0, 0];
     const anime: Record<number, AnimeSummary> = {};
     for (const a of animeRows) anime[a.id] = toSummaryDto(a);
     const blocks = (row.blocks as unknown as CollectionBlock[]).filter(
@@ -220,6 +229,8 @@ export class CollectionService {
       allowComments: row.allowComments,
       myRating: mine?.value ?? null,
       ratingDist,
+      liked: liked > 0,
+      favorited: favorited > 0,
       canEdit: own || isAdmin,
     };
   }
@@ -248,6 +259,42 @@ export class CollectionService {
     });
     const after = await this.prisma.collection.findUniqueOrThrow({ where: { id }, select: { ratingSum: true, ratingCount: true } });
     return { ...avg(after.ratingSum, after.ratingCount), myRating: value };
+  }
+
+  // ---------------------------------------------------------------- likes and saves
+
+  /** A heart on someone's collection — or taking it back. */
+  async like(userId: string, id: string, on: boolean): Promise<{ liked: boolean; likeCount: number }> {
+    const row = await this.prisma.collection.findUnique({ where: { id }, select: { published: true } });
+    if (!row || !row.published) throw new NotFoundError("Подборка не найдена.");
+    await this.prisma.$transaction(async (tx) => {
+      const had = (await tx.collectionLike.count({ where: { collectionId: id, userId } })) > 0;
+      if (on && !had) {
+        await tx.collectionLike.create({ data: { collectionId: id, userId } });
+        await tx.collection.update({ where: { id }, data: { likeCount: { increment: 1 } } });
+      } else if (!on && had) {
+        await tx.collectionLike.delete({ where: { collectionId_userId: { collectionId: id, userId } } });
+        await tx.collection.update({ where: { id }, data: { likeCount: { decrement: 1 } } });
+      }
+    });
+    const after = await this.prisma.collection.findUniqueOrThrow({ where: { id }, select: { likeCount: true } });
+    return { liked: on, likeCount: Math.max(0, after.likeCount) };
+  }
+
+  /** Keeps a collection in one's saved list — or lets it go. */
+  async favorite(userId: string, id: string, on: boolean): Promise<{ favorited: boolean }> {
+    const row = await this.prisma.collection.findUnique({ where: { id }, select: { published: true, userId: true } });
+    if (!row || (!row.published && row.userId !== userId)) throw new NotFoundError("Подборка не найдена.");
+    if (on) {
+      await this.prisma.collectionFavorite.upsert({
+        where: { collectionId_userId: { collectionId: id, userId } },
+        create: { collectionId: id, userId },
+        update: {},
+      });
+    } else {
+      await this.prisma.collectionFavorite.deleteMany({ where: { collectionId: id, userId } });
+    }
+    return { favorited: on };
   }
 
   // ---------------------------------------------------------------- comments
@@ -378,8 +425,8 @@ export class CollectionService {
     ]);
     const viewsBy = new Map(views.map((v) => [v.day.toISOString().slice(0, 10), v._count._all]));
     const commentsBy = new Map(comments.map((c) => [c.day, c.n]));
-    const dist: [number, number, number, number, number] = [0, 0, 0, 0, 0];
-    for (const r of ratings) if (r.value >= 1 && r.value <= 5) dist[r.value - 1] = r._count._all;
+    const dist = Array.from({ length: 10 }, () => 0);
+    for (const r of ratings) if (r.value >= 1 && r.value <= 10) dist[r.value - 1] = r._count._all;
     return {
       id: row.id,
       title: row.title,
@@ -492,6 +539,7 @@ export class CollectionService {
         viewCount: r.viewCount,
         ...avg(r.ratingSum, r.ratingCount),
         commentCount: r.commentCount,
+        likeCount: r.likeCount,
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
       };

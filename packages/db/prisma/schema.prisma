@@ -118,6 +118,8 @@ model User {
   /// Posts on this account's profile wall, and posts it wrote on others'.
   wallPosts          WallPost[]      @relation("WallOwner")
   wallWritten        WallPost[]      @relation("WallAuthor")
+  collectionLikes    CollectionLike[]
+  collectionSaves    CollectionFavorite[]
   reportsAgainst     ProfileReport[] @relation("ReportTarget")
   reportsFiled       ProfileReport[] @relation("ReportAuthor")
   reportsHandled     ProfileReport[] @relation("ReportModerator")
@@ -767,6 +769,7 @@ model Collection {
   /// One of the palette's colours, or none.
   accent       String?
   allowComments Boolean @default(true)
+  likeCount    Int      @default(0)
   viewCount    Int      @default(0)
   ratingSum    Int      @default(0)
   ratingCount  Int      @default(0)
@@ -777,6 +780,8 @@ model Collection {
   ratings  CollectionRating[]
   comments CollectionComment[]
   views    CollectionView[]
+  likes    CollectionLike[]
+  savedBy  CollectionFavorite[]
 
   @@index([userId, createdAt])
   @@index([published, createdAt])
@@ -784,12 +789,36 @@ model Collection {
   @@index([published, viewCount])
 }
 
+/// A heart on a collection: one per person.
+model CollectionLike {
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  createdAt    DateTime   @default(now())
+
+  @@id([collectionId, userId])
+  @@index([userId])
+}
+
+/// A collection someone keeps for later — their "saved" list.
+model CollectionFavorite {
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  createdAt    DateTime   @default(now())
+
+  @@id([collectionId, userId])
+  @@index([userId, createdAt])
+}
+
 model CollectionRating {
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId String
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId       String
-  /// 1–5
+  /// 1–10
   value        Int
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

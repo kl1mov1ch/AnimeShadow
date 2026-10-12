@@ -1,5 +1,10 @@
 import type { AnimeSummary, CollectionBlock, CollectionComment, CollectionDetail } from "@animeshadow/shared";
 import {
+  BookmarkIcon,
+  CheckIcon,
+  HeartIcon,
+  PlusIcon,
+  Share2Icon,
   AlertTriangleIcon,
   BadgeCheckIcon,
   EyeOffIcon,
@@ -41,6 +46,10 @@ import {
   useDeleteCollection,
   useDeleteCollectionComment,
   useRateCollection,
+  useFavoriteCollection,
+  useLibrary,
+  useLikeCollection,
+  useUpsertLibraryEntry,
 } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { getVisitorId } from "@/lib/visitor";
@@ -172,6 +181,7 @@ function Article({ collection: c }: { collection: CollectionDetail }) {
         </div>
       </header>
 
+      <Actions collection={c} />
       <Overview collection={c} />
       <Body collection={c} />
 
@@ -194,6 +204,100 @@ function animeIndex(c: CollectionDetail, blockIndex: number): number {
 
 type AnimeBlock = Extract<CollectionBlock, { type: "anime" }>;
 
+/** Like, save, share and a way to the rating — right under the title. */
+function Actions({ collection: c }: { collection: CollectionDetail }) {
+  const { status } = useAuth();
+  const navigate = useNavigate();
+  const like = useLikeCollection(c.id);
+  const fav = useFavoriteCollection(c.id);
+  const authed = status === "authenticated";
+  const need = (run: () => void) => () => (authed ? run() : navigate("/login", { state: { from: window.location.pathname } }));
+  const share = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: c.title, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Ссылка скопирована");
+      }
+    } catch {
+      // Closed the share sheet — nothing to do.
+    }
+  };
+  const btn = "inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition-[background-color,border-color,color,transform] active:scale-95";
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        aria-pressed={c.liked}
+        onClick={need(() => like.mutate(!c.liked))}
+        className={cn(btn, c.liked ? "border-rose-500/50 bg-rose-500/15 text-rose-300" : "border-border/70 bg-card/60 hover:border-rose-400/50 hover:text-rose-300")}
+      >
+        <HeartIcon className={cn("size-4 transition-transform", c.liked && "scale-110 fill-current")} />
+        <span className="tabular-nums">{c.likeCount}</span>
+      </button>
+      <button
+        type="button"
+        aria-pressed={c.favorited}
+        onClick={need(() =>
+          fav.mutate(!c.favorited, { onSuccess: () => toast.success(c.favorited ? "Убрано из избранного" : "Сохранено в избранное") }),
+        )}
+        className={cn(btn, c.favorited ? "border-primary/50 bg-primary/15 text-primary" : "border-border/70 bg-card/60 hover:border-primary/40 hover:text-primary")}
+      >
+        <BookmarkIcon className={cn("size-4", c.favorited && "fill-current")} />
+        {c.favorited ? "В избранном" : "В избранное"}
+      </button>
+      <button type="button" onClick={() => void share()} className={cn(btn, "border-border/70 bg-card/60 hover:border-foreground/30")}>
+        <Share2Icon className="size-4" />
+        Поделиться
+      </button>
+      {!c.canEdit && (
+        <a href="#rate" className={cn(btn, "border-border/70 bg-card/60 hover:border-amber-400/50 hover:text-amber-300")}>
+          <StarIcon className={cn("size-4", c.myRating && "fill-amber-400 text-amber-400")} />
+          {c.myRating ? `Ваша оценка ${c.myRating}/10` : "Оценить"}
+        </a>
+      )}
+    </div>
+  );
+}
+
+/** "Add to my list" on a title of a collection — or where it already is. */
+function ListButton({ animeId, compact = false }: { animeId: number; compact?: boolean }) {
+  const labels = useLabels();
+  const { status } = useAuth();
+  const navigate = useNavigate();
+  const { data: library } = useLibrary(undefined, status === "authenticated");
+  const upsert = useUpsertLibraryEntry();
+  const entry = library?.find((e) => e.anime.id === animeId);
+  if (entry) {
+    return (
+      <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500/12 px-2.5 text-xs font-semibold text-emerald-300", compact && "h-7 px-2 text-[11px]")}>
+        <CheckIcon className="size-3.5" />
+        {labels.statusLabel(entry.status)}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      disabled={upsert.isPending}
+      onClick={() => {
+        if (status !== "authenticated") {
+          navigate("/login", { state: { from: window.location.pathname } });
+          return;
+        }
+        upsert.mutate({ animeId, input: { status: "PLANNED" } }, { onSuccess: () => toast.success("Добавлено в «Запланировано»") });
+      }}
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-card/60 px-2.5 text-xs font-semibold transition-colors hover:border-primary hover:text-primary disabled:opacity-60",
+        compact && "h-7 w-full justify-center px-2 text-[11px]",
+      )}
+    >
+      <PlusIcon className="size-3.5" />В мой список
+    </button>
+  );
+}
+
 /** What's inside, at a glance: the sections (as links) and the totals. */
 function Overview({ collection: c }: { collection: CollectionDetail }) {
   const t = useT();
@@ -203,6 +307,9 @@ function Overview({ collection: c }: { collection: CollectionDetail }) {
   const hours = Math.round((episodes * 24) / 60);
   const scored = list.filter((a) => a.score != null);
   const avg = scored.length > 0 ? scored.reduce((sum, a) => sum + a.score!, 0) / scored.length : null;
+  const { status } = useAuth();
+  const { data: library } = useLibrary(undefined, status === "authenticated");
+  const seen = library ? list.filter((a) => library.some((e) => e.anime.id === a.id && e.status === "COMPLETED")).length : null;
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4">
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -215,6 +322,16 @@ function Overview({ collection: c }: { collection: CollectionDetail }) {
           </span>
         )}
       </p>
+      {seen != null && list.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/10">
+            <span className="block h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${(seen / list.length) * 100}%` }} />
+          </span>
+          <span className="shrink-0 text-xs font-semibold tabular-nums">
+            {seen === list.length ? "Всё просмотрено 🎉" : `Вы посмотрели ${seen} из ${list.length}`}
+          </span>
+        </div>
+      )}
       {headings.length >= 2 && (
         <nav className="flex flex-col gap-1.5 border-t border-[var(--accent-line-soft)] pt-3">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -466,14 +583,17 @@ function AnimeEmbed({
         ) : (
           anime.synopsis && <p className="line-clamp-3 text-sm text-muted-foreground">{anime.synopsis}</p>
         )}
-        <Link
-          to={animeHref(anime)}
-          viewTransition
-          className="mt-auto inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-        >
-          {t("collections.openAnime")}
-          <ArrowRightIcon className="size-3.5" />
-        </Link>
+        <div className="mt-auto flex flex-wrap items-center gap-2">
+          <ListButton animeId={anime.id} />
+          <Link
+            to={animeHref(anime)}
+            viewTransition
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-primary hover:bg-primary/10"
+          >
+            {t("collections.openAnime")}
+            <ArrowRightIcon className="size-3.5" />
+          </Link>
+        </div>
       </div>
     </section>
   );
@@ -510,6 +630,9 @@ function AnimeTile({ anime, block, index }: { anime: AnimeSummary; block: AnimeB
       {block.watchTip && <p className="px-0.5 text-[11px] text-sky-300">{block.watchTip}</p>}
       <div className="px-0.5">
         <Note block={block} compact />
+      </div>
+      <div className="mt-auto px-0.5 pb-0.5">
+        <ListButton animeId={anime.id} compact />
       </div>
     </div>
   );
@@ -551,6 +674,16 @@ const RATING_WORDS = ["bad", "meh", "ok", "good", "masterpiece"] as const;
  * split — and the viewer's own vote on the right, with a word for each
  * star as you hover so a click means something.
  */
+/** The colour of a score: red low, amber middle, green high. */
+function scoreTone(v: number): string {
+  return v <= 3 ? "bg-rose-500" : v <= 5 ? "bg-orange-500" : v <= 7 ? "bg-amber-400" : "bg-emerald-500";
+}
+
+/**
+ * Rating out of ten: the average, big, and how the votes spread — and the
+ * viewer's own vote, ten numbered buttons coloured from red to green, with
+ * a word for the one under the pointer.
+ */
 function RatePanel({ collection: c }: { collection: CollectionDetail }) {
   const t = useT();
   const { status } = useAuth();
@@ -559,32 +692,22 @@ function RatePanel({ collection: c }: { collection: CollectionDetail }) {
   const canRate = status === "authenticated" && !c.canEdit;
   const shown = hover ?? c.myRating ?? 0;
   const max = Math.max(1, ...c.ratingDist);
-  const word = (v: number) => t(`collections.rate.${RATING_WORDS[v - 1]}` as "collections.rate.ok");
+  const word = (v: number) => t(`collections.rate.${RATING_WORDS[Math.ceil(v / 2) - 1]}` as "collections.rate.ok");
 
   return (
-    <section className="grid gap-4 rounded-2xl border border-border/70 bg-card/50 p-4 sm:grid-cols-2 sm:p-5">
+    <section id="rate" className="grid scroll-mt-24 gap-4 rounded-2xl border border-border/70 bg-card/50 p-4 sm:grid-cols-[auto_1fr] sm:p-5">
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center">
           <span className="font-display text-5xl leading-none tabular-nums">{c.ratingAvg != null ? c.ratingAvg.toFixed(1) : "—"}</span>
-          <span className="mt-1 flex">
-            {[1, 2, 3, 4, 5].map((v) => (
-              <StarIcon
-                key={v}
-                className={cn("size-3.5", c.ratingAvg != null && v <= Math.round(c.ratingAvg) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")}
-              />
-            ))}
-          </span>
-          <span className="mt-1 text-[11px] text-muted-foreground">{t("collections.votes", { n: c.ratingCount })}</span>
+          <span className="mt-1 text-xs text-muted-foreground">из 10</span>
+          <span className="mt-0.5 text-[11px] text-muted-foreground">{t("collections.votes", { n: c.ratingCount })}</span>
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          {[5, 4, 3, 2, 1].map((v) => (
-            <div key={v} className="flex items-center gap-2 text-[11px]">
-              <span className="w-2 tabular-nums text-muted-foreground">{v}</span>
-              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
-                <span className="block h-full rounded-full bg-amber-400" style={{ width: `${(c.ratingDist[v - 1]! / max) * 100}%` }} />
-              </span>
-              <span className="w-4 text-right tabular-nums text-muted-foreground">{c.ratingDist[v - 1]}</span>
-            </div>
+        <div className="flex h-20 items-end gap-0.5" aria-hidden>
+          {c.ratingDist.map((n, i) => (
+            <span key={i} className="flex w-3 flex-col items-center gap-0.5">
+              <span className={cn("w-full rounded-sm", scoreTone(i + 1))} style={{ height: `${Math.max(3, (n / max) * 60)}px`, opacity: n > 0 ? 1 : 0.25 }} />
+              <span className="text-[8px] tabular-nums text-muted-foreground">{i + 1}</span>
+            </span>
           ))}
         </div>
       </div>
@@ -602,8 +725,8 @@ function RatePanel({ collection: c }: { collection: CollectionDetail }) {
         ) : (
           <>
             <p className="font-semibold">{c.myRating ? t("collections.yourRating") : t("collections.rateTitle")}</p>
-            <div className="flex gap-1" onMouseLeave={() => setHover(null)}>
-              {[1, 2, 3, 4, 5].map((v) => (
+            <div className="grid grid-cols-10 gap-1" onMouseLeave={() => setHover(null)}>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -617,15 +740,18 @@ function RatePanel({ collection: c }: { collection: CollectionDetail }) {
                       onError: (e) => toast.error(e instanceof ApiRequestError ? e.message : t("errors.genericTitle")),
                     })
                   }
-                  aria-label={word(v)}
-                  className="rounded-md p-0.5 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  aria-label={`${v} — ${word(v)}`}
+                  className={cn(
+                    "grid size-8 place-items-center rounded-lg text-sm font-bold tabular-nums transition-[background-color,color,transform] hover:scale-110 sm:size-9",
+                    v <= shown ? cn(scoreTone(shown), "text-white") : "bg-foreground/[0.07] text-muted-foreground",
+                  )}
                 >
-                  <StarIcon className={cn("size-8 transition-colors", v <= shown ? "fill-amber-400 text-amber-400" : "text-muted-foreground/35")} />
+                  {v}
                 </button>
               ))}
             </div>
-            <p className={cn("h-4 text-xs font-semibold", shown ? "text-amber-500" : "text-muted-foreground")}>
-              {shown ? word(shown) : t("collections.rateHint")}
+            <p className={cn("h-4 text-xs font-semibold", shown ? "text-foreground" : "text-muted-foreground")}>
+              {shown ? `${shown}/10 · ${word(shown)}` : t("collections.rateHint")}
             </p>
           </>
         )}
