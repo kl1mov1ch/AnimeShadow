@@ -262,11 +262,34 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   );
 }
 
+/** Frames already downloaded and decoded in this tab — shown at once next time. */
+const READY = new Set<string>();
+const PENDING = new Map<string, Promise<void>>();
+
+/** Downloads and decodes a frame once; later calls reuse the same work. */
+function prepare(src: string): Promise<void> {
+  if (READY.has(src)) return Promise.resolve();
+  let job = PENDING.get(src);
+  if (!job) {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
+    job = (img.decode ? img.decode() : new Promise<void>((ok, fail) => ((img.onload = () => ok()), (img.onerror = fail))))
+      .then(() => void READY.add(src))
+      .catch(() => undefined)
+      .finally(() => PENDING.delete(src));
+    PENDING.set(src, job);
+  }
+  return job;
+}
+
 /**
- * One title's frames in the hero. While its slide is up, the frames take
- * turns every two seconds, each fading in over the last; a frame is only
- * fetched when its turn is near. Off its slide it shows nothing (and keeps
- * nothing mounted beyond its first frame), fading out as the next comes in.
+ * One title's frames in the hero. Each frame is downloaded and decoded
+ * before it is shown (kept for the rest of the visit), then fades in over
+ * the last — the first one included, never a half-drawn picture. While its
+ * slide is up, the frames take turns every two seconds; a turn waits for
+ * its frame if the line is slow. The next title's frames are prepared while
+ * this one plays.
  */
 function SlideFrames({
   frames,
@@ -282,44 +305,63 @@ function SlideFrames({
   first: boolean;
 }) {
   const [at, setAt] = useState(0);
-  const [reached, setReached] = useState(1);
+  const [, setTick] = useState(0);
+  const rerender = useCallback(() => setTick((n) => n + 1), []);
+
   // A fresh start each time the slide comes back.
   useEffect(() => {
-    if (on) {
-      setAt(0);
-      setReached(1);
-    }
+    if (on) setAt(0);
   }, [on]);
+
+  // Get the frames ready: all of them for the slide on screen or next up,
+  // the first one for the rest — one after another, so the first is first.
+  useEffect(() => {
+    if (!(on || warm || first)) return;
+    let gone = false;
+    const wanted = on || warm ? frames : frames.slice(0, 1);
+    void (async () => {
+      for (const src of wanted) {
+        const was = READY.has(src);
+        await prepare(src);
+        if (gone) return;
+        if (!was) rerender();
+      }
+    })();
+    return () => {
+      gone = true;
+    };
+  }, [on, warm, first, frames, rerender]);
+
+  // Every two seconds the next frame — once it is ready.
   useEffect(() => {
     if (!on || paused || frames.length < 2) return;
-    // The next frame is fetched now, so it's ready when it fades in.
-    const ahead = new Image();
-    ahead.decoding = "async";
-    ahead.src = frames[(at + 1) % frames.length]!;
+    const next = (at + 1) % frames.length;
     const id = window.setTimeout(() => {
-      setAt((i) => (i + 1) % frames.length);
-      setReached((r) => Math.min(frames.length, Math.max(r, at + 2)));
+      if (READY.has(frames[next]!)) setAt(next);
+      else void prepare(frames[next]!).then(() => setAt(next));
     }, FRAME_MS);
     return () => window.clearTimeout(id);
   }, [on, paused, at, frames]);
 
   if (frames.length === 0 || (!on && !warm && !first)) return null;
-  const mounted = on ? frames.slice(0, Math.max(reached, at + 1)) : frames.slice(0, 1);
+  const shown = on ? at : 0;
   return (
     <div aria-hidden={!on} className={cn("absolute inset-0 transition-opacity duration-700 ease-out", on ? "opacity-100" : "opacity-0")}>
-      {mounted.map((src, i) => (
-        <img
-          key={src}
-          src={src}
-          alt=""
-          decoding="async"
-          fetchPriority={first && i === 0 ? "high" : "low"}
-          className={cn(
-            "absolute inset-0 size-full object-cover transition-opacity duration-1000 ease-in-out",
-            i === (on ? at : 0) ? "opacity-100" : "opacity-0",
-          )}
-        />
-      ))}
+      {frames.map((src, i) =>
+        READY.has(src) ? (
+          <img
+            key={src}
+            src={src}
+            alt=""
+            decoding="async"
+            className={cn(
+              // Fades in when it first appears, then cross-fades with the rest.
+              "absolute inset-0 size-full animate-in object-cover transition-opacity duration-1000 ease-in-out fade-in-0 [animation-duration:900ms]",
+              i === shown ? "opacity-100" : "opacity-0",
+            )}
+          />
+        ) : null,
+      )}
     </div>
   );
 }
