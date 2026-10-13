@@ -1,5 +1,7 @@
 import {
   adminAnalyticsQuerySchema,
+  adminProActionSchema,
+  adminProQuerySchema,
   adminBreakdownQuerySchema,
   adminCommentQuerySchema,
   adminMonitoringQuerySchema,
@@ -12,6 +14,7 @@ import {
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { listPro, setPro } from "../lib/admin-pro.js";
 import { externalAnalytics } from "../lib/external-analytics.js";
 import { parse } from "../lib/validation.js";
 
@@ -79,6 +82,16 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parse(idParams, request.params);
     const input = parse(adminUpdateUserInputSchema, request.body);
     return admin.updateUser(request.userId!, id, input);
+  });
+
+  // PRO accounts: the list with its counts, and one change at a time.
+  fastify.get("/admin/pro", guard, async (request) => listPro(fastify.prisma, parse(adminProQuerySchema, request.query)));
+  fastify.post("/admin/pro/:id", guard, async (request) => {
+    const { id } = parse(idParams, request.params);
+    const input = parse(adminProActionSchema, request.body);
+    const row = await setPro(fastify.prisma, id, input);
+    request.log.info({ adminId: request.userId, userId: id, action: input.action }, "admin changed a user's PRO");
+    return row;
   });
 
   fastify.get("/admin/users/:id", guard, async (request) => {

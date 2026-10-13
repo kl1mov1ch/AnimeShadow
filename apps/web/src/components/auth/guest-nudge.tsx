@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ReactionGif } from "@/components/common/reaction-gif";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { PromoStrip } from "@/components/promo/promo-offer";
 
 /** What an account gives — the same list on the invite and the sign-up page. */
 export const ACCOUNT_PERKS = [
@@ -157,7 +158,7 @@ export function GuestNudge() {
             </div>
             <div className="flex min-w-0 flex-col gap-0.5 pr-5">
               <p className={cn("font-display text-[15px] leading-tight", big && "md:text-lg")}>{copy.title}</p>
-              <p className={cn("line-clamp-2 text-[12px] leading-snug text-foreground/75", big && "md:line-clamp-none md:text-[13px]")}>{copy.text}</p>
+              <p className={cn("line-clamp-2 text-[12px] leading-snug text-foreground/75 max-md:hidden", big && "md:line-clamp-none md:text-[13px]")}>{copy.text}</p>
             </div>
           </div>
           {big && (
@@ -178,7 +179,8 @@ export function GuestNudge() {
               </li>
             </ul>
           )}
-          <div className="relative mt-3 flex items-center gap-2">
+          <PromoStrip className="mt-3" />
+          <div className="relative mt-2.5 flex items-center gap-2">
             <Link
               to="/register"
               onClick={close}

@@ -4,6 +4,7 @@ import {
   type PrismaClient,
   toSummaryDto,
 } from "@animeshadow/db";
+import { proActive } from "../lib/pro.js";
 import {
   type AnimeSummary,
   type CollectionAuthor,
@@ -43,6 +44,7 @@ const AUTHOR_SELECT = {
   username: true,
   avatarUrl: true,
   proSince: true,
+  trialUntil: true,
 } satisfies Prisma.UserSelect;
 
 type Row = Prisma.CollectionGetPayload<{ include: { user: { select: typeof AUTHOR_SELECT } } }>;
@@ -70,10 +72,10 @@ export class CollectionService {
 
   async limitFor(userId: string): Promise<CollectionLimit> {
     const [user, used] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { proSince: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { proSince: true, trialUntil: true } }),
       this.prisma.collection.count({ where: { userId } }),
     ]);
-    const pro = this.proForAll || user?.proSince != null;
+    const pro = this.proForAll || (user != null && proActive(user));
     return { used, max: pro ? null : FREE_COLLECTION_LIMIT };
   }
 
@@ -497,7 +499,7 @@ export class CollectionService {
       displayName: u.displayName,
       username: u.username,
       avatarUrl: u.avatarUrl,
-      isPro: this.proForAll || u.proSince != null,
+      isPro: this.proForAll || proActive(u),
     };
   }
 

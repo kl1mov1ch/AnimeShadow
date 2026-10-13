@@ -15,8 +15,9 @@ import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { ProMark } from "@/components/common/pro-mark";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
-import { BOOSTY_URL } from "@/lib/support-links";
+import { BOOSTY_URL, donateHref } from "@/lib/support-links";
 import { cn } from "@/lib/utils";
+import { PromoCard } from "@/components/promo/promo-offer";
 
 const reveal = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -46,6 +47,7 @@ export function Component() {
 
   return (
     <div className="reveal-group mx-auto flex max-w-5xl flex-col gap-8 py-4 sm:gap-12 sm:py-6">
+      <PromoCard className="reveal" />
       <div className="reveal" style={reveal(0)}>
         <PageHero
           icon={HeartHandshakeIcon}
@@ -65,6 +67,16 @@ export function Component() {
               <HeartIcon className="size-4 fill-current" />
               {t("support.boosty.cta")}
               <ExternalLinkIcon className="size-3.5 opacity-70" />
+            </a>
+            <a
+              href={donateHref()}
+              target="_blank"
+              rel="noopener noreferrer"
+              {...cheer}
+              className="group inline-flex h-11 items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/10 px-5 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-400/20"
+            >
+              <CoffeeIcon className="size-4 text-amber-300 transition-transform group-hover:-rotate-12" />
+              Угостить кофе
             </a>
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <ShieldCheckIcon className="size-3.5 text-primary" />
@@ -207,14 +219,14 @@ function TipPicker({ cheer }: { cheer: Record<string, () => void> }) {
             </button>
           ))}
           <a
-            href={BOOSTY_URL}
+            href={donateHref(cups)}
             target="_blank"
             rel="noopener noreferrer"
             {...cheer}
             className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
           >
-            <HeartIcon className="size-4 fill-current" />
-            Поддержать на ${cups}
+            <CoffeeIcon className="size-4" />
+            Угостить на ${cups}
           </a>
         </div>
       </div>

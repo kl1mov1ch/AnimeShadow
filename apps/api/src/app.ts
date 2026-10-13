@@ -30,6 +30,7 @@ import { libraryRoutes } from "./routes/library.js";
 import { metricsRoutes } from "./routes/metrics.js";
 import { seoRoutes } from "./routes/seo.js";
 import { heroRoutes } from "./routes/hero.js";
+import { promoRoutes } from "./routes/promo.js";
 import { profileRoutes } from "./routes/profile.js";
 import { socialRoutes } from "./routes/social.js";
 import { progressRoutes } from "./routes/progress.js";
@@ -200,6 +201,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(adminRoutes);
       await api.register(seoRoutes);
       await api.register(heroRoutes);
+      await api.register(promoRoutes);
     },
     { prefix: "/api" },
   );

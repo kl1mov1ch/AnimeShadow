@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { trialEnd } from "../lib/pro.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { UserImageStore } from "../lib/user-images.js";
@@ -241,6 +242,8 @@ export class AuthService {
             // "verified" means; nothing left to confirm after this.
             emailVerifiedAt: new Date(),
             ...(this.proForAll ? { proSince: new Date() } : {}),
+            // The free first month of PRO — every new account gets it.
+            trialUntil: trialEnd(),
           },
         });
         // Same row this transaction read — a concurrent confirm on the same
@@ -516,6 +519,7 @@ export class AuthService {
           // "unverified" would just be a permanent, unactionable nag.
           emailVerifiedAt: new Date(),
           ...(this.proForAll ? { proSince: new Date() } : {}),
+          trialUntil: trialEnd(),
         },
       });
       registrationsTotal.inc();

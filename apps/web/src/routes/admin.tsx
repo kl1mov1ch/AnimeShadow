@@ -1,6 +1,7 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import {
   ChartLineIcon,
+  CrownIcon,
   FlagIcon,
   GaugeIcon,
   LayoutDashboardIcon,
@@ -15,6 +16,7 @@ import { AdminAnalyticsTab } from "@/components/admin/admin-analytics";
 import { AdminComments } from "@/components/admin/admin-comments";
 import { AdminMonitoringTab } from "@/components/admin/admin-monitoring";
 import { AdminOverviewTab } from "@/components/admin/admin-overview";
+import { AdminPro } from "@/components/admin/admin-pro";
 import { AdminReports } from "@/components/admin/admin-reports";
 import { LiveDot } from "@/components/admin/admin-ui";
 import { AdminUsers } from "@/components/admin/admin-users";
@@ -25,7 +27,7 @@ import { useLocale, useT } from "@/i18n";
 import { useAdminSummary } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-const TABS = ["overview", "analytics", "monitoring", "users", "comments", "reports"] as const;
+const TABS = ["overview", "analytics", "monitoring", "users", "pro", "comments", "reports"] as const;
 type AdminTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
@@ -33,6 +35,7 @@ const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   analytics: ChartLineIcon,
   monitoring: GaugeIcon,
   users: UsersIcon,
+  pro: CrownIcon,
   comments: MessageSquareIcon,
   reports: FlagIcon,
 };
@@ -163,6 +166,7 @@ function AdminPanel() {
         {tab === "analytics" && <AdminAnalyticsTab />}
         {tab === "monitoring" && <AdminMonitoringTab />}
         {tab === "users" && <AdminUsers />}
+        {tab === "pro" && <AdminPro />}
         {tab === "comments" && <AdminComments />}
         {tab === "reports" && <AdminReports />}
       </div>

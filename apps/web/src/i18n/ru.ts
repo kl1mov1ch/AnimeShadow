@@ -921,6 +921,7 @@ export const ru: Dict = {
       monitoring: "Мониторинг",
       dashboard: "Дашборд",
       users: "Пользователи",
+      pro: "PRO",
       comments: "Комментарии",
       reports: "Жалобы",
     },

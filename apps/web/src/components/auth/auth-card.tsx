@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { PerksList } from "./guest-nudge";
+import { PromoStrip } from "@/components/promo/promo-offer";
 
 interface AuthCardProps {
   title: string;
@@ -60,6 +61,7 @@ function Showcase({ kind }: { kind: "login" | "register" }) {
           <p className="text-xs leading-relaxed text-foreground/75">{c.text}</p>
         </div>
       </div>
+      {kind === "register" && <PromoStrip className="mt-3 lg:hidden" />}
       {/* Computer: the full side. */}
       <div className="hidden h-full flex-col gap-6 lg:flex">
         <div className="relative w-44">
@@ -73,7 +75,10 @@ function Showcase({ kind }: { kind: "login" | "register" }) {
           <p className="text-sm leading-relaxed text-foreground/75">{c.text}</p>
         </div>
         {kind === "register" ? (
-          <PerksList />
+          <>
+            <PerksList />
+            <PromoStrip className="mt-auto" />
+          </>
         ) : (
           <div className="mt-auto grid grid-cols-3 gap-2">
             {[

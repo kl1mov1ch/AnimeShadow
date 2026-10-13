@@ -920,6 +920,7 @@ export const en = {
       monitoring: "Monitoring",
       dashboard: "Dashboard",
       users: "Users",
+      pro: "PRO",
       comments: "Comments",
       reports: "Complaints",
     },

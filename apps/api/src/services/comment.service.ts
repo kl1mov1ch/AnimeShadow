@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@animeshadow/db";
+import { proActive } from "../lib/pro.js";
 import type {
   Comment,
   CommentAuthor,
@@ -22,6 +23,7 @@ const COMMENT_INCLUDE = {
       username: true,
       avatarUrl: true,
       proSince: true,
+      trialUntil: true,
       showcaseAchievementIds: true,
       titlePrefix: true,
       titleIcon: true,
@@ -233,7 +235,7 @@ export class CommentService {
             username: row.user.username,
             avatarUrl: row.user.avatarUrl,
             rank: null,
-            isPro: this.proForAll || row.user.proSince != null,
+            isPro: this.proForAll || proActive(row.user),
             showcaseAchievementIds: row.user.showcaseAchievementIds,
             // Saving these already requires real PRO (not proForAll), so no
             // extra gate is needed here beyond passing the stored value through.

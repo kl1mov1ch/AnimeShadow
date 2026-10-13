@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@animeshadow/db";
+import { proActive } from "../lib/pro.js";
 import type {
   CreateProfileReportInput,
   FollowKind,
@@ -24,6 +25,7 @@ const CARD_SELECT = {
   displayName: true,
   avatarUrl: true,
   proSince: true,
+  trialUntil: true,
   onlineStatus: true,
   avatarFrame: true,
   profileTitle: true,
@@ -310,14 +312,14 @@ export class SocialService {
       username: r.username,
       displayName: r.displayName,
       avatarUrl: r.avatarUrl,
-      isPro: r.proSince != null,
+      isPro: proActive(r),
       onlineStatus: (r.onlineStatus as UserCard["onlineStatus"]) ?? "OFFLINE",
       episodes: eps.get(r.id) ?? 0,
       avatarFrame: r.avatarFrame as UserCard["avatarFrame"],
       profileTitle: r.profileTitle as UserCard["profileTitle"],
       // PRO-only, as on the profile: a lapsed subscription shows no custom title.
-      titlePrefix: r.proSince != null ? r.titlePrefix : null,
-      titleIcon: r.proSince != null ? (r.titleIcon as UserCard["titleIcon"]) : null,
+      titlePrefix: proActive(r) ? r.titlePrefix : null,
+      titleIcon: proActive(r) ? (r.titleIcon as UserCard["titleIcon"]) : null,
       following: following.has(r.id),
       followsYou: followsYou.has(r.id),
     }));

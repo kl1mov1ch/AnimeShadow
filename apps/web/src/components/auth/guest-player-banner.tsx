@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { PerksList } from "./guest-nudge";
+import { PromoStrip } from "@/components/promo/promo-offer";
 
 /**
  * Above the player, for a guest: a bright strip saying what watching
@@ -73,7 +74,10 @@ export function GuestPlayerBanner() {
               <XIcon className="size-4" />
             </button>
           </div>
-          {/* A phone: the buttons get their own row. */}
+          <div className="relative px-3 pb-3 sm:px-3.5 sm:pb-3.5">
+          <PromoStrip />
+        </div>
+        {/* A phone: the buttons get their own row. */}
           <div className="relative flex gap-2 px-3 pb-3 sm:hidden">
             <Link
               to="/register"
@@ -127,6 +131,7 @@ export function GuestPlayerBanner() {
             </DialogDescription>
           </div>
           <PerksList className="relative text-left" />
+          <PromoStrip className="relative" />
           <div className="relative flex flex-col gap-2 sm:flex-row">
             <Link
               to="/register"

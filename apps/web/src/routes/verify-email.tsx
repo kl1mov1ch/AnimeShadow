@@ -82,7 +82,7 @@ export function Component() {
       try {
         await confirmRegistration(email, value, needPassword ? password : undefined);
         writePendingEmail(null);
-        toast.success("Аккаунт создан! 🎉", { description: "Добро пожаловать в AnimeShadow — начни со своего списка" });
+        toast.success("Аккаунт создан! 🎉", { description: "И месяц PRO в подарок 👑 — он уже включён" });
         navigate("/library", { replace: true });
       } catch (err) {
         if (err instanceof ApiRequestError && err.code === "PASSWORD_REQUIRED") {

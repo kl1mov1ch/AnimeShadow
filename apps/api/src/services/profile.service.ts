@@ -1,4 +1,5 @@
 import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@animeshadow/db";
+import { proActive } from "../lib/pro.js";
 import type {
   GuestSessionInput,
   MyProfile,
@@ -179,9 +180,9 @@ export class ProfileService {
     if (input.titlePrefix !== undefined || input.titleIcon !== undefined) {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { proSince: true },
+        select: { proSince: true, trialUntil: true },
       });
-      if (user.proSince == null) {
+      if (!proActive(user)) {
         throw new BadRequestError("Свой значок и подпись доступны только с PRO.");
       }
       if (input.titlePrefix && isProfane(input.titlePrefix)) {
@@ -349,9 +350,9 @@ export class ProfileService {
   async progress(userId: string): Promise<ProgressDetail[]> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { proSince: true },
+      select: { proSince: true, trialUntil: true },
     });
-    const isPro = this.proForAll || user.proSince != null;
+    const isPro = this.proForAll || proActive(user);
     // Free accounts track their 10 most recent titles — PRO tracks
     // everything. `rawTake` is rows (one per touched episode, not per
     // anime — see the unique constraint on WatchProgress), generous enough
@@ -512,7 +513,7 @@ export class ProfileService {
       accentColor: user.accentColor,
       onlineStatus: user.onlineStatus as PublicProfile["onlineStatus"],
       rank: rankOf(stats.hoursWatched),
-      isPro: user.proSince != null,
+      isPro: proActive(user),
       memberSince: user.createdAt.toISOString(),
       stats: hidden.stats ? EMPTY_STATS : stats,
       achievements,
@@ -528,9 +529,9 @@ export class ProfileService {
       // free-text title does.
       avatarFrame: user.avatarFrame as PublicProfile["avatarFrame"],
       profileTitle: user.profileTitle as PublicProfile["profileTitle"],
-      titlePrefix: user.proSince != null ? user.titlePrefix : null,
+      titlePrefix: proActive(user) ? user.titlePrefix : null,
       titleIcon:
-        user.proSince != null ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
+        proActive(user) ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
       totalCommentLikes: standing.totalLikes,
       bonusXp: user.bonusXp,
       counters: hidden.list ? { ...counters, rated: 0, listed: 0 } : counters,

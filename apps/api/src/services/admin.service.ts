@@ -4,6 +4,7 @@ import {
   type PrismaClient,
   toSummaryDto,
 } from "@animeshadow/db";
+import { proActive } from "../lib/pro.js";
 import {
   ADMIN_LIBRARY_STATUSES,
   type AdminAudienceStats,
@@ -141,6 +142,7 @@ const USER_SUMMARY_SELECT = {
   telegramId: true,
   username: true,
   proSince: true,
+  trialUntil: true,
   lastSeenAt: true,
   createdAt: true,
   _count: { select: { comments: true, library: true } },
@@ -158,7 +160,7 @@ function toUserSummary(u: UserSummaryRow, watchSeconds = 0): AdminUserSummary {
     isBanned: u.isBanned,
     hasTelegram: u.telegramId != null,
     username: u.username,
-    isPro: u.proSince != null,
+    isPro: proActive(u),
     commentCount: u._count.comments,
     libraryCount: u._count.library,
     watchSeconds,
