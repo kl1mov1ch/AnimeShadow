@@ -19,13 +19,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { FilterBar } from "@/components/anime/filter-bar";
-import { BrowseFilters, BrowseSearch, type FilterPatch } from "@/components/anime/browse-filters";
+import { BrowseFilters, type FilterPatch } from "@/components/anime/browse-filters";
 import { AnimeGrid, AnimeGridSkeleton, type AnimeViewMode } from "@/components/anime/anime-grid";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { ErrorState, NoResultsState } from "@/components/common/states";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useScrollDirection } from "@/hooks/use-scroll-direction";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { activeFilterCount, parseBrowseParams, SORT_VALUES } from "@/lib/browse-params";
@@ -147,8 +147,11 @@ export function Component() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const { down } = useScrollDirection();
-  const pillShown = toolbarAbove && !down && !sheetOpen;
+  const wide = useMediaQuery("(min-width: 1024px)");
+  // Once the filter row has scrolled away, the filters ride along at the
+  // bottom of the screen as one pill — on every screen, whichever way the
+  // page is being scrolled.
+  const pillShown = toolbarAbove && !sheetOpen;
 
   const sort = (
     <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => patch({ orderBy: value })}>
@@ -175,7 +178,6 @@ export function Component() {
             <p className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-sm">{titlesCount(total)}</p>
           )}
         </div>
-        <BrowseSearch params={params} onChange={(changes) => patch(changes)} />
         <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
       </header>
 
@@ -225,9 +227,9 @@ export function Component() {
           and the live count on its button. */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
-          side="bottom"
+          side={wide ? "right" : "bottom"}
           onOpenAutoFocus={(event) => event.preventDefault()}
-          className="flex max-h-[88dvh] flex-col gap-0 rounded-t-2xl border-t border-border/60 bg-background p-0"
+          className={cn("flex flex-col gap-0 bg-background p-0", wide ? "w-[22rem] border-l border-border/60" : "max-h-[88dvh] rounded-t-2xl border-t border-border/60")}
         >
           <SheetHeader className="border-b border-border/60 px-4 py-3">
             <SheetTitle>{t("browse.filters")}</SheetTitle>
@@ -271,7 +273,7 @@ export function Component() {
       <div
         aria-hidden={!pillShown}
         className={cn(
-          "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border/70 bg-card/95 p-1 shadow-lg shadow-black/40 transition-[opacity,transform] duration-300 ease-out lg:hidden",
+          "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border/70 bg-card/95 p-1 shadow-lg shadow-black/40 backdrop-blur transition-[opacity,transform] duration-300 ease-out",
           pillShown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
         )}
       >
