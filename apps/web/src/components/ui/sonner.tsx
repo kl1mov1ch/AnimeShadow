@@ -32,21 +32,25 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // logo and the error pages) — `text-foreground` tracks light/dark
         // automatically, so it's the same subtle presence in either theme,
         // never competing with the actual message on top of it.
+        // Solid, never see-through: the card colour of the site, a stripe and
+        // an icon in the message's colour, the 影 faint in the corner.
         classNames: {
           toast:
-            "relative overflow-hidden border-l-4 after:pointer-events-none after:absolute after:-right-3 after:-bottom-5 after:select-none after:font-display after:text-7xl after:leading-none after:text-foreground/[0.06] after:content-['影']",
-          success:
-            "!border-l-emerald-500 !border-emerald-500/50 !bg-emerald-500/10 [&_svg]:!text-emerald-500",
-          error:
-            "!border-l-destructive !border-destructive/50 !bg-destructive/10 [&_svg]:!text-destructive",
-          warning:
-            "!border-l-amber-500 !border-amber-500/50 !bg-amber-500/10 [&_svg]:!text-amber-500",
-          info: "!border-l-sky-500 !border-sky-500/50 !bg-sky-500/10 [&_svg]:!text-sky-500",
+            "!rounded-2xl !border !border-[var(--accent-line-soft)] !bg-card !text-foreground !shadow-2xl !shadow-black/50 !py-3.5 !pl-4 !pr-5 !gap-3 relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary after:pointer-events-none after:absolute after:-right-2 after:-bottom-5 after:select-none after:font-display after:text-7xl after:leading-none after:text-foreground/[0.05] after:content-['影']",
+          title: "!text-[13.5px] !font-semibold",
+          description: "!text-xs !text-muted-foreground",
+          icon: "!m-0 grid !size-8 shrink-0 place-items-center rounded-full bg-foreground/[0.07]",
+          success: "before:!bg-primary [&_[data-icon]]:!bg-primary/15 [&_svg]:!text-primary",
+          error: "before:!bg-destructive [&_[data-icon]]:!bg-destructive/15 [&_svg]:!text-destructive",
+          warning: "before:!bg-amber-400 [&_[data-icon]]:!bg-amber-400/15 [&_svg]:!text-amber-400",
+          info: "before:!bg-foreground/50 [&_svg]:!text-foreground/80",
+          actionButton: "!bg-primary !text-primary-foreground !rounded-lg",
+          cancelButton: "!rounded-lg",
         },
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
+          "--normal-bg": "var(--card)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
