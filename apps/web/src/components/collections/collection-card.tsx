@@ -88,8 +88,8 @@ export function CollectionCard({
           loading="lazy"
           decoding="async"
           className={cn(
-            "absolute inset-0 -z-20 size-full object-cover transition-transform duration-700 group-hover/cc:scale-105",
-            isBanner ? "opacity-45" : "scale-125 opacity-30 blur-xl",
+            "absolute inset-0 -z-20 size-full object-cover",
+            isBanner ? "opacity-40" : "opacity-20",
           )}
         />
       )}
@@ -103,7 +103,7 @@ export function CollectionCard({
             <span
               key={item.id}
               className={cn(
-                "cc-fan absolute bottom-0 left-1/2 aspect-[2/3] overflow-hidden rounded-lg border border-white/15 bg-muted shadow-xl shadow-black/50",
+                "cc-fan absolute bottom-0 left-1/2 aspect-[2/3] overflow-hidden rounded-lg border border-white/15 bg-muted shadow-lg shadow-black/40",
                 featured ? "w-28 sm:w-32" : "w-[5.5rem]",
               )}
               style={

@@ -1682,8 +1682,12 @@ body:has([role="dialog"][data-state="open"]) main * {
 /* Collection cards: the fan of posters opens under the pointer. */
 .cc-fan {
   transform: translateX(calc(-50% + var(--x))) translateY(var(--y)) rotate(var(--r));
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Its own layer: opening the fan moves layers, it never repaints them. */
+  will-change: transform;
+  backface-visibility: hidden;
 }
+.group\/cc { contain: layout paint; }
 .group\/cc:hover .cc-fan {
   transform: translateX(calc(-50% + var(--x-open))) translateY(calc(var(--y) - 8px)) rotate(var(--r-open));
 }

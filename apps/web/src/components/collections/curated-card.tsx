@@ -39,7 +39,7 @@ export function CuratedCard({ collection, className }: { collection: CuratedColl
           return (
             <span
               key={anime.id}
-              className="cc-fan absolute bottom-0 left-1/2 aspect-[2/3] w-[5rem] overflow-hidden rounded-lg border border-white/15 bg-muted shadow-xl shadow-black/50"
+              className="cc-fan absolute bottom-0 left-1/2 aspect-[2/3] w-[5rem] overflow-hidden rounded-lg border border-white/15 bg-muted shadow-lg shadow-black/40"
               style={
                 {
                   "--x": `${offset * 52}%`,
