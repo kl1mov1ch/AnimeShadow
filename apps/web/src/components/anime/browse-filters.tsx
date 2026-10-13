@@ -35,7 +35,7 @@ export type FilterPatch = Record<string, string | null>;
 const THIS_YEAR = new Date().getFullYear();
 
 /** Age ratings as people read them in Russia, from the catalogue's MPAA-style ones. */
-const AGE_RATINGS = [
+export const AGE_RATINGS = [
   { value: "g", label: "0+" },
   { value: "pg", label: "6+" },
   { value: "pg13", label: "12+" },
@@ -69,10 +69,10 @@ function Fold({ title, defaultOpen = false, active, children }: { title: string;
 }
 
 /** "At least" scores people actually pick. */
-const SCORE_STEPS = [6, 7, 7.5, 8, 8.5, 9] as const;
+export const SCORE_STEPS = [6, 7, 7.5, 8, 8.5, 9] as const;
 
 /** Release periods, as one select instead of a two-thumb slider. */
-const PERIODS: Array<{ key: string; label: string; from: number | null; to: number | null }> = [
+export const PERIODS: Array<{ key: string; label: string; from: number | null; to: number | null }> = [
   { key: "this", label: String(THIS_YEAR), from: THIS_YEAR, to: THIS_YEAR },
   { key: "last", label: String(THIS_YEAR - 1), from: THIS_YEAR - 1, to: THIS_YEAR - 1 },
   { key: "2020s", label: "2020-е", from: 2020, to: null },
@@ -83,7 +83,7 @@ const PERIODS: Array<{ key: string; label: string; from: number | null; to: numb
 ];
 
 /** Episode counts as people ask for them: a film, a season, two, a long one. */
-const EPISODE_PRESETS = [
+export const EPISODE_PRESETS = [
   { key: "one", min: 1, max: 1 },
   { key: "short", min: 2, max: 13 },
   { key: "cour2", min: 14, max: 26 },
@@ -282,7 +282,7 @@ export function BrowseFilters({
   );
 }
 
-function Field({ label, aside, children }: { label: string; aside?: React.ReactNode; children: React.ReactNode }) {
+export function Field({ label, aside, children }: { label: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex min-h-5 items-center justify-between gap-2">
@@ -307,7 +307,7 @@ function chipClass(state: "on" | "out" | "off"): string {
 }
 
 /** One choice of a few, as chips; the lit one tapped again turns it off. */
-function ChipGroup({
+export function ChipGroup({
   label,
   value,
   options,
@@ -354,7 +354,7 @@ function ChipGroup({
   );
 }
 
-function Switch({
+export function Switch({
   icon: Icon,
   label,
   on,
@@ -398,7 +398,7 @@ const GENRES_SHOWN = 12;
  * modes — a tap adds the genre to whichever is on; a lit genre tapped again
  * comes off. Every chosen genre has to be there, not any one of them.
  */
-function GenrePicker({
+export function GenrePicker({
   params,
   genres,
   onChange,
@@ -538,7 +538,7 @@ function GenrePicker({
 }
 
 /** Studio names as you type, from the local catalogue. */
-function StudioPicker({ value, onPick }: { value: string | null; onPick: (name: string | null) => void }) {
+export function StudioPicker({ value, onPick }: { value: string | null; onPick: (name: string | null) => void }) {
   const t = useT();
   const [text, setText] = useState(value ?? "");
   const [open, setOpen] = useState(false);
@@ -631,7 +631,7 @@ function readSets(userId: string): SavedSet[] {
  * in the browser, per account: they are a convenience for this person on
  * this device, not something worth a table.
  */
-function SavedSets() {
+export function SavedSets() {
   const t = useT();
   const navigate = useNavigate();
   const { user } = useAuth();

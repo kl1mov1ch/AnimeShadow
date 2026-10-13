@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
+import { FilterBar } from "@/components/anime/filter-bar";
 import { BrowseFilters, BrowseSearch, type FilterPatch } from "@/components/anime/browse-filters";
 import { AnimeGrid, AnimeGridSkeleton, type AnimeViewMode } from "@/components/anime/anime-grid";
 import { PaginationBar } from "@/components/common/pagination-bar";
@@ -165,7 +165,6 @@ export function Component() {
     </Select>
   );
 
-  const chips = <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
@@ -180,10 +179,9 @@ export function Component() {
         <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
       </header>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
-        <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:border-border/60 lg:bg-card/30 lg:p-4 lg:[scrollbar-color:var(--border)_transparent] lg:[scrollbar-width:thin]">
-          <BrowseFilters params={params} genres={genres} onChange={(changes) => patch(changes)} onReset={resetFilters} />
-        </aside>
+      <div className="flex flex-col gap-4">
+        {/* The filters: a row of buttons, each opening its own choices. */}
+        <FilterBar params={params} genres={genres} onChange={(changes) => patch(changes)} onReset={resetFilters} />
 
         <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
           {/* The row: filters (on a phone or tablet), the order, and on a
@@ -192,7 +190,7 @@ export function Component() {
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3.5 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card lg:hidden"
+              className="hidden h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3.5 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card"
             >
               <SlidersHorizontalIcon className="size-4" />
               {t("browse.filters")}
@@ -208,13 +206,6 @@ export function Component() {
             <ViewSwitch view={view} onView={changeView} />
           </div>
 
-          {/* What is applied, as chips that take themselves off — one line
-              that scrolls sideways on a phone instead of a pile of rows. */}
-          {filterCount > 0 && (
-            <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
-              {chips}
-            </div>
-          )}
 
           {isSearch && !searchWithFilters ? (
             <SearchResults
