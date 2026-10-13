@@ -207,7 +207,32 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/anime/:id/frames", async (request, reply) => {
     const { id } = parse(idParams, request.params);
     reply.header("cache-control", "public, max-age=21600");
-    return { frames: await catalog.heroFrames(id) };
+    // Stills from the newest episodes first (the players' own previews), the
+    // catalogue's screenshots only to fill in.
+    const fromEpisodes = await fastify.services.watch
+      .getSources(id)
+      .then((watch) => {
+        const byEpisode = new Map<number, string[]>();
+        for (const source of watch.sources) {
+          for (const [key, ep] of Object.entries(source.iframeEpisodes ?? {})) {
+            const n = Number(key);
+            if (Number.isInteger(n) && ep.thumbs.length > 0) byEpisode.set(n, [...(byEpisode.get(n) ?? []), ...ep.thumbs]);
+          }
+          for (const [key, meta] of Object.entries(source.episodeMeta ?? {})) {
+            const n = Number(key);
+            if (Number.isInteger(n) && meta.thumb) byEpisode.set(n, [...(byEpisode.get(n) ?? []), meta.thumb]);
+          }
+        }
+        // Newest episodes first; two stills from each, until twelve.
+        return [...byEpisode.entries()]
+          .sort((a, b) => b[0] - a[0])
+          // Kodik's full-size stills before AniLibria's small previews.
+          .flatMap(([, thumbs]) => [...new Set(thumbs)].sort((x, y) => Number(x.includes("anilibria")) - Number(y.includes("anilibria"))).slice(0, 2))
+          .slice(0, 12);
+      })
+      .catch(() => [] as string[]);
+    const frames = fromEpisodes.length >= 4 ? fromEpisodes : [...fromEpisodes, ...(await catalog.heroFrames(id))].slice(0, 12);
+    return { frames, fromEpisodes: fromEpisodes.length > 0 };
   });
 
   fastify.get("/anime/:id/franchise", async (request) => {

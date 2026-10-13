@@ -264,21 +264,9 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   );
 }
 
-/** A stable shuffle per title, so its frames come in a fresh but repeatable order. */
-function shuffled(list: string[], seed: number): string[] {
-  const out = [...list];
-  let x = seed || 1;
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    x = (x * 1103515245 + 12345) & 0x7fffffff;
-    const j = x % (i + 1);
-    [out[i], out[j]] = [out[j]!, out[i]!];
-  }
-  return out;
-}
-
 /**
  * One title's frames in the hero, taken straight from the catalogue API
- * (every screenshot it has, in a shuffled order) and shown as plain images
+ * (stills of its newest episodes first) and shown as plain images
  * the browser loads and caches itself — nothing is held in memory by us.
  * Only two pictures are ever in the page: the one on screen and the one
  * coming in, which fades over it once it has loaded; the next turn starts
@@ -305,7 +293,8 @@ function SlideFrames({
   });
   const frames = useMemo(() => {
     const own = (data ?? []).map((u) => imageSrc(u)).filter((u): u is string => Boolean(u));
-    return own.length > 0 ? shuffled(own, anime.id).slice(0, 8) : framesOf(anime);
+    // In the order they come — the newest episodes first.
+    return own.length > 0 ? own.slice(0, 8) : framesOf(anime);
   }, [data, anime]);
 
   const [base, setBase] = useState<string | null>(null);

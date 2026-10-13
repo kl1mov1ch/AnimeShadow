@@ -7,7 +7,7 @@ import { GlyphWatermark, HomeContainer } from "./home-ui";
 
 const SOCIALS = [
   { Icon: TelegramIcon, label: "Telegram", href: TELEGRAM_CHANNEL, hover: "hover:text-[#26A5E4]" },
-  { Icon: TiktokIcon, label: "TikTok @ifstream", href: TIKTOK_URL, hover: "hover:text-foreground" },
+  { Icon: TiktokIcon, label: "TikTok", href: TIKTOK_URL, hover: "hover:text-[#fe2c55]/80" },
 ];
 
 export function HomeFooter() {

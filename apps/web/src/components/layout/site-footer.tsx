@@ -11,7 +11,7 @@ import { glideTo } from "@/lib/glide";
 
 const SOCIALS: Array<{ label: string; href: string; Icon: ComponentType<{ className?: string }>; hover: string }> = [
   { label: "Telegram", href: TELEGRAM_CHANNEL, Icon: TelegramIcon, hover: "hover:bg-[#26A5E4] hover:border-[#26A5E4]" },
-  { label: "TikTok @ifstream", href: TIKTOK_URL, Icon: TiktokIcon, hover: "hover:bg-foreground hover:text-background hover:border-foreground" },
+  { label: "TikTok", href: TIKTOK_URL, Icon: TiktokIcon, hover: "hover:bg-[#fe2c55]/75 hover:border-[#fe2c55]/60" },
 ];
 
 /**
