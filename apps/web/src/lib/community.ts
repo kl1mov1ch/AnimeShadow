@@ -1,6 +1,9 @@
 /** The site's Telegram channel. */
 export const TELEGRAM_CHANNEL = "https://t.me/shadowani";
 
+/** The site's TikTok. */
+export const TIKTOK_URL = "https://www.tiktok.com/@ifstream";
+
 /** The channel's invite link — the one to pass on to friends. */
 export const TELEGRAM_INVITE = "https://t.me/+GS8YSkXLD6RjMjEy";
 

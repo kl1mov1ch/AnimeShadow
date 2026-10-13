@@ -5,11 +5,13 @@ import { toast } from "sonner";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { Wordmark } from "@/components/brand/wordmark";
 import { useI18n } from "@/i18n";
-import { shareInvite, TELEGRAM_CHANNEL } from "@/lib/community";
+import { TiktokIcon } from "@/components/home/social-icons";
+import { shareInvite, TELEGRAM_CHANNEL, TIKTOK_URL } from "@/lib/community";
 import { glideTo } from "@/lib/glide";
 
-const SOCIALS: Array<{ label: string; href: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }> = [
-  { label: "Telegram", href: TELEGRAM_CHANNEL, Icon: TelegramIcon },
+const SOCIALS: Array<{ label: string; href: string; Icon: ComponentType<{ className?: string }>; hover: string }> = [
+  { label: "Telegram", href: TELEGRAM_CHANNEL, Icon: TelegramIcon, hover: "hover:bg-[#26A5E4] hover:border-[#26A5E4]" },
+  { label: "TikTok @ifstream", href: TIKTOK_URL, Icon: TiktokIcon, hover: "hover:bg-foreground hover:text-background hover:border-foreground" },
 ];
 
 /**
@@ -44,27 +46,31 @@ export function SiteFooter() {
           </div>
 
           {/* Where to find us, by name — and how to help the site along. */}
-          <div className="flex flex-wrap gap-2">
-            {SOCIALS.map(({ label, href, Icon }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border/60 px-3 text-sm text-foreground/85 transition-colors duration-200 hover:border-foreground/25 hover:bg-foreground/[0.04] hover:text-foreground"
-              >
-                <Icon className="size-4 text-muted-foreground" />
-                {label}
-              </a>
-            ))}
-            <InviteButton />
+          <div className="flex flex-col items-start gap-3 md:items-end">
+            {/* Support stands out on its own; the networks are round icons. */}
             <Link
               to="/support"
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 text-sm font-medium text-foreground transition-colors duration-200 hover:border-primary/50 hover:bg-primary/15"
+              className="group inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95"
             >
-              <HeartIcon className="size-4 text-primary" />
+              <HeartIcon className="size-4 fill-current transition-transform group-hover:scale-110" />
               {t("footer.support")}
             </Link>
+            <div className="flex items-center gap-2">
+              {SOCIALS.map(({ label, href, Icon, hover }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={label}
+                  title={label}
+                  className={`grid size-10 place-items-center rounded-full border border-border/60 bg-card/60 text-foreground/80 transition-colors duration-200 hover:text-white ${hover}`}
+                >
+                  <Icon className="size-[18px]" />
+                </a>
+              ))}
+              <InviteButton />
+            </div>
           </div>
         </div>
 
@@ -100,10 +106,11 @@ function InviteButton() {
     <button
       type="button"
       onClick={() => void invite()}
-      className="inline-flex h-9 items-center gap-2 rounded-lg border border-border/60 px-3 text-sm text-foreground/85 transition-colors duration-200 hover:border-foreground/25 hover:bg-foreground/[0.04] hover:text-foreground active:scale-[0.98]"
+      aria-label="Позвать друзей"
+      title="Позвать друзей"
+      className="grid size-10 place-items-center rounded-full border border-border/60 bg-card/60 text-foreground/80 transition-colors duration-200 hover:border-primary/50 hover:text-primary active:scale-95"
     >
-      <UserPlusIcon className="size-4 text-muted-foreground" />
-      Позвать друзей
+      <UserPlusIcon className="size-[18px]" />
     </button>
   );
 }

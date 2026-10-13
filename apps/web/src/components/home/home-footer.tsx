@@ -1,14 +1,13 @@
 import { Link } from "react-router-dom";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
-import { DiscordIcon, TelegramIcon, VkIcon, YoutubeIcon } from "./social-icons";
+import { TELEGRAM_CHANNEL, TIKTOK_URL } from "@/lib/community";
+import { TelegramIcon, TiktokIcon } from "./social-icons";
 import { HOME_NAV } from "./home-nav";
 import { GlyphWatermark, HomeContainer } from "./home-ui";
 
 const SOCIALS = [
-  { Icon: DiscordIcon, label: "Discord", href: "https://discord.com", hover: "hover:text-[#5865F2]" },
-  { Icon: TelegramIcon, label: "Telegram", href: "https://telegram.org", hover: "hover:text-[#26A5E4]" },
-  { Icon: VkIcon, label: "VK", href: "https://vk.com", hover: "hover:text-[#0077FF]" },
-  { Icon: YoutubeIcon, label: "YouTube", href: "https://youtube.com", hover: "hover:text-[#FF0000]" },
+  { Icon: TelegramIcon, label: "Telegram", href: TELEGRAM_CHANNEL, hover: "hover:text-[#26A5E4]" },
+  { Icon: TiktokIcon, label: "TikTok @ifstream", href: TIKTOK_URL, hover: "hover:text-foreground" },
 ];
 
 export function HomeFooter() {
