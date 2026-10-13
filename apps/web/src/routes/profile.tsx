@@ -1,6 +1,8 @@
 import type {
   MyProfile,
 } from "@animeshadow/shared";
+import { apiRequest } from "@/lib/api";
+import { getVisitorId } from "@/lib/visitor";
 
 import { useEffect, useState } from "react";
 import {
@@ -92,6 +94,12 @@ function PublicView({ username }: { username: string }) {
   const t = useT();
   const { user } = useAuth();
   const { data, isPending, isError } = usePublicProfile(username);
+  const viewed = data && (!user || data.id !== user.id) ? data.id : null;
+  useEffect(() => {
+    if (!viewed) return;
+    // Once per open page; the server counts each person once a day.
+    void apiRequest(`/users/${viewed}/view`, { method: "POST", body: { visitorId: getVisitorId() } }).catch(() => undefined);
+  }, [viewed]);
   if (isPending) return <ProfileSkeleton />;
   if (isError || !data)
     return <ErrorState title={t("errors.notFoundTitle")} message={t("errors.notFoundBody")} />;

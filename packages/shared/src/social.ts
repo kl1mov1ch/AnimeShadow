@@ -34,6 +34,8 @@ export const socialSummarySchema = z.object({
   followsYou: z.boolean(),
   /** A few friends' faces, for the profile's header. */
   friendFaces: z.array(userCardSchema),
+  /** The owner hides their followers and friends from this viewer. */
+  hidden: z.boolean().default(false),
 });
 export type SocialSummary = z.infer<typeof socialSummarySchema>;
 
@@ -54,6 +56,8 @@ export const wallPageSchema = z.object({
   items: z.array(wallPostSchema),
   total: z.number().int(),
   nextCursor: z.string().nullable(),
+  /** The owner closed their wall to this viewer. */
+  hidden: z.boolean().default(false),
 });
 export type WallPage = z.infer<typeof wallPageSchema>;
 

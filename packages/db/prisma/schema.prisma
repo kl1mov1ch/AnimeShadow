@@ -62,6 +62,8 @@ model User {
   /// Friends added by an admin to the referral friends ladder (on top of
   /// those who really came by the code).
   bonusReferrals Int            @default(0)
+  /// Profile views: unique visitors, each counted once a day (see ProfileVisit).
+  profileViews  Int             @default(0)
   /// Self-reported, set once (see profile.service.ts) — the only basis for
   /// unlocking R+-rated titles. Hentai (Rx) is excluded for everyone,
   /// verified or not; this never changes that.
@@ -902,4 +904,17 @@ model ReferralReward {
   claimedAt DateTime @default(now())
 
   @@id([userId, rewardId])
+}
+
+/// Who looked at a profile lately — only to count each visitor once a day.
+/// Rows older than two days are swept away; the total lives on
+/// User.profileViews, so showing it never counts anything.
+model ProfileVisit {
+  profileId String
+  /// The viewer's account id, or "v:<visitor id>" for a guest.
+  viewerKey String
+  lastAt    DateTime @default(now())
+
+  @@id([profileId, viewerKey])
+  @@index([lastAt])
 }

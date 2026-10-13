@@ -3,6 +3,8 @@ import {
   ArrowRightIcon,
   CheckCheckIcon,
   ClockIcon,
+  EyeIcon,
+  LockIcon,
   FilmIcon,
   HandshakeIcon,
   Share2Icon,
@@ -14,6 +16,9 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useMemo } from "react";
+import { LevelBadge } from "@/components/profile/level-visuals";
+import { levelOf } from "@/components/profile/profile-level";
 import { Link } from "react-router-dom";
 import { fmtDuration } from "@/components/anime/progress-row";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
@@ -131,6 +136,8 @@ function ProfileModalBody({ profile, onClose }: { profile: PublicProfile; onClos
   const href = profile.username ? `/profile/${profile.username}` : null;
   const online = ONLINE[profile.onlineStatus] ?? ONLINE.OFFLINE!;
   const friends = Boolean(social?.isFollowing && social.followsYou);
+  const level = useMemo(() => levelOf(profile), [profile]);
+  const closed = !own && profile.hidden.profile;
 
   const share = async () => {
     const url = href ? `${window.location.origin}${href}` : window.location.href;
@@ -151,7 +158,7 @@ function ProfileModalBody({ profile, onClose }: { profile: PublicProfile; onClos
         { icon: ClockIcon, value: fmtDuration(t, profile.stats.hoursWatched * 3600), label: "смотрел" },
         { icon: FilmIcon, value: profile.stats.episodesWatched, label: "серий" },
         { icon: CheckCheckIcon, value: profile.stats.titlesCompleted, label: "досмотрено" },
-        { icon: TrophyIcon, value: `${earned}/${profile.achievements.length}`, label: "достижений" },
+        ...(profile.hidden.achievements ? [] : [{ icon: TrophyIcon, value: `${earned}/${profile.achievements.length}`, label: "достижений" }]),
       ]
     : [];
 
@@ -177,6 +184,13 @@ function ProfileModalBody({ profile, onClose }: { profile: PublicProfile; onClos
               <span className="min-w-0 truncate">{profile.displayName}</span>
               {profile.isPro && <ProMark />}
             </h2>
+            <span className="flex items-center gap-1.5">
+              <LevelBadge info={level} size={26} animated={false} />
+              <span className="text-xs font-semibold" style={{ color: level.tier.colors[0] }}>
+                {level.tier.name}
+              </span>
+              <span className="text-[11px] text-muted-foreground">· {level.level} ур.</span>
+            </span>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
               {profile.username && <span>@{profile.username}</span>}
               <span className="inline-flex items-center gap-1">
@@ -206,7 +220,20 @@ function ProfileModalBody({ profile, onClose }: { profile: PublicProfile; onClos
         {profile.bio && <p className="line-clamp-4 whitespace-pre-line text-sm leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">{profile.bio}</p>}
 
         {/* Followers, following, friends — with a few friends' faces. */}
-        {social && (
+        {social?.hidden ? (
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <LockIcon className="size-3.5" />
+              Подписчики и друзья скрыты
+            </span>
+            {profile.views != null && (
+              <span className="inline-flex items-center gap-1.5">
+                <EyeIcon className="size-3.5 text-amber-300" />
+                <b className="tabular-nums text-foreground">{profile.views}</b> {plural(profile.views, "просмотр", "просмотра", "просмотров")}
+              </span>
+            )}
+          </p>
+        ) : social && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <span>
               <b className="tabular-nums">{social.followers}</b> <span className="text-muted-foreground">{plural(social.followers, "подписчик", "подписчика", "подписчиков")}</span>
@@ -226,6 +253,13 @@ function ProfileModalBody({ profile, onClose }: { profile: PublicProfile; onClos
               )}
               <b className="tabular-nums">{social.friends}</b> <span className="text-muted-foreground">{plural(social.friends, "друг", "друга", "друзей")}</span>
             </span>
+            {profile.views != null && (
+              <span className="inline-flex items-center gap-1.5" title="Уникальные заходы в профиль, каждый не чаще раза в сутки">
+                <EyeIcon className="size-3.5 text-amber-300" />
+                <b className="tabular-nums">{profile.views}</b>
+                <span className="text-muted-foreground">{plural(profile.views, "просмотр", "просмотра", "просмотров")}</span>
+              </span>
+            )}
           </div>
         )}
 
@@ -286,10 +320,19 @@ function ProfileModalBody({ profile, onClose }: { profile: PublicProfile; onClos
           </button>
         </div>
 
+        {closed && (
+          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-[var(--accent-line-soft)] p-4">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-foreground/[0.06] text-muted-foreground">
+              <LockIcon className="size-4" />
+            </span>
+            <p className="text-sm text-muted-foreground">Профиль скрыт владельцем — видно только имя и аватар. Подписаться можно.</p>
+          </div>
+        )}
+
         {!profile.hidden.stats && <ProfileProgress profile={profile} className="w-full" />}
 
         {stats.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className={cn("grid grid-cols-2 gap-2", stats.length >= 5 ? "sm:grid-cols-5" : stats.length >= 3 ? "sm:grid-cols-4" : "sm:grid-cols-2")}>
             {stats.map(({ icon: Icon, value, label }) => (
               <div key={label} className="flex flex-col gap-0.5 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3">
                 <Icon className="size-4 text-primary" />

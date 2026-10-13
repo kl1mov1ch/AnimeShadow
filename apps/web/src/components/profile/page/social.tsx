@@ -1,9 +1,11 @@
 import type { FollowKind, FriendEvent, PublicProfile, UserCard } from "@animeshadow/shared";
 import {
   ActivityIcon,
-  type LucideIcon,
+  EyeIcon,
   HandshakeIcon,
   Loader2Icon,
+  LockIcon,
+  type LucideIcon,
   MessageSquareTextIcon,
   SendIcon,
   Trash2Icon,
@@ -155,9 +157,44 @@ export function FollowButton({ userId, compact = false, className }: { userId: s
  * with its mark, its colour and its number, each a button to the list.
  * Friends come first and carry a few faces.
  */
-export function SocialLine({ userId, onOpen, className }: { userId: string; onOpen: (kind: FollowKind) => void; className?: string }) {
+export function SocialLine({
+  userId,
+  onOpen,
+  className,
+  views,
+}: {
+  userId: string;
+  onOpen: (kind: FollowKind) => void;
+  className?: string;
+  /** Profile views; null when the owner hides them. */
+  views?: number | null;
+}) {
   const { data } = useSocial(userId);
   if (!data) return <span className={cn("h-9 w-72 animate-pulse rounded-full bg-foreground/[0.06]", className)} />;
+  const viewsPill =
+    views != null ? (
+      <span
+        title="Сколько человек заходили в профиль — каждый не чаще раза в сутки"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-black/30 pl-1 pr-2.5 text-xs sm:h-9 sm:pr-3 sm:text-sm"
+      >
+        <span className="grid size-6 place-items-center rounded-full bg-amber-400/15 text-amber-300 ring-1 ring-amber-300/30 sm:size-7">
+          <EyeIcon className="size-3 sm:size-3.5" />
+        </span>
+        <span className="font-semibold tabular-nums">{views.toLocaleString("ru-RU")}</span>
+        <span className="text-muted-foreground">{plural(views, "просмотр", "просмотра", "просмотров")}</span>
+      </span>
+    ) : null;
+  if (data.hidden) {
+    return (
+      <div className={cn("flex flex-wrap items-center gap-2", className)}>
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-3 text-xs text-muted-foreground sm:h-9 sm:text-sm">
+          <LockIcon className="size-3.5" />
+          Подписчики и друзья скрыты
+        </span>
+        {viewsPill}
+      </div>
+    );
+  }
   const items: Array<{ kind: FollowKind; n: number; word: string }> = [
     { kind: "friends", n: data.friends, word: plural(data.friends, "друг", "друга", "друзей") },
     { kind: "followers", n: data.followers, word: plural(data.followers, "подписчик", "подписчика", "подписчиков") },
@@ -194,6 +231,7 @@ export function SocialLine({ userId, onOpen, className }: { userId: string; onOp
           </button>
         );
       })}
+      {viewsPill}
       {data.followsYou && !data.isFollowing && (
         <span className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-sky-500/15 px-2.5 text-[11px] font-medium text-sky-300 ring-1 ring-sky-400/30">
           <UsersIcon className="size-3" />
@@ -351,6 +389,7 @@ export function WallPanel({ profile, own }: { profile: PublicProfile; own: boole
   const [text, setText] = useState("");
   const items = data?.pages.flatMap((p) => p.items) ?? [];
   const total = data?.pages[0]?.total ?? 0;
+  const closed = !own && data?.pages[0]?.hidden === true;
 
   const send = () => {
     const body = text.trim();
@@ -360,6 +399,19 @@ export function WallPanel({ profile, own }: { profile: PublicProfile; own: boole
       onError: () => toast.error("Не получилось отправить — попробуйте чуть позже"),
     });
   };
+
+  if (closed) {
+    return (
+      <div id="wall" className="scroll-mt-32">
+        <Panel title="Стена" icon={MessageSquareTextIcon}>
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <LockIcon className="size-4" />
+            Владелец закрыл стену — писать и читать её нельзя.
+          </p>
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <div id="wall" className="scroll-mt-32">

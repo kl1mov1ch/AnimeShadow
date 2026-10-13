@@ -1,7 +1,6 @@
-import type { LibraryImportInput, MyProfile, ProfilePrivacy, Visibility } from "@animeshadow/shared";
+import type { LibraryImportInput, MyProfile } from "@animeshadow/shared";
 import {
   DownloadIcon,
-  LockIcon,
   PaletteIcon,
   RotateCcwIcon,
   SearchIcon,
@@ -73,7 +72,7 @@ function Section({
   hint,
   children,
 }: {
-  icon: typeof LockIcon;
+  icon: typeof DownloadIcon;
   title: string;
   hint: string;
   children: React.ReactNode;
@@ -142,47 +141,8 @@ export function AccentSection({ profile }: { profile: MyProfile }) {
 }
 
 /** Who sees each part of the profile. */
-export function PrivacySection({ profile }: { profile: MyProfile }) {
-  const t = useT();
-  const update = useUpdateProfile();
-  const setPrivacy = (part: keyof ProfilePrivacy, value: Visibility) =>
-    update.mutate(
-      { privacy: { ...profile.privacy, [part]: value } },
-      { onSuccess: () => toast.success(t("profile.blocks.saved")) },
-    );
-  const parts: Array<keyof ProfilePrivacy> = ["list", "stats", "activity", "watching"];
-  const levels: Visibility[] = ["public", "users", "private"];
-
-  return (
-    <Section icon={LockIcon} title={t("profile.privacy.title")} hint={t("profile.privacy.hint")}>
-      <div className="flex flex-col gap-2">
-        {parts.map((part) => (
-          <div key={part} className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm">{t(`profile.privacy.${part}` as "profile.privacy.list")}</span>
-            <div className="flex rounded-lg border border-primary/25 bg-primary/5 p-0.5">
-              {levels.map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setPrivacy(part, level)}
-                  aria-pressed={profile.privacy[part] === level}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
-                    profile.privacy[part] === level
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-primary",
-                  )}
-                >
-                  {t(`profile.privacy.${level}` as "profile.privacy.public")}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
+// Privacy moved to its own file — rebuilt part by part, with previews.
+export { PrivacySection } from "./privacy-settings";
 
 /** Download the list, or bring one in. */
 export function PortabilitySection() {

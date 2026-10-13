@@ -128,6 +128,22 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
     return profile.getByUsername(username.replace(/^@/, ""), request.userId);
   });
 
+  // A look at someone's profile page (not the preview card): counted once a
+  // day per person, never the owner's own. Cheap — see recordView.
+  fastify.post(
+    "/users/:id/view",
+    { preHandler: fastify.optionalAuth, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { id } = parse(userIdParams, request.params);
+      const { visitorId } = parse(z.object({ visitorId: z.string().trim().min(8).max(64).optional() }), request.body ?? {});
+      void profile.recordView(id, request.userId ?? null, visitorId ?? null);
+      reply.code(204);
+    },
+  );
+  const sweep = setInterval(() => void profile.sweepVisits().catch(() => 0), 24 * 60 * 60_000);
+  sweep.unref();
+  fastify.addHook("onClose", async () => clearInterval(sweep));
+
   // Same thing by id — for a comment author who hasn't claimed a username.
   fastify.get("/users/:id/public-profile", { preHandler: fastify.optionalAuth }, async (request) => {
     const { id } = parse(userIdParams, request.params);

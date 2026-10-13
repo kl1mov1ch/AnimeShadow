@@ -240,7 +240,7 @@ export function ProfileStage({
           )}
         </div>
         {/* Friends, followers, following — under the buttons, on the right. */}
-        <SocialLine userId={profile.id} onOpen={onPeople} className="xl:justify-end" />
+        <SocialLine userId={profile.id} onOpen={onPeople} className="xl:justify-end" views={profile.views} />
         </div>
       </div>
       <AchievementDetailDialog achievement={opened} onOpenChange={(open) => !open && setOpened(null)} />

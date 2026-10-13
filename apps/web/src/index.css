@@ -1782,6 +1782,13 @@ body:has([role="dialog"][data-state="open"]) main * {
 @keyframes ti-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-22px) scale(0.3); } }
 @media (prefers-reduced-motion: reduce) { .ti, .ti-ring, .ti-tick, .ti-sparks span { animation: none; stroke-dashoffset: 0; } [data-sonner-toast].toast-card { animation: none; } }
 
+/* Privacy previews: the block as it is, then blurring behind a lock, on a loop. */
+.pv-mock { animation: pv-blur 3.2s ease-in-out infinite; }
+.pv-lock { opacity: 0; animation: pv-lock 3.2s ease-in-out infinite; }
+@keyframes pv-blur { 0%, 30% { filter: none; opacity: 1; } 45%, 85% { filter: blur(3px); opacity: 0.35; } 100% { filter: none; opacity: 1; } }
+@keyframes pv-lock { 0%, 35% { opacity: 0; transform: scale(0.85); } 48%, 82% { opacity: 1; transform: scale(1); } 95%, 100% { opacity: 0; transform: scale(0.9); } }
+@media (prefers-reduced-motion: reduce) { .pv-mock { animation: none; filter: blur(3px); opacity: 0.35; } .pv-lock { animation: none; opacity: 1; } }
+
 /* The header's sections: a soft pill under the one you're in, sliding along. */
 .hnav-pill {
   background: color-mix(in srgb, var(--primary) 14%, transparent);

@@ -1,4 +1,5 @@
 import type { PublicProfile } from "@animeshadow/shared";
+import { LockIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { FollowKind } from "@animeshadow/shared";
@@ -151,6 +152,18 @@ export function ProfileView({
         onCompare={!own && !profile.hidden.list ? () => reach("compare") : undefined}
         onWrite={() => reach("wall", "wall-input")}
       />
+      {!own && profile.hidden.profile ? (
+        <section className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--accent-line-soft)] bg-[var(--accent-surface)] px-6 py-14 text-center">
+          <span className="grid size-14 place-items-center rounded-2xl bg-foreground/[0.06] text-muted-foreground">
+            <LockIcon className="size-6" />
+          </span>
+          <p className="font-display text-xl">Профиль скрыт</p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            {profile.displayName} решил(а) не показывать свой профиль. Подписаться всё равно можно — вдруг откроет.
+          </p>
+        </section>
+      ) : (
+        <>
       <PlayerStrip profile={profile} />
       <span id="profile-tabs-anchor" className="-mb-5 block scroll-mt-28" />
       <ProfileTabs tabs={tabs} value={tab} onChange={(id) => open(id)} />
@@ -168,6 +181,8 @@ export function ProfileView({
         {tab === "collections" && <CollectionsTab profile={profile} own={own} />}
         {tab === "invite" && own && <InviteTab />}
       </div>
+        </>
+      )}
       {own && media.elements}
     </div>
   );

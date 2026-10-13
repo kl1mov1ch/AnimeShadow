@@ -220,6 +220,18 @@ export const profilePrivacySchema = z.object({
   stats: visibilitySchema,
   activity: visibilitySchema,
   watching: visibilitySchema,
+  /** The whole profile: hidden, a visitor sees only the name and the face. */
+  profile: visibilitySchema.default("public"),
+  /** Followers, following, friends — the counts and the lists. */
+  social: visibilitySchema.default("public"),
+  /** The favourite five. */
+  favorites: visibilitySchema.default("public"),
+  /** Achievements and the showcase. */
+  achievements: visibilitySchema.default("public"),
+  /** The wall: reading it and writing on it. */
+  wall: visibilitySchema.default("public"),
+  /** How many people have looked at the profile. */
+  views: visibilitySchema.default("public"),
 });
 export type ProfilePrivacy = z.infer<typeof profilePrivacySchema>;
 
@@ -228,7 +240,16 @@ export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacy = {
   stats: "public",
   activity: "public",
   watching: "public",
+  profile: "public",
+  social: "public",
+  favorites: "public",
+  achievements: "public",
+  wall: "public",
+  views: "public",
 };
+
+/** Every part a privacy setting covers, in the order the settings show them. */
+export const PRIVACY_PARTS = ["profile", "stats", "list", "watching", "activity", "favorites", "achievements", "social", "wall", "views"] as const;
 
 export const publicProfileSchema = z.object({
   /** The account's id — what the profile's own sub-resources are keyed by,
@@ -281,7 +302,15 @@ export const publicProfileSchema = z.object({
     stats: z.boolean(),
     activity: z.boolean(),
     watching: z.boolean(),
+    profile: z.boolean().default(false),
+    social: z.boolean().default(false),
+    favorites: z.boolean().default(false),
+    achievements: z.boolean().default(false),
+    wall: z.boolean().default(false),
+    views: z.boolean().default(false),
   }),
+  /** Profile views (unique people, once a day each); null when hidden. */
+  views: z.number().int().nullable().default(null),
 });
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 

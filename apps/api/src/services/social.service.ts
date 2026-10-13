@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@animeshadow/db";
+import { canSeePart } from "../lib/privacy.js";
 import { proActive } from "../lib/pro.js";
 import type {
   CreateProfileReportInput,
@@ -67,6 +68,14 @@ export class SocialService {
 
   async summary(userId: string, viewerId: string | null): Promise<SocialSummary> {
     await this.ensureUser(userId);
+    if (!(await canSeePart(this.prisma, userId, viewerId, "social"))) {
+      // Hidden: no counts, no faces — but the viewer's own follow still shows.
+      const [viewerFollows, followsViewer] = await Promise.all([
+        viewerId ? this.prisma.follow.count({ where: { followerId: viewerId, followingId: userId } }) : Promise.resolve(0),
+        viewerId ? this.prisma.follow.count({ where: { followerId: userId, followingId: viewerId } }) : Promise.resolve(0),
+      ]);
+      return { followers: 0, following: 0, friends: 0, isFollowing: viewerFollows > 0, followsYou: followsViewer > 0, friendFaces: [], hidden: true };
+    }
     const [followers, following, friendIds, viewerFollows, followsViewer] = await Promise.all([
       this.prisma.follow.count({ where: { followingId: userId } }),
       this.prisma.follow.count({ where: { followerId: userId } }),
@@ -85,6 +94,7 @@ export class SocialService {
       isFollowing: viewerFollows > 0,
       followsYou: followsViewer > 0,
       friendFaces: await this.cards(friendIds.slice(0, 6), viewerId),
+      hidden: false,
     };
   }
 
@@ -125,6 +135,7 @@ export class SocialService {
   /** Followers, following or friends of an account, newest first. */
   async list(userId: string, kind: FollowKind, viewerId: string | null): Promise<UserCard[]> {
     await this.ensureUser(userId);
+    if (!(await canSeePart(this.prisma, userId, viewerId, "social"))) return [];
     let ids: string[];
     if (kind === "friends") {
       ids = await this.friendIds(userId, LIST_LIMIT);
@@ -244,6 +255,7 @@ export class SocialService {
 
   async wall(ownerId: string, viewerId: string | null, cursor: string | null): Promise<WallPage> {
     await this.ensureUser(ownerId);
+    if (!(await canSeePart(this.prisma, ownerId, viewerId, "wall"))) return { items: [], total: 0, nextCursor: null, hidden: true };
     const isAdmin = viewerId ? await this.isAdmin(viewerId) : false;
     const [rows, total] = await Promise.all([
       this.prisma.wallPost.findMany({
@@ -265,6 +277,7 @@ export class SocialService {
       items: page.map((r) => this.toPost(r, byId.get(r.authorId)!, viewerId, ownerId, isAdmin)),
       total,
       nextCursor: rows.length > WALL_PAGE ? (page[page.length - 1]?.id ?? null) : null,
+      hidden: false,
     };
   }
 
@@ -275,6 +288,7 @@ export class SocialService {
     ]);
     if (!owner || owner.isBanned) throw new NotFoundError("Профиль не найден.");
     if (author?.isBanned) throw new UnauthorizedError("This account has been suspended.");
+    if (!(await canSeePart(this.prisma, ownerId, authorId, "wall"))) throw new ForbiddenError("Стена этого профиля закрыта.");
     const text = body.trim();
     if (!text) throw new BadRequestError("Пустое сообщение.");
     const row = await this.prisma.wallPost.create({

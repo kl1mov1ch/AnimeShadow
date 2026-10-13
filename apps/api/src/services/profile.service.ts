@@ -1,4 +1,5 @@
 import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@animeshadow/db";
+import { canSeePart, readPrivacy, visibleParts } from "../lib/privacy.js";
 import { proActive } from "../lib/pro.js";
 import type {
   GuestSessionInput,
@@ -6,7 +7,6 @@ import type {
   ProfileCounters,
   ProfileLayout,
   ProfilePrivacy,
-  Visibility,
   ProfileStats,
   ProgressDetail,
   PublicProfile,
@@ -16,11 +16,9 @@ import type {
 import {
   AVATAR_FRAMES,
   DEFAULT_PROFILE_LAYOUT,
-  DEFAULT_PROFILE_PRIVACY,
   MAX_SHOWCASE_ACHIEVEMENTS,
   PROFILE_BLOCKS,
   profileLayoutSchema,
-  profilePrivacySchema,
   PROFILE_TITLES,
   cosmeticUnlocked,
   earnedSources,
@@ -113,14 +111,9 @@ export class ProfileService {
     part: keyof ProfilePrivacy,
   ): Promise<boolean> {
     if (viewerId === ownerId) return true;
-    const owner = await this.prisma.user.findUnique({
-      where: { id: ownerId },
-      select: { profilePrivacy: true },
-    });
-    if (!owner) throw new NotFoundError("Профиль не найден.");
-    const level = readPrivacy(owner.profilePrivacy)[part];
-    const friend = level === "friends" && viewerId ? await this.areFriends(ownerId, viewerId) : false;
-    return allowed(level, viewerId, friend);
+    const exists = await this.prisma.user.findUnique({ where: { id: ownerId }, select: { id: true } });
+    if (!exists) throw new NotFoundError("Профиль не найден.");
+    return canSeePart(this.prisma, ownerId, viewerId, part);
   }
 
   async getMine(userId: string): Promise<MyProfile> {
@@ -455,6 +448,44 @@ export class ProfileService {
     watchSessionsTotal.inc({ audience: "guest" });
   }
 
+  /** Recently counted views, so a refresh or a second look never reaches the database. */
+  private readonly recentViews = new Map<string, number>();
+
+  /**
+   * One look at a profile: counted once a day per viewer (an account, or a
+   * guest's browser id), never for the owner. The check and the count are
+   * one statement — the visit row is written only if the last one is a day
+   * old, and only then does the counter go up; within a day the in-memory
+   * map answers without touching the database.
+   */
+  async recordView(profileId: string, viewerId: string | null, visitorId: string | null): Promise<void> {
+    if (viewerId === profileId) return;
+    const key = viewerId ?? (visitorId ? `v:${visitorId}` : null);
+    if (!key) return;
+    const memo = `${profileId}|${key}`;
+    const now = Date.now();
+    const last = this.recentViews.get(memo);
+    if (last && now - last < 86_400_000) return;
+    if (this.recentViews.size > 50_000) this.recentViews.clear();
+    this.recentViews.set(memo, now);
+    await this.prisma.$executeRaw`
+      WITH visit AS (
+        INSERT INTO "ProfileVisit" ("profileId", "viewerKey", "lastAt")
+        VALUES (${profileId}, ${key}, now())
+        ON CONFLICT ("profileId", "viewerKey") DO UPDATE SET "lastAt" = now()
+        WHERE "ProfileVisit"."lastAt" < now() - interval '24 hours'
+        RETURNING 1
+      )
+      UPDATE "User" SET "profileViews" = "profileViews" + 1
+      WHERE "id" = ${profileId} AND EXISTS (SELECT 1 FROM visit)`.catch(() => undefined);
+  }
+
+  /** Visit rows older than two days are only clutter: the counter keeps the total. */
+  async sweepVisits(): Promise<number> {
+    const { count } = await this.prisma.profileVisit.deleteMany({ where: { lastAt: { lt: new Date(Date.now() - 2 * 86_400_000) } } });
+    return count;
+  }
+
   // ---- internals ----
 
   /** Whether the two follow each other — "friends" in the privacy settings. */
@@ -481,15 +512,22 @@ export class ProfileService {
     // Only asked when some part is for friends only.
     const friend =
       !own && viewerId && Object.values(privacy).includes("friends") ? await this.areFriends(userId, viewerId) : false;
+    const visible = visibleParts(privacy, viewerId, own, friend);
     const hidden = {
-      list: !own && !allowed(privacy.list, viewerId, friend),
-      stats: !own && !allowed(privacy.stats, viewerId, friend),
-      activity: !own && !allowed(privacy.activity, viewerId, friend),
-      watching: !own && !allowed(privacy.watching, viewerId, friend),
+      list: !visible.list,
+      stats: !visible.stats,
+      activity: !visible.activity,
+      watching: !visible.watching,
+      profile: !visible.profile,
+      social: !visible.social,
+      favorites: !visible.favorites,
+      achievements: !visible.achievements,
+      wall: !visible.wall,
+      views: !visible.views,
     };
 
     const favoriteRows =
-      user.favoriteAnimeIds.length > 0
+      user.favoriteAnimeIds.length > 0 && !hidden.favorites
         ? await this.prisma.anime.findMany({
             where: { id: { in: user.favoriteAnimeIds } },
             include: ANIME_WITH_GENRES_INCLUDE,
@@ -505,9 +543,10 @@ export class ProfileService {
       layout: readLayout(user.profileLayout),
       favorites,
       hidden,
+      views: hidden.views ? null : user.profileViews,
       username: user.username,
       displayName: user.displayName,
-      bio: user.bio,
+      bio: hidden.profile ? null : user.bio,
       avatarUrl: user.avatarUrl,
       bannerUrl: user.bannerUrl,
       accentColor: user.accentColor,
@@ -516,13 +555,13 @@ export class ProfileService {
       isPro: proActive(user),
       memberSince: user.createdAt.toISOString(),
       stats: hidden.stats ? EMPTY_STATS : stats,
-      achievements,
+      achievements: hidden.achievements ? [] : achievements,
       // Re-checked against currently-earned achievements on every read, not
       // just at save time — an achievement removed/renamed server-side can't
       // leave a stale pin on display. Order (first = leftmost) is preserved.
-      showcaseAchievementIds: user.showcaseAchievementIds.filter((id) =>
-        achievements.some((a) => a.id === id && a.earned),
-      ),
+      showcaseAchievementIds: hidden.achievements
+        ? []
+        : user.showcaseAchievementIds.filter((id) => achievements.some((a) => a.id === id && a.earned)),
       // PRO-only — re-checked on every read, not just at save time, so a
       // lapsed subscription can't leave a stale title on display.
       // Cosmetics are earned, so they do not depend on PRO the way the
@@ -541,9 +580,9 @@ export class ProfileService {
     };
     // What the hidden parts are worth goes along as one number, so the
     // level is the same for every viewer.
-    if (hidden.stats || hidden.list) {
+    if (hidden.stats || hidden.list || hidden.achievements) {
       const xpOf = (p: PublicProfile) => earnedSources(p).reduce((sum, s) => sum + s.xp, 0);
-      profile.hiddenXp = Math.max(0, xpOf({ ...profile, stats, counters }) - xpOf(profile));
+      profile.hiddenXp = Math.max(0, xpOf({ ...profile, stats, counters, achievements }) - xpOf(profile));
     }
     return profile;
   }
@@ -757,17 +796,8 @@ const EMPTY_STATS: ProfileStats = {
   topRated: [],
 };
 
-function allowed(visibility: Visibility, viewerId: string | null, friend = false): boolean {
-  if (visibility === "public") return true;
-  if (visibility === "users") return viewerId != null;
-  if (visibility === "friends") return friend;
-  return false;
-}
 
-export function readPrivacy(raw: unknown): ProfilePrivacy {
-  const parsed = profilePrivacySchema.safeParse(raw);
-  return parsed.success ? parsed.data : DEFAULT_PROFILE_PRIVACY;
-}
+export { readPrivacy };
 
 /**
  * A stored layout, made whole: blocks added since it was saved join at the
