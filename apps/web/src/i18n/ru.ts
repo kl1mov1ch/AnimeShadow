@@ -1677,6 +1677,25 @@ export const ru: Dict = {
         "season-veteran": "Ветеран сезонов",
         "shadow-lord": "Владыка теней",
         benefactor: "Покровитель",
+        "guide": "Проводник",
+        "spark-bearer": "Искра",
+        "ambassador": "Посол",
+        "community-legend": "Легенда сообщества",
+        "star": "Звезда",
+        "secret-ghoul": "Гуль",
+        "secret-shinigami": "Синигами",
+        "secret-scout": "Разведкорпус",
+        "secret-hokage": "Будущий Хокаге",
+        "secret-pirate": "Король пиратов",
+        "secret-alchemist": "Алхимик",
+        "secret-scientist": "Безумный учёный",
+        "secret-hero": "Герой ради забавы",
+        "secret-slayer": "Истребитель демонов",
+        "secret-sorcerer": "Маг",
+        "secret-devil": "Охотник на дьяволов",
+        "secret-pilot": "Пилот Евы",
+        "secret-hunter": "Охотник",
+        "secret-spirit": "Безликий",
       },
     },
     memberSince: "с {date}",
@@ -1933,6 +1952,62 @@ export const ru: Dict = {
       "guess-top10": {
         title: "Десятка лучших",
         desc: "Займите место в топ-10 «Угадай аниме».",
+      },
+      "secret-ghoul": {
+        title: "Гуль",
+        desc: "1000 − 7… Ты знаешь, что дальше.",
+      },
+      "secret-shinigami": {
+        title: "Синигами",
+        desc: "Яблоки любишь? Тетрадь теперь твоя.",
+      },
+      "secret-scout": {
+        title: "Разведкорпус",
+        desc: "Отдай своё сердце! За стену и обратно.",
+      },
+      "secret-hokage": {
+        title: "Будущий Хокаге",
+        desc: "Даттебайо! Путь ниндзя — не сдаваться.",
+      },
+      "secret-pirate": {
+        title: "Король пиратов",
+        desc: "Ван-Пис существует — и ты уже в пути.",
+      },
+      "secret-alchemist": {
+        title: "Алхимик",
+        desc: "Равноценный обмен: часы жизни на шедевр.",
+      },
+      "secret-scientist": {
+        title: "Безумный учёный",
+        desc: "El Psy Kongroo. Это выбор Врат Штейна.",
+      },
+      "secret-hero": {
+        title: "Герой ради забавы",
+        desc: "Ок. Сто отжиманий в день — и вот ты здесь.",
+      },
+      "secret-slayer": {
+        title: "Истребитель демонов",
+        desc: "Дыхание воды, первая форма. Закат не страшен.",
+      },
+      "secret-sorcerer": {
+        title: "Маг",
+        desc: "Расширение территории: твой список.",
+      },
+      "secret-devil": {
+        title: "Охотник на дьяволов",
+        desc: "Заводишь мотор — и вперёд.",
+      },
+      "secret-pilot": {
+        title: "Пилот Евы",
+        desc: "Нельзя убегать. Нельзя убегать. Нельзя убегать.",
+      },
+      "secret-hunter": {
+        title: "Охотник",
+        desc: "Нэн освоен. Лицензия хантера — твоя.",
+      },
+      "secret-spirit": {
+        title: "Безликий",
+        desc: "А-а… Ты не забыл своё имя?",
       },
       "guess-champion": {
         title: "Чемпион",

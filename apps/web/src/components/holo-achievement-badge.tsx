@@ -1,4 +1,5 @@
 import type { AchievementRarity } from "@animeshadow/shared";
+import { useAchievementDesc } from "@/lib/secret-achievements";
 import {
   BookCopyIcon,
   BookOpenIcon,
@@ -322,6 +323,7 @@ export function AchievementTip({
 }) {
   const t = useT();
   const labels = useLabels();
+  const desc = useAchievementDesc(id, earned, t(`achievements.items.${id}.desc` as "achievements.items.critic.desc"));
   const tier = TIER[rarity];
   const percent = progress && progress.target > 0 ? Math.min(100, (progress.current / progress.target) * 100) : null;
   return (
@@ -334,7 +336,7 @@ export function AchievementTip({
       </span>
       <span className="text-xs leading-snug opacity-85">
         <span className="font-semibold">{earned ? "За что: " : "Как получить: "}</span>
-        {t(`achievements.items.${id}.desc` as "achievements.items.critic.desc")}
+        {desc}
       </span>
       {earned ? (
         earnedAt && <span className="text-[11px] opacity-70">{t("achievements.earnedOn", { date: labels.formatDate(earnedAt) ?? "" })}</span>

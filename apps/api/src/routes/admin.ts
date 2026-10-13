@@ -12,6 +12,7 @@ import {
   adminUserQuerySchema,
   adminVisitorsQuerySchema,
 } from "@animeshadow/shared";
+import { SECRET_RULES } from "../lib/secret-achievements.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { listPro, setPro } from "../lib/admin-pro.js";
@@ -87,6 +88,17 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PRO accounts: the list with its counts, and one change at a time.
   fastify.get("/admin/pro", guard, async (request) => listPro(fastify.prisma, parse(adminProQuerySchema, request.query)));
+  // Secret achievements: the rules (only ever sent here) and how many have each.
+  fastify.get("/admin/achievements/secret", guard, async () => {
+    const counts = await fastify.prisma.userAchievement.groupBy({
+      by: ["achievementId"],
+      where: { achievementId: { in: SECRET_RULES.map((r) => r.id) } },
+      _count: { _all: true },
+    });
+    const by = new Map(counts.map((c) => [c.achievementId, c._count._all]));
+    return { items: SECRET_RULES.map((r) => ({ ...r, earnedBy: by.get(r.id) ?? 0 })) };
+  });
+
   // Invites: how many came by a friend's code, rewards taken, top inviters.
   fastify.get("/admin/referrals", guard, async () => referralOverview(fastify.prisma));
   fastify.post("/admin/pro/:id", guard, async (request) => {

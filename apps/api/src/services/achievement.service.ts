@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@animeshadow/db";
+import { SECRET_RULES } from "../lib/secret-achievements.js";
 import { ACHIEVEMENTS, type EarnedAchievement } from "@animeshadow/shared";
 
 export interface AchievementServiceDeps {
@@ -10,6 +11,8 @@ const EARLY_ADOPTER_CUTOFF = new Date("2027-03-01T00:00:00Z");
 const EPISODE_SECONDS = 1440; // 24 min fallback when no session data
 
 interface Snapshot {
+  /** Completed episodes per title — for the secret ones. */
+  episodesByAnime: Map<number, number>;
   episodesWatched: number;
   totalHours: number;
   reviewCount: number;
@@ -118,6 +121,7 @@ export class AchievementService {
           : this.evaluate(def.id, snap);
       return {
         id: def.id,
+        secret: def.secret ?? false,
         rarity: def.rarity,
         category: def.category,
         manual: def.manual ?? false,
@@ -138,6 +142,9 @@ export class AchievementService {
       earned: current >= target,
       progress: current >= target ? null : { current: Math.floor(current), target },
     });
+    // Secret: earned or not, never a progress bar (it would give the rule away).
+    const secret = SECRET_RULES.find((r) => r.id === id);
+    if (secret) return { earned: (s.episodesByAnime.get(secret.animeId) ?? 0) >= secret.episodes, progress: null };
     switch (id) {
       case "first-episode":
         return p(s.episodesWatched, 1);
@@ -284,6 +291,8 @@ export class AchievementService {
     const ratingCount = authored._sum.ratingCount ?? 0;
 
     const episodesWatched = completedProgress.length;
+    const episodesByAnime = new Map<number, number>();
+    for (const row of completedProgress) episodesByAnime.set(row.animeId, (episodesByAnime.get(row.animeId) ?? 0) + 1);
     const sessionSeconds = sessionAgg._sum.seconds ?? 0;
     const totalHours =
       (sessionSeconds > 0 ? sessionSeconds : episodesWatched * EPISODE_SECONDS) /
@@ -339,6 +348,7 @@ export class AchievementService {
     }
 
     return {
+      episodesByAnime,
       episodesWatched,
       totalHours,
       reviewCount,

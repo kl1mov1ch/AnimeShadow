@@ -18,6 +18,8 @@ export interface AchievementDef {
   category: AchievementCategory;
   /** Not auto-awarded — needs an external signal (payments, audio play, …). */
   manual?: boolean;
+  /** Its condition is kept on the server: a visitor sees it exists, not how to earn it. */
+  secret?: boolean;
 }
 
 /**
@@ -74,12 +76,29 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "referral-ambassador", rarity: "epic", category: "community", manual: true },
   { id: "referral-legend", rarity: "legendary", category: "community", manual: true },
   { id: "referral-star", rarity: "legendary", category: "community", manual: true },
+  // Secret: anime references. How to earn them lives only on the server.
+  { id: "secret-ghoul", rarity: "epic", category: "special", secret: true },
+  { id: "secret-shinigami", rarity: "epic", category: "special", secret: true },
+  { id: "secret-scout", rarity: "epic", category: "special", secret: true },
+  { id: "secret-hokage", rarity: "rare", category: "special", secret: true },
+  { id: "secret-pirate", rarity: "legendary", category: "special", secret: true },
+  { id: "secret-alchemist", rarity: "epic", category: "special", secret: true },
+  { id: "secret-scientist", rarity: "epic", category: "special", secret: true },
+  { id: "secret-hero", rarity: "rare", category: "special", secret: true },
+  { id: "secret-slayer", rarity: "rare", category: "special", secret: true },
+  { id: "secret-sorcerer", rarity: "rare", category: "special", secret: true },
+  { id: "secret-devil", rarity: "rare", category: "special", secret: true },
+  { id: "secret-pilot", rarity: "epic", category: "special", secret: true },
+  { id: "secret-hunter", rarity: "epic", category: "special", secret: true },
+  { id: "secret-spirit", rarity: "rare", category: "special", secret: true },
 ] as const;
 
 export const ACHIEVEMENT_IDS = ACHIEVEMENTS.map((a) => a.id);
 
 export const earnedAchievementSchema = z.object({
   id: z.string(),
+  /** Condition hidden until earned (and from everyone but admins). */
+  secret: z.boolean().default(false),
   rarity: achievementRaritySchema,
   category: z.enum(ACHIEVEMENT_CATEGORIES).default("special"),
   manual: z.boolean().default(false),

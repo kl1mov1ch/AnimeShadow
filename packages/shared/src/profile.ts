@@ -85,6 +85,27 @@ export const PROFILE_TITLES = [
   { id: "season-veteran", requires: null, level: 50 },
   { id: "shadow-lord", requires: null, level: 350 },
   { id: "benefactor", requires: null, pro: true },
+  // Inviting friends
+  { id: "guide", requires: "referral-guide" },
+  { id: "spark-bearer", requires: "referral-spark" },
+  { id: "ambassador", requires: "referral-ambassador" },
+  { id: "community-legend", requires: "referral-legend" },
+  { id: "star", requires: "referral-star" },
+  // Secret achievements — the title is how others learn they exist
+  { id: "secret-ghoul", requires: "secret-ghoul" },
+  { id: "secret-shinigami", requires: "secret-shinigami" },
+  { id: "secret-scout", requires: "secret-scout" },
+  { id: "secret-hokage", requires: "secret-hokage" },
+  { id: "secret-pirate", requires: "secret-pirate" },
+  { id: "secret-alchemist", requires: "secret-alchemist" },
+  { id: "secret-scientist", requires: "secret-scientist" },
+  { id: "secret-hero", requires: "secret-hero" },
+  { id: "secret-slayer", requires: "secret-slayer" },
+  { id: "secret-sorcerer", requires: "secret-sorcerer" },
+  { id: "secret-devil", requires: "secret-devil" },
+  { id: "secret-pilot", requires: "secret-pilot" },
+  { id: "secret-hunter", requires: "secret-hunter" },
+  { id: "secret-spirit", requires: "secret-spirit" },
 ] as const satisfies readonly Cosmetic[];
 
 export const PROFILE_TITLE_IDS = PROFILE_TITLES.map((t) => t.id);

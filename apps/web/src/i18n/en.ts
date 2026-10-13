@@ -1676,6 +1676,25 @@ export const en = {
         "season-veteran": "Season veteran",
         "shadow-lord": "Shadow lord",
         benefactor: "Benefactor",
+        "guide": "Guide",
+        "spark-bearer": "Spark",
+        "ambassador": "Ambassador",
+        "community-legend": "Community legend",
+        "star": "Star",
+        "secret-ghoul": "Ghoul",
+        "secret-shinigami": "Shinigami",
+        "secret-scout": "Survey Corps",
+        "secret-hokage": "Future Hokage",
+        "secret-pirate": "Pirate King",
+        "secret-alchemist": "Alchemist",
+        "secret-scientist": "Mad Scientist",
+        "secret-hero": "Hero for Fun",
+        "secret-slayer": "Demon Slayer",
+        "secret-sorcerer": "Sorcerer",
+        "secret-devil": "Devil Hunter",
+        "secret-pilot": "Eva Pilot",
+        "secret-hunter": "Hunter",
+        "secret-spirit": "No-Face",
       },
     },
     memberSince: "since {date}",
@@ -1932,6 +1951,62 @@ export const en = {
       "guess-top10": {
         title: "Top ten",
         desc: "Reach the top 10 in Guess the anime.",
+      },
+      "secret-ghoul": {
+        title: "Ghoul",
+        desc: "1000 minus 7… you know the rest.",
+      },
+      "secret-shinigami": {
+        title: "Shinigami",
+        desc: "Fond of apples? The notebook is yours.",
+      },
+      "secret-scout": {
+        title: "Survey Corps",
+        desc: "Dedicate your heart! Beyond the walls and back.",
+      },
+      "secret-hokage": {
+        title: "Future Hokage",
+        desc: "Dattebayo! The ninja way is never giving up.",
+      },
+      "secret-pirate": {
+        title: "Pirate King",
+        desc: "The One Piece is real — and you're on your way.",
+      },
+      "secret-alchemist": {
+        title: "Alchemist",
+        desc: "Equivalent exchange: hours of life for a masterpiece.",
+      },
+      "secret-scientist": {
+        title: "Mad Scientist",
+        desc: "El Psy Kongroo. This is the choice of Steins Gate.",
+      },
+      "secret-hero": {
+        title: "Hero for Fun",
+        desc: "OK. A hundred push-ups a day — and here you are.",
+      },
+      "secret-slayer": {
+        title: "Demon Slayer",
+        desc: "Water breathing, first form. Sunset holds no fear.",
+      },
+      "secret-sorcerer": {
+        title: "Sorcerer",
+        desc: "Domain expansion: your list.",
+      },
+      "secret-devil": {
+        title: "Devil Hunter",
+        desc: "Pull the cord and go.",
+      },
+      "secret-pilot": {
+        title: "Eva Pilot",
+        desc: "I mustn't run away. I mustn't run away.",
+      },
+      "secret-hunter": {
+        title: "Hunter",
+        desc: "Nen mastered. The hunter licence is yours.",
+      },
+      "secret-spirit": {
+        title: "No-Face",
+        desc: "Ah… you haven't forgotten your name?",
       },
       "guess-champion": {
         title: "Champion",

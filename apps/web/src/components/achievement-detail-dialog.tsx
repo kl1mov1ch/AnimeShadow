@@ -1,4 +1,5 @@
 import type { EarnedAchievement } from "@animeshadow/shared";
+import { isSecret, useAchievementDesc } from "@/lib/secret-achievements";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import {
   Dialog,
@@ -24,6 +25,11 @@ export function AchievementDetailDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useT();
+  const desc = useAchievementDesc(
+    achievement?.id ?? "",
+    achievement?.earned ?? false,
+    achievement ? t(`achievements.items.${achievement.id}.desc` as "achievements.items.critic.desc") : "",
+  );
   const labels = useLabels();
 
   return (
@@ -39,9 +45,7 @@ export function AchievementDetailDialog({
               <DialogTitle>
                 {t(`achievements.items.${achievement.id}.title` as "achievements.items.critic.title")}
               </DialogTitle>
-              <DialogDescription>
-                {t(`achievements.items.${achievement.id}.desc` as "achievements.items.critic.desc")}
-              </DialogDescription>
+              <DialogDescription>{desc}</DialogDescription>
             </DialogHeader>
 
             {/* A soft pool of light behind the badge — earned ones get it,
@@ -64,9 +68,12 @@ export function AchievementDetailDialog({
               />
             </span>
 
-            <p className="animate-in fade-in slide-in-from-bottom-1 text-sm leading-relaxed text-muted-foreground duration-500">
-              {t(`achievements.items.${achievement.id}.desc` as "achievements.items.critic.desc")}
-            </p>
+            {isSecret(achievement.id) && (
+              <span className="rounded-full bg-violet-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+                Секретное
+              </span>
+            )}
+            <p className="animate-in fade-in slide-in-from-bottom-1 text-sm leading-relaxed text-muted-foreground duration-500">{desc}</p>
 
             {achievement.earned && achievement.earnedAt && (
               <p className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
