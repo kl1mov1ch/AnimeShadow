@@ -190,6 +190,59 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
   timer.unref();
   fastify.addHook("onClose", async () => clearInterval(timer));
 
+  /** Old poster address → the one that replaced it, for this process. */
+  const replaced = new Map<string, string>();
+
+  /**
+   * Finds the title whose poster this was and tries its other pictures:
+   * the second poster field, then Shikimori's (ids match MyAnimeList's).
+   * The first that loads is served and saved over the dead one.
+   */
+  const heal = async (dead: string): Promise<Buffer | null> => {
+    const known = replaced.get(dead);
+    const anime = known
+      ? null
+      : await fastify.prisma.anime
+          .findFirst({
+            where: { OR: [{ imageUrl: dead }, { imageLargeUrl: dead }] },
+            select: { id: true, imageUrl: true, imageLargeUrl: true },
+          })
+          .catch(() => null);
+    if (!known && !anime) return null;
+    const candidates = known
+      ? [known]
+      : [
+          anime!.imageUrl !== dead ? anime!.imageUrl : anime!.imageLargeUrl,
+          `https://shikimori.io/system/animes/original/${anime!.id}.jpg`,
+          `https://shikimori.io/system/animes/preview/${anime!.id}.jpg`,
+        ].filter((u): u is string => !!u && u !== dead);
+    for (const candidate of candidates) {
+      let url: URL;
+      try {
+        url = new URL(candidate);
+      } catch {
+        continue;
+      }
+      if (!allowed(url)) continue;
+      const key = createHash("sha1").update(url.toString()).digest("hex");
+      const cached = await readFile(join(CACHE_DIR, key)).catch(() => null);
+      const got: Fetched = cached && cached.length > 0 ? { ok: true, buf: cached } : await fetchOnce(url, key);
+      if (!got.ok) continue;
+      if (anime) {
+        if (replaced.size > 5000) replaced.clear();
+        replaced.set(dead, candidate);
+        const data = {
+          ...(anime.imageUrl === dead ? { imageUrl: candidate } : {}),
+          ...(anime.imageLargeUrl === dead ? { imageLargeUrl: candidate } : {}),
+        };
+        await fastify.prisma.anime.update({ where: { id: anime.id }, data }).catch(() => undefined);
+        fastify.log.info({ animeId: anime.id, dead, candidate }, "replaced a dead poster");
+      }
+      return got.buf;
+    }
+    return null;
+  };
+
   const fetchOnce = (target: URL, key: string): Promise<Fetched> =>
     upstream(async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -238,6 +291,52 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
       return { ok: false, status: 502 };
     });
 
+  /**
+   * Once a day, slowly: every Kitsu poster in the catalogue is asked for
+   * (HEAD, one at a time), and the ones Kitsu has lost are replaced the same
+   * way as above — before any visitor meets an empty card. Kitsu is the
+   * source whose links rot; the others keep theirs.
+   */
+  const checkKitsuPosters = async () => {
+    let cursor = 0;
+    let fixed = 0;
+    for (;;) {
+      const batch = await fastify.prisma.anime
+        .findMany({
+          where: { id: { gt: cursor }, imageUrl: { contains: "kitsu" } },
+          orderBy: { id: "asc" },
+          take: 100,
+          select: { id: true, imageUrl: true },
+        })
+        .catch(() => []);
+      if (batch.length === 0) break;
+      for (const row of batch) {
+        cursor = row.id;
+        if (!row.imageUrl) continue;
+        const status = await fetch(row.imageUrl, {
+          method: "HEAD",
+          headers: { "user-agent": userAgentFor("media.kitsu.app") },
+          signal: AbortSignal.timeout(10_000),
+        })
+          .then((r) => r.status)
+          .catch(() => 0);
+        if (status === 404 || status === 410) {
+          if (await heal(row.imageUrl)) fixed += 1;
+        }
+        await sleep(400);
+      }
+    }
+    if (fixed > 0) fastify.log.info({ fixed }, "dead Kitsu posters replaced");
+  };
+  const firstCheck = setTimeout(() => void checkKitsuPosters(), 3 * 60_000);
+  const dailyCheck = setInterval(() => void checkKitsuPosters(), 24 * 60 * 60_000);
+  firstCheck.unref();
+  dailyCheck.unref();
+  fastify.addHook("onClose", async () => {
+    clearTimeout(firstCheck);
+    clearInterval(dailyCheck);
+  });
+
   fastify.get("/img", async (request, reply) => {
     const raw = (request.query as { u?: string }).u;
     if (!raw) {
@@ -274,6 +373,8 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
 
     const knownMissing = missing.get(key);
     if (knownMissing && Date.now() - knownMissing < MISSING_TTL_MS) {
+      const healed = replaced.has(target.toString()) ? await heal(target.toString()) : null;
+      if (healed) return send(healed, true);
       reply.code(404);
       return { error: { code: "NOT_FOUND", message: "Image not found" } };
     }
@@ -289,6 +390,18 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const result = await pending;
     if (result.ok) return send(result.buf, false);
+
+    // A title's poster the source has lost (Kitsu re-hashes its files, for
+    // one): serve another picture of the same title right away, and put it
+    // in the catalogue so lists ask for the working one from now on.
+    if (result.status === 404) {
+      const healed = await heal(target.toString());
+      if (healed) {
+        // Kept under the old address too: after a restart it is a plain hit.
+        await writeFile(join(CACHE_DIR, key), healed).catch(() => undefined);
+        return send(healed, false);
+      }
+    }
 
     if (result.status === 404) {
       if (missing.size > 5000) missing.clear();
