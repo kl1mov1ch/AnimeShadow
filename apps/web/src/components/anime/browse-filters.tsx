@@ -1,6 +1,7 @@
 import type { Genre } from "@animeshadow/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ChevronDownIcon,
   BookmarkIcon,
   BookmarkPlusIcon,
   BuildingIcon,
@@ -32,6 +33,40 @@ import { cn } from "@/lib/utils";
 export type FilterPatch = Record<string, string | null>;
 
 const THIS_YEAR = new Date().getFullYear();
+
+/** Age ratings as people read them in Russia, from the catalogue's MPAA-style ones. */
+const AGE_RATINGS = [
+  { value: "g", label: "0+" },
+  { value: "pg", label: "6+" },
+  { value: "pg13", label: "12+" },
+  { value: "r17", label: "16+" },
+  { value: "rplus", label: "18+" },
+];
+
+/**
+ * A section of the filters that folds: its title, a dot when something in
+ * it is set, and the chips under it. The most used are open at first.
+ */
+function Fold({ title, defaultOpen = false, active, children }: { title: string; defaultOpen?: boolean; active: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen || active);
+  return (
+    <div className="flex flex-col gap-2 border-b border-border/40 pb-3 last:border-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center justify-between gap-2 text-left text-[13px] font-semibold text-foreground/90 transition-colors hover:text-foreground"
+      >
+        <span className="flex items-center gap-2">
+          {title}
+          {active && <span className="size-1.5 rounded-full bg-primary" />}
+        </span>
+        <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform duration-200", open && "rotate-180")} />
+      </button>
+      {open && <div className="flex animate-in flex-col gap-3 duration-200 fade-in-0">{children}</div>}
+    </div>
+  );
+}
 
 /** "At least" scores people actually pick. */
 const SCORE_STEPS = [6, 7, 7.5, 8, 8.5, 9] as const;
@@ -149,19 +184,38 @@ export function BrowseFilters({
         )}
       </div>
 
-      <ChipGroup
-        label={t("browse.format")}
-        value={params.type ?? null}
-        options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
-        onPick={(type) => onChange({ type })}
-      />
-      <ChipGroup
-        label={t("browse.status")}
-        value={params.airing ?? null}
-        options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
-        onPick={(airing) => onChange({ airing })}
-      />
-      <GenrePicker params={params} genres={genres} onChange={onChange} />
+      <Fold title="Тип и выход" defaultOpen active={Boolean(params.type || params.airing)}>
+        <ChipGroup
+          label="Тип"
+          value={params.type ?? null}
+          options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
+          onPick={(type) => onChange({ type })}
+        />
+        <ChipGroup
+          label="Выход"
+          value={params.airing ?? null}
+          options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
+          onPick={(airing) => onChange({ airing })}
+        />
+      </Fold>
+      <Fold title="Жанры" defaultOpen active={(params.genres?.length ?? 0) + (params.excludeGenres?.length ?? 0) > 0}>
+        <GenrePicker params={params} genres={genres} onChange={onChange} />
+      </Fold>
+      <Fold title="Возраст и оценка" active={Boolean(params.rating || params.minScore)}>
+        <ChipGroup
+          label="Возрастной рейтинг"
+          value={params.rating ?? null}
+          options={AGE_RATINGS}
+          onPick={(rating) => onChange({ rating })}
+        />
+        <ChipGroup
+          label={t("browse.scoreRange")}
+          value={params.minScore ? String(params.minScore) : null}
+          options={SCORE_STEPS.map((v) => ({ value: String(v), label: `★ ${v}+` }))}
+          onPick={(v) => onChange({ minScore: v, maxScore: null })}
+        />
+      </Fold>
+      <Fold title="Год, длина, студия" active={Boolean(periodKey || episodePreset || params.studio)}>
       <ChipGroup
         label={t("browse.yearRange")}
         value={periodKey}
@@ -174,12 +228,6 @@ export function BrowseFilters({
             yearTo: period?.to != null ? String(period.to) : null,
           });
         }}
-      />
-      <ChipGroup
-        label={t("browse.scoreRange")}
-        value={params.minScore ? String(params.minScore) : null}
-        options={SCORE_STEPS.map((v) => ({ value: String(v), label: `★ ${v}+` }))}
-        onPick={(v) => onChange({ minScore: v, maxScore: null })}
       />
       <ChipGroup
         label={t("browse.episodes")}
@@ -200,6 +248,7 @@ export function BrowseFilters({
       <Field label={t("browse.studio")}>
         <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
       </Field>
+      </Fold>
 
       <div className="flex flex-col gap-0.5 rounded-xl border border-border/50 bg-foreground/[0.02] px-2 py-1">
         <Switch
@@ -400,7 +449,7 @@ function GenrePicker({
 
   return (
     <Field
-      label={t("browse.genres")}
+      label={picked > 0 ? `Выбрано: ${picked}` : "Выберите один или несколько"}
       aside={
         picked > 0 && (
           <button

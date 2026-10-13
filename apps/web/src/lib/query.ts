@@ -113,6 +113,7 @@ export type BrowseParams = {
   hasPlayer?: boolean;
   hasCustomPlayer?: boolean;
   studio?: string;
+  rating?: string;
   maxScore?: number;
   excludeGenres?: number[];
   yearFrom?: number;

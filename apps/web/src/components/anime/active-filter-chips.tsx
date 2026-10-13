@@ -10,7 +10,9 @@ import type { BrowseParams } from "@/lib/query";
  * seeing (and undoing) what's applied doesn't mean reopening the sidebar or
  * the mobile sheet. Doesn't include the search term itself; the page title
  * already shows that.
- */
+ */
+const RATING_LABEL: Record<string, string> = { g: "0+", pg: "6+", pg13: "12+", r17: "16+", rplus: "18+" };
+
 export function ActiveFilterChips({
   params,
   genres,
@@ -73,6 +75,9 @@ export function ActiveFilterChips({
       label: t("browse.onlyOwnPlayer"),
       onRemove: () => onChange({ hasCustomPlayer: null }),
     });
+  }
+  if (params.rating) {
+    chips.push({ key: "rating", label: RATING_LABEL[params.rating] ?? params.rating, onRemove: () => onChange({ rating: null }) });
   }
   if (params.studio) {
     chips.push({
@@ -152,6 +157,7 @@ export function ActiveFilterChips({
       hasPlayer: null,
       hasCustomPlayer: null,
       studio: null,
+      rating: null,
       genres: null,
       excludeGenres: null,
       maxScore: null,

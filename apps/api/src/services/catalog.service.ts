@@ -1754,6 +1754,16 @@ export class CatalogService {
     if (query.studio) {
       where.studios = { has: query.studio };
     }
+    if (query.rating) {
+      const RATING: Record<string, string[]> = {
+        g: ["G"],
+        pg: ["PG"],
+        pg13: ["PG-13", "PG-13 - Teens 13 or older"],
+        r17: ["R - 17+"],
+        rplus: ["R+"],
+      };
+      where.rating = { in: RATING[query.rating] ?? [] };
+    }
     // Both conditions can be requested together (a stricter "and it's our
     // own player" on top of "has a player at all") — merge into the same
     // `is` filter rather than letting the second assignment clobber the
@@ -1790,6 +1800,7 @@ function hasBasicFilters(query: AnimeQuery): boolean {
 function needsLocalFilters(query: AnimeQuery): boolean {
   return Boolean(
     query.studio ||
+      query.rating ||
       query.hasPlayer ||
       query.hasCustomPlayer ||
       query.maxScore != null ||

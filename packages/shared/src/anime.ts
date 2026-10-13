@@ -229,6 +229,8 @@ export const animeQuerySchema = z.object({
     .optional(),
   /** Exact studio name — the click-through from an anime's own studio credit. */
   studio: z.string().trim().min(1).max(120).optional(),
+  /** Age rating: g, pg, pg13, r17, rplus. */
+  rating: z.enum(["g", "pg", "pg13", "r17", "rplus"]).optional(),
   year: z.coerce.number().int().min(1917).max(2100).optional(),
   season: animeSeasonSchema.optional(),
   orderBy: animeOrderBySchema.default("popularity"),
