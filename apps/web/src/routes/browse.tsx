@@ -180,7 +180,7 @@ export function Component() {
         <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
       </header>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
         <aside className="hidden lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:rounded-2xl lg:border lg:border-border/60 lg:bg-card/30 lg:p-4 lg:[scrollbar-color:var(--border)_transparent] lg:[scrollbar-width:thin]">
           <BrowseFilters params={params} genres={genres} onChange={(changes) => patch(changes)} onReset={resetFilters} />
         </aside>

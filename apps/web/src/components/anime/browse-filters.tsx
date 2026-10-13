@@ -131,7 +131,7 @@ export function BrowseFilters({
   );
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3.5">
       <div className={cn("flex items-center justify-between gap-2", !heading && "hidden")}>
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <SlidersHorizontalIcon className="size-4 text-primary" />
@@ -235,7 +235,7 @@ export function BrowseFilters({
 
 function Field({ label, aside, children }: { label: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex min-h-5 items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{label}</span>
         {aside}
@@ -246,7 +246,7 @@ function Field({ label, aside, children }: { label: string; aside?: React.ReactN
 }
 
 const CHIP =
-  "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-[border-color,background-color,color,transform] duration-200 active:scale-95";
+  "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] font-medium transition-[border-color,background-color,color] duration-200 active:scale-95";
 
 function chipClass(state: "on" | "out" | "off"): string {
   return cn(
@@ -284,7 +284,7 @@ function ChipGroup({
         )
       }
     >
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1">
         {options.map((o) => {
           const on = value === o.value;
           return (
@@ -322,7 +322,7 @@ function Switch({
       role="switch"
       aria-checked={on}
       onClick={onClick}
-      className="flex h-10 items-center gap-2.5 rounded-lg px-1 text-left text-sm text-foreground/85 transition-colors hover:text-foreground"
+      className="flex h-8 items-center gap-2.5 rounded-lg px-1 text-left text-[13px] text-foreground/85 transition-colors hover:text-foreground"
     >
       <Icon className={cn("size-4 shrink-0 transition-colors", on ? "text-primary" : "text-muted-foreground")} />
       <span className="flex-1 truncate">{label}</span>
@@ -341,7 +341,7 @@ function Switch({
 /** Genres never offered as a filter: hentai is not on the site at all. */
 const HIDDEN_GENRES = new Set(["Хентай", "Hentai", "Эротика", "Erotica"]);
 /** How many of the best-known genres are always on show. */
-const GENRES_SHOWN = 16;
+const GENRES_SHOWN = 12;
 
 /**
  * Genres as chips: the sixteen best-known always on show (Этти among them),
@@ -442,7 +442,7 @@ function GenrePicker({
           className="h-9 animate-in rounded-lg border border-border/70 bg-background/60 px-3 text-sm outline-none transition-colors fade-in-0 focus:border-foreground/30"
         />
       )}
-      <div className={cn("flex flex-wrap content-start gap-1.5", all && "max-h-72 overflow-y-auto pr-0.5 [scrollbar-width:thin]")}>
+      <div className={cn("flex flex-wrap content-start gap-1", all && "max-h-64 overflow-y-auto pr-0.5 [scrollbar-width:thin]")}>
         {shown.map((genre) => {
           const state = included.has(genre.id) ? "on" : excluded.has(genre.id) ? "out" : "off";
           return (
