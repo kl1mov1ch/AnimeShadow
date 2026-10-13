@@ -24,6 +24,7 @@ import {
   LibraryRowHeader,
   LibraryTile,
 } from "@/components/library/library-views";
+import { LibraryGuest } from "@/components/library/library-guest";
 import { RandomPick } from "@/components/library/random-pick";
 import { useLibraryEdit } from "@/components/library/use-library-edit";
 import { Button } from "@/components/ui/button";
@@ -273,24 +274,8 @@ export function Component() {
     return <AnimeGridSkeleton count={16} />;
   }
 
-  if (!isAuthed) {
-    return (
-      <EmptyState
-        title={t("library.signedOutTitle")}
-        description={t("library.signedOutBody")}
-        action={
-          <div className="flex gap-2">
-            <Button asChild>
-              <Link to="/login">{t("common.signIn")}</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/register">{t("common.createAccount")}</Link>
-            </Button>
-          </div>
-        }
-      />
-    );
-  }
+  // A guest sees the list as it would be, and why to have one.
+  if (!isAuthed) return <LibraryGuest />;
 
   const setStatus = (next: LibraryStatus | "") => {
     const params = new URLSearchParams(searchParams);
