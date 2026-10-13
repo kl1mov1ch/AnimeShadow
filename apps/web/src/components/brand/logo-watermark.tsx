@@ -11,7 +11,7 @@ export function LogoWatermark({ className }: { className?: string }) {
   return (
     <LogoGlyph
       className={cn(
-        "pointer-events-none absolute -z-10 size-64 select-none text-foreground/[0.04] transition-transform duration-700 ease-out",
+        "logo-wm pointer-events-none absolute -z-10 size-64 select-none text-foreground/[0.04]",
         className,
       )}
     />

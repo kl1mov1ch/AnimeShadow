@@ -34,7 +34,7 @@ export function HomeMoodPicker() {
 
   return (
     <section className="group/panel relative isolate overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 via-card/50 to-card/20 p-4 sm:p-6">
-      <LogoWatermark className="-right-10 -top-14 size-60 rotate-[10deg] group-hover/panel:rotate-[4deg] sm:-right-4 sm:-top-20 sm:size-80" />
+      <LogoWatermark className="-right-10 -top-14 size-60 rotate-[10deg] sm:-right-4 sm:-top-20 sm:size-80" />
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-display text-lg tracking-tight sm:text-xl">Под настроение</h2>

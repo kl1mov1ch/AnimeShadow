@@ -1,12 +1,7 @@
 "use client"
 
-import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
+import { Loader2Icon } from "lucide-react"
+import { ErrorMark, InfoMark, SuccessMark } from "./toast-icons"
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
@@ -18,11 +13,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="size-4" />,
-        info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        success: <SuccessMark />,
+        info: <InfoMark />,
+        warning: <InfoMark tone="warning" />,
+        error: <ErrorMark />,
+        loading: <Loader2Icon className="size-5 animate-spin text-primary" />,
       }}
       toastOptions={{
         // Sonner's own slide/fade-in is already smooth; this just makes each
@@ -37,14 +32,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // left alone, so nothing shifts.
         classNames: {
           toast:
-            "!bg-[color-mix(in_srgb,var(--card)_93%,white_7%)] !text-foreground !border !border-[color-mix(in_srgb,var(--primary)_30%,transparent)] !rounded-2xl !shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)] !items-center",
-          title: "!text-[13.5px] !font-semibold",
+            "!bg-[color-mix(in_srgb,var(--card)_93%,white_7%)] !text-foreground !border !border-[color-mix(in_srgb,var(--primary)_30%,transparent)] !rounded-2xl !shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)] !items-center !gap-3 !py-3.5 !pl-3.5",
+          title: "!text-[13.5px] !font-semibold !leading-snug",
           description: "!text-xs !text-muted-foreground",
-          icon: "grid !size-7 shrink-0 place-items-center rounded-full bg-primary/15 [&_svg]:!size-4",
-          success: "[&_[data-icon]]:!text-primary",
-          error: "!border-destructive/40 [&_[data-icon]]:!bg-destructive/15 [&_[data-icon]]:!text-destructive",
-          warning: "!border-amber-400/40 [&_[data-icon]]:!bg-amber-400/15 [&_[data-icon]]:!text-amber-400",
-          info: "!border-border [&_[data-icon]]:!bg-foreground/10 [&_[data-icon]]:!text-foreground/80",
+          // The mark sizes itself; the slot only centres it.
+          icon: "!m-0 !size-9 !shrink-0 !flex !items-center !justify-center",
+          error: "!border-destructive/40",
+          warning: "!border-amber-400/40",
+          info: "!border-border",
           actionButton: "!bg-primary !text-primary-foreground !rounded-lg",
           cancelButton: "!rounded-lg",
         },
