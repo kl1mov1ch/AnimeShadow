@@ -137,11 +137,11 @@ export function FilterBar({
       <FilterPill label="Возраст" value={AGE_RATINGS.find((r) => r.value === params.rating)?.label ?? null} onClear={() => onChange({ rating: null })} width="w-60">
         <ChipGroup label="Возрастной рейтинг" value={params.rating ?? null} options={AGE_RATINGS} onPick={(rating) => onChange({ rating })} />
       </FilterPill>
-      <FilterPill label="Оценка" value={params.minScore ? `★ ${params.minScore}+` : null} onClear={() => onChange({ minScore: null, maxScore: null })} width="w-64">
+      <FilterPill label="Оценка" value={params.minScore ? `от ${params.minScore}` : null} onClear={() => onChange({ minScore: null, maxScore: null })} width="w-64">
         <ChipGroup
           label="Не ниже"
           value={params.minScore ? String(params.minScore) : null}
-          options={SCORE_STEPS.map((v) => ({ value: String(v), label: `★ ${v}+` }))}
+          options={SCORE_STEPS.map((v) => ({ value: String(v), label: `от ${v}` }))}
           onPick={(v) => onChange({ minScore: v, maxScore: null })}
         />
       </FilterPill>

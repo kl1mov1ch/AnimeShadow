@@ -1,6 +1,6 @@
 import type { AnimeSummary, CollectionSummary, SearchGroup, SearchPulse, UserCard } from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ArrowLeftIcon, ClockIcon, FlameIcon, FolderHeartIcon, HandshakeIcon, LayersIcon, SearchIcon, SparklesIcon, TvIcon, UserCheckIcon, UsersIcon } from "lucide-react";
+import { ArrowLeftIcon, ClockIcon, FlameIcon, FolderHeartIcon, HandshakeIcon, LayersIcon, SearchIcon, SparklesIcon, StarIcon, TvIcon, UserCheckIcon, UsersIcon } from "lucide-react";
 import { ProMark } from "@/components/common/pro-mark";
 import { useMemo } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
@@ -336,7 +336,7 @@ export function GenreResults({
                   {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime)].filter(Boolean).join(" · ")}
                 </span>
               </span>
-              {anime.score != null && <span className="shrink-0 text-xs font-semibold tabular-nums text-amber-500">★ {anime.score.toFixed(1)}</span>}
+              {anime.score != null && <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums text-amber-500"><StarIcon className="size-3 fill-current" />{anime.score.toFixed(1)}</span>}
             </CommandItem>
           ))}
           <CommandItem

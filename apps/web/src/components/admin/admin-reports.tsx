@@ -1,18 +1,5 @@
 import { type AdminReportGroup, type AdminReportQuery, REPORT_MEASURES, type ReportMeasure } from "@animeshadow/shared";
-import {
-  BanIcon,
-  ExternalLinkIcon,
-  FilterIcon,
-  FlagIcon,
-  ImageOffIcon,
-  Loader2Icon,
-  MessageSquareXIcon,
-  ShieldCheckIcon,
-  TextCursorInputIcon,
-  UserRoundXIcon,
-  UserSearchIcon,
-  XIcon,
-} from "lucide-react";
+import { BanIcon, CheckIcon, ExternalLinkIcon, FilterIcon, FlagIcon, ImageOffIcon, Loader2Icon, MessageSquareXIcon, ShieldCheckIcon, TextCursorInputIcon, UserRoundXIcon, UserSearchIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -272,7 +259,7 @@ function DecisionForm({ group }: { group: AdminReportGroup }) {
                   on ? (danger ? "border-rose-500 bg-rose-500 text-white" : "border-primary bg-primary text-primary-foreground") : "border-border",
                 )}
               >
-                {on && "✓"}
+                {on && <CheckIcon className="size-3" strokeWidth={3} />}
               </span>
               <Icon className="size-4 shrink-0" />
               {t(`admin.reports.measures.${m}` as "admin.reports.measures.ban")}

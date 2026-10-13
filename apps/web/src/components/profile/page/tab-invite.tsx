@@ -1,20 +1,5 @@
 import type { ReferralRewardState, ReferralState } from "@animeshadow/shared";
-import {
-  CheckIcon,
-  ClockIcon,
-  CopyIcon,
-  CrownIcon,
-  GiftIcon,
-  HourglassIcon,
-  LockIcon,
-  MedalIcon,
-  PenLineIcon,
-  SendIcon,
-  Share2Icon,
-  SparklesIcon,
-  UserPlusIcon,
-  UsersIcon,
-} from "lucide-react";
+import { CheckIcon, ClockIcon, CopyIcon, CrownIcon, GiftIcon, HeartIcon, HourglassIcon, LockIcon, MedalIcon, PenLineIcon, SendIcon, Share2Icon, SparklesIcon, UserPlusIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -156,8 +141,9 @@ function InviteHero({ state }: { state: ReferralState }) {
         </div>
         <div className="relative mx-auto hidden w-44 lg:block">
           <ReactionGif category="hug" className="aspect-square w-full shadow-xl shadow-black/30" />
-          <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-primary/30 bg-card px-3 py-1 text-xs font-semibold shadow-lg">
-            Вместе веселее 💞
+          <span className="absolute -bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-card px-3 py-1 text-xs font-semibold shadow-lg">
+            <HeartIcon className="size-3 fill-current text-primary" />
+            Вместе веселее
           </span>
         </div>
       </div>
@@ -261,7 +247,7 @@ function Ladder({ state, track }: { state: ReferralState; track: "friends" | "ho
   const take = (r: ReferralRewardState) =>
     claim.mutate(r.id, {
       onSuccess: () =>
-        toast.success("Награда получена! 🎉", {
+        toast.success("Награда получена!", {
           description: r.proDays ? `${r.label} — PRO продлён, таймер уже идёт` : r.label,
         }),
       onError: (e) => toast.error("Не получилось", { description: e instanceof ApiRequestError ? e.message : "Попробуйте ещё раз" }),

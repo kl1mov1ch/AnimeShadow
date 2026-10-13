@@ -61,7 +61,7 @@ const LEVELS: Record<Score, { key: string; bar: string; text: string; face: stri
     key: "strong",
     bar: "bg-emerald-500",
     text: "text-emerald-600 dark:text-emerald-400",
-    face: "٩(ˊᗜˋ*)و ✧",
+    face: "٩(ˊᗜˋ*)و",
   },
 };
 

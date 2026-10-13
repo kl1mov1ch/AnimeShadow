@@ -328,7 +328,7 @@ function Overview({ collection: c }: { collection: CollectionDetail }) {
             <span className="block h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${(seen / list.length) * 100}%` }} />
           </span>
           <span className="shrink-0 text-xs font-semibold tabular-nums">
-            {seen === list.length ? "Всё просмотрено 🎉" : `Вы посмотрели ${seen} из ${list.length}`}
+            {seen === list.length ? "Всё просмотрено" : `Вы посмотрели ${seen} из ${list.length}`}
           </span>
         </div>
       )}

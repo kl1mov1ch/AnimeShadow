@@ -1,4 +1,4 @@
-import { BookmarkIcon, FolderHeartIcon, HistoryIcon, SparklesIcon, TrophyIcon, XIcon } from "lucide-react";
+import { BookmarkIcon, FolderHeartIcon, HeartIcon, HistoryIcon, SparklesIcon, TrophyIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ReactionGif } from "@/components/common/reaction-gif";
@@ -19,7 +19,7 @@ type Variant = "home" | "browse" | "collections";
 const COPY: Record<Variant, { gif: string; title: string; text: string }> = {
   home: {
     gif: "wave",
-    title: "Эй, останешься с нами? 💜",
+    title: "Эй, останешься с нами?",
     text: "Ты уже здесь — осталось 20 секунд, и AnimeShadow станет твоим: главная подстроится под вкус, серии будут отмечаться сами, а всё, что нашёл, никуда не денется. Бесплатно и навсегда.",
   },
   browse: {
@@ -149,10 +149,10 @@ export function GuestNudge() {
                 <span
                   key={i}
                   aria-hidden
-                  className="nudge-heart text-xs text-primary"
+                  className="nudge-heart text-primary"
                   style={{ left: `${20 + i * 22}%`, animationDelay: `${i * 0.9}s` }}
                 >
-                  ♥
+                  <HeartIcon className="size-3 fill-current" />
                 </span>
               ))}
             </div>

@@ -33,7 +33,7 @@ export function Component() {
     setErrors({});
     try {
       await loginWithTelegram(data);
-      toast.success("С возвращением! 👋", { description: "Вошли через Telegram" });
+      toast.success("С возвращением!", { description: "Вошли через Telegram" });
       navigate(from, { replace: true });
     } catch (error) {
       const message = error instanceof ApiRequestError ? error.message : t("auth.genericError");
@@ -65,7 +65,7 @@ export function Component() {
     setPending(true);
     try {
       await login(parsed.data);
-      toast.success("С возвращением! 👋", { description: "Твой список и прогресс уже на месте" });
+      toast.success("С возвращением!", { description: "Твой список и прогресс уже на месте" });
       navigate(from, { replace: true });
     } catch (error) {
       if (error instanceof ApiRequestError) {

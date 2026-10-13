@@ -54,7 +54,7 @@ export function Component() {
             <div className="relative hidden w-56 md:block">
               <ReactionGif category="wave" className="aspect-square w-full shadow-xl shadow-black/30" />
               <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--accent-line-soft)] bg-card px-3 py-1 text-xs font-semibold shadow-lg">
-                Привет! Добро пожаловать 👋
+                Привет! Добро пожаловать
               </span>
             </div>
           }

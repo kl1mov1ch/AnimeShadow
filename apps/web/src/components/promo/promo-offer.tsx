@@ -111,7 +111,7 @@ export function PromoCard({ className }: { className?: string }) {
       <section className={wrap}>
         {icon}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <p className="font-display text-lg leading-tight">PRO активен 👑</p>
+          <p className="font-display text-lg leading-tight">PRO активен</p>
           <p className="text-sm text-foreground/75">
             Действует до {new Date(data.proUntil).toLocaleDateString("ru", { day: "numeric", month: "long" })} — потом выключится сам.
             {soon ? " Осталось меньше недели — самое время продлить." : ""}
@@ -138,7 +138,7 @@ export function PromoCard({ className }: { className?: string }) {
       <section className={wrap}>
         {icon}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="font-display text-lg leading-tight">Месяц PRO — в подарок 🎁</p>
+          <p className="font-display text-lg leading-tight">Месяц PRO — в подарок</p>
           <p className="text-sm text-foreground/75">
             Забери бесплатный месяц: безлимитный список, значок 影, свои подписи и всё PRO. Второй месяц потом — за {formatUsd(promoSecondMonthUsd())} вместо {formatUsd(PROMO.proMonthlyUsd)}. Акция одна на аккаунт.
           </p>
@@ -148,7 +148,7 @@ export function PromoCard({ className }: { className?: string }) {
           disabled={claim.isPending}
           onClick={() =>
             claim.mutate(undefined, {
-              onSuccess: () => toast.success("PRO включён на 30 дней! 👑", { description: "Подарочный месяц уже действует" }),
+              onSuccess: () => toast.success("PRO включён на 30 дней!", { description: "Подарочный месяц уже действует" }),
               onError: (e) => toast.error("Не получилось", { description: e instanceof ApiRequestError ? e.message : "Попробуйте ещё раз" }),
             })
           }
@@ -166,7 +166,7 @@ export function PromoCard({ className }: { className?: string }) {
       <section className={wrap}>
         {icon}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <p className="font-display text-lg leading-tight">Подарочный PRO активен 👑</p>
+          <p className="font-display text-lg leading-tight">Подарочный PRO активен</p>
           <p className="text-sm text-foreground/75">
             Потом второй месяц — за {formatUsd(promoSecondMonthUsd())} вместо {formatUsd(PROMO.proMonthlyUsd)}, скидка {PROMO.discountPercent}% держится 30 дней.
           </p>

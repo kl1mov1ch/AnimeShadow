@@ -211,7 +211,7 @@ export function BrowseFilters({
         <ChipGroup
           label={t("browse.scoreRange")}
           value={params.minScore ? String(params.minScore) : null}
-          options={SCORE_STEPS.map((v) => ({ value: String(v), label: `★ ${v}+` }))}
+          options={SCORE_STEPS.map((v) => ({ value: String(v), label: `от ${v}` }))}
           onPick={(v) => onChange({ minScore: v, maxScore: null })}
         />
       </Fold>

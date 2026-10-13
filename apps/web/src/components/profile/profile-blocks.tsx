@@ -4,27 +4,7 @@ import type {
   ProfileLayout,
   PublicProfile,
 } from "@animeshadow/shared";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  BookmarkPlusIcon,
-  CalendarDaysIcon,
-  CheckCircle2Icon,
-  EyeIcon,
-  EyeOffIcon,
-  FlameIcon,
-  HeartHandshakeIcon,
-  HistoryIcon,
-  type LucideIcon,
-  PencilIcon,
-  PlayIcon,
-  PlusIcon,
-  RadioIcon,
-  SparklesIcon,
-  StarIcon,
-  TrophyIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, BookmarkPlusIcon, CalendarDaysIcon, CheckCircle2Icon, CheckIcon, EyeIcon, EyeOffIcon, FlameIcon, HeartHandshakeIcon, HistoryIcon, type LucideIcon, PencilIcon, PlayIcon, PlusIcon, RadioIcon, SparklesIcon, StarIcon, TrophyIcon, XIcon } from "lucide-react";
 import { type CSSProperties, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -589,7 +569,7 @@ function WatchingBlock({ profile, own }: { profile: PublicProfile; own: boolean 
                   <span className="line-clamp-1 text-sm font-medium leading-snug">{labels.title(w.anime)}</span>
                   <span className="text-xs text-primary">
                     {t("detail.episodeNumber", { n: w.episode })}
-                    {w.completed && " ✓"}
+                    {w.completed && <CheckIcon className="ml-1 inline size-3 align-[-1px]" />}
                   </span>
                   <span className="text-[11px] text-muted-foreground">{relative(w.at, locale)}</span>
                   {!w.completed && (

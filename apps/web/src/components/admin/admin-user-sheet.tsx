@@ -366,7 +366,7 @@ function UserView({ detail }: { detail: AdminUserDetail }) {
                         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span className={cn("size-1.5 rounded-full", STATUS_DOT[e.status])} />
                           {t(`status.${e.status}`)} · {e.progress}/{e.episodes ?? "?"}
-                          {e.score != null && ` · ★ ${e.score}`}
+                          {e.score != null && ` · оценка ${e.score}`}
                         </p>
                       </div>
                       <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(e.updatedAt, locale)}</span>

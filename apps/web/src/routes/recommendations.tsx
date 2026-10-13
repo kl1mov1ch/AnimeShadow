@@ -305,7 +305,7 @@ function FocusCard({
   const t = useT();
   const labels = useLabels();
   const title = labels.title(anime);
-  const meta = [labels.typeLabel(anime.type), labels.seasonYearLabel(anime), anime.score ? `★ ${anime.score.toFixed(2)}` : null]
+  const meta = [labels.typeLabel(anime.type), labels.seasonYearLabel(anime), anime.score ? `оценка ${anime.score.toFixed(2)}` : null]
     .filter(Boolean)
     .join(" · ");
   return (

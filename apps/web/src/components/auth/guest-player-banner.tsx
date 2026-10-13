@@ -122,7 +122,7 @@ export function GuestPlayerBanner() {
               </span>
             </div>
             <DialogTitle className="font-display text-xl">
-              Почему ты не хочешь дружить? 🥺
+              Почему ты не хочешь дружить?
             </DialogTitle>
             <DialogDescription className="text-sm leading-relaxed text-foreground/80">
               Мы же уже почти знакомы! Без аккаунта мы забудем, на какой серии ты
@@ -147,9 +147,10 @@ export function GuestPlayerBanner() {
                 setPlea(false);
                 setClosedOn(pathname);
               }}
-              className="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl px-4 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              Не сейчас 💔
+              <HeartCrackIcon className="size-4" />
+              Не сейчас
             </button>
           </div>
         </DialogContent>

@@ -1,28 +1,5 @@
 import { type PublicProfile, type QuestKey, type QuestState, questStates } from "@animeshadow/shared";
-import {
-  AtSignIcon,
-  BookmarkPlusIcon,
-  ChevronRightIcon,
-  CrownIcon,
-  FlagIcon,
-  GiftIcon,
-  HandshakeIcon,
-  HeartIcon,
-  ImageIcon,
-  InfinityIcon,
-  LockIcon,
-  type LucideIcon,
-  MessageCircleIcon,
-  PenLineIcon,
-  PinIcon,
-  SparklesIcon,
-  StarIcon,
-  TrophyIcon,
-  TvIcon,
-  UserRoundIcon,
-  UsersIcon,
-  ZapIcon,
-} from "lucide-react";
+import { AtSignIcon, BookmarkPlusIcon, CheckIcon, ChevronRightIcon, CrownIcon, FlagIcon, GiftIcon, HandshakeIcon, HeartIcon, ImageIcon, InfinityIcon, LockIcon, type LucideIcon, MessageCircleIcon, PenLineIcon, PinIcon, SparklesIcon, StarIcon, TrophyIcon, TvIcon, UserRoundIcon, UsersIcon, ZapIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
@@ -327,8 +304,8 @@ function QuestList({ profile, quests, actions }: { profile: PublicProfile; quest
               >
                 <span className="relative grid size-9 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
                   <look.icon className="size-4" />
-                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-card px-1 text-[9px] font-bold leading-[14px] tabular-nums text-foreground ring-1 ring-[var(--accent-line-soft)]">
-                    {finished ? "✓" : q.done + 1}
+                  <span className="absolute -bottom-1.5 left-1/2 grid h-3.5 min-w-3.5 -translate-x-1/2 place-items-center rounded-full bg-card px-1 text-[9px] font-bold leading-none tabular-nums text-foreground ring-1 ring-[var(--accent-line-soft)]">
+                    {finished ? <CheckIcon className="size-2.5" strokeWidth={3} /> : q.done + 1}
                   </span>
                 </span>
                 <span className="min-w-0">

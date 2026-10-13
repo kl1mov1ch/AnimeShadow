@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, HeartIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
@@ -27,13 +27,13 @@ const SHOWCASE = {
     gif: "wave",
     title: "Мы скучали!",
     text: "Твой список, прогресс серий и подборки ждут — ровно там, где ты остановился.",
-    badge: "Скучали 💜",
+    badge: "Скучали",
   },
   register: {
     gif: "happy",
     title: "Стань своим на AnimeShadow",
     text: "Бесплатно и за 20 секунд. Вот что появится сразу после регистрации:",
-    badge: "Будем рады 🥺",
+    badge: "Будем рады",
   },
 } as const;
 
@@ -66,7 +66,8 @@ function Showcase({ kind }: { kind: "login" | "register" }) {
       <div className="hidden h-full flex-col gap-6 lg:flex">
         <div className="relative w-44">
           <ReactionGif category={c.gif} className="aspect-square w-full shadow-xl shadow-black/30" />
-          <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-primary/30 bg-card px-3 py-1 text-xs font-semibold shadow-lg">
+          <span className="absolute -bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-card px-3 py-1 text-xs font-semibold shadow-lg">
+            <HeartIcon className="size-3 fill-current text-primary" />
             {c.badge}
           </span>
         </div>

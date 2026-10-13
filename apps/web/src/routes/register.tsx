@@ -1,4 +1,5 @@
 import { registerInputSchema } from "@animeshadow/shared";
+import { GiftIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
@@ -38,7 +39,7 @@ export function Component() {
     setErrors({});
     try {
       await loginWithTelegram(data);
-      toast.success("Добро пожаловать! 🎉", { description: "Аккаунт готов — начинай собирать свой список" });
+      toast.success("Добро пожаловать!", { description: "Аккаунт готов — начинай собирать свой список" });
       navigate("/library", { replace: true });
     } catch (error) {
       const message = error instanceof ApiRequestError ? error.message : t("auth.genericError");
@@ -73,7 +74,7 @@ export function Component() {
     setPending(true);
     try {
       await requestRegistration(parsed.data);
-      toast.success("Почти готово! ✉️", { description: `Код подтверждения отправлен на ${parsed.data.email}` });
+      toast.success("Почти готово!", { description: `Код подтверждения отправлен на ${parsed.data.email}` });
       // No account exists yet and nobody's signed in — the code just
       // emailed is what actually creates it. See AuthService.confirmRegistration.
       navigate("/verify-email", { state: { email: parsed.data.email }, replace: true });
@@ -187,8 +188,9 @@ export function Component() {
                 className="font-mono tracking-[0.15em]"
               />
               {friend.data?.valid && (
-                <p className="animate-in text-xs font-medium text-emerald-400 duration-200 fade-in-0">
-                  🎁 Тебя пригласил(а) {friend.data.name} — вы оба получите бонусы
+                <p className="flex animate-in items-center gap-1.5 text-xs font-medium text-emerald-400 duration-200 fade-in-0">
+                  <GiftIcon className="size-3.5 shrink-0" />
+                  Тебя пригласил(а) {friend.data.name} — вы оба получите бонусы
                 </p>
               )}
               {friendCode.length >= 4 && friend.data && !friend.data.valid && (

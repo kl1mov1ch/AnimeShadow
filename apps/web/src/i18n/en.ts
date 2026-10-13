@@ -675,7 +675,7 @@ export const en = {
     plusOne: "+1 episode",
     editEpisodes: "Click to type the number of episodes",
     minusOne: "−1 episode",
-    finished: "Finished {title} 🎉",
+    finished: "Finished {title}",
     startedWatching: "{title} — watching",
     allGenres: "All genres",
     showing: "Showing: {count}",

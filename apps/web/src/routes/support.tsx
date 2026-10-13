@@ -1,13 +1,4 @@
-import {
-  CoffeeIcon,
-  ExternalLinkIcon,
-  HeartIcon,
-  HeartHandshakeIcon,
-  type LucideIcon,
-  MessageCircleIcon,
-  ShieldCheckIcon,
-  SparklesIcon,
-} from "lucide-react";
+import { CoffeeIcon, ExternalLinkIcon, HeartHandshakeIcon, HeartIcon, type LucideIcon, MessageCircleIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
 import { type CSSProperties, useState } from "react";
 import { ReactionGif } from "@/components/common/reaction-gif";
 import { PlansSection } from "@/components/anime/plans-section";
@@ -154,8 +145,9 @@ function AskingCard({ happy }: { happy: boolean }) {
     <div className="hidden w-60 flex-col items-center gap-3 md:flex">
       <div className="relative w-full">
         <ReactionGif category={happy ? "happy" : "pout"} className="aspect-square w-full shadow-xl shadow-black/30" />
-        <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--accent-line-soft)] bg-card px-3 py-1 text-xs font-semibold shadow-lg">
-          {happy ? "Спасибо!! 💖" : "Поддержишь нас? 🥺"}
+        <span className="absolute -bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--accent-line-soft)] bg-card px-3 py-1 text-xs font-semibold shadow-lg">
+          <HeartIcon className={cn("size-3 text-primary", happy && "fill-current")} />
+          {happy ? "Спасибо!!" : "Поддержишь нас?"}
         </span>
       </div>
     </div>
@@ -188,9 +180,11 @@ function TipPicker({ cheer }: { cheer: Record<string, () => void> }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <span className="font-display text-4xl leading-none tabular-nums">
             ${cups}
-            <span className="ml-2 align-middle text-base text-muted-foreground">
-              {"☕".repeat(Math.min(cups, 6))}
-              {cups > 6 && ` ×${cups}`}
+            <span className="ml-2 inline-flex items-center gap-0.5 align-middle text-base text-amber-300/90">
+              {Array.from({ length: Math.min(cups, 6) }, (_, i) => (
+                <CoffeeIcon key={i} className="size-4" />
+              ))}
+              {cups > 6 && <span className="ml-1 text-muted-foreground">×{cups}</span>}
             </span>
           </span>
           <span key={stage.word} className="animate-in text-sm font-medium text-foreground/85 duration-300 fade-in-0">{stage.word}</span>
