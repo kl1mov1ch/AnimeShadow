@@ -80,6 +80,7 @@ export function Component() {
 
   return (
     <AuthCard
+      showcase="login"
       title={t("auth.welcomeBack")}
       subtitle={t("auth.welcomeBackSub")}
       footer={

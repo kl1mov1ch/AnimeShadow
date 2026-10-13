@@ -25,6 +25,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
+import { ReactionGif } from "@/components/common/reaction-gif";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { RandomRoll } from "@/components/layout/random-roll";
@@ -189,7 +190,10 @@ export function SiteHeader() {
           <div className="hidden min-w-0 md:block">
             <SearchBox />
           </div>
-          <RandomRoll />
+          {/* A guest's phone header has the invite in this spot instead. */}
+          <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
+            <RandomRoll />
+          </div>
           <div className="hidden items-center md:flex">
             {FEATURES.frameSearch && (
               <HeaderIcon label={t("frameSearch.navLabel")} to="/frame-search">
@@ -204,7 +208,16 @@ export function SiteHeader() {
             <UserMenu />
           </div>
 
-          {/* A phone: search and the menu, on the right. */}
+          {/* A phone: a quiet invite for guests, search and the menu. */}
+          {status === "anonymous" && (
+            <Link
+              to="/register"
+              className="mr-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2.5 text-[12px] font-semibold text-foreground md:hidden"
+            >
+              <SparklesIcon className="size-3.5 text-primary" />
+              Вступить
+            </Link>
+          )}
           <HeaderIcon label={t("common.search")} onClick={openSearch} className="md:hidden">
             <SearchIcon />
           </HeaderIcon>
@@ -301,6 +314,12 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
         ) : (
           <div className="flex flex-col gap-3 p-4">
             <Wordmark />
+            <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/[0.07] p-3">
+              <ReactionGif category="wave" className="size-14 shrink-0" />
+              <p className="text-[13px] leading-snug text-foreground/85">
+                <b className="text-foreground">Стань своим на AnimeShadow</b> — список, прогресс серий и подборки сохранятся навсегда.
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button asChild variant="outline" className="flex-1" onClick={onNavigate}>
                 <Link to="/login">

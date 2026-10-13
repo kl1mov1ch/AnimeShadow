@@ -1736,3 +1736,17 @@ body:has([role="dialog"][data-state="open"]) main * {
 @keyframes ti-draw { to { stroke-dashoffset: 0; } }
 @keyframes ti-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-22px) scale(0.3); } }
 @media (prefers-reduced-motion: reduce) { .ti, .ti-ring, .ti-tick, .ti-sparks span { animation: none; stroke-dashoffset: 0; } }
+
+/* The guest invite: a ring of colour running round the card, the face
+   bobbing a little, and hearts floating up from it. */
+.nudge-ring {
+  background: linear-gradient(110deg, var(--primary), #e879f9, #38bdf8, var(--primary));
+  background-size: 300% 100%;
+  animation: nudge-ring 6s linear infinite;
+}
+@keyframes nudge-ring { to { background-position: 300% 0; } }
+.nudge-bob { animation: nudge-bob 2.6s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes nudge-bob { 0%, 100% { rotate: -4deg; } 50% { rotate: 4deg; translate: 0 -2px; } }
+.nudge-heart { position: absolute; bottom: 30%; opacity: 0; animation: nudge-heart 3.2s ease-out infinite; }
+@keyframes nudge-heart { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(-46px) scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .nudge-ring, .nudge-bob, .nudge-heart { animation: none; } }

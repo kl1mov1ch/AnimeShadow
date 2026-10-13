@@ -86,6 +86,7 @@ export function Component() {
 
   return (
     <AuthCard
+      showcase="register"
       title={t("auth.registerTitle")}
       subtitle={t("auth.registerSub")}
       footer={

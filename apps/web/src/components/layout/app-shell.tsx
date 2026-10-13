@@ -1,3 +1,4 @@
+import { GuestNudge } from "@/components/auth/guest-nudge";
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { AchievementWatcher } from "@/components/achievement-watcher";
 import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
@@ -34,6 +35,7 @@ export function AppShell() {
       <SearchCommandMount />
       <Toaster position="bottom-right" />
       <AchievementWatcher />
+      <GuestNudge />
       {/* Every plain `title` hint on the site, drawn as the site's tooltip. */}
       <GlobalTitleTooltips />
       <ScrollRestoration />

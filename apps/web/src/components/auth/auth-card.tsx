@@ -2,104 +2,133 @@ import type { ComponentProps, ReactNode } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { PulseRings } from "@/components/common/pulse-rings";
+import { LogoGlyph } from "@/components/brand/logo-glyph";
+import { LogoWatermark } from "@/components/brand/logo-watermark";
+import { ReactionGif } from "@/components/common/reaction-gif";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
+import { PerksList } from "./guest-nudge";
 
 interface AuthCardProps {
   title: string;
   subtitle: string;
   children: ReactNode;
   footer: ReactNode;
+  /** Login and sign-up get a side with a face and what an account gives. */
+  showcase?: "login" | "register";
 }
 
-/**
- * The backdrop: the site's own mark, at several sizes, plus one slow
- * monochrome Lottie loop.
- *
- * It used to be a scatter of reaction gifs. They were loud, they were
- * somebody else's artwork, and every one of them fought the form for
- * attention. The wordmark is ours, it costs one glyph, and because the
- * Lottie beside it carries no colour of its own both adapt to the theme
- * without a second asset.
- */
+const SHOWCASE = {
+  login: {
+    gif: "wave",
+    title: "Мы скучали!",
+    text: "Твой список, прогресс серий и подборки ждут — ровно там, где ты остановился.",
+    badge: "Скучали 💜",
+  },
+  register: {
+    gif: "happy",
+    title: "Стань своим на AnimeShadow",
+    text: "Бесплатно и за 20 секунд. Вот что появится сразу после регистрации:",
+    badge: "Будем рады 🥺",
+  },
+} as const;
+
+/** Two soft pools of the site colour behind everything — depth, not noise. */
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {/* Two slow pools of colour instead of one flat blur, so the
-          backdrop has some depth to it. */}
-      <div className="absolute left-1/2 top-1/3 size-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]" />
-      <div className="absolute right-[12%] top-[62%] size-[28rem] rounded-full bg-primary/[0.07] blur-[110px]" />
+      <div className="absolute left-1/4 top-1/4 size-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.13] blur-[120px]" />
+      <div className="absolute bottom-0 right-[10%] size-[26rem] rounded-full bg-fuchsia-500/[0.07] blur-[110px]" />
+    </div>
+  );
+}
 
-      {/* The mark, three times over at three weights — a composition rather
-          than a single stamp in the corner. */}
-      <span className="absolute -left-10 top-[8%] select-none font-display text-[18rem] leading-none text-foreground/[0.035]">
-        <SlicedGlyph />
-      </span>
-      <span className="absolute -right-6 bottom-[6%] select-none font-display text-[13rem] leading-none text-foreground/[0.03]">
-        <SlicedGlyph />
-      </span>
-      <span className="absolute right-[18%] top-[14%] hidden select-none font-display text-[7rem] leading-none text-primary/[0.06] lg:block">
-        <SlicedGlyph />
-      </span>
-
-      {/* Monochrome by rule, so it reads in both themes off one file. */}
-      <PulseRings className="absolute left-1/2 top-1/2 size-[40rem] -translate-x-1/2 -translate-y-1/2 text-primary/25" />
-
-      {/* Keeps the card legible over whatever lands behind it. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
+/** The side of the card with a face: a gif, a line, and (on sign-up) the perks. */
+function Showcase({ kind }: { kind: "login" | "register" }) {
+  const c = SHOWCASE[kind];
+  return (
+    <div className="relative isolate flex flex-col overflow-hidden border-b border-border/50 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_srgb,var(--primary)_22%,transparent),transparent_60%)] p-5 sm:p-7 lg:border-b-0 lg:border-r lg:p-9">
+      <LogoWatermark className="-bottom-10 -right-10 size-72 text-primary/[0.07]" />
+      {/* Phone: a short strip — face and a line, the form right under it. */}
+      <div className="flex items-center gap-4 lg:hidden">
+        <ReactionGif category={c.gif} className="size-16 shrink-0 shadow-lg sm:size-20" />
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-display text-lg leading-tight">{c.title}</p>
+          <p className="text-xs leading-relaxed text-foreground/75">{c.text}</p>
+        </div>
+      </div>
+      {/* Computer: the full side. */}
+      <div className="hidden h-full flex-col gap-6 lg:flex">
+        <div className="relative w-44">
+          <ReactionGif category={c.gif} className="aspect-square w-full shadow-xl shadow-black/30" />
+          <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-primary/30 bg-card px-3 py-1 text-xs font-semibold shadow-lg">
+            {c.badge}
+          </span>
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="font-display text-3xl leading-tight">{c.title}</p>
+          <p className="text-sm leading-relaxed text-foreground/75">{c.text}</p>
+        </div>
+        {kind === "register" ? (
+          <PerksList />
+        ) : (
+          <div className="mt-auto grid grid-cols-3 gap-2">
+            {[
+              ["Прогресс", "с той же минуты"],
+              ["Мой список", "и оценки"],
+              ["Профиль", "уровни и рамки"],
+            ].map(([a, b]) => (
+              <div key={a} className="rounded-xl border border-border/50 bg-background/40 px-3 py-2.5">
+                <p className="text-sm font-semibold">{a}</p>
+                <p className="text-[11px] text-muted-foreground">{b}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 /**
- * The auth screen, rebuilt as a room rather than a form on a page: a wash of
- * the site colour, the 影 mark drifting behind everything, and a scatter of
- * looping art that only appears from the large breakpoint up, where there is
- * genuinely space beside the card for it.
- *
- * The card itself stays a single column with labels above inputs and errors
- * tied to their field — that part was already right, and widening or
- * splitting it would cost more than the decoration is worth.
+ * The auth screen: one solid card a shade lighter than the page with the
+ * site's coloured ring — the same family as the account menu and the
+ * notifications. Login and sign-up split it in two on a computer (a face
+ * and what an account gives on the left, the form on the right); on a phone
+ * the face becomes a strip above the form. The other auth pages keep the
+ * single column.
  */
-export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
+export function AuthCard({ title, subtitle, children, footer, showcase }: AuthCardProps) {
   return (
-    <div className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-10 sm:py-16">
+    <div className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-8 sm:py-14">
       <Backdrop />
 
-      <div className="animate-in fade-in slide-in-from-bottom-4 w-full max-w-[400px] duration-500">
-        <Link
-          to="/"
-          className="group mb-6 flex items-center justify-center gap-2 font-display text-lg tracking-tight"
+      <div className={cn("w-full animate-in duration-500 fade-in slide-in-from-bottom-4", showcase ? "max-w-[920px]" : "max-w-[420px]")}>
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color-mix(in_srgb,var(--card)_94%,white_6%)] shadow-[0_30px_80px_-30px_rgb(0_0_0/0.8)]",
+            showcase && "grid lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]",
+          )}
         >
-          <span
-            aria-hidden
-            className="text-primary transition-transform duration-300 group-hover:scale-110"
-          >
-            <SlicedGlyph />
-          </span>
-          AnimeShadow
-        </Link>
-
-        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/92 p-6 shadow-2xl shadow-black/20 sm:p-8">
-          {/* The site hairline, same as the header and every dialog. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
-          />
-          <div className="mb-6 flex flex-col gap-1.5 text-center">
-            <h1 className="font-display text-2xl">{title}</h1>
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
+          {showcase && <Showcase kind={showcase} />}
+          <div className="relative isolate overflow-hidden p-5 sm:p-8">
+            {!showcase && <LogoWatermark className="-right-12 -top-12 size-48" />}
+            <Link to="/" className="mb-5 flex items-center gap-2 font-display text-base tracking-tight text-foreground/90">
+              <LogoGlyph className="size-5 text-primary" />
+              AnimeShadow
+            </Link>
+            <div className="mb-6 flex flex-col gap-1.5">
+              <h1 className="font-display text-2xl">{title}</h1>
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            </div>
+            {children}
+            <p className="mt-6 border-t border-border/50 pt-5 text-center text-sm text-muted-foreground">{footer}</p>
           </div>
-
-          {children}
         </div>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">{footer}</p>
       </div>
     </div>
   );

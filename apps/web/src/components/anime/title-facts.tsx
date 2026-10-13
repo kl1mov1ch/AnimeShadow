@@ -1,31 +1,25 @@
 import type { AnimeDetail } from "@animeshadow/shared";
 import {
   BuildingIcon,
-  CalculatorIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
+  CalendarDaysIcon,
   ClockIcon,
   FilmIcon,
-  FlagIcon,
   HeartIcon,
+  LockIcon,
   MinusIcon,
   PlusIcon,
+  SparklesIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
-import { LogoGlyph } from "@/components/brand/logo-glyph";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { TRACK_CARD, TRACK_HEAD } from "@/components/library/title-tracker";
+import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
+import { useLibrary } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 /**
@@ -91,376 +85,223 @@ function paceLimit(episodes: number): number {
   return Math.max(1, Math.min(24, episodes));
 }
 
+/** Days of the week a marathon counts: every day, or Saturdays and Sundays only. */
+function isWeekend(d: Date): boolean {
+  const w = d.getDay();
+  return w === 0 || w === 6;
+}
+
+/** The date of the n-th watching day from today (n ≥ 1), skipping weekdays if asked. */
+function nthWatchDay(n: number, weekendsOnly: boolean): Date {
+  const d = startOfDay(new Date());
+  let left = n;
+  for (let guard = 0; guard < 4000; guard++) {
+    if (!weekendsOnly || isWeekend(d)) left -= 1;
+    if (left <= 0) return d;
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+/** Watching days from today to a date, inclusive. */
+function watchDaysUntil(target: Date, weekendsOnly: boolean): number {
+  const d = startOfDay(new Date());
+  let n = 0;
+  while (d.getTime() <= target.getTime() && n < 4000) {
+    if (!weekendsOnly || isWeekend(d)) n += 1;
+    d.setDate(d.getDate() + 1);
+  }
+  return Math.max(1, n);
+}
+
+const STEPPER =
+  "grid size-8 place-items-center rounded-lg border border-border/70 bg-background/40 text-foreground/80 transition-colors hover:border-foreground/25 hover:text-foreground active:scale-95 disabled:pointer-events-none disabled:opacity-35";
+
+function Stepper({ value, min, max, onChange, label }: { value: number; min: number; max: number; onChange: (n: number) => void; label: string }) {
+  const t = useT();
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label={t("detail.quickFacts.fewer")} className={STEPPER}>
+          <MinusIcon className="size-3.5" />
+        </button>
+        <span className="w-8 text-center text-sm font-semibold tabular-nums">{value}</span>
+        <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={t("detail.quickFacts.more")} className={STEPPER}>
+          <PlusIcon className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
- * "How long to watch" on the title page, in plain sight: the whole title's
- * running time in large type, and — for a series — a pace you set with two
- * buttons, answered at once with when you would finish and how long a day
- * that is. It used to be a calculator icon on the tracking bar that a
- * first-time visitor had no reason to press; the full calculator (finish by
- * a date, the title's other numbers) still opens from "more".
+ * "How long to watch" on the title page — the whole calculator in the card,
+ * no window to open: the running time; how much is left (from the list, or
+ * set by hand); a pace or a date to finish by; every day or weekends only;
+ * and the answer — when, how many days, how long a day — with a strip of the
+ * days. It is for members: a guest sees the total and a locked preview.
  */
 export function WatchTimeCard({ anime, className }: { anime: AnimeDetail; className?: string }) {
   const t = useT();
   const { locale } = useLocale();
-  const { facts, perEp, episodes, totalMinutes } = useFacts(anime);
+  const { status } = useAuth();
+  const authed = status === "authenticated";
+  const { data: entries } = useLibrary(undefined, authed);
+  const listed = entries?.find((e) => e.anime.id === anime.id)?.progress ?? 0;
+  const { perEp, episodes, totalMinutes } = useFacts(anime);
   const maxPerDay = paceLimit(episodes);
   const [perDay, setPerDay] = useState(Math.min(2, maxPerDay));
+  const [watchedSet, setWatched] = useState<number | null>(null);
+  const [mode, setMode] = useState<"perDay" | "byDate">("perDay");
+  const [weekends, setWeekends] = useState(false);
+  const [byDays, setByDays] = useState(7);
   if (!totalMinutes) return null;
 
-  const days = Math.ceil(episodes / perDay);
-  const finish = new Date(Date.now() + Math.max(0, days - 1) * 86_400_000);
-  const finishLabel = finish.toLocaleDateString(locale, { day: "numeric", month: "long" });
-  const stepper =
-    "grid size-9 place-items-center rounded-lg border border-border/70 bg-background/40 text-foreground/80 transition-colors hover:border-foreground/25 hover:text-foreground active:scale-95 disabled:pointer-events-none disabled:opacity-35";
+  const series = episodes > 1;
+  const target = startOfDay(new Date());
+  target.setDate(target.getDate() + byDays - 1);
+  const targetLabel = target.toLocaleDateString(locale, { day: "numeric", month: "long" });
+  const watched = Math.min(Math.max(0, watchedSet ?? listed), Math.max(0, episodes - 1));
+  const left = Math.max(1, episodes - watched);
+  const pace =
+    mode === "byDate"
+      ? Math.min(left, Math.max(1, Math.ceil(left / watchDaysUntil(target, weekends))))
+      : Math.min(perDay, left);
+  const days = Math.ceil(left / pace);
+  const finishLabel = nthWatchDay(days, weekends).toLocaleDateString(locale, { day: "numeric", month: "long" });
+  const leftMinutes = perEp ? perEp * left : totalMinutes;
+  const dots = Math.min(days, 28);
+  const tab = (on: boolean) =>
+    cn(
+      "h-7 flex-1 rounded-md px-2 text-[11px] font-semibold transition-colors",
+      on ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+    );
 
   return (
     <section className={cn(TRACK_CARD, className)} aria-label={t("detail.quickFacts.cardTitle")}>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className={TRACK_HEAD}>
-          <ClockIcon />
-          {t("detail.quickFacts.cardTitle")}
-        </h3>
-        <CheatSheet
-          facts={facts}
-          perEp={perEp}
-          episodes={episodes}
-          label={t("detail.quickFacts.sheet")}
-          initialPerDay={perDay}
-          trigger={
-            <button
-              type="button"
-              className="inline-flex h-7 items-center gap-0.5 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
-            >
-              {t("detail.quickFacts.details")}
-              <ChevronRightIcon className="size-3.5" />
-            </button>
-          }
-        />
-      </div>
+      <h3 className={TRACK_HEAD}>
+        <ClockIcon />
+        {t("detail.quickFacts.cardTitle")}
+      </h3>
 
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         <span className="font-display text-2xl tabular-nums leading-none">{formatMinutes(totalMinutes, t)}</span>
         <span className="text-xs text-muted-foreground">
-          {episodes > 1 && perEp
-            ? t("detail.quickFacts.perEpisode", { episodes, minutes: perEp })
-            : t("detail.quickFacts.film")}
+          {series && perEp ? t("detail.quickFacts.perEpisode", { episodes, minutes: perEp }) : t("detail.quickFacts.film")}
         </span>
       </div>
 
-      {episodes > 1 && (
-        <div className="flex flex-col gap-2.5 border-t border-border/50 pt-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-medium text-muted-foreground">{t("detail.quickFacts.paceLabel")}</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPerDay((n) => Math.max(1, n - 1))}
-                disabled={perDay <= 1}
-                aria-label={t("detail.quickFacts.fewer")}
-                className={stepper}
-              >
-                <MinusIcon className="size-4" />
-              </button>
-              <span className="w-9 text-center text-base font-semibold tabular-nums">{perDay}</span>
-              <button
-                type="button"
-                onClick={() => setPerDay((n) => Math.min(maxPerDay, n + 1))}
-                disabled={perDay >= maxPerDay}
-                aria-label={t("detail.quickFacts.more")}
-                className={stepper}
-              >
-                <PlusIcon className="size-4" />
-              </button>
+      {series && status === "anonymous" && (
+        <div className="relative min-h-32 flex-1 overflow-hidden rounded-xl border border-border/50">
+          {/* What it would look like, blurred — and why to sign up. */}
+          <div aria-hidden className="pointer-events-none flex select-none flex-col gap-2.5 p-3 opacity-60 blur-[3px]">
+            <div className="flex h-7 gap-1 rounded-lg bg-background/50 p-0.5">
+              <span className="flex-1 rounded-md bg-primary" />
+              <span className="flex-1" />
+            </div>
+            <div className="h-4 w-3/4 rounded bg-foreground/15" />
+            <div className="h-4 w-1/2 rounded bg-foreground/10" />
+            <div className="flex gap-1">
+              {Array.from({ length: 14 }, (_, i) => (
+                <span key={i} className="size-2 rounded-full bg-primary" style={{ opacity: 0.3 + i * 0.05 }} />
+              ))}
             </div>
           </div>
-          <p key={perDay} className="animate-in text-sm leading-snug duration-200 fade-in-0">
-            {t("detail.quickFacts.finish", { days, date: finishLabel })}
-            {perEp != null && (
-              <span className="text-muted-foreground"> · {t("detail.quickFacts.aDay", { minutes: perEp * perDay })}</span>
-            )}
-          </p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[color-mix(in_srgb,var(--card)_65%,transparent)] p-3 text-center">
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <LockIcon className="size-3.5 text-primary" />
+              Калькулятор марафона
+            </p>
+            <p className="text-[11px] leading-snug text-muted-foreground">Темп, дата финиша, выходные — для участников</p>
+            <Link
+              to="/register"
+              className="mt-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-r from-primary to-fuchsia-500 px-3 text-xs font-bold text-white transition-transform active:scale-95"
+            >
+              <SparklesIcon className="size-3.5" />
+              Вступить бесплатно
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {series && authed && (
+        <div className="flex flex-1 flex-col gap-2.5 border-t border-border/50 pt-3">
+          <Stepper
+            label={listed > 0 && watchedSet == null ? "Уже посмотрено · из списка" : "Уже посмотрено"}
+            value={watched}
+            min={0}
+            max={episodes - 1}
+            onChange={setWatched}
+          />
+
+          <div className="flex gap-1 rounded-lg border border-border/60 bg-background/40 p-0.5">
+            <button type="button" onClick={() => setMode("perDay")} className={tab(mode === "perDay")}>
+              {t("detail.quickFacts.byPerDay")}
+            </button>
+            <button type="button" onClick={() => setMode("byDate")} className={tab(mode === "byDate")}>
+              {t("detail.quickFacts.byDate")}
+            </button>
+          </div>
+
+          {mode === "perDay" ? (
+            <Stepper
+              label={t("detail.quickFacts.paceLabel")}
+              value={Math.min(perDay, left)}
+              min={1}
+              max={Math.min(maxPerDay, left)}
+              onChange={setPerDay}
+            />
+          ) : (
+            <Stepper label={`Успеть к ${targetLabel}, дней`} value={byDays} min={1} max={365} onChange={setByDays} />
+          )}
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={weekends}
+            onClick={() => setWeekends((w) => !w)}
+            className="flex items-center justify-between gap-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <span className="flex items-center gap-1.5">
+              <CalendarDaysIcon className="size-3.5" />
+              Только по выходным
+            </span>
+            <span className={cn("relative h-5 w-9 shrink-0 rounded-full transition-colors", weekends ? "bg-primary" : "bg-foreground/15")}>
+              <span className={cn("absolute top-0.5 size-4 rounded-full bg-white shadow transition-[left]", weekends ? "left-[1.125rem]" : "left-0.5")} />
+            </span>
+          </button>
+
+          <div
+            key={`${mode}-${pace}-${days}-${weekends}-${watched}`}
+            className="mt-auto flex animate-in flex-col gap-1.5 rounded-xl bg-primary/[0.07] p-2.5 duration-200 fade-in-0"
+          >
+            <p className="text-sm leading-snug">
+              {mode === "byDate" && (
+                <span className="mr-1 font-semibold text-primary">{t("detail.quickFacts.needPerDay", { n: pace })}</span>
+              )}
+              {t("detail.quickFacts.finish", { days, date: finishLabel })}
+            </p>
+            <p className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+              <span>
+                Осталось {left} эп. · {formatMinutes(leftMinutes, t)}
+              </span>
+              {perEp != null && <span>{t("detail.quickFacts.aDay", { minutes: perEp * pace })}</span>}
+            </p>
+            <div className="flex flex-wrap items-center gap-1" aria-hidden>
+              {Array.from({ length: dots }, (_, i) => (
+                <span key={i} className="size-2 rounded-full bg-primary" style={{ opacity: 0.25 + 0.75 * ((i + 1) / dots) }} />
+              ))}
+              {days > dots && <span className="text-[10px] text-muted-foreground">+{days - dots}</span>}
+            </div>
+          </div>
         </div>
       )}
     </section>
   );
 }
 
-/**
- * The calculator used to be a popover wearing the title's own accent colour
- * — a different shade of icon, border and highlight on every single title,
- * while every confirmation and warning dialog on the rest of the site
- * shares one fixed palette. That mismatch, not the accent colour itself,
- * was what read as "doesn't belong here". It's a modal now, built from the
- * exact same pieces those dialogs are (`Dialog`, the site's own mark in a
- * rounded badge at the top, one plain palette throughout), so this looks
- * like AnimeShadow's dialog rather than like this one title's colour
- * scheme wearing a calculator's clothes.
- */
-function CheatSheet({
-  facts,
-  perEp,
-  episodes,
-  label,
-  initialPerDay,
-  trigger,
-}: {
-  facts: Fact[];
-  perEp: number | null;
-  episodes: number;
-  label: string;
-  /** The pace already chosen on the card, to start from. */
-  initialPerDay: number;
-  /** What opens it. */
-  trigger: ReactNode;
-}) {
-  const t = useT();
-  const { locale } = useLocale();
-  const maxPerDay = paceLimit(episodes);
-  const [perDay, setPerDay] = useState(Math.min(initialPerDay, maxPerDay));
-  // Two ways to ask the same question: "at this pace, when do I finish" or
-  // "by this date, what pace do I need" — the slider drives the first, the
-  // calendar the second, and both land on the same days/finish/minutes line
-  // below rather than each drawing its own separate result.
-  const [mode, setMode] = useState<"perDay" | "byDate">("perDay");
-  const [targetDate, setTargetDate] = useState(() => startOfDay(new Date()));
-
-  const daysUntilTarget = Math.max(1, Math.round((targetDate.getTime() - startOfDay(new Date()).getTime()) / 86_400_000));
-  const impliedPerDay =
-    mode === "byDate" ? Math.min(maxPerDay, Math.max(1, Math.ceil(episodes / daysUntilTarget))) : perDay;
-
-  const days = episodes > 0 ? Math.ceil(episodes / impliedPerDay) : 0;
-  const finish = new Date(Date.now() + Math.max(0, days - 1) * 86_400_000);
-  const finishLabel = finish.toLocaleDateString(locale, { day: "numeric", month: "long" });
-  const minutesADay = perEp ? perEp * impliedPerDay : null;
-  // One dot per day, capped so a very long show stays a row, not a wall.
-  const dots = Math.min(days, 40);
-
-  return (
-    <Dialog
-      onOpenChange={(open) => {
-        // Opens on the pace the card was showing.
-        if (open) setPerDay(Math.min(initialPerDay, maxPerDay));
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-
-      <DialogContent className="overflow-hidden sm:max-w-sm">
-        {/* The site's own mark, faint and oversized in the corner — the
-            same "a picture would be the wrong picture, the mark is the
-            right one" idea the free plan and the empty-header fallback
-            already use elsewhere on the page. */}
-        <LogoGlyph
-          aria-hidden
-          className="pointer-events-none absolute -bottom-8 -right-6 -z-10 size-36 text-foreground/[0.04]"
-        />
-        <DialogHeader className="items-center gap-2.5 text-center sm:text-center">
-          <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
-            <CalculatorIcon className="size-6" />
-          </span>
-          <DialogTitle className="text-base">{label}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-3">
-          <ul className="flex flex-col gap-0.5">
-            {facts.map((f, i) => (
-              <li
-                key={f.key}
-                className="animate-in fade-in slide-in-from-right-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-secondary/60 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
-                style={{ animationDelay: `${i * 40}ms`, animationFillMode: "both" }}
-              >
-                {f.icon}
-                <span className="min-w-0">{f.text}</span>
-              </li>
-            ))}
-          </ul>
-
-          {episodes > 1 && (
-            <div className="flex flex-col gap-2.5 rounded-xl border border-border/60 bg-secondary/30 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <FlagIcon className="size-3.5" />
-                  {t("detail.quickFacts.marathon")}
-                </p>
-                {/* Two questions, one answer below — switching which one
-                    you ask doesn't reset the other; picking a date and
-                    going back to the slider still remembers where it was. */}
-                <div className="flex rounded-full border border-border/60 bg-background/60 p-0.5 text-[11px] font-medium">
-                  {(["perDay", "byDate"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMode(m)}
-                      className={cn(
-                        "rounded-lg px-2 py-1 transition-colors",
-                        mode === m
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {t(m === "perDay" ? "detail.quickFacts.byPerDay" : "detail.quickFacts.byDate")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {mode === "perDay" ? (
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={1}
-                    max={maxPerDay}
-                    value={perDay}
-                    onChange={(e) => setPerDay(Number(e.target.value))}
-                    aria-label={t("detail.quickFacts.perDay", { n: perDay })}
-                    className="theme-scrubber min-w-0 flex-1"
-                    style={{ ["--played" as string]: `${maxPerDay > 1 ? ((perDay - 1) / (maxPerDay - 1)) * 100 : 100}%` }}
-                  />
-                  <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                    {t("detail.quickFacts.perDay", { n: perDay })}
-                  </span>
-                </div>
-              ) : (
-                <MiniCalendar value={targetDate} onChange={setTargetDate} locale={locale} />
-              )}
-
-              <p key={`${mode}-${impliedPerDay}-${days}`} className="animate-in fade-in text-sm text-foreground">
-                {mode === "byDate" && (
-                  <span className="mr-1 font-semibold text-primary">
-                    {t("detail.quickFacts.needPerDay", { n: impliedPerDay })}
-                  </span>
-                )}
-                {t("detail.quickFacts.finish", { days, date: finishLabel })}
-                {minutesADay != null && (
-                  <span className="text-muted-foreground"> · {t("detail.quickFacts.aDay", { minutes: minutesADay })}</span>
-                )}
-              </p>
-              <div className="flex flex-wrap items-center gap-1" aria-hidden>
-                {Array.from({ length: dots }, (_, i) => (
-                  <span
-                    key={i}
-                    className="size-2 rounded-full bg-primary transition-opacity duration-300"
-                    style={{ opacity: 0.25 + 0.75 * ((i + 1) / dots) }}
-                  />
-                ))}
-                {days > dots && <span className="text-[10px] text-muted-foreground">+{days - dots}</span>}
-              </div>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 /** Midnight, local time — dates are compared as days, never as moments. */
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-/**
- * A month grid, drawn in the site's own fixed palette rather than whatever
- * the platform's native date input renders — a grey system control was the
- * one piece of this dialog that never looked like it belonged to it. One
- * month at a time, arrows to move between them, today ringed, the chosen
- * day filled solid, and every day before today disabled outright — there is
- * no "marathon finished yesterday".
- */
-function MiniCalendar({
-  value,
-  onChange,
-  locale,
-}: {
-  value: Date;
-  onChange: (date: Date) => void;
-  locale: string;
-}) {
-  const t = useT();
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const [cursor, setCursor] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
-
-  const monthLabel = cursor.toLocaleDateString(locale, { month: "long", year: "numeric" });
-  const weekdayFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { weekday: "short" }),
-    [locale],
-  );
-  // Monday-first, the way the rest of the site's week already reads —
-  // JS's own getDay() is Sunday-first, so this just rotates it once.
-  const weekdays = useMemo(() => {
-    const monday = new Date(2024, 0, 1); // a known Monday
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return weekdayFormatter.format(d).slice(0, 2);
-    });
-  }, [weekdayFormatter]);
-
-  const firstOfMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  const firstWeekday = (firstOfMonth.getDay() + 6) % 7; // Monday = 0
-  const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
-  const cells = [
-    ...Array.from({ length: firstWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  // Never lets the visible month land before the one "today" is in — the
-  // slider can point at a past finish date, but there is nowhere to click
-  // that would actually mean one.
-  const atEarliestMonth = cursor.getFullYear() === today.getFullYear() && cursor.getMonth() === today.getMonth();
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background/60 p-2.5">
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          disabled={atEarliestMonth}
-          onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-          aria-label={t("detail.quickFacts.prevMonth")}
-          className="grid size-6 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
-        >
-          <ChevronLeftIcon className="size-3.5" />
-        </button>
-        <p className="text-xs font-medium capitalize text-foreground">{monthLabel}</p>
-        <button
-          type="button"
-          onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-          aria-label={t("detail.quickFacts.nextMonth")}
-          className="grid size-6 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          <ChevronRightIcon className="size-3.5" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-0.5 text-center">
-        {weekdays.map((w, i) => (
-          <span key={i} className="py-0.5 text-[10px] uppercase text-muted-foreground/60">
-            {w}
-          </span>
-        ))}
-        {cells.map((day, i) => {
-          if (day == null) return <span key={i} />;
-          const date = new Date(cursor.getFullYear(), cursor.getMonth(), day);
-          const isToday = date.getTime() === today.getTime();
-          const isSelected = date.getTime() === value.getTime();
-          const isPast = date.getTime() < today.getTime();
-          return (
-            <button
-              key={i}
-              type="button"
-              disabled={isPast}
-              onClick={() => onChange(date)}
-              className={cn(
-                "grid size-7 place-items-center rounded-lg text-xs tabular-nums transition-colors",
-                isPast && "text-muted-foreground/30",
-                !isPast && !isSelected && "text-foreground hover:bg-secondary",
-                isSelected && "bg-primary font-semibold text-primary-foreground",
-                !isSelected && isToday && "ring-1 ring-inset ring-primary/50",
-              )}
-            >
-              {day}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }

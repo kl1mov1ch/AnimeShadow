@@ -64,12 +64,15 @@ export function UserMenu() {
           </TooltipTrigger>
           <TooltipContent>{t("common.signIn")}</TooltipContent>
         </Tooltip>
-        <Button asChild size="sm" className="h-9 px-3.5 font-semibold">
-          <Link to="/register">
-            <UserPlusIcon />
-            {t("common.createAccount")}
-          </Link>
-        </Button>
+        {/* A quiet invite: gradient text in a soft pill, not a loud button. */}
+        <Link
+          to="/register"
+          title={t("common.createAccount")}
+          className="group inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/[0.08] px-3.5 text-[13px] font-semibold transition-colors hover:border-primary/60 hover:bg-primary/15"
+        >
+          <UserPlusIcon className="size-4 text-primary" />
+          <span className="bg-gradient-to-r from-primary via-rose-400 to-fuchsia-400 bg-clip-text text-transparent">Стать участником</span>
+        </Link>
       </div>
     );
   }

@@ -369,17 +369,23 @@ function AnimeDetailView({ param }: { param: string }) {
           screen); on the right, one column of the viewer's own things — the
           list and score, how long it takes, and the facts. On a phone it is
           all one column: the list first, then the rest. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
-        <div className="order-2 grid min-w-0 gap-4 lg:order-1 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
-          <AboutBlockM anime={data} oneLiner={oneLiner} />
-          <div className="xl:row-span-2">
+      {/* Every card stretches to its neighbours, so the block is one solid
+          rectangle with no holes: the columns end on the same line. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
+        <div className="order-2 grid min-w-0 gap-4 lg:order-1 xl:grid-cols-[minmax(0,1fr)_19rem] xl:grid-rows-[auto_1fr]">
+          <div className="min-w-0 [&>*]:h-full">
+            <AboutBlockM anime={data} oneLiner={oneLiner} />
+          </div>
+          <div className="min-w-0 xl:row-span-2 [&>*]:h-full">
             <AudiencePanel animeId={data.id} />
           </div>
-          <InfoSidebarM anime={data} />
+          <div className="min-w-0 [&>*]:h-full">
+            <InfoSidebarM anime={data} className="justify-between" />
+          </div>
         </div>
-        <aside className="order-1 flex min-w-0 flex-col gap-3 lg:order-2">
+        <aside className="order-1 flex min-w-0 flex-col gap-4 lg:order-2">
           <TitleTracker anime={data} title={title} />
-          <WatchTimeCard anime={data} />
+          <WatchTimeCard anime={data} className="flex-1" />
         </aside>
       </div>
 
@@ -711,7 +717,7 @@ function AudiencePanel({ animeId }: { animeId: number }) {
           />
         ))}
       </div>
-      <ul className="flex flex-col gap-0.5">
+      <ul className="flex flex-1 flex-col justify-evenly gap-0.5">
         {rows.map((row) => {
           const on = focus === row.key;
           const isMine = mine != null && MINE[row.key] === mine;
@@ -735,6 +741,9 @@ function AudiencePanel({ animeId }: { animeId: number }) {
                 <span className="tabular-nums text-muted-foreground">{Math.round((row.value / sum) * 100)}%</span>
                 <span className="w-12 text-right font-semibold tabular-nums">{labels.compact(row.value)}</span>
               </button>
+              <span aria-hidden className="mx-2 mt-1 block h-1 overflow-hidden rounded-full bg-foreground/[0.06]">
+                <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(2, (row.value / Math.max(...rows.map((r) => r.value))) * 100)}%`, background: tint(row.key) }} />
+              </span>
             </li>
           );
         })}
