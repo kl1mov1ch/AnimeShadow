@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
+import { LogoGlyph } from "@/components/brand/logo-glyph";
 
 interface PosterFallbackProps {
   title: string;
@@ -51,13 +51,8 @@ export function PosterFallback({
         className,
       )}
     >
-      {/* big shadow mark */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-4 -top-6 select-none font-display text-[9rem] leading-none text-white/[0.07]"
-      >
-        <SlicedGlyph />
-      </span>
+      {/* big shadow mark — still: a card under the pointer is not the logo */}
+      <LogoGlyph aria-hidden className="pointer-events-none absolute -right-4 -top-6 size-36 text-white/[0.07]" />
       {/* faint diagonal texture */}
       <span
         aria-hidden

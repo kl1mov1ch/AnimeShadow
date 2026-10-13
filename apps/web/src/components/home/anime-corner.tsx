@@ -11,11 +11,10 @@ import {
   TrophyIcon,
   XIcon,
 } from "lucide-react";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MorphIcon } from "@/components/ui/morph-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
@@ -300,49 +299,13 @@ function GuessGame() {
   const answer = round?.options.find((o) => o.id === result?.answerId);
 
   return (
-    <article className={cn(PANEL, "gap-2.5 p-3 sm:p-3")}>
-      <div className="flex items-center justify-between gap-2">
-        {/* Keys mean nothing on a touch screen. */}
-        <p className="text-[11px] text-muted-foreground pointer-coarse:invisible">{t("home.game.keys")}</p>
-          <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  key={streak}
-                  className={cn(
-                    "inline-flex cursor-default items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-bold tabular-nums",
-                    streak > 0
-                      ? "morph-pop border-amber-400/50 bg-amber-400/15 text-amber-500"
-                      : "border-primary/30 bg-primary/10 text-primary",
-                  )}
-                >
-                  <FlameIcon className="size-3.5" />
-                  {streak}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t("home.game.streakNow")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-default items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-bold tabular-nums text-primary">
-                  <TrophyIcon className="size-3.5" />
-                  {best}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t("home.game.bestNow")}</TooltipContent>
-            </Tooltip>
-          </div>
-      </div>
-
-      <div className="grid gap-2.5 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] md:items-stretch">
+    <article className={cn(PANEL, "gap-3 p-3 sm:p-4")}>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-stretch">
+      {/* The frame, large; the run and the record sit on it. */}
       <div
         className={cn(
-          "relative aspect-video w-full overflow-hidden rounded-xl border-2 bg-muted transition-all duration-300",
-          !revealed
-            ? "border-primary/30"
-            : result.correct
-              ? "border-emerald-500/70 shadow-lg shadow-emerald-500/25"
-              : "border-rose-500/70 shadow-lg shadow-rose-500/25",
+          "relative aspect-video w-full overflow-hidden rounded-xl bg-muted ring-2 transition-[box-shadow] duration-300",
+          !revealed ? "ring-white/10" : result.correct ? "ring-emerald-500/70" : "ring-rose-500/70",
         )}
       >
         {round && (
@@ -354,19 +317,42 @@ function GuessGame() {
             onLoad={() => setLoaded(true)}
             onError={() => void replaceFrame()}
             className={cn(
-              "size-full object-cover transition-all duration-500 ease-out",
+              "size-full object-cover transition-[opacity,filter,transform] duration-500 ease-out",
               revealed ? "scale-100 blur-0" : "scale-105 blur-[3px]",
               loaded ? "opacity-100" : "opacity-0",
             )}
           />
         )}
+        <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-2">
+          <span className="rounded-md bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">Чей это кадр?</span>
+          <span className="flex items-center gap-1.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span key={streak} className={cn("inline-flex cursor-default items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-bold tabular-nums text-white", streak > 0 && "morph-pop text-amber-300")}>
+                  <FlameIcon className="size-3.5" />
+                  {streak}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("home.game.streakNow")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-default items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-bold tabular-nums text-white">
+                  <TrophyIcon className="size-3.5" />
+                  {best}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("home.game.bestNow")}</TooltipContent>
+            </Tooltip>
+          </span>
+        </div>
         {(!round || !loaded) && !error && (
-          <span className="absolute inset-0 grid place-items-center bg-gradient-to-br from-primary/20 via-primary/5 to-transparent">
-            <span className="size-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+          <span className="absolute inset-0 grid place-items-center">
+            <span className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
           </span>
         )}
         {revealed && answer && (
-          <span className="absolute inset-x-0 bottom-0 animate-in bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8 text-sm font-semibold text-white fade-in-0 slide-in-from-bottom-2 duration-300">
+          <span className="absolute inset-x-0 bottom-0 animate-in bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-10 text-sm font-semibold text-white fade-in-0 slide-in-from-bottom-2 duration-300">
             {name(answer)}
           </span>
         )}
@@ -378,26 +364,23 @@ function GuessGame() {
               <button
                 type="button"
                 onClick={restart}
-                className="group/again mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
+                className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95"
               >
-                <RotateCcwIcon className="size-4 transition-transform duration-500 group-hover/again:-rotate-180" />
+                <RotateCcwIcon className="size-4" />
                 {t("home.game.again")}
               </button>
             </div>
           </div>
         )}
         {error && (
-          <button
-            type="button"
-            onClick={() => void showNext()}
-            className="absolute inset-0 grid place-items-center text-sm text-muted-foreground"
-          >
+          <button type="button" onClick={() => void showNext()} className="absolute inset-0 grid place-items-center text-sm text-white/80">
             <RotateCcwIcon className="size-6" />
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 md:grid-cols-1 md:grid-rows-4">
+      {/* Four answers: two by two, or a column beside the frame on a computer. */}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-1 lg:grid-rows-4">
         {(round?.options ?? []).map((option, i) => {
           const isAnswer = revealed && option.id === result.answerId;
           const isPicked = option.id === picked;
@@ -408,44 +391,32 @@ function GuessGame() {
               type="button"
               onClick={() => void choose(option.id)}
               disabled={picked != null || over}
-              style={{ animationDelay: `${i * 50}ms`, animationFillMode: "both" }}
               className={cn(
-                "group/opt flex min-h-11 animate-in items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs font-medium transition-all duration-200 fade-in-0 slide-in-from-bottom-1",
-                !revealed && picked == null &&
-                  "border-primary/30 bg-primary/10 hover:-translate-y-0.5 hover:border-primary hover:bg-primary/20 hover:shadow-md active:scale-[0.97]",
-                !revealed && isPicked && "border-primary bg-primary/25",
-                !revealed && picked != null && !isPicked && "border-primary/15 bg-primary/5 opacity-60",
-                isAnswer && "border-emerald-500/70 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-                wrong && "border-rose-500/70 bg-rose-500/15 text-rose-500",
-                revealed && !isAnswer && !isPicked && "border-primary/15 bg-primary/5 opacity-50",
+                "flex min-h-12 items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left text-[13px] font-medium transition-[background-color,border-color,opacity] duration-200",
+                !revealed && picked == null && "border-border/60 bg-card/60 hover:border-foreground/30 hover:bg-card active:scale-[0.98]",
+                !revealed && isPicked && "border-primary/60 bg-primary/10",
+                !revealed && picked != null && !isPicked && "border-border/40 opacity-60",
+                isAnswer && "border-emerald-500/60 bg-emerald-500/10",
+                wrong && "border-rose-500/60 bg-rose-500/10",
+                revealed && !isAnswer && !isPicked && "border-border/40 opacity-50",
               )}
             >
               <span
                 className={cn(
-                  "grid size-6 shrink-0 place-items-center rounded-md font-display text-[11px] transition-colors",
-                  isAnswer
-                    ? "bg-emerald-500 text-white"
-                    : wrong
-                      ? "bg-rose-500 text-white"
-                      : "bg-primary/20 text-primary group-hover/opt:bg-primary group-hover/opt:text-primary-foreground",
+                  "grid size-7 shrink-0 place-items-center rounded-lg text-xs font-bold",
+                  isAnswer ? "bg-emerald-500 text-white" : wrong ? "bg-rose-500 text-white" : "bg-foreground/[0.08] text-muted-foreground",
                 )}
               >
-                {isAnswer || wrong ? (
-                  <MorphIcon on={isAnswer} off={XIcon} onIcon={CheckIcon} className="size-3.5" />
-                ) : (
-                  OPTION_KEYS[i]
-                )}
+                {isAnswer ? <CheckIcon className="size-4" /> : wrong ? <XIcon className="size-4" /> : OPTION_KEYS[i]}
               </span>
               <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{name(option)}</span>
             </button>
           );
         })}
-        {!round &&
-          Array.from({ length: 4 }, (_, i) => (
-            <span key={i} className="min-h-11 animate-pulse rounded-lg border border-primary/20 bg-primary/10" />
-          ))}
+        {!round && Array.from({ length: 4 }, (_, i) => <span key={i} className="min-h-12 animate-pulse rounded-xl bg-foreground/[0.06]" />)}
       </div>
       </div>
+      <p className="text-center text-[11px] text-muted-foreground pointer-coarse:hidden">{t("home.game.keys")}</p>
     </article>
   );
 }
@@ -638,76 +609,73 @@ function FactsStrip() {
     [offset, t],
   );
   const shown = facts.data?.facts.length ? facts.data.facts : facts.isError ? fallback : null;
+  const [at, setAt] = useState(0);
+  useEffect(() => setAt(0), [deal]);
+  const touch = useRef<number | null>(null);
+  const count = shown?.length ?? 0;
+  const step = (d: number) => count > 0 && setAt((i) => (i + d + count) % count);
+  const fact = shown?.[at];
+  const more = () => {
+    setDeal((d) => d + 1);
+    setOffset((o) => (o + 4) % FACT_KEYS.length);
+  };
 
   return (
     <section className="flex flex-col gap-3">
       <SectionHeading
         title={t("home.corner.facts")}
         subtitle={facts.data ? `${facts.data.total.toLocaleString("ru-RU")} фактов из каталога` : undefined}
-        aside={
-          <button
-            type="button"
-            onClick={() => {
-              setDeal((d) => d + 1);
-              setOffset((o) => (o + 4) % FACT_KEYS.length);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-all hover:bg-primary hover:text-primary-foreground active:scale-95"
-          >
-            <ShuffleIcon
-              className="size-3.5 transition-transform duration-500"
-              style={{ transform: `rotate(${deal * 180}deg)` }}
-            />
-            {t("home.facts.more")}
-          </button>
-        }
       />
-      {/* A phone: a row to swipe through, one card and the edge of the next. */}
-      <div className="reveal-group -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden">
-        {shown
-          ? shown.map((fact, i) => <FactCard key={`${fact.id}-${deal}`} fact={fact} index={i} />)
-          : Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className={cn(PANEL, "min-h-40 w-[80%] shrink-0 animate-pulse sm:w-auto")} />
-            ))}
+      <div
+        className={cn(PANEL, "gap-4 sm:flex-row sm:items-center")}
+        onTouchStart={(e) => (touch.current = e.touches[0]?.clientX ?? null)}
+        onTouchEnd={(e) => {
+          const x0 = touch.current;
+          const x1 = e.changedTouches[0]?.clientX;
+          touch.current = null;
+          if (x0 != null && x1 != null && Math.abs(x1 - x0) > 40) step(x1 < x0 ? 1 : -1);
+        }}
+      >
+        {!fact ? (
+          <div className="h-32 w-full animate-pulse rounded-xl bg-foreground/[0.05]" />
+        ) : (
+          <>
+            {fact.anime?.image ? (
+              <Link to={animeHref(fact.anime)} viewTransition className="hidden shrink-0 sm:block">
+                <img src={imageSrc(fact.anime.image)} alt="" loading="lazy" className="aspect-[2/3] w-24 rounded-xl object-cover ring-1 ring-white/10" />
+              </Link>
+            ) : (
+              <span className="hidden size-24 shrink-0 place-items-center rounded-xl bg-foreground/[0.05] font-display text-4xl text-muted-foreground/40 sm:grid">影</span>
+            )}
+            <div key={`${deal}-${at}`} className="flex min-w-0 flex-1 animate-in flex-col gap-1.5 duration-300 fade-in-0">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Факт {at + 1} из {count}
+              </span>
+              <p className="font-display text-xl leading-tight">{fact.title}</p>
+              <p className="text-sm leading-relaxed text-foreground/80">{fact.text}</p>
+              {fact.anime && (
+                <Link to={animeHref(fact.anime)} viewTransition className="mt-1 w-fit text-xs font-semibold text-primary hover:underline">
+                  Открыть «{fact.anime.title}» →
+                </Link>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 sm:flex-col">
+              <div className="flex gap-1.5">
+                <button type="button" onClick={() => step(-1)} aria-label="Предыдущий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+                  ‹
+                </button>
+                <button type="button" onClick={() => step(1)} aria-label="Следующий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+                  ›
+                </button>
+              </div>
+              <button type="button" onClick={more} className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground sm:ml-0">
+                <ShuffleIcon className="size-3.5" />
+                {t("home.facts.more")}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </section>
-  );
-}
-
-function FactCard({ fact, index }: { fact: ApiFact; index: number }) {
-  const body = (
-    <>
-      {fact.anime?.image ? (
-        <img
-          aria-hidden
-          src={imageSrc(fact.anime.image)}
-          alt=""
-          loading="lazy"
-          className="pointer-events-none absolute -right-6 -top-4 h-40 w-28 rotate-12 rounded-lg object-cover opacity-15 transition-[transform,opacity] duration-500 group-hover:rotate-6 group-hover:scale-105 group-hover:opacity-30"
-        />
-      ) : (
-        <LogoWatermark className="-right-6 -top-6 z-0 size-28 rotate-12 text-primary/10 group-hover:rotate-[20deg] group-hover:scale-110" />
-      )}
-      <p className="relative pr-10 font-display text-base leading-tight text-primary">{fact.title}</p>
-      <p className="relative text-xs leading-relaxed text-muted-foreground">{fact.text}</p>
-      {fact.anime && (
-        <span className="relative mt-auto truncate pt-1 text-[11px] font-medium text-foreground/70 transition-colors group-hover:text-primary">
-          {fact.anime.title} →
-        </span>
-      )}
-    </>
-  );
-  const className = cn(
-    PANEL,
-    "reveal group isolate min-h-40 w-[80%] shrink-0 snap-start gap-2 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg sm:w-auto",
-  );
-  const style = { "--i": index } as CSSProperties;
-  return fact.anime ? (
-    <Link to={animeHref(fact.anime)} viewTransition style={style} className={className}>
-      {body}
-    </Link>
-  ) : (
-    <article style={style} className={className}>
-      {body}
-    </article>
   );
 }

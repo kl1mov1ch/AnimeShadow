@@ -2158,7 +2158,7 @@ export const en = {
       title: "Anime corner",
       subtitle: "Not another shelf: anime of the day, a mini-game and facts",
       pick: "Anime of the day",
-      guess: "Guess the poster",
+      guess: "Guess the frame",
       guessHint: "Which anime is this?",
       guessRight: "Spot on!",
       guessWrong: "Miss — the right answer is lit",
