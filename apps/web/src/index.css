@@ -1447,13 +1447,29 @@ body:has([role="dialog"][data-state="open"]) main * {
   animation: none !important;
 }
 
-/* The homepage slider's progress: one line filling as the slide runs. The
-   slider sets --hero-p (0…1) on its section every frame — from the clip's
-   own time when there is one — so the line ends exactly as the slide does. */
-.hero-progress {
+/* The homepage slider's timing: an invisible clock whose end moves to the
+   next title, a line running round the current thumbnail and, on a phone, a
+   segment filling — all one CSS duration (--slide-ms) and one pause, so
+   nothing is re-rendered while a slide runs. */
+@keyframes hero-clock { from { opacity: 0; } to { opacity: 0.01; } }
+@keyframes hero-ring { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes hero-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.hero-clock {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  animation: hero-clock var(--slide-ms, 10s) linear forwards;
+}
+.hero-ring {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  stroke-linecap: round;
+  animation: hero-ring var(--slide-ms, 10s) linear forwards;
+}
+.hero-fill {
   transform-origin: left center;
-  transform: scaleX(var(--hero-p, 0));
-  will-change: transform;
+  animation: hero-fill var(--slide-ms, 10s) linear forwards;
 }
 
 /* Profile levels and achievements: what moves on a medallion and a bar.

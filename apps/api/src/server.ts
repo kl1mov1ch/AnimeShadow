@@ -99,10 +99,9 @@ try {
     setTimeout(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 180_000).unref();
     setInterval(() => void inBackground(() => app.services.anilibriaSync.runScheduled()), 6 * 60 * 60_000).unref();
   }
-  // The hero's clips are made when its lineup changes (an event from the
-  // catalogue, see HeroClipService); this is only the fallback, every two
-  // hours, in case an event was missed.
-  setInterval(() => void inBackground(() => app.services.heroClips.refresh()), 2 * 60 * 60_000).unref();
+  // The hero no longer plays clips (it shows episode frames), so they are
+  // no longer cut: no ffmpeg runs in the background. HeroClipService stays
+  // for when clips come back — its refresh would be scheduled here.
   // Every other name of each title (synonyms, abbreviations) for search:
   // four minutes after start, then every six hours; each pass reads the
   // titles not read yet, best-known first (see TitleNamesService).

@@ -1,5 +1,4 @@
-import type { AnimeDetail, HeroClips } from "@animeshadow/shared";
-import { useQuery } from "@tanstack/react-query";
+import type { AnimeDetail } from "@animeshadow/shared";
 import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
@@ -8,7 +7,7 @@ import {
   PlayIcon,
   StarIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { TrailerButton } from "@/components/anime/trailer-button";
@@ -18,18 +17,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
-import { apiRequest } from "@/lib/api";
-import { useSlowConnection } from "@/lib/connection";
 import { animeHref, fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-/** A slide without a clip stays up this long; one with a clip, as long as
- *  the clip runs (twelve seconds, see HeroClipService). */
-const PICTURE_MS = 7_000;
-/** How long a slide waits for its clip to start before it runs as a picture. */
-const CLIP_GRACE_MS = 3_500;
+/** How long a title stays up. */
+const SLIDE_MS = 10_000;
+/** How long each frame of it shows before the next fades in. */
+const FRAME_MS = 2_000;
+/** Frames per title: as many as fit in a slide. */
+const MAX_FRAMES = SLIDE_MS / FRAME_MS;
 
 /** Whether this tab is in the background — the slider stops while it is. */
 function useTabHidden(): boolean {
@@ -57,36 +55,25 @@ function useOnScreen(ref: React.RefObject<Element | null>): boolean {
   return on;
 }
 
-/** The slide's picture for a 16:9 frame: a frame of the show itself first
- *  (the right shape, and what the clip will continue), then the wide
- *  banner, then the poster. */
-function frameOf(anime: AnimeDetail): string | undefined {
-  return imageSrc(anime.screenshots[0] ?? anime.bannerImage ?? fullSizeCover(anime.imageLargeUrl ?? anime.imageUrl));
+/** A title's frames: shots from its episodes first, then the wide banner,
+ *  then the poster — up to one per two seconds of the slide. */
+function framesOf(anime: AnimeDetail): string[] {
+  const shots = anime.screenshots.slice(0, MAX_FRAMES).map((u) => imageSrc(u)).filter((u): u is string => Boolean(u));
+  if (shots.length > 0) return shots;
+  const one = imageSrc(anime.bannerImage ?? fullSizeCover(anime.imageLargeUrl ?? anime.imageUrl));
+  return one ? [one] : [];
 }
-
-type Mode = "wait" | "clip" | "picture";
 
 /**
  * The homepage hero: what is airing now and popular (see the API's
  * pickHeroLineup), one title at a time, at a fixed height.
  *
- * The picture fills most of it. On a computer the frame runs from a quarter
- * of the way across to the page's right edge at the hero's full height,
- * fading out to the left under the pitch; the titles of the rotation sit
- * under the pitch as small frames. On a phone the frame runs edge to edge
- * on top, a little taller than 16:9, with the title laid over its lower
- * edge; a swipe moves between titles.
- *
- * A slide with a clip (HeroClipService: twelve seconds from the middle of
- * the opening) lasts exactly as long as the clip: the line under the slide
- * follows the clip's own time, and the next slide comes when it ends — never
- * mid-scene. A slide without one, or whose clip didn't start within a few
- * seconds, runs seven seconds as a picture. The next slide's clip is loaded
- * while the current one plays, so it starts at once. Hovering the hero,
- * scrolling it away or leaving the tab holds the slide, clip included.
- *
- * The progress is one CSS variable on the section, set every frame; nothing
- * re-renders while a slide runs.
+ * Each title stays ten seconds; within it, its episodes' frames take turns
+ * every two seconds with a soft fade — loaded one by one as they come, never
+ * all at once. The time left is drawn as a line running round the current
+ * title's thumbnail (on a phone, a segment filling): a CSS animation, so
+ * nothing re-renders while a slide runs, and when it ends the next title
+ * comes. Hovering the hero, scrolling it away or leaving the tab holds it.
  */
 export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const t = useT();
@@ -94,140 +81,35 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const hidden = useTabHidden();
   const sectionRef = useRef<HTMLElement>(null);
   const onScreen = useOnScreen(sectionRef);
+  const calm = useMediaQuery("(prefers-reduced-motion: reduce)");
   const slides = items.slice(0, 6);
   const count = slides.length;
   const [index, setIndex] = useState(0);
   const [run, setRun] = useState(0);
   const [hovered, setHovered] = useState(false);
-  const [leaving, setLeaving] = useState<number | null>(null);
-  const [primed, setPrimed] = useState<ReadonlySet<number>>(() => new Set([0, 1]));
-  const next = count > 0 ? (index + 1) % count : 0;
-  useEffect(() => {
-    if (count === 0) return;
-    setPrimed((prev) => (prev.has(index) && prev.has(next) ? prev : new Set([...prev, index, next])));
-  }, [index, next, count]);
-
-  const slow = useSlowConnection();
-  const calm = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const narrow = useMediaQuery("(max-width: 1023px)");
-  const { data: clips } = useQuery({
-    queryKey: ["hero-clips"],
-    enabled: !slow && !calm,
-    queryFn: ({ signal }) => apiRequest<HeroClips>("/hero-clips", { signal }),
-    staleTime: 5 * 60_000,
-  });
-  const clipOf = (slide: AnimeDetail | undefined) => {
-    const clip = slide ? clips?.[String(slide.id)] : undefined;
-    return clip ? (narrow ? clip.sd : clip.hd) : undefined;
-  };
-
-  const current = slides[index] ?? slides[0];
-  const currentClip = clipOf(current);
   const paused = hidden || hovered || !onScreen;
-  const videos = useRef(new Map<number, HTMLVideoElement>());
 
   const go = useCallback(
     (to: number, manual: boolean) => {
       if (count === 0) return;
-      const target = ((to % count) + count) % count;
-      setIndex((from) => {
-        if (from !== target) setLeaving(from);
-        return target;
-      });
+      setIndex(((to % count) + count) % count);
       if (manual) setRun((r) => r + 1);
     },
     [count],
   );
-  // The slide that just left keeps its last frame while it fades out.
-  useEffect(() => {
-    if (leaving == null) return;
-    const timer = setTimeout(() => setLeaving(null), 900);
-    return () => clearTimeout(timer);
-  }, [leaving]);
-
-  // The clock: how far the current slide has run, as --hero-p on the
-  // section (0…1), read by every progress line.
-  const slideKey = `${index}:${run}`;
-  const clock = useRef({ key: "", mode: "picture" as Mode, elapsed: 0, waited: 0 });
-  const setProgress = useCallback((p: number) => {
-    sectionRef.current?.style.setProperty("--hero-p", String(Math.min(1, Math.max(0, p))));
-  }, []);
-  useLayoutEffect(() => {
-    clock.current = { key: slideKey, mode: currentClip ? "wait" : "picture", elapsed: 0, waited: 0 };
-    setProgress(0);
-    // Only a new slide starts the clock over; a clip arriving is handled below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slideKey, setProgress]);
-  useEffect(() => {
-    // The clip list came after the slide started: wait for its clip if the
-    // slide is still young, keep going as a picture otherwise.
-    const c = clock.current;
-    if (currentClip && c.mode === "picture" && c.elapsed < 1_500) {
-      clock.current = { ...c, mode: "wait", elapsed: 0, waited: 0 };
-    }
-  }, [currentClip]);
-
-  useEffect(() => {
-    if (count === 0 || paused) return;
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = Math.min(100, now - last);
-      last = now;
-      const c = clock.current;
-      const video = videos.current.get(index);
-      if (c.mode === "wait") {
-        if (video && !video.paused && video.currentTime > 0.05) c.mode = "clip";
-        else {
-          c.waited += dt;
-          if (c.waited > CLIP_GRACE_MS) c.mode = "picture";
-        }
-      }
-      if (c.mode === "clip") {
-        if (!video || video.error) c.mode = "picture";
-        else if (video.ended) {
-          // A lone slide loops its clip and never ends.
-          setProgress(1);
-          go(index + 1, false);
-          return;
-        } else if (video.duration > 0) setProgress(video.currentTime / video.duration);
-      }
-      if (c.mode === "picture") {
-        c.elapsed += dt;
-        setProgress(c.elapsed / PICTURE_MS);
-        if (c.elapsed >= PICTURE_MS) {
-          if (count > 1) {
-            go(index + 1, false);
-            return;
-          }
-          c.elapsed = 0;
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [count, index, paused, go, setProgress, slideKey]);
-
-  // The current clip plays while the slide runs; every other one rests.
-  useEffect(() => {
-    for (const [i, video] of videos.current) {
-      if (i === index && !paused) void video.play().catch(() => undefined);
-      else video.pause();
-    }
-  }, [index, paused, currentClip, leaving]);
-
-  const bindVideo = useCallback((i: number, video: HTMLVideoElement | null) => {
-    if (video) videos.current.set(i, video);
-    else videos.current.delete(i);
-  }, []);
 
   // A swipe across the frame moves between titles on a touch screen.
   const touch = useRef<{ x: number; y: number } | null>(null);
 
+  const current = slides[index] ?? slides[0];
   if (count === 0 || !current) return null;
-
   const title = labels.title(current);
+  const slideKey = `${index}:${run}`;
+  // Every timed thing of a slide runs off the same CSS duration and pause.
+  const timing = {
+    "--slide-ms": `${SLIDE_MS}ms`,
+    animationPlayState: paused ? "paused" : "running",
+  } as CSSProperties;
 
   return (
     <section
@@ -243,25 +125,12 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
       onMouseLeave={() => setHovered(false)}
       className="full-bleed relative isolate overflow-hidden border-b border-border/50 bg-background outline-none"
     >
-      {/* The current picture, blurred, behind everything. */}
-      <div aria-hidden className="absolute inset-0 -z-10">
-        {slides.map((slide, i) => {
-          const art = frameOf(slide);
-          return art && primed.has(i) ? (
-            <img
-              key={slide.id}
-              src={art}
-              alt=""
-              decoding="async"
-              className={cn(
-                "absolute inset-0 size-full scale-110 object-cover blur-2xl transition-opacity duration-1000",
-                i === index ? "opacity-35" : "opacity-0",
-              )}
-            />
-          ) : null;
-        })}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/75 to-background/45" />
-      </div>
+      {/* The slide's clock: invisible, it only says when the slide is over. */}
+      {count > 1 && !calm && (
+        <span key={slideKey} aria-hidden className="hero-clock" style={timing} onAnimationEnd={() => go(index + 1, false)} />
+      )}
+
+      <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(120%_80%_at_70%_0%,color-mix(in_srgb,var(--primary)_10%,transparent),transparent_60%)]" />
 
       <div className="relative mx-auto w-full max-w-[1400px] px-4 pb-4 sm:px-6 lg:static lg:h-[32rem] lg:pb-0">
         {/* The frame. */}
@@ -280,34 +149,17 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
             if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(p.clientY - start.y)) go(index + (dx < 0 ? 1 : -1), true);
           }}
         >
-          {slides.map((slide, i) => {
-            const art = frameOf(slide);
-            const on = i === index;
-            const src = clipOf(slide);
-            // The current clip, the next one (loading ahead) and the one
-            // fading out are mounted; no others.
-            const mounted = src && (on || i === next || i === leaving);
-            return (
-              <div
-                key={slide.id}
-                aria-hidden={!on}
-                className={cn("absolute inset-0 transition-opacity duration-700 ease-out", on ? "opacity-100" : "opacity-0")}
-              >
-                {art && primed.has(i) && (
-                  <img
-                    src={art}
-                    alt=""
-                    decoding="async"
-                    fetchPriority={i === 0 ? "high" : "low"}
-                    className="absolute inset-0 size-full object-cover"
-                  />
-                )}
-                {mounted && (
-                  <HeroClip key={src} src={src} slide={i} bind={bindVideo} loop={count === 1} />
-                )}
-              </div>
-            );
-          })}
+          {slides.map((slide, i) => (
+            <SlideFrames
+              key={slide.id}
+              frames={framesOf(slide)}
+              on={i === index}
+              // The next title's first frame is fetched ahead, quietly.
+              warm={i === (index + 1) % count}
+              paused={paused || calm}
+              first={i === 0}
+            />
+          ))}
           {/* The lower edge fades into the page — on a phone the title sits on it. */}
           <div
             aria-hidden
@@ -333,11 +185,12 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
 
           {count > 1 && (
             <>
-              {/* A computer: the rotation as small frames. */}
-              <div className="hidden gap-2 lg:flex">
+              {/* A computer: the rotation as small frames; round the current
+                  one runs a line — the time left before the next. */}
+              <div className="hidden gap-2.5 lg:flex">
                 {slides.map((slide, i) => {
                   const active = i === index;
-                  const art = frameOf(slide);
+                  const art = framesOf(slide)[0];
                   return (
                     <button
                       key={slide.id}
@@ -347,15 +200,29 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                       title={labels.title(slide)}
                       aria-current={active}
                       className={cn(
-                        "relative aspect-video w-[4.5rem] shrink-0 overflow-hidden rounded-lg ring-1 transition-[transform,opacity] duration-300",
-                        active ? "ring-white/45" : "opacity-50 ring-white/10 hover:-translate-y-0.5 hover:opacity-90",
+                        "relative aspect-video w-[4.75rem] shrink-0 rounded-lg p-[3px] transition-opacity duration-300",
+                        active ? "opacity-100" : "opacity-50 hover:opacity-90",
                       )}
                     >
-                      {art && <img src={art} alt="" loading="lazy" className="size-full object-cover" />}
+                      <span className="block size-full overflow-hidden rounded-md bg-black/30">
+                        {art && <img src={art} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
+                      </span>
                       {active && (
-                        <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-black/50">
-                          <span className="hero-progress absolute inset-0 bg-primary" />
-                        </span>
+                        <svg aria-hidden className="pointer-events-none absolute inset-0 size-full overflow-visible">
+                          <rect x="1" y="1" rx="8" style={{ width: "calc(100% - 2px)", height: "calc(100% - 2px)" }} className="fill-none stroke-white/15" strokeWidth="2" />
+                          {!calm && (
+                            <rect
+                              key={slideKey}
+                              x="1"
+                              y="1"
+                              rx="8"
+                              pathLength={100}
+                              className="hero-ring fill-none stroke-primary"
+                              strokeWidth="2"
+                              style={{ ...timing, width: "calc(100% - 2px)", height: "calc(100% - 2px)" }}
+                            />
+                          )}
+                        </svg>
                       )}
                     </button>
                   );
@@ -378,7 +245,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                     >
                       <span className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-foreground/15">
                         {i < index && <span className="absolute inset-0 bg-foreground/45" />}
-                        {i === index && <span className="hero-progress absolute inset-0 bg-primary" />}
+                        {i === index && !calm && <span key={slideKey} className="hero-fill absolute inset-0 bg-primary" style={timing} />}
                       </span>
                     </button>
                   ))}
@@ -396,40 +263,64 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
 }
 
 /**
- * A clip over the slide's picture: invisible until it really plays, then a
- * fade in. Mounted ahead of its slide (preload, paused) so it starts the
- * moment the slide comes; the parent plays and pauses it. If it never plays
- * (blocked autoplay, a slow line, a missing file) the picture simply stays.
+ * One title's frames in the hero. While its slide is up, the frames take
+ * turns every two seconds, each fading in over the last; a frame is only
+ * fetched when its turn is near. Off its slide it shows nothing (and keeps
+ * nothing mounted beyond its first frame), fading out as the next comes in.
  */
-function HeroClip({
-  src,
-  slide,
-  bind,
-  loop,
+function SlideFrames({
+  frames,
+  on,
+  warm,
+  paused,
+  first,
 }: {
-  src: string;
-  slide: number;
-  bind: (slide: number, video: HTMLVideoElement | null) => void;
-  loop: boolean;
+  frames: string[];
+  on: boolean;
+  warm: boolean;
+  paused: boolean;
+  first: boolean;
 }) {
-  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0);
+  const [reached, setReached] = useState(1);
+  // A fresh start each time the slide comes back.
+  useEffect(() => {
+    if (on) {
+      setAt(0);
+      setReached(1);
+    }
+  }, [on]);
+  useEffect(() => {
+    if (!on || paused || frames.length < 2) return;
+    // The next frame is fetched now, so it's ready when it fades in.
+    const ahead = new Image();
+    ahead.decoding = "async";
+    ahead.src = frames[(at + 1) % frames.length]!;
+    const id = window.setTimeout(() => {
+      setAt((i) => (i + 1) % frames.length);
+      setReached((r) => Math.min(frames.length, Math.max(r, at + 2)));
+    }, FRAME_MS);
+    return () => window.clearTimeout(id);
+  }, [on, paused, at, frames]);
+
+  if (frames.length === 0 || (!on && !warm && !first)) return null;
+  const mounted = on ? frames.slice(0, Math.max(reached, at + 1)) : frames.slice(0, 1);
   return (
-    <video
-      ref={(video) => bind(slide, video)}
-      src={src}
-      muted
-      loop={loop}
-      playsInline
-      disablePictureInPicture
-      preload="auto"
-      aria-hidden
-      tabIndex={-1}
-      onPlaying={() => setPlaying(true)}
-      className={cn(
-        "absolute inset-0 size-full object-cover transition-opacity duration-500 ease-out",
-        playing ? "opacity-100" : "opacity-0",
-      )}
-    />
+    <div aria-hidden={!on} className={cn("absolute inset-0 transition-opacity duration-700 ease-out", on ? "opacity-100" : "opacity-0")}>
+      {mounted.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          decoding="async"
+          fetchPriority={first && i === 0 ? "high" : "low"}
+          className={cn(
+            "absolute inset-0 size-full object-cover transition-opacity duration-1000 ease-in-out",
+            i === (on ? at : 0) ? "opacity-100" : "opacity-0",
+          )}
+        />
+      ))}
+    </div>
   );
 }
 

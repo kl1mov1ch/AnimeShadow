@@ -1,4 +1,3 @@
-import type { AnimeSummary } from "@animeshadow/shared";
 import { landingPath, seasonNameRu, seasonOf } from "@animeshadow/shared";
 import {
   CalendarClockIcon,
@@ -15,7 +14,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiRequest } from "@/lib/api";
 import { titlesCount } from "@/lib/curated";
-import { imageSrc } from "@/lib/format";
 import { useCuratedCollections } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
@@ -35,15 +33,14 @@ interface QuickLink {
  * name and what is in it.
  */
 const TILE =
-  "group relative flex min-w-0 flex-col items-center gap-1.5 rounded-2xl p-1 text-center outline-none transition-transform duration-200 active:scale-95 sm:flex-row sm:gap-2.5 sm:overflow-hidden sm:rounded-xl sm:border sm:border-border/60 sm:bg-card/50 sm:p-2.5 sm:text-left sm:transition-[border-color,background-color,transform] sm:hover:-translate-y-0.5 sm:hover:border-foreground/20 sm:hover:bg-card focus-visible:ring-2 focus-visible:ring-ring";
+  "group relative flex min-w-0 flex-col items-center gap-1.5 rounded-2xl p-1 text-center outline-none active:scale-[0.97] sm:flex-row sm:gap-2.5 sm:rounded-xl sm:border sm:border-border/50 sm:bg-card/40 sm:p-2.5 sm:text-left sm:transition-colors sm:duration-200 sm:hover:border-foreground/20 sm:hover:bg-card/70 focus-visible:ring-2 focus-visible:ring-ring";
 const CHIP =
-  "relative z-10 grid size-12 shrink-0 place-items-center rounded-2xl border border-border/60 bg-card/70 text-foreground/80 transition-colors duration-300 group-hover:border-primary/40 group-hover:text-primary group-active:border-primary/50 group-active:text-primary sm:size-9 sm:rounded-lg sm:border-0 sm:bg-foreground/[0.07] sm:group-hover:bg-primary/15";
+  "grid size-12 shrink-0 place-items-center rounded-2xl border border-border/60 bg-card/70 text-foreground/75 transition-colors duration-200 group-hover:text-foreground sm:size-9 sm:rounded-lg sm:border-0 sm:bg-foreground/[0.06]";
 
 /**
  * Right under the hero: the lists people come to an anime site for. Light
  * at rest — an icon and a name — so the hero above stays the one loud
- * thing; on a computer, hovering a tile raises the first posters of what is
- * in it from its corner, and it says how many titles there are.
+ * thing. A tile says how many titles there are; nothing pops out of it.
  */
 export function HomeQuickLinks() {
   const navigate = useNavigate();
@@ -87,7 +84,6 @@ export function HomeQuickLinks() {
         const collection = slug ? byslug.get(slug) : undefined;
         return (
           <Link key={to} to={to} viewTransition className={TILE}>
-            {collection && <PosterFan covers={collection.covers} />}
             <span className={CHIP}>
               <Icon className="size-5 sm:size-[18px]" />
             </span>
@@ -97,14 +93,9 @@ export function HomeQuickLinks() {
       })}
       <button type="button" onClick={() => void roll()} className={TILE}>
         <span className={CHIP}>
-          <DicesIcon
-            className={cn(
-              "size-5 transition-transform duration-500 group-hover:rotate-[200deg] sm:size-[18px]",
-              rolling && "animate-spin",
-            )}
-          />
+          <DicesIcon className={cn("size-5 sm:size-[18px]", rolling && "animate-spin")} />
         </span>
-        <TileText title="Случайное" hint="Мне повезёт" />
+        <TileText title="Случайное" hint="Сюрприз на вечер" />
       </button>
     </nav>
   );
@@ -117,34 +108,6 @@ function TileText({ title, hint }: { title: string; hint: string }) {
         {title}
       </span>
       <span className="hidden truncate text-[11px] text-muted-foreground sm:block">{hint}</span>
-    </span>
-  );
-}
-
-/** Two posters that rise from the tile's corner when it is hovered. */
-function PosterFan({ covers }: { covers: AnimeSummary[] }) {
-  const two = covers.slice(0, 2);
-  return (
-    <span
-      aria-hidden
-      className="pointer-events-none absolute -bottom-6 right-1 hidden translate-y-4 opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 sm:flex"
-    >
-      {two.map((anime, i) => (
-        <img
-          key={anime.id}
-          src={imageSrc(anime.imageUrl)}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={(event) => {
-            event.currentTarget.style.visibility = "hidden";
-          }}
-          className={cn(
-            "aspect-[2/3] w-10 rounded-md object-cover shadow-lg shadow-black/40 ring-1 ring-black/30",
-            i === 0 ? "-mr-4 -rotate-6 opacity-80" : "rotate-3",
-          )}
-        />
-      ))}
     </span>
   );
 }

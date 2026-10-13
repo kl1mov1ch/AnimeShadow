@@ -1,4 +1,3 @@
-import { inBackground } from "../lib/priority.js";
 import { AllohaClient } from "@animeshadow/alloha";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
@@ -231,8 +230,7 @@ export function createServices(deps: ContainerDeps): Services {
     dir: env.HERO_CLIP_DIR ?? join(process.cwd(), "cache", "hero"),
     ffmpeg: env.FFMPEG_PATH,
   });
-  // A new hero lineup: clips for the new titles, the old ones go.
-  catalog.onSpotlightsChange(() => void inBackground(() => heroClips.refresh()));
+  // Clips are not cut any more (the hero shows frames); see server.ts.
   const statsRollup = new StatsRollupService({ prisma: deps.prisma, logger: deps.logger, rawDays: env.STATS_RAW_DAYS });
   // The admin's reports run on a pool of their own, four connections: a
   // heavy report then waits its turn there instead of taking the site's
