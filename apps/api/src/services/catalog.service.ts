@@ -1044,6 +1044,11 @@ export class CatalogService {
     }
   }
 
+  /** A title's frames for the hero, up to twelve, kept for an hour. */
+  async heroFrames(id: number): Promise<string[]> {
+    return (await this.auxCache.wrap(`hero-frames:${id}`, async () => (await this.fetchScreenshots(id)).slice(0, 12))) as string[];
+  }
+
   /** The same rating gate as the detail page, for callers that only need a
    *  title's genres and shouldn't pay for its whole payload. */
   ensureViewable(rating: string | null, allowAdult: boolean): void {

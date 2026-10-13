@@ -1454,6 +1454,12 @@ body:has([role="dialog"][data-state="open"]) main * {
 @keyframes hero-clock { from { opacity: 0; } to { opacity: 0.01; } }
 @keyframes hero-ring { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 @keyframes hero-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+/* The hero's frame is its own layer: scrolling the page moves it, the
+   masked, fading pictures inside are never repainted for it. */
+.hero-frame {
+  contain: paint;
+  transform: translateZ(0);
+}
 .hero-clock {
   position: absolute;
   width: 1px;

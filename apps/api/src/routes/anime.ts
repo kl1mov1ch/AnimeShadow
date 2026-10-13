@@ -202,6 +202,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
 
+  // Frames of a title for the homepage hero: every screenshot Shikimori has,
+  // fetched once an hour; browsers keep the answer six hours.
+  fastify.get("/anime/:id/frames", async (request, reply) => {
+    const { id } = parse(idParams, request.params);
+    reply.header("cache-control", "public, max-age=21600");
+    return { frames: await catalog.heroFrames(id) };
+  });
+
   fastify.get("/anime/:id/franchise", async (request) => {
     const { id } = parse(idParams, request.params);
     return { items: await catalog.getFranchise(id) };

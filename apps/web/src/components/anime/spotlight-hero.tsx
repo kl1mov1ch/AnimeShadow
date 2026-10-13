@@ -1,4 +1,5 @@
 import type { AnimeDetail } from "@animeshadow/shared";
+import { useQuery } from "@tanstack/react-query";
 import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
@@ -7,7 +8,7 @@ import {
   PlayIcon,
   StarIcon,
 } from "lucide-react";
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { TrailerButton } from "@/components/anime/trailer-button";
@@ -17,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/i18n";
+import { apiRequest } from "@/lib/api";
 import { animeHref, fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
@@ -152,7 +154,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
           {slides.map((slide, i) => (
             <SlideFrames
               key={slide.id}
-              frames={framesOf(slide)}
+              anime={slide}
               on={i === index}
               // The next title's first frame is fetched ahead, quietly.
               warm={i === (index + 1) % count}
@@ -262,107 +264,117 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   );
 }
 
-/** Frames already downloaded and decoded in this tab — shown at once next time. */
-const READY = new Set<string>();
-const PENDING = new Map<string, Promise<void>>();
-
-/** Downloads and decodes a frame once; later calls reuse the same work. */
-function prepare(src: string): Promise<void> {
-  if (READY.has(src)) return Promise.resolve();
-  let job = PENDING.get(src);
-  if (!job) {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = src;
-    job = (img.decode ? img.decode() : new Promise<void>((ok, fail) => ((img.onload = () => ok()), (img.onerror = fail))))
-      .then(() => void READY.add(src))
-      .catch(() => undefined)
-      .finally(() => PENDING.delete(src));
-    PENDING.set(src, job);
+/** A stable shuffle per title, so its frames come in a fresh but repeatable order. */
+function shuffled(list: string[], seed: number): string[] {
+  const out = [...list];
+  let x = seed || 1;
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    x = (x * 1103515245 + 12345) & 0x7fffffff;
+    const j = x % (i + 1);
+    [out[i], out[j]] = [out[j]!, out[i]!];
   }
-  return job;
+  return out;
 }
 
 /**
- * One title's frames in the hero. Each frame is downloaded and decoded
- * before it is shown (kept for the rest of the visit), then fades in over
- * the last — the first one included, never a half-drawn picture. While its
- * slide is up, the frames take turns every two seconds; a turn waits for
- * its frame if the line is slow. The next title's frames are prepared while
- * this one plays.
+ * One title's frames in the hero, taken straight from the catalogue API
+ * (every screenshot it has, in a shuffled order) and shown as plain images
+ * the browser loads and caches itself — nothing is held in memory by us.
+ * Only two pictures are ever in the page: the one on screen and the one
+ * coming in, which fades over it once it has loaded; the next turn starts
+ * two seconds after that. The slide off screen shows nothing.
  */
 function SlideFrames({
-  frames,
+  anime,
   on,
   warm,
   paused,
   first,
 }: {
-  frames: string[];
+  anime: AnimeDetail;
   on: boolean;
   warm: boolean;
   paused: boolean;
   first: boolean;
 }) {
-  const [at, setAt] = useState(0);
-  const [, setTick] = useState(0);
-  const rerender = useCallback(() => setTick((n) => n + 1), []);
+  const { data } = useQuery({
+    queryKey: ["hero-frames", anime.id],
+    enabled: on || warm,
+    staleTime: Infinity,
+    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${anime.id}/frames`, { signal }).then((r) => r.frames),
+  });
+  const frames = useMemo(() => {
+    const own = (data ?? []).map((u) => imageSrc(u)).filter((u): u is string => Boolean(u));
+    return own.length > 0 ? shuffled(own, anime.id).slice(0, 8) : framesOf(anime);
+  }, [data, anime]);
 
-  // A fresh start each time the slide comes back.
+  const [base, setBase] = useState<string | null>(null);
+  const [incoming, setIncoming] = useState<string | null>(null);
+  const [arrived, setArrived] = useState(false);
+  const [at, setAt] = useState(0);
+
+  // On screen (or about to be): start from the first frame.
   useEffect(() => {
-    if (on) setAt(0);
+    if ((on || first || warm) && !base && frames[0]) setBase(frames[0]);
+  }, [on, first, warm, base, frames]);
+  useEffect(() => {
+    if (!on) setAt(0);
   }, [on]);
 
-  // Get the frames ready: all of them for the slide on screen or next up,
-  // the first one for the rest — one after another, so the first is first.
+  // Every two seconds, the next frame comes in over the current one.
   useEffect(() => {
-    if (!(on || warm || first)) return;
-    let gone = false;
-    const wanted = on || warm ? frames : frames.slice(0, 1);
-    void (async () => {
-      for (const src of wanted) {
-        const was = READY.has(src);
-        await prepare(src);
-        if (gone) return;
-        if (!was) rerender();
-      }
-    })();
-    return () => {
-      gone = true;
-    };
-  }, [on, warm, first, frames, rerender]);
-
-  // Every two seconds the next frame — once it is ready.
-  useEffect(() => {
-    if (!on || paused || frames.length < 2) return;
-    const next = (at + 1) % frames.length;
+    if (!on || paused || frames.length < 2 || incoming) return;
     const id = window.setTimeout(() => {
-      if (READY.has(frames[next]!)) setAt(next);
-      else void prepare(frames[next]!).then(() => setAt(next));
+      const next = (at + 1) % frames.length;
+      setAt(next);
+      setArrived(false);
+      setIncoming(frames[next]!);
     }, FRAME_MS);
     return () => window.clearTimeout(id);
-  }, [on, paused, at, frames]);
+  }, [on, paused, frames, at, incoming]);
 
-  if (frames.length === 0 || (!on && !warm && !first)) return null;
-  const shown = on ? at : 0;
+  // Once it has faded in, it becomes the base and the old one goes.
+  useEffect(() => {
+    if (!arrived || !incoming) return;
+    const id = window.setTimeout(() => {
+      setBase(incoming);
+      setIncoming(null);
+      setArrived(false);
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [arrived, incoming]);
+
+  if (!base || (!on && !warm && !first)) return null;
   return (
     <div aria-hidden={!on} className={cn("absolute inset-0 transition-opacity duration-700 ease-out", on ? "opacity-100" : "opacity-0")}>
-      {frames.map((src, i) =>
-        READY.has(src) ? (
-          <img
-            key={src}
-            src={src}
-            alt=""
-            decoding="async"
-            className={cn(
-              // Fades in when it first appears, then cross-fades with the rest.
-              "absolute inset-0 size-full animate-in object-cover transition-opacity duration-1000 ease-in-out fade-in-0 [animation-duration:900ms]",
-              i === shown ? "opacity-100" : "opacity-0",
-            )}
-          />
-        ) : null,
+      <FadeImg key={base} src={base} priority={first} />
+      {incoming && (
+        <img
+          key={incoming}
+          src={incoming}
+          alt=""
+          decoding="async"
+          onLoad={() => setArrived(true)}
+          onError={() => setIncoming(null)}
+          className={cn("absolute inset-0 size-full object-cover transition-opacity duration-1000 ease-in-out", arrived ? "opacity-100" : "opacity-0")}
+        />
       )}
     </div>
+  );
+}
+
+/** A picture that fades in once it has loaded — never shown half-drawn. */
+function FadeImg({ src, priority }: { src: string; priority: boolean }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <img
+      src={src}
+      alt=""
+      decoding="async"
+      fetchPriority={priority ? "high" : "low"}
+      onLoad={() => setLoaded(true)}
+      className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700 ease-out", loaded ? "opacity-100" : "opacity-0")}
+    />
   );
 }
 
