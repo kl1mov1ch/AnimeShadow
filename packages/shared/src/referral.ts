@@ -79,7 +79,8 @@ export type ReferralRewardState = z.infer<typeof referralRewardStateSchema>;
 
 export const referralStateSchema = z.object({
   code: z.string(),
-  friends: z.object({ total: z.number(), counted: z.number() }),
+  /** total/counted include `bonus` — friends an admin added. */
+  friends: z.object({ total: z.number(), counted: z.number(), bonus: z.number().default(0) }),
   /** All friends' watching together, in hours (one decimal). */
   hours: z.number(),
   rewards: z.array(referralRewardStateSchema),

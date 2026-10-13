@@ -160,7 +160,12 @@ function Stats({ state }: { state: ReferralState }) {
   const nf = next("friends");
   const nh = next("hours");
   const tiles = [
-    { icon: UsersIcon, value: state.friends.total, label: plural(state.friends.total, "друг пришёл", "друга пришли", "друзей пришли"), tone: "text-sky-300 bg-sky-500/15" },
+    {
+      icon: UsersIcon,
+      value: state.friends.total,
+      label: plural(state.friends.total, "друг пришёл", "друга пришли", "друзей пришли") + (state.friends.bonus ? ` (+${state.friends.bonus} бонус)` : ""),
+      tone: "text-sky-300 bg-sky-500/15",
+    },
     {
       icon: CheckIcon,
       value: state.friends.counted,

@@ -24,6 +24,7 @@ const ROW_SELECT = {
   proSince: true,
   trialUntil: true,
   proUntil: true,
+  bonusReferrals: true,
 } satisfies Prisma.UserSelect;
 type Row = Prisma.UserGetPayload<{ select: typeof ROW_SELECT }>;
 
@@ -47,6 +48,7 @@ function toRow(u: Row, now: Date): AdminProRow {
     proUntil: u.proUntil?.toISOString() ?? null,
     trialUntil: u.trialUntil?.toISOString() ?? null,
     status: statusOf(u, now),
+    bonusReferrals: u.bonusReferrals,
   };
 }
 
@@ -156,6 +158,9 @@ export async function setPro(prisma: PrismaClient, userId: string, input: AdminP
       break;
     case "resetPromo":
       data = { trialUntil: null };
+      break;
+    case "bonusReferrals":
+      data = { bonusReferrals: Math.max(0, user.bonusReferrals + input.count) };
       break;
   }
   const updated = await prisma.user.update({ where: { id: userId }, data, select: ROW_SELECT });

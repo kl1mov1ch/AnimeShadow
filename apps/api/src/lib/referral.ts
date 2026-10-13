@@ -49,7 +49,7 @@ export async function referralState(prisma: PrismaClient, userId: string): Promi
   const [me, friends, taken] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { proSince: true, proUntil: true, trialUntil: true, titleUnlocked: true },
+      select: { proSince: true, proUntil: true, trialUntil: true, titleUnlocked: true, bonusReferrals: true },
     }),
     prisma.user.findMany({
       where: { referredById: userId },
@@ -78,7 +78,8 @@ export async function referralState(prisma: PrismaClient, userId: string): Promi
       counted: s >= REFERRAL.countAfterSeconds,
     };
   });
-  const counted = people.filter((p) => p.counted).length;
+  const bonus = Math.max(0, me.bonusReferrals);
+  const counted = people.filter((p) => p.counted).length + bonus;
   const hours = Math.round(([...seconds.values()].reduce((a, b) => a + b, 0) / 3600) * 10) / 10;
   const claimed = new Set(taken.map((t) => t.rewardId));
   const now = new Date();
@@ -86,7 +87,7 @@ export async function referralState(prisma: PrismaClient, userId: string): Promi
 
   return {
     code,
-    friends: { total: people.length, counted },
+    friends: { total: people.length + bonus, counted, bonus },
     hours,
     people,
     rewards: REFERRAL_REWARDS.map((r) => {

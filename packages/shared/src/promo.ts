@@ -86,6 +86,8 @@ export const adminProRowSchema = z.object({
   proUntil: z.string().nullable(),
   trialUntil: z.string().nullable(),
   status: proStatusSchema,
+  /** Friends an admin added on the referral ladder. */
+  bonusReferrals: z.number().default(0),
 });
 export type AdminProRow = z.infer<typeof adminProRowSchema>;
 
@@ -110,5 +112,7 @@ export const adminProActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("endTrial") }),
   /** Forget the offer was ever used: the account can take the free month again. */
   z.object({ action: z.literal("resetPromo") }),
+  /** Add (or take back, negative) friends on the referral friends ladder. */
+  z.object({ action: z.literal("bonusReferrals"), count: z.number().int().min(-1000).max(1000) }),
 ]);
 export type AdminProAction = z.infer<typeof adminProActionSchema>;
