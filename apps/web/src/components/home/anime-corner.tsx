@@ -569,8 +569,12 @@ function dayNumber(): number {
   return Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86_400_000);
 }
 
+const FACT_KIND = { history: "История создания", record: "Рекорд", drama: "Поворот судьбы", trivia: "Любопытно" } as const;
+
 interface ApiFact {
   id: string;
+  kind?: "history" | "record" | "drama" | "trivia";
+  year?: number | null;
   title: string;
   text: string;
   anime: { id: number; slug: string; title: string; image: string | null } | null;
@@ -624,10 +628,10 @@ function FactsStrip() {
     <section className="flex flex-col gap-3">
       <SectionHeading
         title={t("home.corner.facts")}
-        subtitle={facts.data ? `${facts.data.total.toLocaleString("ru-RU")} фактов из каталога` : undefined}
+        subtitle="История создания, рекорды и неожиданные повороты"
       />
       <div
-        className={cn(PANEL, "gap-4 sm:flex-row sm:items-center")}
+        className={cn(PANEL, "isolate min-h-52 flex-row gap-4")}
         onTouchStart={(e) => (touch.current = e.touches[0]?.clientX ?? null)}
         onTouchEnd={(e) => {
           const x0 = touch.current;
@@ -637,41 +641,52 @@ function FactsStrip() {
         }}
       >
         {!fact ? (
-          <div className="h-32 w-full animate-pulse rounded-xl bg-foreground/[0.05]" />
+          <div className="h-40 w-full animate-pulse rounded-xl bg-foreground/[0.05]" />
         ) : (
           <>
+            {fact.anime?.image && (
+              <img
+                aria-hidden
+                src={imageSrc(fact.anime.image)}
+                alt=""
+                loading="lazy"
+                className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden h-full w-1/2 object-cover opacity-15 [mask-image:linear-gradient(to_left,#000,transparent)] sm:block"
+              />
+            )}
             {fact.anime?.image ? (
-              <Link to={animeHref(fact.anime)} viewTransition className="hidden shrink-0 sm:block">
-                <img src={imageSrc(fact.anime.image)} alt="" loading="lazy" className="aspect-[2/3] w-24 rounded-xl object-cover ring-1 ring-white/10" />
+              <Link to={animeHref(fact.anime)} viewTransition className="shrink-0 self-start">
+                <img src={imageSrc(fact.anime.image)} alt="" loading="lazy" className="aspect-[2/3] w-16 rounded-xl object-cover ring-1 ring-white/10 sm:w-32" />
               </Link>
             ) : (
-              <span className="hidden size-24 shrink-0 place-items-center rounded-xl bg-foreground/[0.05] font-display text-4xl text-muted-foreground/40 sm:grid">影</span>
+              <span className="hidden aspect-[2/3] w-32 shrink-0 place-items-center rounded-xl bg-foreground/[0.05] font-display text-5xl text-muted-foreground/40 sm:grid">影</span>
             )}
-            <div key={`${deal}-${at}`} className="flex min-w-0 flex-1 animate-in flex-col gap-1.5 duration-300 fade-in-0">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Факт {at + 1} из {count}
+            <div key={`${deal}-${at}`} className="flex min-w-0 flex-1 animate-in flex-col gap-2 duration-300 fade-in-0">
+              <span className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="rounded-md bg-primary/12 px-1.5 py-0.5 text-primary">{FACT_KIND[fact.kind ?? "trivia"]}</span>
+                {fact.year && <span className="tabular-nums">{fact.year}</span>}
+                <span className="font-normal normal-case tracking-normal">· {at + 1} из {count}</span>
               </span>
-              <p className="font-display text-xl leading-tight">{fact.title}</p>
-              <p className="text-sm leading-relaxed text-foreground/80">{fact.text}</p>
-              {fact.anime && (
-                <Link to={animeHref(fact.anime)} viewTransition className="mt-1 w-fit text-xs font-semibold text-primary hover:underline">
-                  Открыть «{fact.anime.title}» →
-                </Link>
-              )}
-            </div>
-            <div className="flex shrink-0 items-center gap-2 sm:flex-col">
-              <div className="flex gap-1.5">
-                <button type="button" onClick={() => step(-1)} aria-label="Предыдущий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
-                  ‹
-                </button>
-                <button type="button" onClick={() => step(1)} aria-label="Следующий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
-                  ›
-                </button>
+              <p className="font-display text-xl leading-tight sm:text-2xl">{fact.title}</p>
+              <p className="max-w-3xl text-sm leading-relaxed text-foreground/85 sm:text-[15px]">{fact.text}</p>
+              <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+                {fact.anime && (
+                  <Link to={animeHref(fact.anime)} viewTransition className="inline-flex h-9 items-center rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/20">
+                    Смотреть «{fact.anime.title}»
+                  </Link>
+                )}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <button type="button" onClick={() => step(-1)} aria-label="Предыдущий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+                    ‹
+                  </button>
+                  <button type="button" onClick={() => step(1)} aria-label="Следующий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+                    ›
+                  </button>
+                  <button type="button" onClick={more} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground">
+                    <ShuffleIcon className="size-3.5" />
+                    {t("home.facts.more")}
+                  </button>
+                </div>
               </div>
-              <button type="button" onClick={more} className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground sm:ml-0">
-                <ShuffleIcon className="size-3.5" />
-                {t("home.facts.more")}
-              </button>
             </div>
           </>
         )}

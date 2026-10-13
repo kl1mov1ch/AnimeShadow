@@ -1,9 +1,13 @@
 import type { PrismaClient } from "@animeshadow/db";
-import { contentGuardWhere } from "../lib/content-guard.js";
+
+export type FactKind = "history" | "record" | "drama" | "trivia";
 
 export interface AnimeFact {
   id: string;
-  /** A short headline — the number or the claim. */
+  kind: FactKind;
+  /** When it happened, for the card's corner. */
+  year: number | null;
+  /** A short headline. */
   title: string;
   text: string;
   anime: { id: number; slug: string; title: string; image: string | null } | null;
@@ -13,212 +17,281 @@ export interface FactsServiceDeps {
   prisma: PrismaClient;
 }
 
-/** How many of the best-known titles the facts are drawn from. */
-const POOL_TITLES = 4000;
-const POOL_TTL_MS = 6 * 60 * 60_000;
-
-const SEASON: Record<string, string> = { WINTER: "зимой", SPRING: "весной", SUMMER: "летом", FALL: "осенью" };
-const TYPE: Record<string, string> = {
-  TV: "сериал",
-  MOVIE: "полнометражный фильм",
-  OVA: "OVA",
-  ONA: "веб-сериал",
-  SPECIAL: "спецвыпуск",
-  MUSIC: "музыкальный клип",
-};
-
-const fmt = (n: number) => n.toLocaleString("ru-RU");
-
-/** "24 min per ep", "1 hr 45 min", "24 мин." → minutes. */
-function minutesOf(duration: string | null): number | null {
-  if (!duration) return null;
-  const h = /(\d+)\s*(?:hr|h|ч)/i.exec(duration);
-  const m = /(\d+)\s*(?:min|мин|m\b)/i.exec(duration);
-  const total = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
-  return total > 0 ? total : null;
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const a = Math.abs(n) % 100;
-  const b = a % 10;
-  if (a > 10 && a < 20) return many;
-  if (b > 1 && b < 5) return few;
-  if (b === 1) return one;
-  return many;
+/** A fact as written: the anime is named by its MyAnimeList id (our id). */
+interface Written {
+  id: string;
+  kind: FactKind;
+  year: number | null;
+  title: string;
+  text: string;
+  animeId: number | null;
 }
 
 /**
- * "Did you know" — facts built from the catalogue itself rather than
- * written by hand: every one of them is true by construction, because it
- * is read straight off the numbers (rank, score and how many rated it, how
- * many keep it in a list, length in hours, studio and year, how it stands
- * among its genre, its year, its studio). Thousands of titles times a
- * dozen patterns is a pool of several thousand; it is rebuilt every six
- * hours and dealt at random.
+ * "Did you know" — written by hand: how famous anime came to be, the
+ * records they set and the turns their stories took off screen. Each one is
+ * a well-documented, widely reported fact, not a number read off the
+ * catalogue; the title it is about is linked when it is in the catalogue.
  */
+const FACTS: Written[] = [
+  {
+    id: "astro-budget",
+    kind: "history",
+    year: 1963,
+    title: "Как Тэдзука удешевил анимацию",
+    text: "«Астробой» Осаму Тэдзуки снимали за копейки, поэтому студия повторно использовала одни и те же кадры и двигала на экране только рот и глаза. Этот приём «ограниченной анимации» стал стандартом японского ТВ-аниме на десятилетия вперёд.",
+    animeId: 2747,
+  },
+  {
+    id: "astro-us",
+    kind: "history",
+    year: 1963,
+    title: "Первое аниме на американском ТВ",
+    text: "В том же 1963 году «Астробоя» дублировали и показали в США — это был первый японский анимационный сериал на американском телевидении.",
+    animeId: 2747,
+  },
+  {
+    id: "sazae",
+    kind: "record",
+    year: 1969,
+    title: "Сериал длиной в полвека",
+    text: "«Садзаэ-сан» выходит каждое воскресенье с 1969 года. Книга рекордов Гиннесса признала его самым долгим анимационным сериалом в истории телевидения — серий в нём уже больше семи тысяч.",
+    animeId: 2406,
+  },
+  {
+    id: "akira-cels",
+    kind: "record",
+    year: 1988,
+    title: "327 цветов «Акиры»",
+    text: "Для «Акиры» нарисовали больше 160 тысяч кадров и использовали 327 оттенков краски — 50 из них создали специально для фильма, чтобы ночной Нео-Токио светился так, как задумал Кацухиро Отомо.",
+    animeId: 47,
+  },
+  {
+    id: "fireflies-totoro",
+    kind: "drama",
+    year: 1988,
+    title: "Самый странный двойной сеанс",
+    text: "«Могилу светлячков» и «Моего соседа Тоторо» выпустили в кино одним сеансом: трагедия о войне и добрая сказка шли друг за другом. Зрители выходили из зала в слезах после первой половины — и смеялись на второй.",
+    animeId: 578,
+  },
+  {
+    id: "totoro-logo",
+    kind: "trivia",
+    year: 1988,
+    title: "Тоторо стал логотипом",
+    text: "Тоторо оказался настолько любимым, что его силуэт стал логотипом студии Ghibli — его видно в начале каждого их фильма.",
+    animeId: 523,
+  },
+  {
+    id: "porygon",
+    kind: "drama",
+    year: 1997,
+    title: "Серия, после которой изменилось ТВ",
+    text: "После серии «Покемона» с мигающими красно-синими вспышками сотни детей в Японии почувствовали себя плохо, многих увезли в больницу. Сериал сняли с эфира на четыре месяца, а японское телевидение ввело правила против резких вспышек, которые действуют до сих пор.",
+    animeId: 527,
+  },
+  {
+    id: "eva-ending",
+    kind: "drama",
+    year: 1996,
+    title: "Финал, который пришлось переснять",
+    text: "Последние серии «Евангелиона» делали, когда у студии кончались время и деньги: вместо битв — монологи, наброски и текст на экране. Зрители были в ярости, и через год вышел фильм «Конец Евангелиона» с совсем другой развязкой.",
+    animeId: 30,
+  },
+  {
+    id: "bebop-tv",
+    kind: "history",
+    year: 1998,
+    title: "«Ковбой Бибоп» показали не целиком",
+    text: "Первый показ «Ковбоя Бибопа» на TV Tokyo урезали до двенадцати серий и спецвыпуска — остальные сочли слишком жестокими для эфира. Целиком сериал вышел позже, на спутниковом канале WOWOW.",
+    animeId: 1,
+  },
+  {
+    id: "mononoke-cels",
+    kind: "history",
+    year: 1997,
+    title: "Миядзаки проверил каждый кадр",
+    text: "Для «Принцессы Мононоке» нарисовали около 144 тысяч кадров. Хаяо Миядзаки лично просматривал их и перерисовал части десятков тысяч из них.",
+    animeId: 164,
+  },
+  {
+    id: "spirited-oscar",
+    kind: "record",
+    year: 2003,
+    title: "Единственный «Оскар» аниме",
+    text: "«Унесённые призраками» получили «Оскар» за лучший анимационный фильм — первый и пока единственный японский рисованный фильм с этой наградой. Миядзаки на церемонию не приехал в знак протеста против войны в Ираке.",
+    animeId: 199,
+  },
+  {
+    id: "spirited-box",
+    kind: "record",
+    year: 2001,
+    title: "Девятнадцать лет на вершине",
+    text: "«Унесённые призраками» почти двадцать лет оставались самым кассовым фильмом в истории японского проката — пока в 2020 году их не обогнал «Клинок, рассекающий демонов: Бесконечный поезд».",
+    animeId: 199,
+  },
+  {
+    id: "gits-matrix",
+    kind: "history",
+    year: 1995,
+    title: "Аниме, которое показали продюсерам «Матрицы»",
+    text: "Сёстры Вачовски рассказывали, что, уговаривая продюсеров снять «Матрицу», показывали им «Призрака в доспехах» — со словами «мы хотим сделать это вживую». Зелёные символы на экранах — оттуда же.",
+    animeId: 43,
+  },
+  {
+    id: "fma-two",
+    kind: "history",
+    year: 2009,
+    title: "Почему «Стальной алхимик» есть дважды",
+    text: "Аниме 2003 года догнало ещё не законченную мангу и придумало собственный финал. Когда манга завершилась, в 2009 году сняли «Братство» — уже точно по сюжету Хирому Аракавы.",
+    animeId: 5114,
+  },
+  {
+    id: "onepiece-plan",
+    kind: "trivia",
+    year: 1997,
+    title: "«Ван-Пис» задумывали на пять лет",
+    text: "Эйитиро Ода рассказывал, что поначалу рассчитывал закончить «Ван-Пис» лет за пять. Манга выходит с 1997 года, аниме — с 1999-го, и история всё ещё не завершена.",
+    animeId: 21,
+  },
+  {
+    id: "dragonball-journey",
+    kind: "history",
+    year: 1986,
+    title: "Сон Гоку пришёл из старинного романа",
+    text: "Акира Торияма построил начало «Драконьего жемчуга» на китайском романе XVI века «Путешествие на Запад»: Гоку — это Сунь Укун, Царь обезьян, с его посохом и облаком.",
+    animeId: 223,
+  },
+  {
+    id: "berserk-miura",
+    kind: "drama",
+    year: 2021,
+    title: "История, которую закончил друг",
+    text: "Кэнтаро Миура, автор «Берсерка», умер в 2021 году, не закончив мангу, которую рисовал больше тридцати лет. Её продолжил его близкий друг, мангака Кодзи Мори, вместе с ассистентами Миуры — по планам, которыми тот успел поделиться.",
+    animeId: 33,
+  },
+  {
+    id: "kyoani",
+    kind: "drama",
+    year: 2019,
+    title: "Трагедия Kyoto Animation",
+    text: "В июле 2019 года поджог студии Kyoto Animation унёс жизни 36 человек. Студия выстояла: в 2020 году вышел фильм «Вайолет Эвергарден», в титрах которого названы и погибшие.",
+    animeId: 33352,
+  },
+  {
+    id: "yourname",
+    kind: "record",
+    year: 2016,
+    title: "«Твоё имя» обошло всех",
+    text: "Фильм Макото Синкая «Твоё имя» несколько лет был самым кассовым аниме-фильмом в мире. До него Синкай делал небольшие картины почти в одиночку — первую, «Голос далёкой звезды», он нарисовал на домашнем компьютере.",
+    animeId: 32281,
+  },
+  {
+    id: "demon-slayer",
+    kind: "record",
+    year: 2020,
+    title: "Поезд, который побил рекорд",
+    text: "«Клинок, рассекающий демонов: Бесконечный поезд» вышел в 2020 году, в разгар пандемии, и всё равно стал самым кассовым фильмом в истории Японии.",
+    animeId: 38000,
+  },
+  {
+    id: "hxh-hiatus",
+    kind: "drama",
+    year: 2011,
+    title: "Перерывы длиной в годы",
+    text: "Ёсихиро Тогаси, автор «Охотника × Охотника», из-за сильных болей в спине годами не мог рисовать — перерывы между главами доходили до нескольких лет. Сериал 2011 года успел пройти почти весь вышедший к тому моменту сюжет.",
+    animeId: 11061,
+  },
+  {
+    id: "sailor-togashi",
+    kind: "trivia",
+    year: 1999,
+    title: "Семья двух мангак",
+    text: "Наоко Такэути, создательница «Сейлор Мун», в 1999 году вышла замуж за Ёсихиро Тогаси — автора «Охотника × Охотника» и «Ю-Ю Хакусё».",
+    animeId: 530,
+  },
+  {
+    id: "jojo-bands",
+    kind: "trivia",
+    year: 1987,
+    title: "Персонажи с именами рок-групп",
+    text: "Хирохико Араки называет героев «Невероятных приключений ДжоДжо» в честь западной музыки: Спидвагон, Цеппели, Киллер Квин — фанаты собирают целые плейлисты по именам персонажей.",
+    animeId: 14719,
+  },
+  {
+    id: "madoka",
+    kind: "history",
+    year: 2011,
+    title: "Милая обложка — нарочно",
+    text: "Для «Девочки-волшебницы Мадоки Магики» пригласили художницу уютной комедии Умэ Аоки, а сценарий написал Гэн Уробути, известный мрачными историями. Контраст был задуман: зрители до третьей серии не ждали поворота.",
+    animeId: 9756,
+  },
+  {
+    id: "steins-titor",
+    kind: "trivia",
+    year: 2011,
+    title: "Компьютер из интернет-легенды",
+    text: "Сюжет «Врат Штейна» опирается на реальную сетевую легенду: в 2000 году человек под ником Джон Титор писал на форумах, что прибыл из будущего за старым компьютером IBM 5100 — тем самым, что ищут герои.",
+    animeId: 9253,
+  },
+  {
+    id: "aot-idea",
+    kind: "history",
+    year: 2009,
+    title: "Откуда взялись титаны",
+    text: "Хадзимэ Исаяма рассказывал, что идея «Атаки титанов» родилась после ночной смены в интернет-кафе, где его схватил пьяный посетитель: он понял, как страшно столкнуться с человеком, с которым невозможно договориться.",
+    animeId: 16498,
+  },
+  {
+    id: "deathnote-light",
+    kind: "trivia",
+    year: 2006,
+    title: "Луна вместо имени",
+    text: "Имя главного героя «Тетради смерти» пишется иероглифом «луна» (月), но читается «Лайт» — свет. Сам Лайт говорит, что такое имя ему дали родители.",
+    animeId: 1535,
+  },
+  {
+    id: "gintama-parody",
+    kind: "trivia",
+    year: 2006,
+    title: "Сериал, который извинялся за шутки",
+    text: "«Гинтама» так часто пародировала другие аниме и рекламу, что в эфире иногда закрывала шутки цензурой и смайликами — и сами эти заплатки стали частью юмора.",
+    animeId: 918,
+  },
+];
+
+/** Everything about the facts is fixed text; only the posters come from the catalogue. */
 export class FactsService {
   private readonly prisma: PrismaClient;
-  private pool: { at: number; facts: AnimeFact[] } | null = null;
-  private building: Promise<AnimeFact[]> | null = null;
+  private cache: AnimeFact[] | null = null;
 
   constructor(deps: FactsServiceDeps) {
     this.prisma = deps.prisma;
   }
 
   async random(count: number): Promise<{ facts: AnimeFact[]; total: number }> {
-    const pool = await this.load();
+    const all = await this.load();
     const picks = new Set<number>();
-    const want = Math.min(count, pool.length);
-    while (picks.size < want) picks.add(Math.floor(Math.random() * pool.length));
-    return { facts: [...picks].map((i) => pool[i]!), total: pool.length };
+    const want = Math.min(count, all.length);
+    while (picks.size < want) picks.add(Math.floor(Math.random() * all.length));
+    return { facts: [...picks].map((i) => all[i]!), total: all.length };
   }
 
   private async load(): Promise<AnimeFact[]> {
-    if (this.pool && Date.now() - this.pool.at < POOL_TTL_MS) return this.pool.facts;
-    this.building ??= this.build()
-      .then((facts) => {
-        this.pool = { at: Date.now(), facts };
-        return facts;
-      })
-      .finally(() => {
-        this.building = null;
-      });
-    return this.building;
-  }
-
-  private async build(): Promise<AnimeFact[]> {
+    if (this.cache) return this.cache;
+    const ids = [...new Set(FACTS.flatMap((f) => (f.animeId != null ? [f.animeId] : [])))];
     const rows = await this.prisma.anime.findMany({
-      where: { AND: [{ members: { not: null } }, contentGuardWhere(false)] },
-      orderBy: { members: "desc" },
-      take: POOL_TITLES,
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        titleLocalized: true,
-        imageUrl: true,
-        type: true,
-        episodes: true,
-        duration: true,
-        score: true,
-        scoredBy: true,
-        rank: true,
-        members: true,
-        favorites: true,
-        year: true,
-        season: true,
-        studios: true,
-        source: true,
-        genres: { select: { genre: { select: { name: true } } } },
-      },
+      where: { id: { in: ids } },
+      select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, imageLargeUrl: true },
     });
-    const facts: AnimeFact[] = [];
-    const total = rows.length;
-    const add = (id: string, title: string, text: string, row: (typeof rows)[number] | null) =>
-      facts.push({
-        id,
-        title,
-        text,
-        anime: row ? { id: row.id, slug: row.slug, title: row.titleLocalized ?? row.title, image: row.imageUrl } : null,
-      });
-
-    rows.forEach((row, index) => {
-      const name = `«${row.titleLocalized ?? row.title}»`;
-      const kind = TYPE[row.type] ?? "тайтл";
-      const genres = row.genres.map((g) => g.genre.name).slice(0, 3);
-      const minutes = minutesOf(row.duration);
-
-      if (row.rank != null && row.rank <= 1500) {
-        add(`rank-${row.id}`, `№${fmt(row.rank)} в мире`, `${name} занимает ${fmt(row.rank)}-е место в мировом рейтинге аниме по оценкам зрителей.`, row);
-      }
-      if (row.score != null && row.scoredBy != null && row.scoredBy >= 1000) {
-        add(`score-${row.id}`, `${row.score.toFixed(2)} из 10`, `Средняя оценка ${name} — ${row.score.toFixed(2)}. Её поставили ${fmt(row.scoredBy)} ${plural(row.scoredBy, "зритель", "зрителя", "зрителей")}.`, row);
-      }
-      if (row.members != null && row.members >= 10_000) {
-        add(`members-${row.id}`, `${fmt(row.members)} в списках`, `${name} добавили в свои списки ${fmt(row.members)} ${plural(row.members, "человек", "человека", "человек")} по всему миру.`, row);
-        const percent = Math.round(((total - index) / total) * 100);
-        if (percent >= 50 && percent < 100) {
-          add(`share-${row.id}`, `Популярнее ${percent}%`, `${name} популярнее, чем ${percent}% из ${fmt(total)} известных тайтлов нашего каталога.`, row);
-        }
-      }
-      if (row.favorites != null && row.favorites >= 1000) {
-        add(`fav-${row.id}`, `${fmt(row.favorites)} любимых`, `${fmt(row.favorites)} ${plural(row.favorites, "зритель отметил", "зрителя отметили", "зрителей отметили")} ${name} как одно из самых любимых аниме.`, row);
-      }
-      if (row.type === "TV" && row.episodes && minutes) {
-        const hours = Math.round((row.episodes * minutes) / 60);
-        if (hours >= 2) {
-          add(`hours-${row.id}`, `≈ ${fmt(hours)} ч просмотра`, `Чтобы посмотреть ${name} целиком (${fmt(row.episodes)} ${plural(row.episodes, "серия", "серии", "серий")} по ~${minutes} мин), понадобится около ${fmt(hours)} ${plural(hours, "часа", "часов", "часов")}${hours >= 48 ? ` — это больше ${Math.floor(hours / 24)} суток без сна` : ""}.`, row);
-        }
-      }
-      if (row.type === "MOVIE" && minutes && minutes >= 40) {
-        add(`movie-${row.id}`, `${minutes} минут`, `${name} — полнометражный фильм длиной ${minutes} ${plural(minutes, "минута", "минуты", "минут")}.`, row);
-      }
-      if (row.studios[0] && row.year) {
-        add(`studio-${row.id}`, row.studios[0], `${name} (${kind}, ${row.year}) снимала студия ${row.studios.join(" и ")}.`, row);
-      }
-      if (row.season && row.year && SEASON[row.season]) {
-        add(`season-${row.id}`, `${row.year}`, `Премьера ${name} состоялась ${SEASON[row.season]} ${row.year} года.`, row);
-      }
-      if (genres.length >= 2) {
-        add(`genres-${row.id}`, genres.join(" · "), `${name} сочетает сразу несколько жанров: ${genres.slice(0, -1).join(", ")} и ${genres.at(-1)}.`, row);
-      }
-      if (row.source && row.source !== "Original" && row.source !== "Unknown") {
-        add(`source-${row.id}`, "Первоисточник", `${name} — экранизация: первоисточник этого ${kind === "сериал" ? "сериала" : "тайтла"} — ${sourceRu(row.source)}.`, row);
-      }
-      if (row.type === "TV" && row.episodes && row.episodes >= 100 && row.year) {
-        add(`long-${row.id}`, `${fmt(row.episodes)} серий`, `${name} выходит с ${row.year} года и насчитывает ${fmt(row.episodes)} ${plural(row.episodes, "серию", "серии", "серий")}.`, row);
-      }
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    this.cache = FACTS.map(({ animeId, ...fact }) => {
+      const a = animeId != null ? byId.get(animeId) : undefined;
+      return {
+        ...fact,
+        anime: a ? { id: a.id, slug: a.slug, title: a.titleLocalized ?? a.title, image: a.imageLargeUrl ?? a.imageUrl } : null,
+      };
     });
-
-    // Aggregates: the best of a year, of a genre, of a studio.
-    const bestBy = <K extends string | number>(key: (r: (typeof rows)[number]) => K[] | K | null) => {
-      const map = new Map<K, { count: number; best: (typeof rows)[number] }>();
-      for (const r of rows) {
-        const keys = key(r);
-        for (const k of Array.isArray(keys) ? keys : keys == null ? [] : [keys]) {
-          const cur = map.get(k);
-          if (!cur) map.set(k, { count: 1, best: r });
-          else {
-            cur.count++;
-            if ((r.score ?? 0) > (cur.best.score ?? 0)) cur.best = r;
-          }
-        }
-      }
-      return map;
-    };
-    for (const [year, { count, best }] of bestBy((r) => r.year)) {
-      if (count >= 5 && best.score) {
-        add(`year-${year}`, `Лучшее ${year} года`, `Из ${count} заметных аниме ${year} года выше всех зрители оценили «${best.titleLocalized ?? best.title}» — ${best.score.toFixed(2)}.`, best);
-      }
-    }
-    for (const [genre, { count, best }] of bestBy((r) => r.genres.map((g) => g.genre.name))) {
-      if (count >= 10 && best.score) {
-        add(`genre-${genre}`, genre, `Самое высоко оценённое аниме в жанре «${genre}» среди ${fmt(count)} известных тайтлов — «${best.titleLocalized ?? best.title}» (${best.score.toFixed(2)}).`, best);
-      }
-    }
-    for (const [studio, { count, best }] of bestBy((r) => r.studios)) {
-      if (count >= 4 && best.score) {
-        add(`studioTop-${studio}`, studio, `Студия ${studio} выпустила ${count} ${plural(count, "заметный тайтл", "заметных тайтла", "заметных тайтлов")}; лучший по оценкам — «${best.titleLocalized ?? best.title}».`, best);
-      }
-    }
-    return facts;
+    return this.cache;
   }
-}
-
-function sourceRu(source: string): string {
-  const map: Record<string, string> = {
-    Manga: "манга",
-    "Light novel": "лайт-новелла",
-    Novel: "роман",
-    "Web manga": "веб-манга",
-    "Web novel": "веб-новелла",
-    "Visual novel": "визуальная новелла",
-    Game: "видеоигра",
-    "4-koma manga": "ёнкома-манга",
-    "Card game": "карточная игра",
-    Music: "музыка",
-    Book: "книга",
-    "Picture book": "книжка с картинками",
-  };
-  return map[source] ?? source.toLowerCase();
 }
