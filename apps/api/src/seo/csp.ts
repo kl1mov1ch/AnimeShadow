@@ -37,7 +37,9 @@ export const PAGE_CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https: wss:",
+  // data: — the QR code library reads its centre badge (an inline SVG)
+  // through a request; without it the code is drawn blank.
+  "connect-src 'self' https: wss: data:",
   // Kodik, Alloha, YouTube trailers, Metrica's session replay.
   "frame-src https:",
   // hls.js runs its demuxer in a worker made from a blob.

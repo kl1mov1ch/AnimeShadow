@@ -1711,3 +1711,7 @@ body:has([role="dialog"][data-state="open"]) main * {
   .cc-fan, .dice-roll { transition: none; animation: none; }
 }
 
+/* The support button: a heart that beats now and then. */
+@keyframes support-beat { 0%, 70%, 100% { transform: scale(1); } 78% { transform: scale(1.25); } 86% { transform: scale(0.95); } 92% { transform: scale(1.15); } }
+.support-beat { animation: support-beat 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .support-beat { animation: none; } }

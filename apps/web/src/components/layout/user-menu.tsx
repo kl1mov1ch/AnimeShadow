@@ -1,5 +1,6 @@
 import {
   ChevronRightIcon,
+  HeartIcon,
   FolderHeartIcon,
   LibraryIcon,
   LogInIcon,
@@ -138,7 +139,15 @@ export function UserMenu() {
           <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
           <Row to="/profile?studio=profile" icon={Settings2Icon}>{t("userMenu.customise")}</Row>
           {user.role === "ADMIN" && <Row to="/admin" icon={ShieldCheckIcon}>{t("userMenu.admin")}</Row>}
-          <Row to="/support" icon={SparklesIcon}>{t("userMenu.support")}</Row>
+        </div>
+        <div className="px-1.5 pb-1.5">
+          <DropdownMenuItem asChild className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/30 focus:bg-primary focus:text-white">
+            <Link to="/support">
+              <HeartIcon className="support-beat size-4 fill-current text-white" />
+              <span className="flex-1">{t("userMenu.support")}</span>
+              <SparklesIcon className="size-4 text-white/80" />
+            </Link>
+          </DropdownMenuItem>
         </div>
         <DropdownMenuSeparator className="mx-0 my-0" />
         <div className="p-1.5">

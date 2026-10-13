@@ -50,9 +50,10 @@ export function SiteFooter() {
             {/* Support stands out on its own; the networks are round icons. */}
             <Link
               to="/support"
-              className="group inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95"
+              className="support-glow group relative inline-flex h-12 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-6 text-[15px] font-bold text-white shadow-xl shadow-primary/40 ring-1 ring-white/20 transition-transform hover:-translate-y-0.5 hover:shadow-primary/60 active:scale-95"
             >
-              <HeartIcon className="size-4 fill-current transition-transform group-hover:scale-110" />
+              <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[150%] -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 group-hover:translate-x-[400%]" />
+              <HeartIcon className="support-beat size-5 fill-current" />
               {t("footer.support")}
             </Link>
             <div className="flex items-center gap-2">

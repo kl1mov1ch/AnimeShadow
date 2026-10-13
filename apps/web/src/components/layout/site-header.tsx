@@ -1,5 +1,6 @@
 import {
   BookmarkIcon,
+  HeartIcon,
   ChevronRightIcon,
   HouseIcon,
   LanguagesIcon,
@@ -379,10 +380,10 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
 
         <Separator />
         <div className="p-1.5">
-          <Link to="/support" onClick={onNavigate} className={row}>
-            <SparklesIcon className="size-4 shrink-0 text-primary" />
-            {t("userMenu.support")}
-            {chevron}
+          <Link to="/support" onClick={onNavigate} className="relative mx-1.5 my-1.5 flex items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-3 py-3 text-sm font-bold text-white shadow-lg shadow-primary/30">
+            <HeartIcon className="support-beat size-4 shrink-0 fill-current" />
+            <span className="flex-1">{t("userMenu.support")}</span>
+            <SparklesIcon className="size-4 shrink-0 opacity-80" />
           </Link>
         </div>
 
