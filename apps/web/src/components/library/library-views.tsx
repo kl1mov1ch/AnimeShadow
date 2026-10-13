@@ -302,7 +302,7 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
     <section className="reveal flex flex-col gap-2" style={{ "--i": 2 } as CSSProperties}>
       <div className="flex items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <span className="size-1.5 rounded-full bg-primary" />
+          <span className="size-1.5 rounded-full bg-emerald-400" />
           {t("library.continueTitle")}
           <span className="text-xs font-normal text-muted-foreground">{entries.length}</span>
         </h2>

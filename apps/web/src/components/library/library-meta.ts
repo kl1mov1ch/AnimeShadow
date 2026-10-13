@@ -10,19 +10,20 @@ import {
 export const STATUSES = libraryStatusSchema.options;
 
 /**
- * A calm mark per status, the same everywhere on the page: the site's colour
- * for what is being watched now, shades of grey for the rest — the icon
- * and the name say which list it is, not a rainbow.
+ * One colour per status, the same everywhere on the page — the dot on a
+ * poster, the counter's fill and the list it filters by — so which list a
+ * title is in reads at a glance: green watching, blue planned, the site's
+ * colour finished, amber on hold, grey dropped.
  */
 export const STATUS_META: Record<
   LibraryStatus,
   { Icon: typeof PlayCircleIcon; dot: string; text: string; bar: string }
 > = {
-  WATCHING: { Icon: PlayCircleIcon, dot: "bg-primary", text: "text-primary", bar: "bg-primary" },
-  PLANNED: { Icon: BookmarkIcon, dot: "bg-foreground/45", text: "text-foreground/70", bar: "bg-foreground/40" },
-  COMPLETED: { Icon: CheckCircle2Icon, dot: "bg-foreground/80", text: "text-foreground", bar: "bg-foreground/60" },
-  ON_HOLD: { Icon: PauseCircleIcon, dot: "bg-foreground/30", text: "text-muted-foreground", bar: "bg-foreground/30" },
-  DROPPED: { Icon: XCircleIcon, dot: "bg-foreground/20", text: "text-muted-foreground", bar: "bg-foreground/20" },
+  WATCHING: { Icon: PlayCircleIcon, dot: "bg-emerald-400", text: "text-emerald-400", bar: "bg-emerald-400" },
+  PLANNED: { Icon: BookmarkIcon, dot: "bg-sky-400", text: "text-sky-400", bar: "bg-sky-400" },
+  COMPLETED: { Icon: CheckCircle2Icon, dot: "bg-primary", text: "text-primary", bar: "bg-primary" },
+  ON_HOLD: { Icon: PauseCircleIcon, dot: "bg-amber-400", text: "text-amber-400", bar: "bg-amber-400" },
+  DROPPED: { Icon: XCircleIcon, dot: "bg-zinc-400", text: "text-zinc-400", bar: "bg-zinc-400" },
 };
 
 /** 0–100, or null when the episode count is unknown. */
