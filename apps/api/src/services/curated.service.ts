@@ -225,7 +225,7 @@ export class CuratedService {
             const where = this.base(rule, ctx, allowAdult);
             const [total, covers] = await Promise.all([
               this.prisma.anime.count({ where }),
-              this.prisma.anime.findMany({ where, orderBy: rule.orderBy, take: 6, include: ANIME_WITH_GENRES_INCLUDE }),
+              this.prisma.anime.findMany({ where, orderBy: rule.orderBy, take: 8, include: ANIME_WITH_GENRES_INCLUDE }),
             ]);
             if (total < 4) return null;
             return {
