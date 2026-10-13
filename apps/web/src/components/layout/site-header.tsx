@@ -159,18 +159,10 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 lg:gap-8">
         <Wordmark textClassName="max-md:text-[0.79rem]" />
 
-        {/* The sections as a capsule: a glowing pill slides under the one
-            you're in, its icon gives a little hop; pointing at another
-            lifts its icon. CSS transitions only (see .hnav-* in index.css). */}
-        <nav
-          ref={navRef}
-          aria-label={t("common.menu")}
-          className="hnav relative hidden items-center gap-0.5 rounded-full border border-[var(--accent-line-soft)] bg-foreground/[0.03] p-1 lg:flex"
-        >
+        {/* The sections: a soft pill slides under the one you're in. */}
+        <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden items-center gap-0.5 lg:flex">
           {indicator && (
-            <span aria-hidden className="hnav-pill absolute inset-y-1 rounded-full" style={{ left: indicator.left, width: indicator.width }}>
-              <span key={indicator.left} className="hnav-sheen" />
-            </span>
+            <span aria-hidden className="hnav-pill absolute inset-y-0 rounded-full" style={{ left: indicator.left, width: indicator.width }} />
           )}
           {nav.map((item) => (
             <NavLink
@@ -180,17 +172,12 @@ export function SiteHeader() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  "hnav-link group/nav relative z-10 flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors duration-200",
+                  "relative z-10 flex h-9 items-center whitespace-nowrap rounded-full px-3.5 text-sm font-medium transition-colors duration-200",
                   isActive ? "text-foreground" : "text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground",
                 )
               }
             >
-              {({ isActive }) => (
-                <>
-                  <item.Icon className={cn("hnav-icon hidden size-4 shrink-0 xl:block", isActive && "hnav-icon-on text-primary")} />
-                  {item.label}
-                </>
-              )}
+              {item.label}
             </NavLink>
           ))}
         </nav>

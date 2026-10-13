@@ -1782,31 +1782,12 @@ body:has([role="dialog"][data-state="open"]) main * {
 @keyframes ti-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-22px) scale(0.3); } }
 @media (prefers-reduced-motion: reduce) { .ti, .ti-ring, .ti-tick, .ti-sparks span { animation: none; stroke-dashoffset: 0; } [data-sonner-toast].toast-card { animation: none; } }
 
-/* The header's sections: a pill under the one you're in that slides along
-   (spring), a sheen running through it on arrival, the active icon hopping
-   once and the others lifting under the pointer. */
+/* The header's sections: a soft pill under the one you're in, sliding along. */
 .hnav-pill {
-  background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 24%, transparent), color-mix(in srgb, #e879f9 14%, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 42%, transparent), 0 6px 22px -10px var(--primary);
-  overflow: hidden;
-  transition: left 0.45s cubic-bezier(0.34, 1.3, 0.64, 1), width 0.45s cubic-bezier(0.34, 1.3, 0.64, 1);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  transition: left 0.35s cubic-bezier(0.22, 1, 0.36, 1), width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.hnav-sheen {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.22) 50%, transparent 70%);
-  transform: translateX(-120%);
-  animation: hnav-sheen 0.9s ease-out 0.15s both;
-}
-@keyframes hnav-sheen { to { transform: translateX(120%); } }
-.hnav-icon { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease; }
-.hnav-link:hover .hnav-icon:not(.hnav-icon-on) { transform: translateY(-2px) scale(1.1); }
-.hnav-icon-on { animation: hnav-hop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both; }
-@keyframes hnav-hop { 0% { transform: scale(0.6); } 60% { transform: translateY(-3px) scale(1.15); } 100% { transform: none; } }
-@media (prefers-reduced-motion: reduce) {
-  .hnav-pill { transition: none; }
-  .hnav-sheen, .hnav-icon-on { animation: none; }
-}
+@media (prefers-reduced-motion: reduce) { .hnav-pill { transition: none; } }
 
 /* The guest invite: a ring of colour running round the card, the face
    bobbing a little, and hearts floating up from it. */
