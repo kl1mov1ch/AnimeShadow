@@ -1698,6 +1698,8 @@ body:has([role="dialog"][data-state="open"]) main * {
 }
 /* The dice on the collections page: one roll per click. */
 @keyframes dice-roll { from { transform: rotate(0) scale(1); } 50% { transform: rotate(200deg) scale(1.2); } to { transform: rotate(360deg) scale(1); } }
+@keyframes daily-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.daily-fill { transform-origin: left; animation: daily-fill 6s linear forwards; }
 .dice-roll { animation: dice-roll 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1; }
 @media (prefers-reduced-motion: reduce) {
   .cc-fan, .dice-roll { transition: none; animation: none; }

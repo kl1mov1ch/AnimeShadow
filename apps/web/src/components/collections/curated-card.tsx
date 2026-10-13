@@ -1,6 +1,6 @@
 import type { CuratedCollection } from "@animeshadow/shared";
-import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, CompassIcon } from "lucide-react";
-import { type CSSProperties, useRef } from "react";
+import { CompassIcon, PlayIcon, StarIcon } from "lucide-react";
+import { type CSSProperties, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CURATED_ICON, titlesCount } from "@/lib/curated";
 import { imageSrc } from "@/lib/format";
@@ -68,75 +68,119 @@ export function CuratedCard({ collection, className }: { collection: CuratedColl
 }
 
 /**
- * The collection of the day: its name and pitch, and its titles in a row
- * that moves with arrow buttons on a computer and a swipe on a phone —
- * in the site's colours, quiet enough to sit at the top of the page.
+ * The collection of the day, as a little showcase: its titles as a grid of
+ * posters to pick from, and the picked one large beside them — its poster,
+ * score, genres, a few lines about it and a way to watch. It moves on to the
+ * next title by itself every few seconds until the visitor points at it;
+ * no arrows, nothing to scroll.
  */
 export function DailyCurated({ collection }: { collection: CuratedCollection }) {
   const labels = useLabels();
   const Icon = CURATED_ICON[collection.icon] ?? CompassIcon;
-  const row = useRef<HTMLDivElement>(null);
-  const move = (dir: -1 | 1) => {
-    const el = row.current;
-    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
-  };
+  const items = collection.covers.slice(0, 8);
+  const [at, setAt] = useState(0);
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (held || items.length < 2) return;
+    const id = window.setTimeout(() => setAt((i) => (i + 1) % items.length), 6000);
+    return () => window.clearTimeout(id);
+  }, [at, held, items.length]);
+  const anime = items[at];
+  if (!anime) return null;
+  const meta = [labels.typeLabel(anime.type), anime.year, anime.episodes ? `${anime.episodes} эп.` : null].filter(Boolean).join(" · ");
+
   return (
-    <section className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/50 p-4 lg:flex-row lg:items-center lg:gap-5">
-      <div className="flex min-w-0 flex-col gap-2 lg:w-60 lg:shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Подборка дня</span>
-        <h2 className="flex items-center gap-2 font-display text-xl leading-tight">
-          <Icon className="size-5 shrink-0 text-muted-foreground" />
-          {collection.title}
-        </h2>
-        <p className="text-sm text-muted-foreground">{collection.pitch}</p>
-        <Link
-          to={`/collections/c/${collection.slug}`}
-          viewTransition
-          className="mt-1 inline-flex h-10 w-fit items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          Открыть · {titlesCount(collection.total)}
-          <ArrowRightIcon className="size-4" />
-        </Link>
-      </div>
-      <div className="relative min-w-0 lg:flex-1">
-        <div
-          ref={row}
-          // Posters fill the row when they fit and scroll when they don't —
-          // never a row ending in empty space.
-          className="-mx-4 grid snap-x snap-mandatory auto-cols-[minmax(6rem,7.5rem)] grid-flow-col gap-2.5 overflow-x-auto scroll-px-4 px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:auto-cols-[minmax(6.5rem,8.5rem)] lg:justify-between lg:scroll-px-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
-        >
-          {collection.covers.map((anime) => (
-            <Link key={anime.id} to={`/anime/${anime.slug || anime.id}`} className="group flex min-w-0 snap-start flex-col gap-1.5">
-              <img
-                src={imageSrc(anime.imageUrl)}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-border/50 transition-[box-shadow] duration-200 group-hover:ring-foreground/30"
-              />
-              <span className="line-clamp-2 text-xs font-medium leading-snug">{labels.title(anime)}</span>
+    <section
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      className="relative isolate grid gap-4 overflow-hidden rounded-2xl border border-border/60 bg-card/50 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6"
+    >
+      <img
+        key={anime.id}
+        aria-hidden
+        src={imageSrc(anime.imageUrl)}
+        alt=""
+        decoding="async"
+        className="pointer-events-none absolute inset-y-0 left-0 -z-10 h-full w-full animate-in object-cover opacity-[0.12] duration-700 fade-in-0 [mask-image:linear-gradient(to_right,#000_40%,transparent)] lg:w-2/3"
+      />
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <Icon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Подборка дня · {collection.title}
+            </span>
+          </span>
+          <Link to={`/collections/c/${collection.slug}`} viewTransition className="shrink-0 text-xs font-semibold text-primary hover:underline">
+            Все {titlesCount(collection.total)} →
+          </Link>
+        </div>
+        <div key={anime.id} className="flex min-w-0 animate-in gap-4 duration-500 fade-in-0 slide-in-from-left-2">
+          <Link to={`/anime/${anime.slug || anime.id}`} className="shrink-0">
+            <img src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)} alt="" decoding="async" className="aspect-[2/3] w-28 rounded-xl object-cover ring-1 ring-white/10 sm:w-36" />
+          </Link>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Link to={`/anime/${anime.slug || anime.id}`} className="font-display text-xl leading-tight transition-colors hover:text-primary sm:text-2xl">
+              {labels.title(anime)}
             </Link>
-          ))}
+            <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              {anime.score != null && (
+                <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                  <StarIcon className="size-3.5 fill-amber-400 text-amber-400" />
+                  {anime.score.toFixed(1)}
+                </span>
+              )}
+              {meta}
+            </span>
+            {anime.genres.length > 0 && (
+              <span className="flex flex-wrap gap-1">
+                {anime.genres.slice(0, 3).map((g) => (
+                  <span key={g} className="rounded-md bg-foreground/[0.07] px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
+                    {labels.genreLabel(g)}
+                  </span>
+                ))}
+              </span>
+            )}
+            {anime.synopsis && <p className="line-clamp-3 text-sm leading-relaxed text-foreground/80 sm:line-clamp-4">{anime.synopsis}</p>}
+            <Link
+              to={`/anime/${anime.slug || anime.id}#watch`}
+              className="mt-auto inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <PlayIcon className="size-4 fill-current" />
+              Смотреть
+            </Link>
+          </div>
         </div>
-        {/* Arrows on a computer; a phone swipes. */}
-        <div className="pointer-events-none absolute inset-y-0 -left-1 -right-1 hidden items-center justify-between lg:flex">
-          <button
-            type="button"
-            onClick={() => move(-1)}
-            aria-label="Назад"
-            className="pointer-events-auto -mt-8 grid size-9 place-items-center rounded-full border border-border/70 bg-background/90 text-foreground/80 shadow-md transition-colors hover:text-foreground"
-          >
-            <ChevronLeftIcon className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => move(1)}
-            aria-label="Вперёд"
-            className="pointer-events-auto -mt-8 grid size-9 place-items-center rounded-full border border-border/70 bg-background/90 text-foreground/80 shadow-md transition-colors hover:text-foreground"
-          >
-            <ChevronRightIcon className="size-4" />
-          </button>
-        </div>
+      </div>
+
+      {/* The titles to pick from: a 4×2 grid, the picked one lit; a thin line
+          under it fills while it waits to move on. */}
+      <div className="grid grid-cols-4 content-start gap-2">
+        {items.map((it, i) => {
+          const on = i === at;
+          return (
+            <button
+              key={it.id}
+              type="button"
+              onClick={() => setAt(i)}
+              onMouseEnter={() => setAt(i)}
+              onFocus={() => setAt(i)}
+              aria-pressed={on}
+              aria-label={labels.title(it)}
+              className={cn(
+                "relative overflow-hidden rounded-lg ring-2 transition-[opacity,box-shadow] duration-200",
+                on ? "opacity-100 ring-primary" : "opacity-55 ring-transparent hover:opacity-90",
+              )}
+            >
+              <img src={imageSrc(it.imageUrl)} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-full object-cover" />
+              {on && !held && items.length > 1 && (
+                <span aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                  <span key={at} className="daily-fill block h-full bg-primary" />
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </section>
   );
