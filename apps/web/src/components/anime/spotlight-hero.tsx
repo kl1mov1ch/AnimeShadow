@@ -278,7 +278,7 @@ function SlideFrames({
     queryKey: ["hero-frames", anime.id],
     enabled: on || warm,
     staleTime: Infinity,
-    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${anime.id}/frames`, { signal }).then((r) => r.frames),
+    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${anime.id}/frames?v=2`, { signal }).then((r) => r.frames),
   });
   const frames = useMemo(() => {
     const own = (data ?? []).map((u) => imageSrc(u)).filter((u): u is string => Boolean(u));

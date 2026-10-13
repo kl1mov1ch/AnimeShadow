@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { AuthCard } from "@/components/auth/auth-card";
 import { CodeInput } from "@/components/auth/code-input";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ export function Component() {
       try {
         await confirmRegistration(email, value, needPassword ? password : undefined);
         writePendingEmail(null);
+        toast.success("Аккаунт создан! 🎉", { description: "Добро пожаловать в AnimeShadow — начни со своего списка" });
         navigate("/library", { replace: true });
       } catch (err) {
         if (err instanceof ApiRequestError && err.code === "PASSWORD_REQUIRED") {
@@ -89,11 +91,12 @@ export function Component() {
           setNeedPassword(true);
           return;
         }
-        setError(
+        const message =
           err instanceof ApiRequestError && err.code === "INVALID_CODE"
             ? t("auth.verifyEmail.invalidCode")
-            : t("auth.genericError"),
-        );
+            : t("auth.genericError");
+        setError(message);
+        toast.error("Код не подошёл", { description: message });
         setCode("");
       } finally {
         setPending(false);

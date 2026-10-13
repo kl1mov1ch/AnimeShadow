@@ -158,7 +158,7 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 lg:gap-8">
-        <Wordmark effect="slice" className="max-[374px]:text-base" />
+        <Wordmark textClassName="max-md:text-[0.79rem]" />
 
         <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden h-16 items-center lg:flex">
           {nav.map((item) => (

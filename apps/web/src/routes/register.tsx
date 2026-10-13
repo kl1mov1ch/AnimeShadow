@@ -1,5 +1,6 @@
 import { registerInputSchema } from "@animeshadow/shared";
 import { type FormEvent, useState } from "react";
+import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AuthCard,
@@ -33,11 +34,12 @@ export function Component() {
     setErrors({});
     try {
       await loginWithTelegram(data);
+      toast.success("Добро пожаловать! 🎉", { description: "Аккаунт готов — начинай собирать свой список" });
       navigate("/library", { replace: true });
     } catch (error) {
-      setErrors({
-        form: error instanceof ApiRequestError ? error.message : t("auth.genericError"),
-      });
+      const message = error instanceof ApiRequestError ? error.message : t("auth.genericError");
+      setErrors({ form: message });
+      toast.error("Не получилось зарегистрироваться", { description: message });
     }
   };
 
@@ -58,6 +60,7 @@ export function Component() {
         next[issue.path[0] as FieldName] = issue.message;
       }
       setErrors(next);
+      toast.error("Проверьте поля", { description: Object.values(next)[0] });
       return;
     }
 
@@ -65,6 +68,7 @@ export function Component() {
     setPending(true);
     try {
       await requestRegistration(parsed.data);
+      toast.success("Почти готово! ✉️", { description: `Код подтверждения отправлен на ${parsed.data.email}` });
       // No account exists yet and nobody's signed in — the code just
       // emailed is what actually creates it. See AuthService.confirmRegistration.
       navigate("/verify-email", { state: { email: parsed.data.email }, replace: true });
@@ -76,8 +80,13 @@ export function Component() {
           password: error.fieldError("password"),
           form: error.fields ? undefined : error.message,
         });
+        toast.error("Не получилось зарегистрироваться", {
+          description:
+            error.fieldError("email") ?? error.fieldError("displayName") ?? error.fieldError("password") ?? error.message,
+        });
       } else {
         setErrors({ form: t("auth.genericError") });
+        toast.error("Не получилось зарегистрироваться", { description: t("auth.genericError") });
       }
     } finally {
       setPending(false);

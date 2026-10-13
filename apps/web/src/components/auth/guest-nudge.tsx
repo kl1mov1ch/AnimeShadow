@@ -13,13 +13,13 @@ export const ACCOUNT_PERKS = [
   { icon: TrophyIcon, text: "Уровни, достижения, рамки и профиль, который хочется показать" },
 ] as const;
 
-type Variant = "home" | "browse" | "collections" | "anime";
+type Variant = "home" | "browse" | "collections";
 
 const COPY: Record<Variant, { gif: string; title: string; text: string }> = {
   home: {
     gif: "wave",
-    title: "Эй, останешься с нами?",
-    text: "С аккаунтом главная подстроится под тебя, а прогресс серий не потеряется.",
+    title: "Эй, останешься с нами? 💜",
+    text: "Ты уже здесь — осталось 20 секунд, и AnimeShadow станет твоим: главная подстроится под вкус, серии будут отмечаться сами, а всё, что нашёл, никуда не денется. Бесплатно и навсегда.",
   },
   browse: {
     gif: "pout",
@@ -31,11 +31,6 @@ const COPY: Record<Variant, { gif: string; title: string; text: string }> = {
     title: "Собери свою подборку?",
     text: "Свои подборки, лайки и избранное — бесплатно, за 20 секунд.",
   },
-  anime: {
-    gif: "smile",
-    title: "Запомнить, где ты?",
-    text: "Отмечай серии, ставь оценки и считай марафоны — нужен только аккаунт.",
-  },
 };
 
 /** At most once in this long, and only when moving to another page. */
@@ -46,7 +41,7 @@ function variantOf(path: string): Variant | null {
   if (path === "/") return "home";
   if (path.startsWith("/browse") || path.startsWith("/ongoing") || path.startsWith("/top")) return "browse";
   if (path.startsWith("/collections")) return "collections";
-  if (path.startsWith("/anime/")) return "anime";
+  // A title's page has its own strip above the player instead.
   return null;
 }
 
@@ -71,8 +66,10 @@ function writeLast(at: number) {
  * A small, friendly invite for guests — bottom-left on a computer, a compact
  * card in the middle of a phone's screen (a quarter of it at most). It never
  * interrupts watching: it only appears when the guest moves to another page
- * (home, catalog, collections, a title), and at most once every five
- * minutes; staying on one page, player running, never brings it up.
+ * (home, catalog, collections) — or after a while on the home page — and at
+ * most once every five minutes. A title's page never shows it: the strip
+ * above the player speaks there. On the home page it is the big one, with
+ * everything an account gives.
  */
 export function GuestNudge() {
   const { status } = useAuth();
@@ -86,30 +83,38 @@ export function GuestNudge() {
     if (!guest) return;
     const now = Date.now();
     const last = readLast() ?? memLast.current;
-    // Nothing on landing; the clock starts on the very first visit.
-    if (!landed.current) {
-      landed.current = true;
-      if (last == null) {
-        memLast.current = now;
-        writeLast(now);
-      }
-      return;
-    }
-    // A move to another page hides the one still open.
-    setVariant(null);
     const v = variantOf(pathname);
-    if (!v || (last != null && now - last < EVERY_MS)) return;
+    const due = last == null || now - last >= EVERY_MS;
+    let wait = 1200;
+    if (!landed.current) {
+      // Landing: only the home page asks, after a while on it; elsewhere
+      // the clock just starts on the very first visit.
+      landed.current = true;
+      if (v !== "home" || !due) {
+        if (last == null) {
+          memLast.current = now;
+          writeLast(now);
+        }
+        return;
+      }
+      wait = 15_000;
+    } else {
+      // A move to another page hides the one still open.
+      setVariant(null);
+      if (!v || !due) return;
+    }
     // A beat after the page arrives, not on top of the transition.
     const id = window.setTimeout(() => {
       memLast.current = Date.now();
       writeLast(memLast.current);
       setVariant(v);
-    }, 1200);
+    }, wait);
     return () => window.clearTimeout(id);
   }, [guest, pathname]);
 
   if (!guest || !variant) return null;
   const copy = COPY[variant];
+  const big = variant === "home";
   const close = () => setVariant(null);
 
   return (
@@ -120,7 +125,9 @@ export function GuestNudge() {
         "fixed z-50 animate-in duration-500 fade-in-0",
         // Phone: a compact card in the middle. Computer: the bottom-left corner.
         "inset-x-0 top-1/2 mx-auto w-[min(22rem,calc(100vw-2rem))] -translate-y-1/2 zoom-in-90",
-        "md:inset-x-auto md:bottom-5 md:left-5 md:top-auto md:mx-0 md:w-[21rem] md:translate-y-0 md:zoom-in-100 md:slide-in-from-left-8",
+        "md:inset-x-auto md:bottom-5 md:left-5 md:top-auto md:mx-0 md:translate-y-0",
+        big ? "md:w-[27rem]" : "md:w-[21rem]",
+        " md:zoom-in-100 md:slide-in-from-left-8",
       )}
     >
       <div className="nudge-ring rounded-3xl p-px shadow-[0_24px_60px_-18px_rgb(0_0_0/0.85)]">
@@ -136,7 +143,7 @@ export function GuestNudge() {
           </button>
           <div className="relative flex items-center gap-3">
             <div className="relative shrink-0">
-              <ReactionGif category={copy.gif} className="nudge-bob size-14 rounded-xl shadow-lg md:size-16" />
+              <ReactionGif category={copy.gif} className={cn("nudge-bob size-14 rounded-xl shadow-lg", big ? "md:size-24" : "md:size-16")} />
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
@@ -149,10 +156,28 @@ export function GuestNudge() {
               ))}
             </div>
             <div className="flex min-w-0 flex-col gap-0.5 pr-5">
-              <p className="font-display text-[15px] leading-tight">{copy.title}</p>
-              <p className="line-clamp-2 text-[12px] leading-snug text-foreground/75">{copy.text}</p>
+              <p className={cn("font-display text-[15px] leading-tight", big && "md:text-lg")}>{copy.title}</p>
+              <p className={cn("line-clamp-2 text-[12px] leading-snug text-foreground/75", big && "md:line-clamp-none md:text-[13px]")}>{copy.text}</p>
             </div>
           </div>
+          {big && (
+            <ul className="relative mt-3 hidden flex-col gap-1.5 border-t border-border/50 pt-3 md:flex">
+              {ACCOUNT_PERKS.map(({ icon: Icon, text }) => (
+                <li key={text} className="flex items-start gap-2 text-[12.5px] leading-snug text-foreground/85">
+                  <span className="grid size-5 shrink-0 place-items-center rounded-md bg-primary/15 text-primary">
+                    <Icon className="size-3" />
+                  </span>
+                  {text}
+                </li>
+              ))}
+              <li className="flex items-start gap-2 text-[12.5px] leading-snug text-foreground/85">
+                <span className="grid size-5 shrink-0 place-items-center rounded-md bg-primary/15 text-primary">
+                  <SparklesIcon className="size-3" />
+                </span>
+                Калькулятор марафона, рекомендации по вкусу и уведомления о новых сериях
+              </li>
+            </ul>
+          )}
           <div className="relative mt-3 flex items-center gap-2">
             <Link
               to="/register"

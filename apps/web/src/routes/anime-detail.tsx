@@ -34,6 +34,7 @@ import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 // import { ScoreBadge } from "@/components/anime/score-badge";
 import { TrailerButton } from "@/components/anime/trailer-button";
 import { WatchSection } from "@/components/anime/watch-section";
+import { GuestPlayerBanner } from "@/components/auth/guest-player-banner";
 import { PulseRings } from "@/components/common/pulse-rings";
 import { ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
@@ -349,6 +350,8 @@ function AnimeDetailView({ param }: { param: string }) {
           player's container. */}
       {/* On a phone the section runs edge to edge and the player with it;
           the list and score bar go under the picture, which comes first. */}
+      {/* Over the player, never in it: a guest's reminder of what they lose. */}
+      <GuestPlayerBanner />
       <Panel
         id="watch"
         icon={MonitorPlayIcon}

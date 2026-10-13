@@ -1,5 +1,6 @@
 import { loginInputSchema } from "@animeshadow/shared";
 import { type FormEvent, useState } from "react";
+import { toast } from "sonner";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AuthCard,
@@ -32,11 +33,12 @@ export function Component() {
     setErrors({});
     try {
       await loginWithTelegram(data);
+      toast.success("С возвращением! 👋", { description: "Вошли через Telegram" });
       navigate(from, { replace: true });
     } catch (error) {
-      setErrors({
-        form: error instanceof ApiRequestError ? error.message : t("auth.genericError"),
-      });
+      const message = error instanceof ApiRequestError ? error.message : t("auth.genericError");
+      setErrors({ form: message });
+      toast.error("Не получилось войти", { description: message });
     }
   };
 
@@ -55,6 +57,7 @@ export function Component() {
         next[issue.path[0] as keyof Errors] = issue.message;
       }
       setErrors(next);
+      toast.error("Проверьте поля", { description: Object.values(next)[0] });
       return;
     }
 
@@ -62,6 +65,7 @@ export function Component() {
     setPending(true);
     try {
       await login(parsed.data);
+      toast.success("С возвращением! 👋", { description: "Твой список и прогресс уже на месте" });
       navigate(from, { replace: true });
     } catch (error) {
       if (error instanceof ApiRequestError) {
@@ -70,8 +74,12 @@ export function Component() {
           password: error.fieldError("password"),
           form: error.fields ? undefined : error.message,
         });
+        toast.error("Не получилось войти", {
+          description: error.fieldError("email") ?? error.fieldError("password") ?? error.message,
+        });
       } else {
         setErrors({ form: t("auth.genericError") });
+        toast.error("Не получилось войти", { description: t("auth.genericError") });
       }
     } finally {
       setPending(false);

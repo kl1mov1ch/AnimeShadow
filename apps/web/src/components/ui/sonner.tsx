@@ -17,7 +17,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <InfoMark />,
         warning: <InfoMark tone="warning" />,
         error: <ErrorMark />,
-        loading: <Loader2Icon className="size-5 animate-spin text-primary" />,
+        loading: (
+          <span className="ti ti-loading">
+            <Loader2Icon className="size-5 animate-spin" />
+          </span>
+        ),
       }}
       toastOptions={{
         // Sonner's own slide/fade-in is already smooth; this just makes each
@@ -27,21 +31,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // logo and the error pages) — `text-foreground` tracks light/dark
         // automatically, so it's the same subtle presence in either theme,
         // never competing with the actual message on top of it.
-        // A solid card a shade lighter than the page, with a thin ring in the
-        // message's colour and the icon in a soft badge — sonner's own layout
-        // left alone, so nothing shifts.
+        // Each kind has its own colour from the site's palette (see .toast-*
+        // in index.css: green for done, red for errors, amber for warnings,
+        // blue for news, the brand colour while loading) — a stripe on the
+        // left, a soft wash, the mark, a timer line along the bottom and the
+        // action button all wear it, so the eye lands on what happened and
+        // what to do. Sonner's own layout is left alone, so nothing shifts.
         classNames: {
-          toast:
-            "!bg-[color-mix(in_srgb,var(--card)_93%,white_7%)] !text-foreground !border !border-[color-mix(in_srgb,var(--primary)_30%,transparent)] !rounded-2xl !shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)] !items-center !gap-3 !py-3.5 !pl-3.5",
+          toast: "toast-card !rounded-2xl !items-center !gap-3 !py-3.5 !pl-4 !pr-3.5",
           title: "!text-[13.5px] !font-semibold !leading-snug",
           description: "!text-xs !text-muted-foreground",
           // The mark sizes itself; the slot only centres it.
           icon: "!m-0 !size-9 !shrink-0 !flex !items-center !justify-center",
-          error: "!border-destructive/40",
-          warning: "!border-amber-400/40",
-          info: "!border-border",
-          actionButton: "!bg-primary !text-primary-foreground !rounded-lg",
-          cancelButton: "!rounded-lg",
+          actionButton: "toast-action !h-8 !rounded-lg !px-3 !text-xs !font-bold",
+          cancelButton: "!h-8 !rounded-lg !px-3 !text-xs",
         },
       }}
       style={

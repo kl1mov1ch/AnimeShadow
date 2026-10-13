@@ -19,27 +19,24 @@ const rollQuery = z.object({ count: z.coerce.number().int().min(1).max(14).defau
 const rollPool = new TtlCache<number[]>(10 * 60_000, 4);
 
 /**
- * The watch payload as the page needs it. Every Kodik dub carried five
- * screenshot links per episode, and the page shows only one still per
- * episode, taken from the first dub that has any — so a title with 40 dubs
- * and 28 episodes answered with 380 KB, 90% of it links nobody loads. One
- * still per episode, on the first dub that has it; the result is kept per
- * cached response, so it is worked out once, not on every request.
+ * The watch payload as the page needs it. Kodik's screenshot links are left
+ * out altogether: its CDN (solodcdn) resets connections from many viewers'
+ * networks, so every one of them was a failed request in the console, and
+ * they were most of the payload besides. Episode stills come from AniLibria
+ * and Kitsu instead. The result is kept per cached response, so it is worked
+ * out once, not on every request.
  */
 const slimmed = new WeakMap<WatchResponse, WatchResponse>();
 function slimWatch(response: WatchResponse): WatchResponse {
   const hit = slimmed.get(response);
   if (hit) return hit;
-  const withStill = new Set<string>();
   const out: WatchResponse = {
     ...response,
     sources: response.sources.map((source) => {
       if (!source.iframeEpisodes) return source;
       const episodes: NonNullable<typeof source.iframeEpisodes> = {};
       for (const [n, episode] of Object.entries(source.iframeEpisodes)) {
-        const first = episode.thumbs.length > 0 && !withStill.has(n);
-        if (first) withStill.add(n);
-        episodes[n] = { url: episode.url, thumbs: first ? episode.thumbs.slice(0, 1) : [] };
+        episodes[n] = { url: episode.url, thumbs: [] };
       }
       return { ...source, iframeEpisodes: episodes };
     }),
@@ -207,31 +204,28 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/anime/:id/frames", async (request, reply) => {
     const { id } = parse(idParams, request.params);
     reply.header("cache-control", "public, max-age=21600");
-    // Stills from the newest episodes first (the players' own previews), the
-    // catalogue's screenshots only to fill in.
-    const fromEpisodes = await fastify.services.watch
-      .getSources(id)
-      .then((watch) => {
-        const byEpisode = new Map<number, string[]>();
-        for (const source of watch.sources) {
-          for (const [key, ep] of Object.entries(source.iframeEpisodes ?? {})) {
-            const n = Number(key);
-            if (Number.isInteger(n) && ep.thumbs.length > 0) byEpisode.set(n, [...(byEpisode.get(n) ?? []), ...ep.thumbs]);
-          }
-          for (const [key, meta] of Object.entries(source.episodeMeta ?? {})) {
-            const n = Number(key);
-            if (Number.isInteger(n) && meta.thumb) byEpisode.set(n, [...(byEpisode.get(n) ?? []), meta.thumb]);
-          }
-        }
-        // Newest episodes first; two stills from each, until twelve.
-        return [...byEpisode.entries()]
-          .sort((a, b) => b[0] - a[0])
-          // Kodik's full-size stills before AniLibria's small previews.
-          .flatMap(([, thumbs]) => [...new Set(thumbs)].sort((x, y) => Number(x.includes("anilibria")) - Number(y.includes("anilibria"))).slice(0, 2))
-          .slice(0, 12);
-      })
-      .catch(() => [] as string[]);
-    const frames = fromEpisodes.length >= 4 ? fromEpisodes : [...fromEpisodes, ...(await catalog.heroFrames(id))].slice(0, 12);
+    // The catalogue's full-size screenshots. Kodik's episode stills were the
+    // only large per-episode ones, but its CDN refuses many viewers, so its
+    // links are never handed out; AniLibria's previews (200x113, too small
+    // for a full-width hero) only stand in when there are no screenshots.
+    const shots = await catalog.heroFrames(id);
+    const fromEpisodes =
+      shots.length >= 4
+        ? []
+        : await fastify.services.watch
+            .getSources(id)
+            .then((watch) => {
+              const byEpisode = new Map<number, string>();
+              for (const source of watch.sources) {
+                for (const [key, meta] of Object.entries(source.episodeMeta ?? {})) {
+                  const n = Number(key);
+                  if (Number.isInteger(n) && meta.thumb && !byEpisode.has(n)) byEpisode.set(n, meta.thumb);
+                }
+              }
+              return [...byEpisode.entries()].sort((x, y) => y[0] - x[0]).map(([, url]) => url);
+            })
+            .catch(() => [] as string[]);
+    const frames = [...shots, ...fromEpisodes].slice(0, 12);
     return { frames, fromEpisodes: fromEpisodes.length > 0 };
   });
 
