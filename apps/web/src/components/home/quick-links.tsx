@@ -32,10 +32,11 @@ interface QuickLink {
  * over a one-word name, four to a row; from a tablet up the icon beside the
  * name and what is in it.
  */
+// The same tile on every screen: the icon beside the name and what is in it.
 const TILE =
-  "group relative flex min-w-0 flex-col items-center gap-1.5 rounded-2xl p-1 text-center outline-none active:scale-[0.97] sm:flex-row sm:gap-2.5 sm:rounded-xl sm:border sm:border-border/50 sm:bg-card/40 sm:p-2.5 sm:text-left sm:transition-colors sm:duration-200 sm:hover:border-foreground/20 sm:hover:bg-card/70 focus-visible:ring-2 focus-visible:ring-ring";
+  "group relative flex min-w-0 flex-row items-center gap-2.5 rounded-xl border border-border/50 bg-card/40 p-2.5 text-left outline-none transition-colors duration-200 hover:border-foreground/20 hover:bg-card/70 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring";
 const CHIP =
-  "grid size-12 shrink-0 place-items-center rounded-2xl border border-border/60 bg-card/70 text-foreground/75 transition-colors duration-200 group-hover:text-foreground sm:size-9 sm:rounded-lg sm:border-0 sm:bg-foreground/[0.06]";
+  "grid size-9 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-foreground/75 transition-colors duration-200 group-hover:text-foreground";
 
 /**
  * Right under the hero: the lists people come to an anime site for. Light
@@ -79,13 +80,13 @@ export function HomeQuickLinks() {
   };
 
   return (
-    <nav aria-label="Разделы" className="grid grid-cols-4 gap-x-1 gap-y-3 sm:gap-2.5 lg:grid-cols-8">
+    <nav aria-label="Разделы" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5 lg:grid-cols-8">
       {links.map(({ to, title, hint, Icon, curated: slug }) => {
         const collection = slug ? byslug.get(slug) : undefined;
         return (
           <Link key={to} to={to} viewTransition className={TILE}>
             <span className={CHIP}>
-              <Icon className="size-5 sm:size-[18px]" />
+              <Icon className="size-[18px]" />
             </span>
             <TileText title={title} hint={collection ? titlesCount(collection.total) : hint} />
           </Link>
@@ -93,7 +94,7 @@ export function HomeQuickLinks() {
       })}
       <button type="button" onClick={() => void roll()} className={TILE}>
         <span className={CHIP}>
-          <DicesIcon className={cn("size-5 sm:size-[18px]", rolling && "animate-spin")} />
+          <DicesIcon className={cn("size-[18px]", rolling && "animate-spin")} />
         </span>
         <TileText title="Случайное" hint="Сюрприз на вечер" />
       </button>
@@ -104,10 +105,8 @@ export function HomeQuickLinks() {
 function TileText({ title, hint }: { title: string; hint: string }) {
   return (
     <span className="relative z-10 flex w-full min-w-0 flex-col">
-      <span className="truncate text-[11.5px] font-medium leading-tight text-foreground/85 sm:text-sm sm:font-semibold sm:text-foreground">
-        {title}
-      </span>
-      <span className="hidden truncate text-[11px] text-muted-foreground sm:block">{hint}</span>
+      <span className="truncate text-[13px] font-semibold leading-tight text-foreground sm:text-sm">{title}</span>
+      <span className="truncate text-[11px] text-muted-foreground">{hint}</span>
     </span>
   );
 }

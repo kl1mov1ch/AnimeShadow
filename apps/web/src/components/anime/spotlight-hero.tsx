@@ -3,12 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BookmarkCheckIcon,
   BookmarkPlusIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   PlayIcon,
   StarIcon,
 } from "lucide-react";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { TrailerButton } from "@/components/anime/trailer-button";
@@ -91,14 +90,26 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const [hovered, setHovered] = useState(false);
   const paused = hidden || hovered || !onScreen;
 
+  // The slide that just left stays fully drawn under the new one until the
+  // new one has faded in — so a switch never shows the dark page between.
+  const [under, setUnder] = useState<number | null>(null);
   const go = useCallback(
     (to: number, manual: boolean) => {
       if (count === 0) return;
-      setIndex(((to % count) + count) % count);
+      const target = ((to % count) + count) % count;
+      setIndex((from) => {
+        if (from !== target) setUnder(from);
+        return target;
+      });
       if (manual) setRun((r) => r + 1);
     },
     [count],
   );
+  useEffect(() => {
+    if (under == null) return;
+    const id = window.setTimeout(() => setUnder(null), 1100);
+    return () => window.clearTimeout(id);
+  }, [under, index]);
 
   // A swipe across the frame moves between titles on a touch screen.
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -156,6 +167,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
               key={slide.id}
               anime={slide}
               on={i === index}
+              under={i === under}
               // The next title's first frame is fetched ahead, quietly.
               warm={i === (index + 1) % count}
               paused={paused || calm}
@@ -165,7 +177,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
           {/* The lower edge fades into the page — on a phone the title sits on it. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-background via-background/70 to-transparent lg:hidden"
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-3/4 bg-gradient-to-t from-background from-10% via-background/80 to-transparent lg:hidden"
           />
           {count > 1 && (
             <div className="absolute inset-y-0 right-3 hidden items-center lg:flex">
@@ -189,7 +201,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
             <>
               {/* A computer: the rotation as small frames; round the current
                   one runs a line — the time left before the next. */}
-              <div className="hidden gap-2.5 lg:flex">
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:gap-2.5 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
                 {slides.map((slide, i) => {
                   const active = i === index;
                   const art = framesOf(slide)[0];
@@ -202,7 +214,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                       title={labels.title(slide)}
                       aria-current={active}
                       className={cn(
-                        "relative aspect-video w-[4.75rem] shrink-0 rounded-lg p-[3px] transition-opacity duration-300",
+                        "relative aspect-video w-[5.25rem] shrink-0 rounded-lg p-[3px] transition-opacity duration-300 lg:w-[4.75rem]",
                         active ? "opacity-100" : "opacity-50 hover:opacity-90",
                       )}
                     >
@@ -231,31 +243,6 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
                 })}
               </div>
 
-              {/* A phone: one segment per title, the current one filling. */}
-              <div className="flex items-center gap-2 lg:hidden">
-                <HeroArrow label={t("common.previous")} onClick={() => go(index - 1, true)}>
-                  <ChevronLeftIcon className="size-4" />
-                </HeroArrow>
-                <div className="flex flex-1 items-center gap-1.5">
-                  {slides.map((slide, i) => (
-                    <button
-                      key={slide.id}
-                      type="button"
-                      onClick={() => go(i, true)}
-                      aria-label={labels.title(slide)}
-                      className="relative h-7 flex-1"
-                    >
-                      <span className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-foreground/15">
-                        {i < index && <span className="absolute inset-0 bg-foreground/45" />}
-                        {i === index && !calm && <span key={slideKey} className="hero-fill absolute inset-0 bg-primary" style={timing} />}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <HeroArrow label={t("common.next")} onClick={() => go(index + 1, true)}>
-                  <ChevronRightIcon className="size-4" />
-                </HeroArrow>
-              </div>
             </>
           )}
         </div>
@@ -275,12 +262,14 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
 function SlideFrames({
   anime,
   on,
+  under,
   warm,
   paused,
   first,
 }: {
   anime: AnimeDetail;
   on: boolean;
+  under: boolean;
   warm: boolean;
   paused: boolean;
   first: boolean;
@@ -333,9 +322,16 @@ function SlideFrames({
     return () => window.clearTimeout(id);
   }, [arrived, incoming]);
 
-  if (!base || (!on && !warm && !first)) return null;
+  if (!base || (!on && !under && !warm && !first)) return null;
   return (
-    <div aria-hidden={!on} className={cn("absolute inset-0 transition-opacity duration-700 ease-out", on ? "opacity-100" : "opacity-0")}>
+    <div
+      aria-hidden={!on}
+      className={cn(
+        "absolute inset-0",
+        // The new slide fades in on top; the one it replaces stays drawn below.
+        on ? "z-10 opacity-100 transition-opacity duration-700 ease-out" : under ? "z-0 opacity-100" : "z-0 opacity-0",
+      )}
+    >
       <FadeImg key={base} src={base} priority={first} />
       {incoming && (
         <img
@@ -352,11 +348,17 @@ function SlideFrames({
   );
 }
 
-/** A picture that fades in once it has loaded — never shown half-drawn. */
+/** A picture that fades in once it has loaded — never shown half-drawn; one
+ *  already in the browser's cache shows at once, with no second fade. */
 function FadeImg({ src, priority }: { src: string; priority: boolean }) {
+  const ref = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
+  useLayoutEffect(() => {
+    if (ref.current?.complete && ref.current.naturalWidth > 0) setLoaded(true);
+  }, [src]);
   return (
     <img
+      ref={ref}
       src={src}
       alt=""
       decoding="async"
@@ -404,7 +406,7 @@ function SlidePitch({ anime, title }: { anime: AnimeDetail; title: string }) {
       </h2>
 
       {anime.synopsis && (
-        <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-foreground/75 lg:line-clamp-3">{anime.synopsis}</p>
+        <p className="mt-2 line-clamp-2 max-w-xl text-[13px] leading-relaxed text-foreground/75 lg:mt-3 lg:line-clamp-3 lg:text-sm">{anime.synopsis}</p>
       )}
 
       <div className="mt-3.5 flex items-center gap-2.5 lg:mt-5">
