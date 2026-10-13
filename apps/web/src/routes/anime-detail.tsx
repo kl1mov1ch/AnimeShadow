@@ -669,7 +669,16 @@ function AudiencePanel({ animeId }: { animeId: number }) {
   });
   if (rows.length === 0) return null;
   const sum = rows.reduce((n, row) => n + row.value, 0) || 1;
-  const tint = (strength: number) => `color-mix(in srgb, var(--primary) ${strength}%, transparent)`;
+  // The same colours as the lists in "My list": finished in the site's
+  // colour, watching green, planned blue, on hold amber, dropped grey.
+  const LIST_COLOR: Record<string, string> = {
+    completed: "var(--primary)",
+    watching: "#34d399",
+    planToWatch: "#38bdf8",
+    onHold: "#fbbf24",
+    dropped: "#a1a1aa",
+  };
+  const tint = (key: string) => LIST_COLOR[key] ?? "var(--primary)";
   const mine = library?.find((e) => e.anime.id === animeId)?.status;
   const MINE: Record<string, string> = { completed: "COMPLETED", watching: "WATCHING", planToWatch: "PLANNED", onHold: "ON_HOLD", dropped: "DROPPED" };
   const focus = hovered ?? picked;
@@ -698,7 +707,7 @@ function AudiencePanel({ animeId }: { animeId: number }) {
             onMouseEnter={() => setHovered(row.key)}
             onMouseLeave={() => setHovered(null)}
             className="h-full transition-opacity duration-200"
-            style={{ width: `${(row.value / sum) * 100}%`, background: tint(row.strength), opacity: focus && focus !== row.key ? 0.25 : 1 }}
+            style={{ width: `${(row.value / sum) * 100}%`, background: tint(row.key), opacity: focus && focus !== row.key ? 0.25 : 1 }}
           />
         ))}
       </div>
@@ -720,7 +729,7 @@ function AudiencePanel({ animeId }: { animeId: number }) {
                   focus && !on && "opacity-55",
                 )}
               >
-                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: tint(row.strength) }} />
+                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: tint(row.key) }} />
                 <span className="min-w-0 flex-1 truncate text-foreground/85">{label(row.key)}</span>
                 {isMine && <span className="rounded bg-primary/15 px-1.5 text-[10px] font-bold text-primary">вы</span>}
                 <span className="tabular-nums text-muted-foreground">{Math.round((row.value / sum) * 100)}%</span>

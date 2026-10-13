@@ -32,18 +32,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // logo and the error pages) — `text-foreground` tracks light/dark
         // automatically, so it's the same subtle presence in either theme,
         // never competing with the actual message on top of it.
-        // Solid, never see-through: the card colour of the site, a stripe and
-        // an icon in the message's colour, the 影 faint in the corner.
+        // A solid card a shade lighter than the page, with a thin ring in the
+        // message's colour and the icon in a soft badge — sonner's own layout
+        // left alone, so nothing shifts.
         classNames: {
           toast:
-            "!rounded-2xl !border !border-[var(--accent-line-soft)] !bg-card !text-foreground !shadow-2xl !shadow-black/50 !py-3.5 !pl-4 !pr-5 !gap-3 relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary after:pointer-events-none after:absolute after:-right-2 after:-bottom-5 after:select-none after:font-display after:text-7xl after:leading-none after:text-foreground/[0.05] after:content-['影']",
+            "!bg-[color-mix(in_srgb,var(--card)_93%,white_7%)] !text-foreground !border !border-[color-mix(in_srgb,var(--primary)_30%,transparent)] !rounded-2xl !shadow-[0_12px_40px_-12px_rgb(0_0_0/0.7)] !items-center",
           title: "!text-[13.5px] !font-semibold",
           description: "!text-xs !text-muted-foreground",
-          icon: "!m-0 grid !size-8 shrink-0 place-items-center rounded-full bg-foreground/[0.07]",
-          success: "before:!bg-primary [&_[data-icon]]:!bg-primary/15 [&_svg]:!text-primary",
-          error: "before:!bg-destructive [&_[data-icon]]:!bg-destructive/15 [&_svg]:!text-destructive",
-          warning: "before:!bg-amber-400 [&_[data-icon]]:!bg-amber-400/15 [&_svg]:!text-amber-400",
-          info: "before:!bg-foreground/50 [&_svg]:!text-foreground/80",
+          icon: "grid !size-7 shrink-0 place-items-center rounded-full bg-primary/15 [&_svg]:!size-4",
+          success: "[&_[data-icon]]:!text-primary",
+          error: "!border-destructive/40 [&_[data-icon]]:!bg-destructive/15 [&_[data-icon]]:!text-destructive",
+          warning: "!border-amber-400/40 [&_[data-icon]]:!bg-amber-400/15 [&_[data-icon]]:!text-amber-400",
+          info: "!border-border [&_[data-icon]]:!bg-foreground/10 [&_[data-icon]]:!text-foreground/80",
           actionButton: "!bg-primary !text-primary-foreground !rounded-lg",
           cancelButton: "!rounded-lg",
         },
