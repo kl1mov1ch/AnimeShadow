@@ -25,7 +25,7 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { CoverFlow } from "@/components/collections/cover-flow";
@@ -101,8 +101,8 @@ function Article({ collection: c }: { collection: CollectionDetail }) {
   return (
     <article
       className="mx-auto flex max-w-4xl flex-col gap-6 py-4 sm:py-6"
-      // The author's colour, for every accent on the page.
-      style={c.accent ? ({ "--primary": c.accent, "--ring": c.accent } as CSSProperties) : undefined}
+      // One look for every collection: the site's own colours (an author's
+      // accent is kept in the data but not applied).
     >
       <Hero collection={c} />
 
@@ -271,7 +271,7 @@ function ListButton({ animeId, compact = false }: { animeId: number; compact?: b
   const entry = library?.find((e) => e.anime.id === animeId);
   if (entry) {
     return (
-      <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500/12 px-2.5 text-xs font-semibold text-emerald-300", compact && "h-7 px-2 text-[11px]")}>
+      <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg bg-foreground/[0.07] px-2.5 text-xs font-semibold text-foreground/85", compact && "h-7 px-2 text-[11px]")}>
         <CheckIcon className="size-3.5" />
         {labels.statusLabel(entry.status)}
       </span>
@@ -391,9 +391,9 @@ function Body({ collection: c }: { collection: CollectionDetail }) {
 }
 
 const CALLOUT_LOOK = {
-  tip: { icon: LightbulbIcon, tone: "border-amber-400/40 bg-amber-400/10 text-amber-100", iconTone: "text-amber-400" },
-  warning: { icon: AlertTriangleIcon, tone: "border-rose-500/40 bg-rose-500/10 text-rose-100", iconTone: "text-rose-400" },
-  info: { icon: InfoIcon, tone: "border-sky-400/40 bg-sky-400/10 text-sky-100", iconTone: "text-sky-400" },
+  tip: { icon: LightbulbIcon, tone: "border-border/70 bg-card/60", iconTone: "text-primary" },
+  warning: { icon: AlertTriangleIcon, tone: "border-primary/35 bg-primary/[0.06]", iconTone: "text-primary" },
+  info: { icon: InfoIcon, tone: "border-border/70 bg-card/60", iconTone: "text-muted-foreground" },
 } as const;
 
 function PlainBlock({ block, index }: { block: Exclude<CollectionBlock, AnimeBlock>; index: number }) {
@@ -488,8 +488,8 @@ function Marks({ block }: { block: AnimeBlock }) {
         </span>
       )}
       {block.mustWatch && (
-        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-xs font-semibold text-emerald-300">
-          <BadgeCheckIcon className="size-3" />
+        <span className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-1.5 py-0.5 text-xs font-semibold text-foreground">
+          <BadgeCheckIcon className="size-3 text-primary" />
           {t("collections.mustWatch")}
         </span>
       )}
@@ -517,7 +517,7 @@ function AnimeEmbed({
     <section
       className={cn(
         "relative flex flex-col gap-3 overflow-hidden rounded-2xl border bg-[var(--accent-surface)] p-3 sm:flex-row sm:p-4",
-        block.mustWatch ? "border-primary/50" : "border-[var(--accent-line-soft)]",
+        "border-[var(--accent-line-soft)]",
       )}
     >
       {ranked && (
@@ -573,8 +573,8 @@ function AnimeEmbed({
           </div>
         )}
         {block.watchTip && (
-          <p className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-sky-500/10 px-2 py-1 text-xs text-sky-200">
-            <InfoIcon className="size-3.5 text-sky-400" />
+          <p className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-foreground/[0.06] px-2 py-1 text-xs text-foreground/85">
+            <InfoIcon className="size-3.5 text-muted-foreground" />
             {block.watchTip}
           </p>
         )}
@@ -627,7 +627,7 @@ function AnimeTile({ anime, block, index }: { anime: AnimeSummary; block: AnimeB
         {labels.title(anime)}
       </Link>
       {block.mustWatch && <Marks block={{ ...block, score: null }} />}
-      {block.watchTip && <p className="px-0.5 text-[11px] text-sky-300">{block.watchTip}</p>}
+      {block.watchTip && <p className="px-0.5 text-[11px] text-muted-foreground">{block.watchTip}</p>}
       <div className="px-0.5">
         <Note block={block} compact />
       </div>
@@ -674,9 +674,9 @@ const RATING_WORDS = ["bad", "meh", "ok", "good", "masterpiece"] as const;
  * split — and the viewer's own vote on the right, with a word for each
  * star as you hover so a click means something.
  */
-/** The colour of a score: red low, amber middle, green high. */
+/** A score's colour: the site's own, lighter for a low one. */
 function scoreTone(v: number): string {
-  return v <= 3 ? "bg-rose-500" : v <= 5 ? "bg-orange-500" : v <= 7 ? "bg-amber-400" : "bg-emerald-500";
+  return v <= 4 ? "bg-primary/50" : v <= 7 ? "bg-primary/75" : "bg-primary";
 }
 
 /**

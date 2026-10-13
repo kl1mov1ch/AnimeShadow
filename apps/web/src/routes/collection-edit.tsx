@@ -1,6 +1,6 @@
 import {
   CALLOUT_VARIANTS,
-  COLLECTION_ACCENTS,
+  type COLLECTION_ACCENTS,
   COLLECTION_LAYOUTS,
   COLLECTION_TAGS,
   type CollectionBlock,
@@ -132,7 +132,8 @@ function Editor({
   const [tags, setTags] = useState<CollectionTag[]>(initial.tags);
   const [published, setPublished] = useState(initial.published);
   const [layout, setLayout] = useState<CollectionLayout>(initial.layout);
-  const [accent, setAccent] = useState<string | null>(initial.accent);
+  // Kept as it was saved; collections all wear the site's colours now.
+  const [accent] = useState<string | null>(initial.accent);
   const [allowComments, setAllowComments] = useState(initial.allowComments);
   const [blocks, setBlocks] = useState<Draft[]>(initial.blocks);
   const [anime, setAnime] = useState<Record<number, AnimeCard>>(initial.anime);
@@ -298,31 +299,6 @@ function Editor({
             })}
           </div>
           <p className="-mt-1 text-[11px] text-muted-foreground">{t(`collections.editor.layoutHint.${layout}` as "collections.editor.layoutHint.list")}</p>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-semibold text-muted-foreground">{t("collections.editor.accent")}</span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setAccent(null)}
-                className={cn(
-                  "h-7 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
-                  accent == null ? "border-primary bg-primary/10 text-primary" : "border-border/70 text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t("collections.editor.accentNone")}
-              </button>
-              {COLLECTION_ACCENTS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  aria-label={c}
-                  onClick={() => setAccent(c)}
-                  className={cn("size-7 rounded-full ring-offset-2 ring-offset-card transition-transform hover:scale-110", accent === c && "ring-2 ring-foreground")}
-                  style={{ background: c }}
-                />
-              ))}
-            </div>
-          </div>
           <button
             type="button"
             onClick={() => setAllowComments((v) => !v)}

@@ -129,7 +129,7 @@ export function LibraryTile({
           {entry.anime.airing === "AIRING" && (
             <span
               aria-hidden
-              className="inline-flex size-2.5 w-fit items-center rounded-full bg-emerald-500/90"
+              className="inline-flex size-2.5 w-fit items-center rounded-full bg-white/80"
             >
               <span className="size-full animate-pulse rounded-full bg-white/40" />
             </span>
@@ -302,7 +302,7 @@ export function ContinueStrip({ entries, edit }: { entries: LibraryEntry[]; edit
     <section className="reveal flex flex-col gap-2" style={{ "--i": 2 } as CSSProperties}>
       <div className="flex items-center gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
+          <span className="size-1.5 rounded-full bg-primary" />
           {t("library.continueTitle")}
           <span className="text-xs font-normal text-muted-foreground">{entries.length}</span>
         </h2>
