@@ -37,6 +37,7 @@ import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { logSearch, useGenrePreferences, useGenres, useSearchPulse, useSmartSearch } from "@/lib/query";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
+import { ReactionMedia } from "@/components/common/states";
 
 /** Room for eight in the palette — it's a full surface, not a dropdown
  *  hanging off a 360px field, so it can afford more than the header's six. */
@@ -264,12 +265,17 @@ export function SearchCommandDialog({
               </>
             ) : (
               <CommandEmpty>
-                <span className="flex flex-col items-center gap-1.5 py-6">
-                  <span aria-hidden className="font-display text-3xl text-primary/30">
-                    <SlicedGlyph />
+                {isFetching ? (
+                  <span className="block py-4 text-center text-sm text-muted-foreground">{t("search.searching")}…</span>
+                ) : (
+                  <span className="flex items-center gap-3 px-3 py-3 text-left">
+                    <ReactionMedia category="shrug" fallback={<span aria-hidden className="font-display text-3xl text-primary/30"><SlicedGlyph /></span>} className="!size-16 sm:!size-16" />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-sm font-semibold text-foreground">{t("search.noMatches")}</span>
+                      <span className="text-xs text-muted-foreground">Проверьте написание или попробуйте другое название — японское, английское или сокращение.</span>
+                    </span>
                   </span>
-                  {isFetching ? `${t("search.searching")}…` : t("search.noMatches")}
-                </span>
+                )}
               </CommandEmpty>
             )}
           </CommandList>

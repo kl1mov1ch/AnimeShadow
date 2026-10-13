@@ -121,30 +121,19 @@ function QuipRotator({ set }: { set: QuoteSet }) {
   const line = lines[index % lines.length];
   if (!line) return null;
 
+  // A speech bubble, as if the gif beside it were saying it; a thin line
+  // under it fills over the five seconds before the next one.
   return (
     <button
       type="button"
       onClick={() => setIndex((i) => (i + 1) % lines.length)}
-      // A fifth of the page wide (never narrower than a phone can read
-      // comfortably), centred, and at most three lines: long enough for a
-      // line to breathe, short enough that it never becomes a paragraph.
-      className="group mx-auto flex w-[max(18rem,20vw)] max-w-full items-start gap-2.5 rounded-2xl border border-border/60 bg-card/50 px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30"
+      className="relative w-full overflow-hidden rounded-2xl rounded-tl-sm border border-[var(--accent-line-soft)] bg-card px-4 py-3 text-left transition-colors hover:border-primary/40"
     >
-      <QuoteIcon className="mt-0.5 size-3.5 shrink-0 text-primary/60" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-        {/* Keyed on the line itself, so React remounts it and the entry
-            animation replays on every rotation. Balanced wrapping keeps the
-            lines even instead of leaving one word dangling on the last. */}
-        <span
-          key={line}
-          className="animate-in fade-in slide-in-from-bottom-1 line-clamp-3 text-[13px] leading-snug text-foreground/85 [text-wrap:balance] duration-500"
-        >
-          {line}
-        </span>
-        <span className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
-          <SlicedGlyph className="text-primary/70" />
-          AnimeShadow
-        </span>
+      <span key={line} className="block animate-in text-[14px] leading-snug text-foreground/90 [text-wrap:balance] duration-500 fade-in-0 slide-in-from-bottom-1">
+        «{line}»
+      </span>
+      <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-foreground/5">
+        <span key={`bar-${index}`} className="daily-fill block h-full bg-primary/60" style={{ animationDuration: `${QUIP_ROTATE_MS}ms` }} />
       </span>
     </button>
   );
@@ -172,17 +161,30 @@ export function EmptyState({
   action,
   quotes,
 }: EmptyStateProps) {
+  // With a line to say: a card — the picture on the left, and beside it the
+  // title, what happened and the line in a speech bubble.
+  if (quotes) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-5 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5 text-center sm:flex-row sm:items-start sm:p-6 sm:text-left">
+        <div className="shrink-0">{icon ?? <LogoMedia />}</div>
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <p className="font-display text-xl leading-tight">{title}</p>
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          </div>
+          <QuipRotator set={quotes} />
+          {action && <div className="flex justify-center sm:justify-start">{action}</div>}
+        </div>
+      </div>
+    );
+  }
   return (
     <Empty className="border">
       <EmptyHeader>
-        {/* No icon given: the site's mark, which brings its own box. */}
         <EmptyMedia variant={icon ? mediaVariant : "default"}>{icon ?? <LogoMedia />}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>
-      {/* Outside the header, whose own narrow max-width would otherwise
-          wrap the line into a column. */}
-      {quotes && <QuipRotator set={quotes} />}
       {action && <EmptyContent>{action}</EmptyContent>}
     </Empty>
   );
@@ -196,7 +198,7 @@ export function EmptyState({
  * Gif first; the site's mark while it is on its way, when the lookup fails,
  * or when the image itself will not load. Never a broken picture.
  */
-function ReactionMedia({
+export function ReactionMedia({
   category,
   fallback,
   className,
@@ -215,7 +217,7 @@ function ReactionMedia({
       loading="lazy"
       onError={() => setBroken(true)}
       className={cn(
-        "animate-in fade-in zoom-in-95 size-20 rounded-2xl object-cover shadow-lg shadow-black/10 duration-500 sm:size-24",
+        "animate-in fade-in zoom-in-95 size-28 rounded-2xl object-cover shadow-lg shadow-black/20 duration-500 sm:size-36",
         className,
       )}
     />
