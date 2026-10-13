@@ -10,24 +10,19 @@ const STORAGE_KEY = "animeshadow.cookie-consent.v1";
  */
 export const COOKIE_CHOICE_EVENT = "animeshadow:cookie-choice";
 
-/** The visitor said yes — third-party counters may load. */
+/** The banner is gone: counters load unless the visitor once said no. */
 export function hasCookieConsent(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === "accepted";
+    return localStorage.getItem(STORAGE_KEY) !== "declined";
   } catch {
-    return false;
+    return true;
   }
 }
 
 /** Whether the visitor has already answered, in this browser. */
 export function hasCookieChoice(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) != null;
-  } catch {
-    // Storage disabled: the banner will keep reappearing, so nothing should
-    // wait on it forever.
-    return true;
-  }
+  // No banner any more, so nothing waits for an answer.
+  return true;
 }
 
 /**

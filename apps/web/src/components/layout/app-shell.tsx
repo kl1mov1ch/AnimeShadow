@@ -1,7 +1,6 @@
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { AchievementWatcher } from "@/components/achievement-watcher";
 import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
-import { CookieConsent } from "@/components/cookie-consent";
 import { SearchCommandMount } from "@/components/layout/search-command-mount";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -35,7 +34,6 @@ export function AppShell() {
       <SearchCommandMount />
       <Toaster position="bottom-right" />
       <AchievementWatcher />
-      <CookieConsent />
       {/* Every plain `title` hint on the site, drawn as the site's tooltip. */}
       <GlobalTitleTooltips />
       <ScrollRestoration />
