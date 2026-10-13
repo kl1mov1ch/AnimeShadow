@@ -39,9 +39,11 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
   // The title already open has no business in its own "other seasons" list —
   // it's not a link anywhere else on the page either, so listing it here too
   // (even shown-but-inert) just reads as clutter and risks a stray click.
-  const others = (data ?? []).filter((entry) => !entry.current);
-
-  if (others.length === 0) return null;
+  const all = data ?? [];
+  if (!all.some((entry) => !entry.current)) return null;
+  // In the order they came out, the open title among them — so it reads as
+  // a story: where this one sits, what came before and after.
+  const ordered = [...all].sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999) || a.id - b.id);
 
   // Reads both axes and combines them — whichever axis isn't actually
   // scrollable at the current breakpoint sits permanently at its own start
@@ -62,10 +64,10 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-medium text-muted-foreground/70">
-          {t("detail.sections.seasons")}
+        <span className="text-xs text-muted-foreground">
+          {ordered.length} {ordered.length === 1 ? "часть" : ordered.length < 5 ? "части" : "частей"} по порядку выхода
         </span>
-        {others.length > 3 && (
+        {ordered.length > 3 && (
           <div className="flex shrink-0 gap-1">
             <Button
               variant="outline"
@@ -96,15 +98,15 @@ export function FranchiseRail({ animeId, className }: { animeId: number; classNa
         onScroll={updateEdges}
         className="flex snap-x gap-2.5 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {others.map((entry) => (
-          <FranchiseLink key={entry.id} entry={entry} />
+        {ordered.map((entry, i) => (
+          <FranchiseLink key={entry.id} entry={entry} index={i + 1} />
         ))}
       </div>
     </div>
   );
 }
 
-function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
+function FranchiseLink({ entry, index }: { entry: FranchiseEntry; index: number }) {
   const t = useT();
   const labels = useLabels();
   const canHover = useMediaQuery("(hover: hover)");
@@ -113,45 +115,43 @@ function FranchiseLink({ entry }: { entry: FranchiseEntry }) {
   // One compact width at every breakpoint. The rail is a section of its own
   // now, so a card that grows with the viewport just becomes a very wide row
   // holding a thumbnail and two short lines.
-  const card = (
-    <Link
-      to={`/anime/${entry.id}`}
-      className="group w-52 shrink-0 snap-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  const body = (
+    <div
+      className={cn(
+        "relative flex min-w-0 items-center gap-3 overflow-hidden rounded-xl border p-2.5 transition-colors duration-200",
+        entry.current ? "border-primary/60 bg-primary/10" : "border-border/60 bg-card/50 group-hover:border-foreground/25 group-hover:bg-card",
+      )}
     >
-      <div className="relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-xl border border-border/60 bg-card/40 p-2 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:bg-primary/[0.06] group-hover:shadow-md">
-        {/* The same band of light the rest of the site sweeps on hover —
-            pointer devices only, since group-hover compiles behind a
-            hover-capable media query. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[200%] -skew-x-12 bg-gradient-to-r from-transparent via-primary/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-        />
-        <div className="h-10 w-7 shrink-0 overflow-hidden rounded-md bg-muted">
-          {entry.imageUrl ? (
-            <img
-              src={imageSrc(entry.imageUrl)}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="size-full object-cover"
-            />
-          ) : (
-            <PosterFallback title={entry.title} seed={entry.id} variant="avatar" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-snug text-foreground">
-            {entry.title}
-          </p>
-          <p className="truncate text-[11px] text-muted-foreground">{metaLine}</p>
-        </div>
+      <span className="absolute left-1.5 top-1.5 z-10 grid size-5 place-items-center rounded-full bg-black/70 text-[10px] font-bold tabular-nums text-white">
+        {index}
+      </span>
+      <div className="h-[4.5rem] w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+        {entry.imageUrl ? (
+          <img src={imageSrc(entry.imageUrl)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+        ) : (
+          <PosterFallback title={entry.title} seed={entry.id} variant="avatar" />
+        )}
       </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-base leading-none tabular-nums">{entry.year ?? "—"}</p>
+        <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-foreground">{entry.title}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{entry.current ? "Вы здесь" : labels.typeLabel(entry.kind)}</p>
+      </div>
+    </div>
+  );
+  const card = entry.current ? (
+    <div aria-current="page" className="w-60 shrink-0 snap-start">
+      {body}
+    </div>
+  ) : (
+    <Link to={`/anime/${entry.id}`} className="group w-60 shrink-0 snap-start rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {body}
     </Link>
   );
 
   // Touch devices have no hover to preview on — the row itself already
   // shows title + type + year, so there's nothing more to add there anyway.
-  if (!canHover) return card;
+  if (!canHover || entry.current) return card;
 
   return (
     <HoverCard openDelay={300} closeDelay={100}>

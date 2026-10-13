@@ -17,7 +17,7 @@ import { SITE_URL } from "@/lib/seo";
  *
  * The QR library is loaded only when the card opens.
  */
-export function ShareQrButton({ anime }: { anime: AnimeDetail }) {
+export function ShareQrButton({ anime, prominent = false }: { anime: AnimeDetail; prominent?: boolean }) {
   const [open, setOpen] = useState(false);
   const labels = useLabels();
   const title = labels.title(anime);
@@ -29,10 +29,14 @@ export function ShareQrButton({ anime }: { anime: AnimeDetail }) {
             <button
               type="button"
               aria-label="QR-код и ссылка на аниме"
-              className="group inline-flex h-7 items-center gap-1.5 rounded-lg border border-border/60 bg-card/50 px-2 text-xs font-medium text-muted-foreground transition-[border-color,color,background-color,transform] duration-200 hover:border-primary/40 hover:bg-primary/10 hover:text-foreground active:scale-95"
+              className={
+                prominent
+                  ? "group inline-flex h-10 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3.5 text-sm font-semibold text-primary transition-[border-color,background-color,transform] duration-200 hover:border-primary/60 hover:bg-primary/15 active:scale-95"
+                  : "group inline-flex h-7 items-center gap-1.5 rounded-lg border border-border/60 bg-card/50 px-2 text-xs font-medium text-muted-foreground transition-[border-color,color,background-color,transform] duration-200 hover:border-primary/40 hover:bg-primary/10 hover:text-foreground active:scale-95"
+              }
             >
-              <QrCodeIcon className="size-3.5 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary" />
-              <span className="hidden sm:inline">QR-код</span>
+              <QrCodeIcon className={prominent ? "size-4" : "size-3.5"} />
+              <span className={prominent ? "" : "hidden sm:inline"}>QR-код</span>
             </button>
           </DialogTrigger>
         </TooltipTrigger>

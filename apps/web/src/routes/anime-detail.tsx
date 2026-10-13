@@ -50,6 +50,7 @@ import { useLabels } from "@/lib/labels";
 import {
   useAnime,
   useAnimeStats,
+  useLibrary,
   useCharacters,
   useFranchise,
   useSimilarAnime,
@@ -309,7 +310,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   airingAt={data.nextEpisode.airingAt}
                 />
               )}
-              <ShareQrButton anime={data} />
+              <ShareButtons path={animeUrl(data)} compact />
             </div>
 
             {/* The actions. "Watch" jumps to the player rather than opening
@@ -336,7 +337,7 @@ function AnimeDetailView({ param }: { param: string }) {
                 </a>
               </Button>
               {data.trailerEmbedUrl && <TrailerButton url={data.trailerEmbedUrl} title={title} />}
-              <ShareButtons path={animeUrl(data)} />
+              <ShareQrButton anime={data} prominent />
             </div>
           </div>
         </div>
@@ -361,22 +362,25 @@ function AnimeDetailView({ param }: { param: string }) {
           episode={episode}
           onEpisodeChange={setEpisode}
         />
-        {/* Under the picture: the viewer's own list and score, and how long
-            the whole title takes — two cards side by side on a wide screen,
-            one under the other on a phone. Either stretches across when the
-            other has nothing to say. */}
-        <div className="grid gap-3 md:grid-cols-2 md:[&:has(>section:only-child)]:grid-cols-1">
-          <TitleTracker anime={data} title={title} />
-          <WatchTimeCard anime={data} />
-        </div>
       </Panel>
 
-      {/* Episodes live beside the player now, where you reach for them, so
-          this row pairs the synopsis with the facts about the title
-          instead of repeating a list that is already on screen. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <AboutBlockM anime={data} oneLiner={oneLiner} />
-        <InfoSidebarM anime={data} className="h-full" />
+      {/* Under the player: on the left what the title is (the description)
+          and what viewers did with it (their marks, beside it on a wide
+          screen); on the right, one column of the viewer's own things — the
+          list and score, how long it takes, and the facts. On a phone it is
+          all one column: the list first, then the rest. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
+        <div className="order-2 grid min-w-0 gap-4 lg:order-1 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
+          <AboutBlockM anime={data} oneLiner={oneLiner} />
+          <div className="xl:row-span-2">
+            <AudiencePanel animeId={data.id} />
+          </div>
+          <InfoSidebarM anime={data} />
+        </div>
+        <aside className="order-1 flex min-w-0 flex-col gap-3 lg:order-2">
+          <TitleTracker anime={data} title={title} />
+          <WatchTimeCard anime={data} />
+        </aside>
       </div>
 
       {/* Everything below the player loads when it's about to be seen —
@@ -644,116 +648,89 @@ const AUDIENCE_KEYS = [
   { key: "dropped", strength: 22 },
 ] as const;
 
-function AudienceStats({ animeId }: { animeId: number }) {
+/**
+ * What viewers did with the title, as its own panel beside the description:
+ * one bar split by list, and the lists themselves. Pointing at or tapping a
+ * list lights it in the bar and shows its share big; the viewer's own list,
+ * if the title is in it, is marked "вы".
+ */
+function AudiencePanel({ animeId }: { animeId: number }) {
   const t = useT();
   const labels = useLabels();
   const { data } = useAnimeStats(animeId);
+  const { status } = useAuth();
+  const { data: library } = useLibrary(undefined, status === "authenticated");
+  const [picked, setPicked] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
-
   if (!data) return null;
-
-  // flatMap rather than map+filter: dropping the empty buckets this way
-  // narrows `value` to a number on its own, with no type predicate to keep
-  // in step with the shape it is narrowing.
   const rows = AUDIENCE_KEYS.flatMap(({ key, strength }) => {
     const value = data[key];
-    return value == null
-      ? []
-      : [{ key: key as string, strength: strength as number, value }];
+    return value == null ? [] : [{ key: key as string, strength: strength as number, value }];
   });
-
   if (rows.length === 0) return null;
-
   const sum = rows.reduce((n, row) => n + row.value, 0) || 1;
-  // Scaled against the biggest row, not the total — with five buckets, a
-  // share-of-total bar leaves every one of them a barely visible sliver.
-  const max = Math.max(...rows.map((row) => row.value), 1);
-  const tint = (strength: number) =>
-    `color-mix(in srgb, var(--accent) ${strength}%, transparent)`;
+  const tint = (strength: number) => `color-mix(in srgb, var(--primary) ${strength}%, transparent)`;
+  const mine = library?.find((e) => e.anime.id === animeId)?.status;
+  const MINE: Record<string, string> = { completed: "COMPLETED", watching: "WATCHING", planToWatch: "PLANNED", onHold: "ON_HOLD", dropped: "DROPPED" };
+  const focus = hovered ?? picked;
+  const focused = rows.find((r) => r.key === focus);
+  const label = (key: string) => t(`detail.audienceStats.${key}` as "detail.audienceStats.watching");
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-4 transition-colors duration-300 hover:border-primary/35">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground/70">
-          {t("detail.audienceTitle")}
-        </span>
-        {data.total != null && (
-          <span className="text-[11px] tabular-nums text-muted-foreground/60">
-            {t("detail.audienceTotal", { count: labels.compact(data.total) })}
-          </span>
-        )}
+    <Panel icon={UsersIcon} title="Зрители">
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-display text-3xl leading-none tabular-nums">
+            {focused ? `${Math.round((focused.value / sum) * 100)}%` : labels.compact(data.total ?? sum)}
+          </p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {focused ? `${label(focused.key)} · ${labels.compact(focused.value)}` : "в списках у зрителей"}
+          </p>
+        </div>
       </div>
-
-      {/* One bar for the whole audience, split by what they did with the
-          title. The per-row bars below answer "how many"; this answers "out
-          of everyone, how does this title get treated" — which is the
-          question the block is actually here for and which five separate
-          bars never quite showed. */}
-      <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
+      <div className="flex h-3 gap-0.5 overflow-hidden rounded-full">
         {rows.map((row) => (
-          <span
+          <button
             key={row.key}
-            className="h-full rounded-full transition-all duration-500 ease-out first:rounded-l-full last:rounded-r-full"
-            style={{
-              width: `${(row.value / sum) * 100}%`,
-              background: tint(row.strength),
-              opacity: hovered && hovered !== row.key ? 0.25 : 1,
-            }}
+            type="button"
+            aria-label={label(row.key)}
+            onClick={() => setPicked((p) => (p === row.key ? null : row.key))}
+            onMouseEnter={() => setHovered(row.key)}
+            onMouseLeave={() => setHovered(null)}
+            className="h-full transition-opacity duration-200"
+            style={{ width: `${(row.value / sum) * 100}%`, background: tint(row.strength), opacity: focus && focus !== row.key ? 0.25 : 1 }}
           />
         ))}
       </div>
-
-      <div className="flex flex-col gap-0.5">
-        {rows.map((row, i) => {
-          const share = Math.round((row.value / sum) * 100);
-          const dimmed = hovered != null && hovered !== row.key;
+      <ul className="flex flex-col gap-0.5">
+        {rows.map((row) => {
+          const on = focus === row.key;
+          const isMine = mine != null && MINE[row.key] === mine;
           return (
-            <div
-              key={row.key}
-              onMouseEnter={() => setHovered(row.key)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
-              className={cn(
-                "animate-in fade-in slide-in-from-left-2 flex items-center gap-2.5 rounded-lg px-1.5 py-1 duration-500",
-                "transition-[opacity,background-color]",
-                dimmed ? "opacity-45" : "opacity-100",
-                hovered === row.key && "bg-secondary/50",
-              )}
-            >
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ background: tint(row.strength) }}
-              />
-              <span className="w-24 shrink-0 truncate text-[11px] text-muted-foreground">
-                {t(
-                  `detail.audienceStats.${row.key}` as "detail.audienceStats.watching",
+            <li key={row.key}>
+              <button
+                type="button"
+                onClick={() => setPicked((p) => (p === row.key ? null : row.key))}
+                onMouseEnter={() => setHovered(row.key)}
+                onMouseLeave={() => setHovered(null)}
+                aria-pressed={picked === row.key}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-[background-color,opacity]",
+                  on ? "bg-foreground/[0.07]" : "hover:bg-foreground/[0.04]",
+                  focus && !on && "opacity-55",
                 )}
-              </span>
-              <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary/70">
-                <span
-                  className="block h-full rounded-full transition-[width] duration-700 ease-out"
-                  style={{
-                    width: `${Math.round((row.value / max) * 100)}%`,
-                    background: tint(row.strength),
-                  }}
-                />
-              </span>
-              {/* The share only appears for the row being pointed at — five
-                  percentages sitting there permanently is a wall of numbers
-                  nobody asked for, but it is the first thing you want the
-                  moment you single one out. */}
-              <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground/70">
-                {hovered === row.key ? `${share}%` : ""}
-              </span>
-              <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-foreground/80">
-                {labels.compact(row.value)}
-              </span>
-            </div>
+              >
+                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: tint(row.strength) }} />
+                <span className="min-w-0 flex-1 truncate text-foreground/85">{label(row.key)}</span>
+                {isMine && <span className="rounded bg-primary/15 px-1.5 text-[10px] font-bold text-primary">вы</span>}
+                <span className="tabular-nums text-muted-foreground">{Math.round((row.value / sum) * 100)}%</span>
+                <span className="w-12 text-right font-semibold tabular-nums">{labels.compact(row.value)}</span>
+              </button>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ul>
+    </Panel>
   );
 }
 
@@ -790,7 +767,7 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
     ));
 
   return (
-    <Panel icon={BookOpenIcon} title={t("detail.sections.synopsis")} className="h-full">
+    <Panel icon={BookOpenIcon} title={t("detail.sections.synopsis")}>
       {hasSynopsis ? (
         <SynopsisBody synopsis={anime.synopsis} background={anime.background} />
       ) : (
@@ -818,10 +795,6 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
         </div>
       )}
 
-      {/* What the wider audience did with it, and what it sounds like —
-          both are about the title rather than facts about its production,
-          so they read better here than in the sidebar. */}
-      <AudienceStats animeId={anime.id} />
     </Panel>
   );
 }

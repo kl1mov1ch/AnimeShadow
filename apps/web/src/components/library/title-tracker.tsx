@@ -15,12 +15,13 @@ import { STATUSES, STATUS_META } from "./library-meta";
 import { useLibraryEdit } from "./use-library-edit";
 
 /** The chosen status's fill — real colour values, so the change transitions. */
+// The chosen list in the site's colour, whichever it is.
 const STATUS_COLOR: Record<LibraryStatus, string> = {
-  WATCHING: "#10b981",
-  PLANNED: "#0ea5e9",
+  WATCHING: "var(--primary)",
+  PLANNED: "var(--primary)",
   COMPLETED: "var(--primary)",
-  ON_HOLD: "#f59e0b",
-  DROPPED: "#f43f5e",
+  ON_HOLD: "var(--primary)",
+  DROPPED: "var(--primary)",
 };
 
 /** The card both blocks under the player are drawn in (see WatchTimeCard). */
@@ -128,7 +129,7 @@ export function TitleTracker({ anime, title, className }: { anime: AnimeSummary;
       </div>
 
       {/* Where it stands: five named buttons, the chosen one filled. */}
-      <div role="radiogroup" aria-label={t("library.watchStatus")} className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+      <div role="radiogroup" aria-label={t("library.watchStatus")} className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-2">
         {STATUSES.map((s) => {
           const { Icon, text } = STATUS_META[s];
           const active = entry?.status === s;
@@ -144,7 +145,7 @@ export function TitleTracker({ anime, title, className }: { anime: AnimeSummary;
               className={cn(
                 "inline-flex h-10 min-w-0 items-center gap-2 rounded-lg border px-2.5 text-[13px] font-medium transition-[background-color,border-color,color] duration-200 active:scale-[0.97] max-[359px]:gap-1.5 max-[359px]:text-xs sm:h-9 sm:gap-1.5",
                 active
-                  ? cn("border-transparent", s === "COMPLETED" ? "text-primary-foreground" : "text-white")
+                  ? "border-transparent text-primary-foreground"
                   : "border-border/70 bg-background/40 text-foreground/80 hover:border-foreground/25 hover:text-foreground",
               )}
             >

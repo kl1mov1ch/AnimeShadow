@@ -14,7 +14,7 @@ interface ShareButtonsProps {
 }
 
 /** Just the copy-link action — social network icons were dropped per feedback. */
-export function ShareButtons({ path, className }: ShareButtonsProps) {
+export function ShareButtons({ path, className, compact = false }: ShareButtonsProps & { compact?: boolean }) {
   const t = useT();
   const url = `${SITE_URL}${path}`;
   // The icon answers the click itself — the link turns into a tick for a
@@ -49,13 +49,17 @@ export function ShareButtons({ path, className }: ShareButtonsProps) {
         // the rank chip / PRO badge elsewhere) makes it read as "live" even
         // before a pointer gets near it.
         className={cn(
-          "flex size-10 items-center justify-center rounded-lg border transition-all duration-200 active:scale-90",
+          "flex items-center justify-center rounded-lg border transition-all duration-200 active:scale-90",
+          compact ? "h-7 gap-1.5 px-2 text-xs font-medium" : "size-10",
           copied
-            ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-500"
-            : "border-primary/25 bg-primary/10 text-primary/90 hover:border-primary/50 hover:bg-primary/15 hover:text-primary",
+            ? "border-primary/50 bg-primary/15 text-primary"
+            : compact
+              ? "border-border/60 bg-card/50 text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+              : "border-primary/25 bg-primary/10 text-primary/90 hover:border-primary/50 hover:bg-primary/15 hover:text-primary",
         )}
       >
-        <MorphIcon on={copied} off={LinkIcon} onIcon={CheckIcon} className="size-4" />
+        <MorphIcon on={copied} off={LinkIcon} onIcon={CheckIcon} className={compact ? "size-3.5" : "size-4"} />
+        {compact && <span className="hidden sm:inline">Ссылка</span>}
       </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
