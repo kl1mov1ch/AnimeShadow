@@ -11,7 +11,9 @@ import {
   SparklesIcon,
   WorkflowIcon,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useState } from "react";
+import { ReactionGif } from "@/components/common/reaction-gif";
+import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useT } from "@/i18n";
@@ -48,6 +50,14 @@ export function Component() {
           eyebrow={t("about.eyebrow")}
           title={t("about.title")}
           lead={t("about.lead")}
+          aside={
+            <div className="relative hidden w-56 md:block">
+              <ReactionGif category="wave" className="aspect-square w-full shadow-xl shadow-black/30" />
+              <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--accent-line-soft)] bg-card px-3 py-1 text-xs font-semibold shadow-lg">
+                Привет! Добро пожаловать 👋
+              </span>
+            </div>
+          }
         >
           <div className="flex flex-wrap gap-2 pt-2">
             <Link
@@ -126,12 +136,17 @@ export function Component() {
         </ol>
       </section>
 
+      <section className="reveal flex flex-col gap-4" style={reveal(4)}>
+        <SectionTitle icon={InfoIcon} title="Частые вопросы" />
+        <Faq />
+      </section>
+
       {/* The one ask on the page — warm, and it goes to the page that
           explains what support gets you before anything leaves the site. */}
       <section
         id="support"
         className="reveal relative flex scroll-mt-24 flex-col items-start gap-5 overflow-hidden rounded-2xl border border-border/70 bg-card/50 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8"
-        style={reveal(4)}
+        style={reveal(5)}
       >
         <div className="relative flex items-start gap-4">
           <div className="flex flex-col gap-1.5">
@@ -161,6 +176,45 @@ export function Component() {
           </a>
         </div>
       </section>
+    </div>
+  );
+}
+
+const FAQ: Array<{ q: string; a: string; gif: string }> = [
+  { q: "Это правда бесплатно?", a: "Да. Смотреть, вести список и собирать подборки можно без оплаты. PRO — это добровольная поддержка с приятными мелочами для профиля.", gif: "thumbsup" },
+  { q: "Откуда берутся серии?", a: "Мы не храним видео: плееры подключаются от партнёров — Kodik и AniLibria. Мы собираем для них удобный каталог, список и поиск.", gif: "think" },
+  { q: "Будет ли реклама?", a: "В нашем собственном плеере рекламы нет. В плеерах партнёров реклама может быть — её показывают они, а не мы.", gif: "shrug" },
+  { q: "Как не потерять, где остановился?", a: "Войдите в аккаунт — серии отмечаются сами, а «Продолжить просмотр» на главной откроет нужную серию с того же места.", gif: "smile" },
+  { q: "Можно попросить добавить аниме?", a: "Конечно — напишите нам в Telegram. Новые серии и тайтлы появляются автоматически, но о пропусках лучше сказать.", gif: "highfive" },
+];
+
+/** Questions as a list; the open answer shows with a little face of its own. */
+function Faq() {
+  const [open, setOpen] = useState(0);
+  return (
+    <div className="flex flex-col gap-2">
+      {FAQ.map((item, i) => {
+        const on = open === i;
+        return (
+          <div key={item.q} className={cn("overflow-hidden rounded-2xl border transition-colors", on ? "border-primary/40 bg-[var(--accent-surface)]" : "border-border/60 bg-card/40")}>
+            <button
+              type="button"
+              onClick={() => setOpen(on ? -1 : i)}
+              aria-expanded={on}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left text-sm font-semibold"
+            >
+              {item.q}
+              <span className={cn("grid size-6 shrink-0 place-items-center rounded-full bg-foreground/[0.07] text-xs transition-transform duration-200", on && "rotate-45 bg-primary/15 text-primary")}>+</span>
+            </button>
+            {on && (
+              <div className="flex animate-in items-center gap-4 px-4 pb-4 duration-300 fade-in-0">
+                <ReactionGif category={item.gif} className="size-16 shrink-0 sm:size-20" />
+                <p className="text-sm leading-relaxed text-foreground/85">{item.a}</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

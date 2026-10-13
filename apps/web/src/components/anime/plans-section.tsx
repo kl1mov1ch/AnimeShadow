@@ -34,12 +34,12 @@ const PLANS: Plan[] = [
     key: "ronin",
     icon: SwordIcon,
     scene: BladeScene,
-    price: "$4.99",
+    price: "$2.99",
     period: "month",
     featured: true,
     perkCount: 4,
   },
-  { key: "shogun", icon: CrownIcon, scene: CrownScene, price: "$9.99", period: "month", perkCount: 4 },
+  { key: "shogun", icon: CrownIcon, scene: CrownScene, price: "$5.99", period: "month", perkCount: 4 },
 ];
 
 /**

@@ -15,6 +15,11 @@ export const REACTION_CATEGORIES = [
   "smile",
   "highfive",
   "bored",
+  "pout",
+  "pat",
+  "hug",
+  "blush",
+  "thumbsup",
 ] as const;
 export type ReactionCategory = (typeof REACTION_CATEGORIES)[number];
 
