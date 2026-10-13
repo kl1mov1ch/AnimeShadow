@@ -24,6 +24,7 @@ const COMMENT_INCLUDE = {
       avatarUrl: true,
       proSince: true,
       trialUntil: true,
+      proUntil: true,
       showcaseAchievementIds: true,
       titlePrefix: true,
       titleIcon: true,

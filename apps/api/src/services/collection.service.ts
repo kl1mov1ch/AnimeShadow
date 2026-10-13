@@ -45,6 +45,7 @@ const AUTHOR_SELECT = {
   avatarUrl: true,
   proSince: true,
   trialUntil: true,
+  proUntil: true,
 } satisfies Prisma.UserSelect;
 
 type Row = Prisma.CollectionGetPayload<{ include: { user: { select: typeof AUTHOR_SELECT } } }>;
@@ -72,7 +73,7 @@ export class CollectionService {
 
   async limitFor(userId: string): Promise<CollectionLimit> {
     const [user, used] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { proSince: true, trialUntil: true } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { proSince: true, trialUntil: true, proUntil: true } }),
       this.prisma.collection.count({ where: { userId } }),
     ]);
     const pro = this.proForAll || (user != null && proActive(user));

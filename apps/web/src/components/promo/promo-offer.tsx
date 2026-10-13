@@ -93,7 +93,7 @@ export function PromoStrip({ className }: { className?: string }) {
 export function PromoCard({ className }: { className?: string }) {
   const { data } = usePromo();
   const claim = useClaimPromo();
-  if (!data || data.phase === "used" || data.phase === "pro") return null;
+  if (!data || data.phase === "used" || (data.phase === "pro" && !data.proUntil)) return null;
 
   const wrap = cn(
     "relative isolate flex flex-col gap-3 overflow-hidden rounded-2xl border border-amber-300/30 bg-[radial-gradient(120%_120%_at_0%_0%,rgb(251_191_36/0.18),transparent_55%),radial-gradient(120%_120%_at_100%_100%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_55%)] p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-5",
@@ -104,6 +104,34 @@ export function PromoCard({ className }: { className?: string }) {
       {data.phase === "trial" ? <CrownIcon className="size-6" /> : <GiftIcon className="size-6" />}
     </span>
   );
+
+  if (data.phase === "pro" && data.proUntil) {
+    const soon = new Date(data.proUntil).getTime() - Date.now() < 7 * 86_400_000;
+    return (
+      <section className={wrap}>
+        {icon}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <p className="font-display text-lg leading-tight">PRO активен 👑</p>
+          <p className="text-sm text-foreground/75">
+            Действует до {new Date(data.proUntil).toLocaleDateString("ru", { day: "numeric", month: "long" })} — потом выключится сам.
+            {soon ? " Осталось меньше недели — самое время продлить." : ""}
+          </p>
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            Осталось <PromoTimer until={new Date(data.proUntil)} />
+          </span>
+        </div>
+        <a
+          href={BOOSTY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-400/10 px-5 text-sm font-bold text-amber-100 transition-colors hover:bg-amber-400/20"
+        >
+          <CrownIcon className="size-4" />
+          Продлить
+        </a>
+      </section>
+    );
+  }
 
   if (data.phase === "claimable") {
     return (

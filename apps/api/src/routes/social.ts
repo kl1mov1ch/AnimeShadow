@@ -81,6 +81,16 @@ export const socialRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // Find people by nick or name (the search window's "People").
+  fastify.get(
+    "/people/search",
+    { preHandler: fastify.optionalAuth, config: { rateLimit: { max: 90, timeWindow: "1 minute" } } },
+    async (request) => {
+      const { q } = parse(z.object({ q: z.string().trim().min(1).max(60) }), request.query);
+      return { items: await social.searchPeople(q, request.userId ?? null) };
+    },
+  );
+
   fastify.get("/people/suggested", { preHandler: fastify.optionalAuth }, async (request) => {
     return { items: await social.suggestions(request.userId ?? null) };
   });

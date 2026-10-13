@@ -26,6 +26,7 @@ const CARD_SELECT = {
   avatarUrl: true,
   proSince: true,
   trialUntil: true,
+  proUntil: true,
   onlineStatus: true,
   avatarFrame: true,
   profileTitle: true,
@@ -292,6 +293,40 @@ export class SocialService {
   }
 
   /** Cards with how active each one is and how the viewer relates to them. */
+  /**
+   * People by nick or name, for the search ("find friends"). Matched
+   * anywhere in either (ILIKE through the trigram indexes, so no scan of
+   * every account), ranked: the exact nick, a nick or a name that starts
+   * with it, then by how alike they are, then who was here last. Banned
+   * accounts and the viewer themselves are left out. "@nick" works too.
+   */
+  async searchPeople(raw: string, viewerId: string | null, limit = 12): Promise<UserCard[]> {
+    const q = raw.trim().replace(/^@+/, "").slice(0, 60);
+    if (q.length < 2) return [];
+    // LIKE's own wildcards in a name are searched for as themselves.
+    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const anywhere = `%${escaped}%`;
+    const prefix = `${escaped}%`;
+    const hits = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "User"
+      WHERE "isBanned" = false
+        AND "id" <> ${viewerId ?? ""}
+        AND ("username" ILIKE ${anywhere} OR "displayName" ILIKE ${anywhere})
+      ORDER BY
+        (lower(coalesce("username", '')) = lower(${q})) DESC,
+        (coalesce("username", '') ILIKE ${prefix} OR "displayName" ILIKE ${prefix}) DESC,
+        greatest(similarity(coalesce("username", ''), ${q}), similarity("displayName", ${q})) DESC,
+        "lastSeenAt" DESC NULLS LAST
+      LIMIT ${limit}`;
+    if (hits.length === 0) return [];
+    const rows = await this.prisma.user.findMany({ where: { id: { in: hits.map((h) => h.id) } }, select: CARD_SELECT });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return this.decorate(
+      hits.map((h) => byId.get(h.id)).filter((r): r is CardRow => r != null),
+      viewerId,
+    );
+  }
+
   private async decorate(rows: CardRow[], viewerId: string | null): Promise<UserCard[]> {
     if (rows.length === 0) return [];
     const ids = [...new Set(rows.map((r) => r.id))];

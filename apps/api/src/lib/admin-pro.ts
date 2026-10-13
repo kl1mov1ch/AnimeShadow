@@ -10,6 +10,7 @@ import {
   type ProStatus,
 } from "@animeshadow/shared";
 import { NotFoundError } from "./errors.js";
+import { addProDays } from "./pro.js";
 
 const DAY = 86_400_000;
 
@@ -22,11 +23,12 @@ const ROW_SELECT = {
   createdAt: true,
   proSince: true,
   trialUntil: true,
+  proUntil: true,
 } satisfies Prisma.UserSelect;
 type Row = Prisma.UserGetPayload<{ select: typeof ROW_SELECT }>;
 
-function statusOf(u: { proSince: Date | null; trialUntil: Date | null }, now: Date): ProStatus {
-  if (u.proSince) return "pro";
+function statusOf(u: { proSince: Date | null; proUntil: Date | null; trialUntil: Date | null }, now: Date): ProStatus {
+  if (u.proSince && (!u.proUntil || u.proUntil > now)) return "pro";
   if (!u.trialUntil) return "free";
   if (u.trialUntil > now) return "trial";
   if (u.trialUntil.getTime() + PROMO.discountDays * DAY > now.getTime()) return "discount";
@@ -42,27 +44,30 @@ function toRow(u: Row, now: Date): AdminProRow {
     avatarUrl: u.avatarUrl,
     createdAt: u.createdAt.toISOString(),
     proSince: u.proSince?.toISOString() ?? null,
+    proUntil: u.proUntil?.toISOString() ?? null,
     trialUntil: u.trialUntil?.toISOString() ?? null,
     status: statusOf(u, now),
   };
 }
 
-/** The filter as a query: each status is a range of the two dates. */
+/** The filter as a query: each status is a range of the dates. */
 function whereFor(filter: AdminProQuery["filter"], now: Date): Prisma.UserWhereInput {
   const discountFrom = new Date(now.getTime() - PROMO.discountDays * DAY);
+  const paid: Prisma.UserWhereInput = { proSince: { not: null }, OR: [{ proUntil: null }, { proUntil: { gt: now } }] };
+  const notPaid: Prisma.UserWhereInput = { OR: [{ proSince: null }, { proUntil: { lte: now } }] };
   switch (filter) {
     case "pro":
-      return { proSince: { not: null } };
+      return paid;
     case "trial":
-      return { proSince: null, trialUntil: { gt: now } };
+      return { AND: [notPaid, { trialUntil: { gt: now } }] };
     case "discount":
-      return { proSince: null, trialUntil: { lte: now, gt: discountFrom } };
+      return { AND: [notPaid, { trialUntil: { lte: now, gt: discountFrom } }] };
     case "used":
-      return { proSince: null, trialUntil: { lte: discountFrom } };
+      return { AND: [notPaid, { trialUntil: { lte: discountFrom } }] };
     case "free":
-      return { proSince: null, trialUntil: null };
+      return { AND: [notPaid, { trialUntil: null }] };
     case "active":
-      return { OR: [{ proSince: { not: null } }, { trialUntil: { gt: now } }] };
+      return { OR: [paid, { trialUntil: { gt: now } }] };
     default:
       return {};
   }
@@ -93,8 +98,13 @@ export async function listPro(
   const [rows, total, pro, trial, discount] = await Promise.all([
     prisma.user.findMany({
       where,
-      // PRO for good first (newest first), then the free months ending soonest.
-      orderBy: [{ proSince: { sort: "desc", nulls: "last" } }, { trialUntil: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+      // PRO first (ending soonest first, for good after), then the free months ending soonest.
+      orderBy: [
+        { proSince: { sort: "desc", nulls: "last" } },
+        { proUntil: { sort: "asc", nulls: "last" } },
+        { trialUntil: { sort: "asc", nulls: "last" } },
+        { createdAt: "desc" },
+      ],
       skip,
       take: query.perPage,
       select: ROW_SELECT,
@@ -123,10 +133,18 @@ export async function setPro(prisma: PrismaClient, userId: string, input: AdminP
   let data: Prisma.UserUpdateInput;
   switch (input.action) {
     case "grant":
-      data = { proSince: user.proSince ?? now };
+      data = { proSince: user.proSince ?? now, proUntil: null };
+      break;
+    case "grantDays":
+      await addProDays(prisma, userId, input.days);
+      data = {};
       break;
     case "revoke":
-      data = { proSince: null, ...(user.trialUntil && user.trialUntil > now ? { trialUntil: now } : {}) };
+      data = {
+        proSince: null,
+        ...(user.proUntil && user.proUntil > now ? { proUntil: now } : {}),
+        ...(user.trialUntil && user.trialUntil > now ? { trialUntil: now } : {}),
+      };
       break;
     case "trial": {
       const from = user.trialUntil && user.trialUntil > now ? user.trialUntil : now;

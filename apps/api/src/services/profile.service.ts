@@ -180,7 +180,7 @@ export class ProfileService {
     if (input.titlePrefix !== undefined || input.titleIcon !== undefined) {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { proSince: true, trialUntil: true },
+        select: { proSince: true, trialUntil: true, proUntil: true },
       });
       if (!proActive(user)) {
         throw new BadRequestError("Свой значок и подпись доступны только с PRO.");
@@ -350,7 +350,7 @@ export class ProfileService {
   async progress(userId: string): Promise<ProgressDetail[]> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { proSince: true, trialUntil: true },
+      select: { proSince: true, trialUntil: true, proUntil: true },
     });
     const isPro = this.proForAll || proActive(user);
     // Free accounts track their 10 most recent titles — PRO tracks

@@ -52,6 +52,8 @@ export const promoStateSchema = z.object({
   phase: promoPhaseSchema,
   trialUntil: z.string().nullable(),
   discountUntil: z.string().nullable(),
+  /** In the "pro" phase: when PRO runs out; null = for good. */
+  proUntil: z.string().nullable().default(null),
 });
 export type PromoState = z.infer<typeof promoStateSchema>;
 
@@ -80,6 +82,8 @@ export const adminProRowSchema = z.object({
   avatarUrl: z.string().nullable(),
   createdAt: z.string(),
   proSince: z.string().nullable(),
+  /** When PRO runs out; null with proSince = for good. */
+  proUntil: z.string().nullable(),
   trialUntil: z.string().nullable(),
   status: proStatusSchema,
 });
@@ -94,8 +98,10 @@ export type AdminProStats = z.infer<typeof adminProStatsSchema>;
 
 /** What an admin can do to one account's PRO. */
 export const adminProActionSchema = z.discriminatedUnion("action", [
-  /** PRO for good (as after a payment on Boosty). */
+  /** PRO for good. */
   z.object({ action: z.literal("grant") }),
+  /** PRO for a number of days (as after a month paid on Boosty); stacks onto PRO running now. */
+  z.object({ action: z.literal("grantDays"), days: z.number().int().min(1).max(3650) }),
   /** No PRO at all: for-good PRO taken off and a running free month ended. */
   z.object({ action: z.literal("revoke") }),
   /** Add days to the free month (from its end if it is running, else from now). */

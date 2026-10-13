@@ -32,7 +32,7 @@ import { EmptyBlock, errorMessage, FilterSelect, SearchInput, TablePager, TableS
 type ProList = Paginated<AdminProRow> & { stats: AdminProStats };
 
 const STATUS: Record<ProStatus, { label: string; className: string }> = {
-  pro: { label: "PRO навсегда", className: "border-amber-300/40 bg-amber-400/15 text-amber-200" },
+  pro: { label: "PRO", className: "border-amber-300/40 bg-amber-400/15 text-amber-200" },
   trial: { label: "Подарочный месяц", className: "border-emerald-300/40 bg-emerald-400/15 text-emerald-200" },
   discount: { label: "Скидка −50%", className: "border-sky-300/40 bg-sky-400/15 text-sky-200" },
   used: { label: "Акция использована", className: "border-border bg-foreground/5 text-muted-foreground" },
@@ -41,7 +41,7 @@ const STATUS: Record<ProStatus, { label: string; className: string }> = {
 
 const FILTERS: ReadonlyArray<{ value: AdminProQuery["filter"]; label: string }> = [
   { value: "active", label: "С PRO сейчас" },
-  { value: "pro", label: "PRO навсегда" },
+  { value: "pro", label: "С PRO (без подарка)" },
   { value: "trial", label: "Подарочный месяц" },
   { value: "discount", label: "На скидке" },
   { value: "used", label: "Акция использована" },
@@ -51,6 +51,7 @@ const FILTERS: ReadonlyArray<{ value: AdminProQuery["filter"]; label: string }> 
 
 const ACTION_DONE: Record<AdminProAction["action"], string> = {
   grant: "PRO выдан навсегда",
+  grantDays: "PRO продлён",
   revoke: "PRO снят",
   trial: "Подарочный месяц продлён",
   endTrial: "Подарочный месяц завершён",
@@ -97,7 +98,7 @@ export function AdminPro() {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { key: "pro" as const, icon: CrownIcon, label: "PRO навсегда", value: stats?.pro, tone: "text-amber-300 bg-amber-400/15" },
+          { key: "pro" as const, icon: CrownIcon, label: "С PRO", value: stats?.pro, tone: "text-amber-300 bg-amber-400/15" },
           { key: "trial" as const, icon: GiftIcon, label: "В подарочном месяце", value: stats?.trial, tone: "text-emerald-300 bg-emerald-400/15" },
           { key: "discount" as const, icon: BadgePercentIcon, label: "На скидке −50%", value: stats?.discount, tone: "text-sky-300 bg-sky-400/15" },
         ].map(({ key, icon: Icon, label, value, tone }) => (
@@ -177,7 +178,13 @@ export function AdminPro() {
                     <span className={cn("shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", s.className)}>{s.label}</span>
                     <span className="hidden w-44 shrink-0 text-xs text-muted-foreground md:block">
                       {u.status === "pro" ? (
-                        <>с {date(u.proSince)}</>
+                        u.proUntil ? (
+                          <>
+                            до {date(u.proUntil)} · <b className="text-foreground">{daysLeft(u.proUntil)} дн.</b>
+                          </>
+                        ) : (
+                          <>навсегда · с {date(u.proSince)}</>
+                        )
                       ) : u.status === "trial" ? (
                         <>
                           до {date(u.trialUntil)} · <b className="text-foreground">{daysLeft(u.trialUntil)} дн.</b>
@@ -197,12 +204,21 @@ export function AdminPro() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-60">
                         <DropdownMenuLabel className="truncate text-xs text-muted-foreground">{u.displayName}</DropdownMenuLabel>
-                        {u.status !== "pro" && (
+                        <DropdownMenuItem onSelect={() => act({ action: "grantDays", days: 30 })}>
+                          <CrownIcon className="text-amber-300" />
+                          {u.status === "pro" && u.proUntil ? "Продлить PRO на месяц" : "PRO на 1 месяц"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => act({ action: "grantDays", days: 90 })}>
+                          <CrownIcon className="text-amber-300" />
+                          {u.status === "pro" && u.proUntil ? "Продлить PRO на 3 месяца" : "PRO на 3 месяца"}
+                        </DropdownMenuItem>
+                        {!(u.status === "pro" && !u.proUntil) && (
                           <DropdownMenuItem onSelect={() => act({ action: "grant" })}>
                             <CrownIcon className="text-amber-300" />
-                            Выдать PRO навсегда
+                            PRO навсегда
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => act({ action: "trial", days: 30 })}>
                           <CalendarPlusIcon className="text-emerald-300" />
                           {u.status === "trial" ? "Продлить подарок на 30 дней" : "Подарить 30 дней PRO"}

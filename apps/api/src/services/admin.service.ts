@@ -143,6 +143,7 @@ const USER_SUMMARY_SELECT = {
   username: true,
   proSince: true,
   trialUntil: true,
+  proUntil: true,
   lastSeenAt: true,
   createdAt: true,
   _count: { select: { comments: true, library: true } },
