@@ -1,4 +1,5 @@
 import compress from "@fastify/compress";
+import { referralRoutes } from "./routes/referrals.js";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -202,6 +203,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(seoRoutes);
       await api.register(heroRoutes);
       await api.register(promoRoutes);
+      await api.register(referralRoutes);
     },
     { prefix: "/api" },
   );

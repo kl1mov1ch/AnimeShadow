@@ -19,8 +19,7 @@ import {
   SunIcon,
   UserPlusIcon,
   WandSparklesIcon,
-  XIcon,
-} from "lucide-react";
+  XIcon, GiftIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -346,6 +345,14 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
             <WandSparklesIcon className="size-4 shrink-0" />
             <span className="flex-1">{t("recommendations.menuNudge")}</span>
             <ChevronRightIcon className="size-4" />
+          </Link>
+        )}
+
+        {authed && (
+          <Link to="/profile?tab=invite" onClick={onNavigate} className="mx-2 mb-2 flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/15 via-fuchsia-500/10 to-transparent px-3 py-2.5 text-sm font-semibold">
+            <GiftIcon className="size-4 shrink-0 text-primary" />
+            <span className="flex-1">Пригласи друга — получи PRO</span>
+            <ChevronRightIcon className="size-4 text-muted-foreground" />
           </Link>
         )}
 

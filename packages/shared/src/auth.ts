@@ -16,6 +16,8 @@ export const registerInputSchema = z.object({
   /// First-touch `document.referrer`, captured client-side (lib/visitor.ts)
   /// — feeds the admin "where users came from" report. Never required.
   referrer: z.string().trim().max(500).optional(),
+  /// A friend's invite code (see referral.ts) — typed in or from the link.
+  referralCode: z.string().trim().max(20).optional(),
 });
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 

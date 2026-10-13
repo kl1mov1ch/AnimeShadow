@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { newReferralCode, referrerFor } from "../lib/referral.js";
 import { trialEnd } from "../lib/pro.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -168,6 +169,7 @@ export class AuthService {
         displayName: input.displayName,
         passwordHash,
         referrer: input.referrer || null,
+        referralCode: input.referralCode?.trim().toUpperCase() || null,
         codeHash: hashCode(code),
         ticketHash: sha256(ticket),
         expiresAt,
@@ -176,6 +178,7 @@ export class AuthService {
         displayName: input.displayName,
         passwordHash,
         referrer: input.referrer || null,
+        referralCode: input.referralCode?.trim().toUpperCase() || null,
         codeHash: hashCode(code),
         ticketHash: sha256(ticket),
         attempts: 0,
@@ -228,12 +231,16 @@ export class AuthService {
     }
 
     const avatarUrl = await defaultAvatarUrl();
+    // The friend whose code came with the sign-up, if it is a real one.
+    const referredById = await referrerFor(this.prisma, pending.referralCode);
     let user: User;
     try {
       user = await this.prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
           data: {
             email: pending.email,
+            referralCode: newReferralCode(),
+            ...(referredById ? { referredById } : {}),
             displayName: pending.displayName,
             passwordHash: pending.passwordHash,
             avatarUrl,
@@ -474,7 +481,7 @@ export class AuthService {
    * nickname and age aren't something the widget can ever provide, so
    * neither is guessed at or left half-set.
    */
-  async loginWithTelegram(input: TelegramAuthInput): Promise<PublicUser> {
+  async loginWithTelegram(input: TelegramAuthInput, referralCode?: string): Promise<PublicUser> {
     if (!this.telegramBotToken) {
       throw new BadRequestError("Telegram sign-in isn't configured on this server.");
     }
@@ -504,6 +511,8 @@ export class AuthService {
     ]);
 
     try {
+      // A first sign-in through Telegram can carry a friend's code too.
+      const referredById = await referrerFor(this.prisma, referralCode);
       const user = await this.prisma.user.create({
         data: {
           // No real inbox behind this — Telegram never hands over an email
@@ -511,6 +520,8 @@ export class AuthService {
           // unreachable placeholder fills it rather than making email
           // nullable everywhere else in the app for one auth path.
           email: `tg-${telegramId}@telegram.local`,
+          referralCode: newReferralCode(),
+          ...(referredById ? { referredById } : {}),
           displayName,
           passwordHash,
           avatarUrl,

@@ -27,6 +27,7 @@ const CARD_SELECT = {
   proSince: true,
   trialUntil: true,
   proUntil: true,
+  titleUnlocked: true,
   onlineStatus: true,
   avatarFrame: true,
   profileTitle: true,
@@ -353,8 +354,8 @@ export class SocialService {
       avatarFrame: r.avatarFrame as UserCard["avatarFrame"],
       profileTitle: r.profileTitle as UserCard["profileTitle"],
       // PRO-only, as on the profile: a lapsed subscription shows no custom title.
-      titlePrefix: proActive(r) ? r.titlePrefix : null,
-      titleIcon: proActive(r) ? (r.titleIcon as UserCard["titleIcon"]) : null,
+      titlePrefix: proActive(r) || r.titleUnlocked ? r.titlePrefix : null,
+      titleIcon: proActive(r) || r.titleUnlocked ? (r.titleIcon as UserCard["titleIcon"]) : null,
       following: following.has(r.id),
       followsYou: followsYou.has(r.id),
     }));

@@ -68,6 +68,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: "melomaniac", rarity: "rare", category: "special", manual: true },
   { id: "patron", rarity: "legendary", category: "special", manual: true },
   { id: "supporter", rarity: "legendary", category: "special", manual: true },
+  // Inviting friends (given by the referral rewards)
+  { id: "referral-guide", rarity: "rare", category: "community", manual: true },
+  { id: "referral-spark", rarity: "rare", category: "community", manual: true },
+  { id: "referral-ambassador", rarity: "epic", category: "community", manual: true },
+  { id: "referral-legend", rarity: "legendary", category: "community", manual: true },
+  { id: "referral-star", rarity: "legendary", category: "community", manual: true },
 ] as const;
 
 export const ACHIEVEMENT_IDS = ACHIEVEMENTS.map((a) => a.id);

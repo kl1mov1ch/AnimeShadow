@@ -4,6 +4,7 @@ import type {
   PublicUser,
   RegisterInput,
 } from "@animeshadow/shared";
+import { readReferral } from "@/lib/referral";
 import {
   createContext,
   use,
@@ -169,9 +170,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithTelegram = useCallback(
     async (data: TelegramAuthData) => {
+      const referralCode = readReferral();
       const res = await apiRequest<AuthResponse>("/auth/telegram", {
         method: "POST",
-        body: data,
+        // The friend's code rides next to Telegram's signed fields, not in them.
+        body: referralCode ? { ...data, referralCode } : data,
       });
       applySession({ v: 1, token: res.token, user: res.user });
     },

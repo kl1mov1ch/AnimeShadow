@@ -10,6 +10,7 @@ import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { clearLinkParams, linkParam } from "@/lib/link-params";
 import { useResendRegistration } from "@/lib/query";
+import { forgetReferral } from "@/lib/referral";
 
 const RESEND_COOLDOWN_SECONDS = 45;
 const PENDING_EMAIL_KEY = "animeshadow.pendingSignupEmail";
@@ -82,6 +83,7 @@ export function Component() {
       try {
         await confirmRegistration(email, value, needPassword ? password : undefined);
         writePendingEmail(null);
+        forgetReferral();
         toast.success("Аккаунт создан! 🎉", { description: "И месяц PRO в подарок 👑 — он уже включён" });
         navigate("/library", { replace: true });
       } catch (err) {

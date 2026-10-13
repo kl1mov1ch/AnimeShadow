@@ -9,8 +9,7 @@ import {
   ShieldCheckIcon,
   SparklesIcon,
   UserPlusIcon,
-  WandSparklesIcon,
-} from "lucide-react";
+  WandSparklesIcon, GiftIcon } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -140,6 +139,7 @@ export function UserMenu() {
           <Row to="/library" icon={LibraryIcon}>{t("userMenu.list")}</Row>
           <Row to="/collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
           <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
+          <Row to="/profile?tab=invite" icon={GiftIcon}>Пригласить друга</Row>
           <Row to="/profile?studio=profile" icon={Settings2Icon}>{t("userMenu.customise")}</Row>
           {user.role === "ADMIN" && <Row to="/admin" icon={ShieldCheckIcon}>{t("userMenu.admin")}</Row>}
         </div>

@@ -180,9 +180,9 @@ export class ProfileService {
     if (input.titlePrefix !== undefined || input.titleIcon !== undefined) {
       const user = await this.prisma.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { proSince: true, trialUntil: true, proUntil: true },
+        select: { proSince: true, trialUntil: true, proUntil: true, titleUnlocked: true },
       });
-      if (!proActive(user)) {
+      if (!proActive(user) && !user.titleUnlocked) {
         throw new BadRequestError("Свой значок и подпись доступны только с PRO.");
       }
       if (input.titlePrefix && isProfane(input.titlePrefix)) {
@@ -529,9 +529,9 @@ export class ProfileService {
       // free-text title does.
       avatarFrame: user.avatarFrame as PublicProfile["avatarFrame"],
       profileTitle: user.profileTitle as PublicProfile["profileTitle"],
-      titlePrefix: proActive(user) ? user.titlePrefix : null,
+      titlePrefix: proActive(user) || user.titleUnlocked ? user.titlePrefix : null,
       titleIcon:
-        proActive(user) ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
+        proActive(user) || user.titleUnlocked ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
       totalCommentLikes: standing.totalLikes,
       bonusXp: user.bonusXp,
       counters: hidden.list ? { ...counters, rated: 0, listed: 0 } : counters,

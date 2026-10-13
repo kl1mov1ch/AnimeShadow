@@ -12,13 +12,14 @@ import { STATUS_ORDER, type ListStatus } from "./format";
 import { PlayerStrip, ProfileStage, ProfileTabs, type TabDef } from "./profile-stage";
 import { ActivityTab } from "./tab-activity";
 import { CollectionsTab } from "./tab-collections";
+import { InviteTab } from "./tab-invite";
 import { ListTab } from "./tab-list";
 import { OverviewTab } from "./tab-overview";
 import { PeopleTab } from "./social";
 import { TrophiesTab } from "./tab-trophies";
 
-type Tab = "overview" | "people" | "list" | "trophies" | "activity" | "collections";
-const TABS: Tab[] = ["overview", "people", "list", "trophies", "activity", "collections"];
+type Tab = "overview" | "people" | "list" | "trophies" | "activity" | "collections" | "invite";
+const TABS: Tab[] = ["overview", "people", "list", "trophies", "activity", "collections", "invite"];
 const KINDS: FollowKind[] = ["friends", "followers", "following"];
 
 /**
@@ -118,8 +119,10 @@ export function ProfileView({
       { id: "trophies", label: "Трофеи", count: `${earned}/${profile.achievements.length}` },
       { id: "activity", label: "Активность" },
       { id: "collections", label: "Подборки", count: collections?.items.length ?? "" },
+      // Only on one's own profile: inviting friends and its rewards.
+      ...(own ? [{ id: "invite" as const, label: "🎁 Приглашения" }] : []),
     ],
-    [profile.hidden.list, list?.length, earned, profile.achievements.length, collections?.items.length, social],
+    [profile.hidden.list, list?.length, earned, profile.achievements.length, collections?.items.length, social, own],
   );
 
   const actions: ProfileTaskActions | undefined = own
@@ -163,6 +166,7 @@ export function ProfileView({
         {tab === "trophies" && <TrophiesTab profile={profile} own={own} />}
         {tab === "activity" && <ActivityTab profile={profile} />}
         {tab === "collections" && <CollectionsTab profile={profile} own={own} />}
+        {tab === "invite" && own && <InviteTab />}
       </div>
       {own && media.elements}
     </div>

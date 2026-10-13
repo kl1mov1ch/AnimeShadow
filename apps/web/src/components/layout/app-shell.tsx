@@ -1,5 +1,7 @@
 import { GuestNudge } from "@/components/auth/guest-nudge";
+import { useEffect } from "react";
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
+import { captureReferral } from "@/lib/referral";
 import { AchievementWatcher } from "@/components/achievement-watcher";
 import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
 import { SearchCommandMount } from "@/components/layout/search-command-mount";
@@ -17,6 +19,8 @@ export function AppShell() {
   const routeKey = pathname.split("/").slice(0, 3).join("/");
   usePageviewBeacon();
   useExternalAnalytics();
+  // ?ref=CODE on any page: kept until the visitor signs up.
+  useEffect(() => captureReferral(), []);
   useServerHeadHandoff();
 
   return (

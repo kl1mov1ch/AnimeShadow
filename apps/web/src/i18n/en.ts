@@ -1997,6 +1997,26 @@ export const en = {
         title: "Completionist",
         desc: "Complete every episode of a long series.",
       },
+      "referral-guide": {
+        title: "Guide",
+        desc: "Invite your first friend who watches at least an hour.",
+      },
+      "referral-spark": {
+        title: "Spark",
+        desc: "Your friends have watched 20 hours of anime together.",
+      },
+      "referral-ambassador": {
+        title: "Ambassador",
+        desc: "Invite 10 friends.",
+      },
+      "referral-legend": {
+        title: "Community legend",
+        desc: "Invite 25 friends.",
+      },
+      "referral-star": {
+        title: "Star",
+        desc: "Your friends have watched 500 hours of anime together.",
+      },
       "early-adopter": {
         title: "Early adopter",
         desc: "Join in the project's first months.",

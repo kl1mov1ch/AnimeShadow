@@ -9,6 +9,7 @@ import {
   telegramAuthInputSchema,
   verifyEmailInputSchema,
 } from "@animeshadow/shared";
+import { z } from "zod";
 import type { FastifyPluginAsync } from "fastify";
 import { parse } from "../lib/validation.js";
 
@@ -57,7 +58,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/auth/telegram", strict(30, 15), async (request) => {
     const input = parse(telegramAuthInputSchema, request.body);
-    const user = await auth.loginWithTelegram(input);
+    const { referralCode } = parse(z.object({ referralCode: z.string().trim().max(20).optional() }), request.body);
+    const user = await auth.loginWithTelegram(input, referralCode);
     return { token: await issueToken(user.id), user };
   });
 

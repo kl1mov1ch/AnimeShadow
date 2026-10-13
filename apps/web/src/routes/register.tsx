@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
 import { isTelegramLoginSupported, type TelegramAuthData } from "@/lib/telegram-auth";
+import { readReferral, useReferralCheck } from "@/lib/referral";
 import { getFirstTouchReferrer } from "@/lib/visitor";
 
 type FieldName = "displayName" | "email" | "password";
@@ -29,6 +30,9 @@ export function Component() {
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
   const [password, setPassword] = useState("");
+  // A friend's code: from the invite link (kept since it was opened), or typed.
+  const [friendCode, setFriendCode] = useState(() => readReferral());
+  const friend = useReferralCheck(friendCode);
 
   const onTelegramAuth = async (data: TelegramAuthData) => {
     setErrors({});
@@ -51,6 +55,7 @@ export function Component() {
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
       referrer: getFirstTouchReferrer() || undefined,
+      referralCode: friendCode.trim() || undefined,
     };
 
     const parsed = registerInputSchema.safeParse(input);
@@ -159,6 +164,39 @@ export function Component() {
         <div className="-mt-3">
           <PasswordStrength password={password} />
         </div>
+
+        <AuthField
+          label="Код друга — если пригласили"
+          hint={
+            friend.data?.valid
+              ? undefined
+              : friendCode && friend.data && !friend.data.valid
+                ? undefined
+                : "Необязательно. Другу за тебя — награды, тебе — месяц PRO в любом случае."
+          }
+        >
+          {(p) => (
+            <div className="flex flex-col gap-1.5">
+              <TextInput
+                {...p}
+                name="referralCode"
+                value={friendCode}
+                onChange={(event) => setFriendCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))}
+                placeholder="Например, HCXT5NW4"
+                autoComplete="off"
+                className="font-mono tracking-[0.15em]"
+              />
+              {friend.data?.valid && (
+                <p className="animate-in text-xs font-medium text-emerald-400 duration-200 fade-in-0">
+                  🎁 Тебя пригласил(а) {friend.data.name} — вы оба получите бонусы
+                </p>
+              )}
+              {friendCode.length >= 4 && friend.data && !friend.data.valid && (
+                <p className="text-xs text-amber-400">Такого кода нет — проверь буквы или оставь поле пустым</p>
+              )}
+            </div>
+          )}
+        </AuthField>
 
         <SubmitButton pending={pending}>{t("auth.registerCta")}</SubmitButton>
       </form>
