@@ -152,6 +152,77 @@ export class SocialService {
    * People worth following: recently on the site, with a nickname (so
    * their profile has an address), not the viewer, not already followed.
    */
+  /** The ranking behind popularPeople, shared by every viewer for a few minutes. */
+  private popularCache: { at: number; rows: Array<{ id: string; score: number; hours: number; followers: number }> } | null = null;
+
+  /**
+   * The most popular and active people of the last two weeks, for the
+   * search window: hours watched, new followers and comments in that time,
+   * weighed together. The ranking is the same for everyone and kept five
+   * minutes; only how each person relates to the viewer is per viewer.
+   */
+  async popularPeople(
+    viewerId: string | null,
+  ): Promise<Array<UserCard & { weekHours: number; followers: number }>> {
+    if (!this.popularCache || Date.now() - this.popularCache.at > 5 * 60_000) {
+      const since = new Date(Date.now() - 14 * 86_400_000);
+      const [watched, followed, commented, followerTotals] = await Promise.all([
+        this.prisma.watchSession.groupBy({
+          by: ["userId"],
+          where: { startedAt: { gte: since } },
+          _sum: { seconds: true },
+          orderBy: { _sum: { seconds: "desc" } },
+          take: 60,
+        }),
+        this.prisma.follow.groupBy({
+          by: ["followingId"],
+          where: { createdAt: { gte: since } },
+          _count: { _all: true },
+          orderBy: { _count: { followingId: "desc" } },
+          take: 60,
+        }),
+        this.prisma.comment.groupBy({
+          by: ["userId"],
+          where: { createdAt: { gte: since }, deletedAt: null },
+          _count: { _all: true },
+          orderBy: { _count: { userId: "desc" } },
+          take: 60,
+        }),
+        this.prisma.follow.groupBy({ by: ["followingId"], _count: { _all: true } }),
+      ]);
+      const score = new Map<string, { score: number; hours: number }>();
+      const add = (id: string, points: number, hours = 0) => {
+        const cur = score.get(id) ?? { score: 0, hours: 0 };
+        score.set(id, { score: cur.score + points, hours: cur.hours + hours });
+      };
+      for (const w of watched) {
+        const hours = (w._sum.seconds ?? 0) / 3600;
+        add(w.userId, hours, hours);
+      }
+      for (const f of followed) add(f.followingId, f._count._all * 3);
+      for (const c of commented) add(c.userId, c._count._all * 0.5);
+      const followers = new Map(followerTotals.map((f) => [f.followingId, f._count._all]));
+      const rows = [...score.entries()]
+        .map(([id, v]) => ({ id, score: v.score, hours: Math.round(v.hours * 10) / 10, followers: followers.get(id) ?? 0 }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 40);
+      this.popularCache = { at: Date.now(), rows };
+    }
+    const ranked = this.popularCache.rows.filter((r) => r.id !== viewerId);
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ranked.map((r) => r.id) }, isBanned: false },
+      select: CARD_SELECT,
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+    const ordered = ranked.filter((r) => byId.has(r.id)).slice(0, 10);
+    // Few active people yet (a young site): the recently seen fill in.
+    const cards = await this.decorate(ordered.map((r) => byId.get(r.id)!), viewerId);
+    const result = cards.map((c, i) => ({ ...c, weekHours: ordered[i]!.hours, followers: ordered[i]!.followers }));
+    if (result.length >= 6) return result;
+    const more = (await this.suggestions(viewerId)).filter((c) => !result.some((r) => r.id === c.id));
+    return [...result, ...more.map((c) => ({ ...c, weekHours: 0, followers: 0 }))].slice(0, 10);
+  }
+
   async suggestions(viewerId: string | null): Promise<UserCard[]> {
     const followed = viewerId
       ? (await this.prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } })).map((f) => f.followingId)

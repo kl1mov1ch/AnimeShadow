@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
-import { useBrowse, useCollections, useSearchPeople, useSuggestedPeople } from "@/lib/query";
+import { useBrowse, useCollections, usePopularPeople, useSearchPeople } from "@/lib/query";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -425,23 +425,39 @@ export function PeopleResults({ term, onSelect }: { term: string; onSelect: (use
   const q = term.trim();
   const searching = q.replace(/^@+/, "").length >= 2;
   const found = useSearchPeople(q, searching);
-  const suggested = useSuggestedPeople(!searching);
-  const data = searching ? found.data : suggested.data;
-  const pending = searching ? found.isPending : suggested.isPending;
-  if (pending && !data) return <LoadingRows count={4} />;
-  const items = (data ?? []).slice(0, 8);
-  if (items.length === 0) {
-    return (
-      <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-        {searching ? "Никого не нашлось — попробуйте ник или часть имени." : "Найдите друзей по нику или имени."}
-      </p>
-    );
-  }
+  // Always there: the popular and active people of the last two weeks —
+  // before typing, and when a search finds nobody.
+  const popular = usePopularPeople(true);
+  if (searching && found.isPending && !found.data) return <LoadingRows count={4} />;
+  const hits = searching ? (found.data ?? []).slice(0, 8) : [];
+  const top = (popular.data ?? []).slice(0, searching ? 4 : 8);
+  if (!searching && popular.isPending && !popular.data) return <LoadingRows count={4} />;
   return (
-    <CommandGroup
-      heading={searching ? "Люди" : "Может, знакомы?"}
-      className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
-    >
+    <>
+      {searching && hits.length === 0 && (
+        <p className="px-4 pb-1 pt-5 text-center text-sm text-muted-foreground">Никого не нашлось — попробуйте ник или часть имени.</p>
+      )}
+      {hits.length > 0 && <PeopleGroup heading="Люди" items={hits} onSelect={onSelect} />}
+      {top.length > 0 && (!searching || hits.length === 0) && (
+        <PeopleGroup heading="Популярные и активные за 2 недели" items={top} onSelect={onSelect} ranked />
+      )}
+    </>
+  );
+}
+
+function PeopleGroup({
+  heading,
+  items,
+  onSelect,
+  ranked = false,
+}: {
+  heading: string;
+  items: Array<UserCard & { weekHours?: number; followers?: number }>;
+  onSelect: (user: UserCard) => void;
+  ranked?: boolean;
+}) {
+  return (
+    <CommandGroup heading={heading} className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide">
       {items.map((u, i) => {
         const friends = u.following && u.followsYou;
         return (
@@ -460,8 +476,13 @@ export function PeopleResults({ term, onSelect }: { term: string; onSelect: (use
                 <span className="truncate">{u.displayName}</span>
                 {u.isPro && <ProMark className="text-[11px]" />}
               </span>
-              <span className="truncate text-xs text-muted-foreground">
-                {u.username ? `@${u.username}` : "без ника"} · {u.episodes} эп.
+              <span className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
+                {ranked && i < 3 && <FlameIcon className="size-3 shrink-0 text-orange-400" />}
+                <span className="truncate">
+                  {u.username ? `@${u.username}` : "без ника"}
+                  {ranked && u.weekHours ? ` · ${u.weekHours} ч за 2 нед.` : ` · ${u.episodes} эп.`}
+                  {ranked && u.followers ? ` · ${u.followers} подп.` : ""}
+                </span>
               </span>
             </span>
             {friends ? (

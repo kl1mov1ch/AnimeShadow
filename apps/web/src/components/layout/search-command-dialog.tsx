@@ -126,12 +126,12 @@ export function SearchCommandDialog({
     [close, navigate, term],
   );
 
-  // A person: their page when they have a nick, a card over the page when not.
+  // A person opens as a preview card over the page.
   const [person, setPerson] = useState<ProfileModalTarget | null>(null);
   const goToPerson = (user: UserCard) => {
     close();
-    if (user.username) navigate(`/profile/${user.username}`);
-    else setPerson({ id: user.id, username: null });
+    // Always the preview first — the full profile is a button in it.
+    setPerson({ id: user.id, username: user.username });
   };
 
   const goToCollection = (collection: CollectionSummary) => {
@@ -170,7 +170,7 @@ export function SearchCommandDialog({
                 setTerm(event.target.value);
                 setGenre(null);
               }}
-              placeholder={mode === "anime" ? t("search.placeholder") : t("search.hintCollections")}
+              placeholder={mode === "anime" ? t("search.placeholder") : mode === "people" ? "Ник или имя человека" : t("search.hintCollections")}
               aria-label={t("search.open")}
               className="h-14 w-full bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground/70"
             />

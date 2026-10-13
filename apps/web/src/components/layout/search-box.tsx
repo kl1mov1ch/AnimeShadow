@@ -122,13 +122,13 @@ export function SearchBox() {
     [navigate, term],
   );
 
-  // A person: their page when they have a nick, a card over the page when not.
+  // A person opens as a preview card over the page.
   const [person, setPerson] = useState<ProfileModalTarget | null>(null);
   const goToPerson = (user: UserCard) => {
     setOpen(false);
         inputRef.current?.blur();
-    if (user.username) navigate(`/profile/${user.username}`);
-    else setPerson({ id: user.id, username: null });
+    // Always the preview first — the full profile is a button in it.
+    setPerson({ id: user.id, username: user.username });
   };
 
   const goToCollection = (collection: CollectionSummary) => {
@@ -146,7 +146,7 @@ export function SearchBox() {
 
 
   return (
-    <div ref={rootRef} className="relative w-full min-w-0 sm:w-[min(360px,42vw)]">
+    <div ref={rootRef} className="relative w-full min-w-0 sm:w-[min(360px,42vw)] lg:w-[min(340px,22vw)] 2xl:w-[360px]">
       <Command
         shouldFilter={false}
         loop
@@ -198,7 +198,7 @@ export function SearchBox() {
               aria-hidden
               className="pointer-events-none absolute left-9 right-20 overflow-hidden text-sm text-muted-foreground/80"
             >
-              <span className="block truncate">{mode === "anime" ? t("search.hintTitle") : t("search.hintCollections")}</span>
+              <span className="block truncate">{mode === "anime" ? t("search.hintTitle") : mode === "people" ? "Ник или имя человека" : t("search.hintCollections")}</span>
             </span>
           )}
 
@@ -221,7 +221,7 @@ export function SearchBox() {
             ) : (
               // Only advertised while there's nothing typed — once you're
               // mid-query the shortcut is noise, not help.
-              <kbd className="pointer-events-none hidden select-none rounded-md border border-border/70 bg-secondary/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/80 sm:inline-block">
+              <kbd className="pointer-events-none hidden select-none rounded-md border border-border/70 bg-secondary/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/80 xl:inline-block">
                 {shortcutLabel()}
               </kbd>
             )}

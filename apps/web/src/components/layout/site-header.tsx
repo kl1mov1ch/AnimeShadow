@@ -68,7 +68,7 @@ function useNavIndicator(navRef: React.RefObject<HTMLElement | null>) {
     if (!nav) return;
     const measure = () => {
       const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
-      setBox(active ? { left: active.offsetLeft + 10, width: active.offsetWidth - 20 } : null);
+      setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -159,7 +159,19 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 lg:gap-8">
         <Wordmark textClassName="max-md:text-[0.79rem]" />
 
-        <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden h-16 items-center lg:flex">
+        {/* The sections as a capsule: a glowing pill slides under the one
+            you're in, its icon gives a little hop; pointing at another
+            lifts its icon. CSS transitions only (see .hnav-* in index.css). */}
+        <nav
+          ref={navRef}
+          aria-label={t("common.menu")}
+          className="hnav relative hidden items-center gap-0.5 rounded-full border border-[var(--accent-line-soft)] bg-foreground/[0.03] p-1 lg:flex"
+        >
+          {indicator && (
+            <span aria-hidden className="hnav-pill absolute inset-y-1 rounded-full" style={{ left: indicator.left, width: indicator.width }}>
+              <span key={indicator.left} className="hnav-sheen" />
+            </span>
+          )}
           {nav.map((item) => (
             <NavLink
               viewTransition
@@ -168,21 +180,19 @@ export function SiteHeader() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  "flex h-16 items-center whitespace-nowrap px-2.5 text-sm font-medium transition-colors duration-200",
-                  isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  "hnav-link group/nav relative z-10 flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors duration-200",
+                  isActive ? "text-foreground" : "text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground",
                 )
               }
             >
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  <item.Icon className={cn("hnav-icon hidden size-4 shrink-0 xl:block", isActive && "hnav-icon-on text-primary")} />
+                  {item.label}
+                </>
+              )}
             </NavLink>
           ))}
-          {indicator && (
-            <span
-              aria-hidden
-              className="absolute -bottom-px h-0.5 rounded-full bg-primary transition-[left,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-              style={{ left: indicator.left, width: indicator.width }}
-            />
-          )}
         </nav>
 
         <div className="ml-auto flex min-w-0 items-center justify-end gap-1">

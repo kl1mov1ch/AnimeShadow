@@ -91,6 +91,11 @@ export const socialRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // The search window's people before anything is typed: popular and active lately.
+  fastify.get("/people/popular", { preHandler: fastify.optionalAuth }, async (request) => {
+    return { items: await social.popularPeople(request.userId ?? null) };
+  });
+
   fastify.get("/people/suggested", { preHandler: fastify.optionalAuth }, async (request) => {
     return { items: await social.suggestions(request.userId ?? null) };
   });

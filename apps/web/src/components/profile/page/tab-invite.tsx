@@ -2,11 +2,11 @@ import type { ReferralRewardState, ReferralState } from "@animeshadow/shared";
 import { CheckIcon, ClockIcon, CopyIcon, CrownIcon, GiftIcon, HeartIcon, HourglassIcon, LockIcon, MedalIcon, PenLineIcon, SendIcon, Share2Icon, SparklesIcon, TrophyIcon, UserPlusIcon, UsersIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ReactionGif } from "@/components/common/reaction-gif";
 import { PromoTimer } from "@/components/promo/promo-offer";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type ProfileModalTarget, UserProfileModal } from "@/components/user-profile-modal";
 import { ApiRequestError, apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { inviteLink, useClaimReferral, useReferrals } from "@/lib/referral";
@@ -346,6 +346,7 @@ function Ladder({ state, track }: { state: ReferralState; track: "friends" | "ho
 }
 
 function Friends({ state }: { state: ReferralState }) {
+  const [person, setPerson] = useState<ProfileModalTarget | null>(null);
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5">
       <h3 className="flex items-center gap-2 font-display text-lg">
@@ -383,18 +384,19 @@ function Friends({ state }: { state: ReferralState }) {
             );
             return (
               <li key={p.id}>
-                {p.username ? (
-                  <Link to={`/profile/${p.username}`} className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/30 p-2.5 transition-colors hover:border-foreground/25">
-                    {body}
-                  </Link>
-                ) : (
-                  <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/30 p-2.5">{body}</div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setPerson({ id: p.id, username: p.username })}
+                  className="flex w-full items-center gap-3 rounded-xl border border-border/50 bg-background/30 p-2.5 text-left transition-colors hover:border-foreground/25"
+                >
+                  {body}
+                </button>
               </li>
             );
           })}
         </ul>
       )}
+      <UserProfileModal target={person} onOpenChange={(open) => !open && setPerson(null)} />
     </section>
   );
 }
@@ -411,6 +413,7 @@ function Leaders() {
     staleTime: 60_000,
   });
   const medal = ["text-amber-300", "text-zinc-300", "text-orange-400"];
+  const [person, setPerson] = useState<ProfileModalTarget | null>(null);
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5">
       <h3 className="flex items-center gap-2 font-display text-lg">
@@ -429,13 +432,13 @@ function Leaders() {
               <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-xs font-semibold">
                 {p.avatarUrl ? <img src={imageSrc(p.avatarUrl)} alt="" loading="lazy" className="size-full object-cover" /> : p.displayName.charAt(0)}
               </span>
-              {p.username ? (
-                <Link to={`/profile/${p.username}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-primary">
-                  {p.displayName}
-                </Link>
-              ) : (
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.displayName}</span>
-              )}
+              <button
+                type="button"
+                onClick={() => setPerson({ id: p.id, username: p.username })}
+                className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:text-primary"
+              >
+                {p.displayName}
+              </button>
               <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums">
                 <UsersIcon className="size-3.5 text-muted-foreground" />
                 {p.friends}
@@ -455,6 +458,7 @@ function Leaders() {
           )}
         </p>
       )}
+      <UserProfileModal target={person} onOpenChange={(open) => !open && setPerson(null)} />
     </section>
   );
 }

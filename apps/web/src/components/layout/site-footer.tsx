@@ -1,4 +1,4 @@
-import { ArrowUpIcon, CoffeeIcon, HeartIcon, UserPlusIcon } from "lucide-react";
+import { ArrowUpIcon, HeartIcon, UserPlusIcon } from "lucide-react";
 import { type ComponentType, type SVGProps, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import { useI18n } from "@/i18n";
 import { TiktokIcon } from "@/components/home/social-icons";
 import { shareInvite, TELEGRAM_CHANNEL, TIKTOK_URL } from "@/lib/community";
 import { glideTo } from "@/lib/glide";
-import { donateHref } from "@/lib/support-links";
 
 const SOCIALS: Array<{ label: string; href: string; Icon: ComponentType<{ className?: string }>; hover: string }> = [
   { label: "Telegram", href: TELEGRAM_CHANNEL, Icon: TelegramIcon, hover: "hover:bg-[#26A5E4] hover:border-[#26A5E4]" },
@@ -48,8 +47,7 @@ export function SiteFooter() {
 
           {/* Where to find us, by name — and how to help the site along. */}
           <div className="flex flex-col items-start gap-3 md:items-end">
-            {/* Support stands out on its own (with a coffee beside it); the
-                networks are round icons. */}
+            {/* Support stands out on its own; the networks are round icons. */}
             <div className="flex flex-wrap items-center gap-2 md:justify-end">
             <Link
               to="/support"
@@ -59,15 +57,6 @@ export function SiteFooter() {
               <HeartIcon className="support-beat size-5 fill-current" />
               {t("footer.support")}
             </Link>
-            <a
-              href={donateHref()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group inline-flex h-12 items-center gap-2 rounded-2xl border border-amber-300/40 bg-amber-400/10 px-5 text-[15px] font-bold text-amber-100 transition-colors hover:bg-amber-400/20"
-            >
-              <CoffeeIcon className="size-5 text-amber-300 transition-transform group-hover:-rotate-12" />
-              На кофе
-            </a>
             </div>
             <div className="flex items-center gap-2">
               {SOCIALS.map(({ label, href, Icon, hover }) => (

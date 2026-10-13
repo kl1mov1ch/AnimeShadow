@@ -1473,6 +1473,17 @@ export function useSearchPeople(q: string, enabled = true) {
   });
 }
 
+/** Popular and active people of the last two weeks (the search window's people). */
+export function usePopularPeople(enabled = true) {
+  return useQuery({
+    queryKey: ["people", "popular"],
+    enabled,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: Array<UserCard & { weekHours: number; followers: number }> }>("/people/popular", { signal }).then((r) => r.items),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useSuggestedPeople(enabled = true) {
   return useQuery({
     queryKey: ["people", "suggested"],
