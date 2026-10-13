@@ -1461,6 +1461,18 @@ export function usePeople(userId: string | undefined, kind: FollowKind, enabled 
   });
 }
 
+/** People by nick or name (the search window's "People"). */
+export function useSearchPeople(q: string, enabled = true) {
+  return useQuery({
+    queryKey: ["people", "search", q],
+    enabled: enabled && q.trim().replace(/^@+/, "").length >= 2,
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: UserCard[] }>("/people/search", { signal, query: { q } }).then((r) => r.items),
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+  });
+}
+
 export function useSuggestedPeople(enabled = true) {
   return useQuery({
     queryKey: ["people", "suggested"],

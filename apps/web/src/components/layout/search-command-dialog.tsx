@@ -1,4 +1,4 @@
-import type { AnimeSummary, CollectionSummary } from "@animeshadow/shared";
+import type { AnimeSummary, CollectionSummary, UserCard } from "@animeshadow/shared";
 import { Loader2Icon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import {
   IdleState,
   LoadingRows,
   CollectionResults,
+  PeopleResults,
   GenreResults,
   ModeSwitch,
   type SearchMode,
@@ -38,6 +39,7 @@ import { useLabels } from "@/lib/labels";
 import { logSearch, useGenrePreferences, useGenres, useSearchPulse, useSmartSearch } from "@/lib/query";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { ReactionMedia } from "@/components/common/states";
+import { type ProfileModalTarget, UserProfileModal } from "@/components/user-profile-modal";
 
 /** Room for eight in the palette — it's a full surface, not a dropdown
  *  hanging off a 360px field, so it can afford more than the header's six. */
@@ -99,7 +101,7 @@ export function SearchCommandDialog({
   const submit = useCallback(
     (value: string) => {
       const q = value.trim();
-      if (!q) return;
+      if (!q || mode === "people") return;
       setRecent(pushRecent(q));
       close();
       if (mode === "collections") {
@@ -124,6 +126,14 @@ export function SearchCommandDialog({
     [close, navigate, term],
   );
 
+  // A person: their page when they have a nick, a card over the page when not.
+  const [person, setPerson] = useState<ProfileModalTarget | null>(null);
+  const goToPerson = (user: UserCard) => {
+    close();
+    if (user.username) navigate(`/profile/${user.username}`);
+    else setPerson({ id: user.id, username: null });
+  };
+
   const goToCollection = (collection: CollectionSummary) => {
     close();
     navigate(`/collections/${collection.id}`);
@@ -132,6 +142,7 @@ export function SearchCommandDialog({
 
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
         showCloseButton={false}
@@ -187,7 +198,11 @@ export function SearchCommandDialog({
             <ModeSwitch mode={mode} onMode={setMode} />
           </div>
           <CommandList className="max-h-[min(68vh,34rem)]">
-            {mode === "collections" ? (
+            {mode === "people" ? (
+                <div className="p-1">
+                  <PeopleResults term={debounced} onSelect={goToPerson} />
+                </div>
+              ) : mode === "collections" ? (
               <div className="p-1">
                 <CollectionResults term={debounced} onSelect={goToCollection} onSeeAll={submit} />
               </div>
@@ -282,5 +297,7 @@ export function SearchCommandDialog({
         </Command>
       </DialogContent>
     </Dialog>
+      <UserProfileModal target={person} onOpenChange={(open) => !open && setPerson(null)} />
+    </>
   );
 }

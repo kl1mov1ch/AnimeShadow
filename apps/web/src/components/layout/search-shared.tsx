@@ -1,11 +1,12 @@
-import type { AnimeSummary, CollectionSummary, SearchGroup, SearchPulse } from "@animeshadow/shared";
+import type { AnimeSummary, CollectionSummary, SearchGroup, SearchPulse, UserCard } from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ArrowLeftIcon, ClockIcon, FlameIcon, FolderHeartIcon, LayersIcon, SearchIcon, SparklesIcon, TvIcon } from "lucide-react";
+import { ArrowLeftIcon, ClockIcon, FlameIcon, FolderHeartIcon, HandshakeIcon, LayersIcon, SearchIcon, SparklesIcon, TvIcon, UserCheckIcon, UsersIcon } from "lucide-react";
+import { ProMark } from "@/components/common/pro-mark";
 import { useMemo } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
-import { useBrowse, useCollections } from "@/lib/query";
+import { useBrowse, useCollections, useSearchPeople, useSuggestedPeople } from "@/lib/query";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -138,17 +139,18 @@ export function Chip({
   );
 }
 
-/** What the search looks through: titles, or people's collections. */
-export type SearchMode = "anime" | "collections";
+/** What the search looks through: titles, people's collections, or people. */
+export type SearchMode = "anime" | "collections" | "people";
 
 export function ModeSwitch({ mode, onMode }: { mode: SearchMode; onMode: (mode: SearchMode) => void }) {
   const { t } = useI18n();
   const options: Array<{ id: SearchMode; label: string; icon: typeof TvIcon }> = [
     { id: "anime", label: t("search.modeAnime"), icon: TvIcon },
     { id: "collections", label: t("search.modeCollections"), icon: LayersIcon },
+    { id: "people", label: "Люди", icon: UsersIcon },
   ];
   return (
-    <div role="tablist" className="grid grid-cols-2 gap-1 rounded-xl bg-foreground/[0.05] p-1">
+    <div role="tablist" className="grid grid-cols-3 gap-1 rounded-xl bg-foreground/[0.05] p-1">
       {options.map((o) => {
         const on = o.id === mode;
         return (
@@ -410,6 +412,74 @@ export function CollectionResults({
           <span className="truncate">{t("search.collectionsAll", { query: q })}</span>
         </CommandItem>
       )}
+    </CommandGroup>
+  );
+}
+
+/**
+ * People in the search: by nick or name once two letters are typed (with
+ * or without "@"); before that, people worth meeting. Each row shows who
+ * they are — face, name, nick, PRO — and how they relate to the viewer.
+ */
+export function PeopleResults({ term, onSelect }: { term: string; onSelect: (user: UserCard) => void }) {
+  const q = term.trim();
+  const searching = q.replace(/^@+/, "").length >= 2;
+  const found = useSearchPeople(q, searching);
+  const suggested = useSuggestedPeople(!searching);
+  const data = searching ? found.data : suggested.data;
+  const pending = searching ? found.isPending : suggested.isPending;
+  if (pending && !data) return <LoadingRows count={4} />;
+  const items = (data ?? []).slice(0, 8);
+  if (items.length === 0) {
+    return (
+      <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+        {searching ? "Никого не нашлось — попробуйте ник или часть имени." : "Найдите друзей по нику или имени."}
+      </p>
+    );
+  }
+  return (
+    <CommandGroup
+      heading={searching ? "Люди" : "Может, знакомы?"}
+      className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
+    >
+      {items.map((u, i) => {
+        const friends = u.following && u.followsYou;
+        return (
+          <CommandItem
+            key={u.id}
+            value={`person-${u.id}`}
+            onSelect={() => onSelect(u)}
+            className="group animate-in fade-in slide-in-from-top-1 gap-2.5 rounded-xl py-1.5 duration-200 data-[selected=true]:bg-primary/10 data-[selected=true]:text-foreground data-[selected=true]:ring-1 data-[selected=true]:ring-primary/20"
+            style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
+          >
+            <span className="relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-sm font-semibold">
+              {u.avatarUrl ? <img src={imageSrc(u.avatarUrl)} alt="" loading="lazy" className="size-full object-cover" /> : u.displayName.charAt(0).toUpperCase()}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium leading-snug">
+                <span className="truncate">{u.displayName}</span>
+                {u.isPro && <ProMark className="text-[11px]" />}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {u.username ? `@${u.username}` : "без ника"} · {u.episodes} эп.
+              </span>
+            </span>
+            {friends ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-300">
+                <HandshakeIcon className="size-3" />
+                Друзья
+              </span>
+            ) : u.following ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-violet-300">
+                <UserCheckIcon className="size-3" />
+                Подписаны
+              </span>
+            ) : u.followsYou ? (
+              <span className="shrink-0 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-sky-300">Читает вас</span>
+            ) : null}
+          </CommandItem>
+        );
+      })}
     </CommandGroup>
   );
 }
