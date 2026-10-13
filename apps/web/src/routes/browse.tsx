@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { FilterBar } from "@/components/anime/filter-bar";
+import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
 import { BrowseFilters, type FilterPatch } from "@/components/anime/browse-filters";
 import { AnimeGrid, AnimeGridSkeleton, type AnimeViewMode } from "@/components/anime/anime-grid";
 import { PaginationBar } from "@/components/common/pagination-bar";
@@ -182,8 +182,6 @@ export function Component() {
       </header>
 
       <div className="flex flex-col gap-4">
-        {/* The filters: a row of buttons, each opening its own choices. */}
-        <FilterBar params={params} genres={genres} onChange={(changes) => patch(changes)} onReset={resetFilters} />
 
         <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
           {/* The row: filters (on a phone or tablet), the order, and on a
@@ -192,7 +190,10 @@ export function Component() {
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
-              className="hidden h-10 shrink-0 items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-3.5 text-sm font-medium transition-colors hover:border-foreground/20 hover:bg-card"
+              className={cn(
+                "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-colors",
+                filterCount > 0 ? "border-primary/50 bg-primary/10 text-foreground" : "border-border/70 bg-card/60 hover:border-foreground/20 hover:bg-card",
+              )}
             >
               <SlidersHorizontalIcon className="size-4" />
               {t("browse.filters")}
@@ -207,6 +208,14 @@ export function Component() {
             {!isSearch && <RandomButton params={params} />}
             <ViewSwitch view={view} onView={changeView} />
           </div>
+
+          {/* What is set, as chips that take themselves off — one line that
+              scrolls sideways on a phone. */}
+          {filterCount > 0 && (
+            <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
+              <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />
+            </div>
+          )}
 
 
           {isSearch && !searchWithFilters ? (
