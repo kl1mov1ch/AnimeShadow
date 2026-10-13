@@ -61,12 +61,11 @@ export function ProgressStepper({
   entry,
   edit,
   className,
-  compact = false,
 }: {
   entry: LibraryEntry;
   edit: LibraryEdit;
   className?: string;
-  /** A narrow card on a phone: no "−" (typing the number covers it). */
+  /** Kept for callers; the controls fit a narrow card as they are. */
   compact?: boolean;
 }) {
   const t = useT();
@@ -83,21 +82,19 @@ export function ProgressStepper({
         disabled={entry.progress <= 0}
         aria-label={t("library.minusOne")}
         title={t("library.minusOne")}
-        className={cn(
-          "grid size-8 shrink-0 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-30",
-          compact && "max-sm:hidden",
-        )}
+        className="grid size-8 shrink-0 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
       >
         <MinusIcon className="size-3.5" />
       </button>
       <div className="relative flex h-8 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-foreground/[0.06] text-xs tabular-nums">
         <span
           aria-hidden
-          className={cn("absolute inset-y-0 left-0 opacity-35 transition-[width] duration-500", STATUS_META[entry.status].bar)}
+          className={cn("absolute inset-y-0 left-0 opacity-25 transition-[width] duration-500", STATUS_META[entry.status].bar)}
           style={{ width: `${percent}%` }}
         />
         <span className="relative truncate px-1">
-          <EpisodeInput entry={entry} edit={edit} />
+          {/* Typing a number is only worth it for a long show. */}
+          {total > 100 || total === 0 ? <EpisodeInput entry={entry} edit={edit} /> : <span className="font-semibold">{entry.progress}</span>}
           <span className="text-muted-foreground">/{total > 0 ? total : "?"}</span>
         </span>
       </div>
@@ -107,9 +104,9 @@ export function ProgressStepper({
         disabled={done}
         aria-label={t("library.plusOne")}
         title={t("library.plusOne")}
-        className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-lg bg-primary px-2 text-xs font-bold text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+        className="grid size-8 shrink-0 place-items-center rounded-lg border border-border/60 text-foreground/80 transition-colors hover:border-primary/50 hover:text-primary active:scale-95 disabled:pointer-events-none disabled:opacity-30"
       >
-        <PlusIcon className="size-3.5" />1
+        <PlusIcon className="size-3.5" />
       </button>
     </div>
   );

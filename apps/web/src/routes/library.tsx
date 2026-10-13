@@ -185,7 +185,7 @@ export function Component() {
     return [...tally.entries()].sort((a, b) => b[1] - a[1]);
   }, [all]);
 
-  const filtered = useMemo(() => {
+  const sorted = useMemo(() => {
     const match = matcher(query);
     const list = all.filter(
       (e) =>
@@ -218,6 +218,10 @@ export function Component() {
         return list.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
     }
   }, [all, activeStatus, genre, type, airingOnly, withNotes, scoredOnly, query, sortBy, labels]);
+  // Ticking an episode (or a score, a note) must not move the card from
+  // under the pointer: the order is worked out once, and kept while only the
+  // entries' contents change. A new filter, sort or title re-sorts.
+  const filtered = useStableOrder(sorted, JSON.stringify([query, genre, type, airingOnly, withNotes, scoredOnly, sortBy, activeStatus]));
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE[view]));
   const page = Math.min(pageCount, Math.max(1, Number(searchParams.get("page")) || 1));
@@ -261,6 +265,7 @@ export function Component() {
         .slice(0, 12),
     [all],
   );
+  const continuingStable = useStableOrder(continuing, "continue");
 
   const planned = useMemo(() => all.filter((e) => e.status === "PLANNED"), [all]);
 
@@ -440,7 +445,7 @@ export function Component() {
       {/* The list itself.                                              */}
       {/* ------------------------------------------------------------ */}
       <div className="flex min-w-0 flex-col gap-4">
-        {!filtering && <ContinueStrip entries={continuing} edit={edit} />}
+        {!filtering && <ContinueStrip entries={continuingStable} edit={edit} />}
 
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm text-muted-foreground">
@@ -556,4 +561,19 @@ export function Component() {
       </div>
     </div>
   );
+}
+
+/**
+ * Keeps a list's order while its items only change inside: the order is
+ * recalculated when `key` changes or an item comes or goes, never because
+ * an entry's date or progress moved it.
+ */
+function useStableOrder(list: LibraryEntry[], key: string): LibraryEntry[] {
+  const memo = useRef<{ key: string; ids: string; order: number[] } | null>(null);
+  const ids = list.map((e) => e.anime.id).sort((a, b) => a - b).join(",");
+  if (!memo.current || memo.current.key !== key || memo.current.ids !== ids) {
+    memo.current = { key, ids, order: list.map((e) => e.anime.id) };
+  }
+  const rank = new Map(memo.current.order.map((id, i) => [id, i]));
+  return [...list].sort((a, b) => (rank.get(a.anime.id) ?? 0) - (rank.get(b.anime.id) ?? 0));
 }
