@@ -1,5 +1,6 @@
 import {
   BookmarkIcon,
+  ChevronRightIcon,
   HouseIcon,
   LanguagesIcon,
   LayoutGridIcon,
@@ -11,7 +12,9 @@ import {
   ScanSearchIcon,
   SearchIcon,
   ShieldCheckIcon,
+  Settings2Icon,
   ShuffleIcon,
+  SparklesIcon,
   SunIcon,
   UserPlusIcon,
   WandSparklesIcon,
@@ -37,7 +40,8 @@ import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { useI18n } from "@/i18n";
 import { apiRequest } from "@/lib/api";
-import { useRecommendationsStatus } from "@/lib/query";
+import { imageSrc } from "@/lib/format";
+import { useMyProfile, useRecommendationsStatus } from "@/lib/query";
 import { OPEN_SEARCH_EVENT } from "@/lib/search-events";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
@@ -254,36 +258,48 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
   const navigate = useNavigate();
   const authed = status === "authenticated" && user;
   const { data: configured } = useRecommendationsStatus(Boolean(authed));
+  const { data: profile } = useMyProfile(Boolean(authed));
   const needsSetup = Boolean(authed) && configured === false;
   const { roll } = useSurprise(onNavigate);
 
+  // The same rows as the account menu in the header.
   const row =
-    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-foreground/[0.05] hover:text-foreground focus-visible:bg-foreground/[0.07] focus-visible:text-foreground";
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 outline-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:bg-foreground/[0.07]";
+  const chevron = <ChevronRightIcon className="ml-auto size-3.5 text-muted-foreground/60" />;
+  const banner = profile?.bannerUrl ? imageSrc(profile.bannerUrl) : undefined;
 
   return (
-    <SheetContent side="right" className="flex w-[min(20rem,88vw)] flex-col gap-0 p-0">
-      <SheetHeader className="border-b border-border/60 px-5 py-4">
-        <SheetTitle>
-          <Wordmark />
-        </SheetTitle>
+    <SheetContent side="right" className="flex w-[min(20rem,88vw)] flex-col gap-0 overflow-hidden border-l border-[var(--accent-line-soft)] p-0">
+      <SheetHeader className="sr-only">
+        <SheetTitle>AnimeShadow</SheetTitle>
       </SheetHeader>
 
       <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* who */}
-        <div className="p-3">
-          {authed ? (
-            <Link
-              to="/profile"
-              onClick={onNavigate}
-              className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/60 p-3 transition-colors hover:bg-card"
-            >
-              <HeaderAvatar user={user} className="size-10" />
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium">{user.displayName}</span>
-                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-              </div>
-            </Link>
-          ) : (
+        {/* Who: the cover, the face, the name — the way to the profile. */}
+        {authed ? (
+          <Link to="/profile" onClick={onNavigate} className="group/card relative block">
+            <span className="absolute inset-x-0 top-0 block h-20 overflow-hidden">
+              {banner ? (
+                <img src={banner} alt="" className="size-full object-cover opacity-70" />
+              ) : (
+                <span className="block size-full bg-[radial-gradient(120%_140%_at_0%_0%,var(--accent-surface-strong),transparent_70%)]" />
+              )}
+              <span className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+            </span>
+            <span className="relative flex items-end gap-3 px-4 pb-3 pt-10">
+              <span className="shrink-0 rounded-full bg-background p-1">
+                <HeaderAvatar user={user} className="size-12" />
+              </span>
+              <span className="min-w-0 flex-1 pb-1">
+                <span className="block truncate text-sm font-semibold">{user.displayName}</span>
+                <span className="block truncate text-xs text-muted-foreground">{profile?.username ? `@${profile.username}` : user.email}</span>
+              </span>
+              <ChevronRightIcon className="mb-2 size-4 shrink-0 text-muted-foreground" />
+            </span>
+          </Link>
+        ) : (
+          <div className="flex flex-col gap-3 p-4">
+            <Wordmark />
             <div className="flex gap-2">
               <Button asChild variant="outline" className="flex-1" onClick={onNavigate}>
                 <Link to="/login">
@@ -298,51 +314,62 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
                 </Link>
               </Button>
             </div>
-          )}
-          {needsSetup && (
-            <Link
-              to="/recommendations"
-              onClick={onNavigate}
-              className="mt-2 flex items-center gap-2 rounded-xl border border-border/60 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.05]"
-            >
-              <WandSparklesIcon className="size-4 shrink-0 text-primary" />
-              {t("recommendations.menuNudge")}
-            </Link>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* where */}
-        <nav className="flex flex-col gap-0.5 px-3">
+        {needsSetup && (
+          <Link
+            to="/recommendations"
+            onClick={onNavigate}
+            className="mx-2 mb-2 flex items-center gap-3 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary"
+          >
+            <WandSparklesIcon className="size-4 shrink-0" />
+            <span className="flex-1">{t("recommendations.menuNudge")}</span>
+            <ChevronRightIcon className="size-4" />
+          </Link>
+        )}
+
+        <Separator />
+        {/* Where. */}
+        <nav className="flex flex-col p-1.5">
           {nav.map(({ to, label, end, Icon }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               onClick={onNavigate}
-              className={({ isActive }) => cn(row, isActive && "bg-foreground/[0.07] text-foreground")}
+              className={({ isActive }) => cn(row, isActive && "bg-foreground/[0.07] font-semibold text-foreground")}
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={cn("size-[18px] shrink-0", isActive && "text-primary")} />
+                  <Icon className={cn("size-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
                   {label}
+                  {chevron}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
 
-        <Separator className="my-3" />
-
-        {/* what else */}
-        <div className="flex flex-col gap-0.5 px-3">
+        <Separator />
+        {/* What else. */}
+        <div className="flex flex-col p-1.5">
+          {authed && (
+            <Link to="/profile?studio=profile" onClick={onNavigate} className={row}>
+              <Settings2Icon className="size-4 shrink-0 text-muted-foreground" />
+              {t("userMenu.customise")}
+              {chevron}
+            </Link>
+          )}
           {FEATURES.frameSearch && (
             <Link to="/frame-search" onClick={onNavigate} className={row}>
-              <ScanSearchIcon className="size-[18px] shrink-0" />
+              <ScanSearchIcon className="size-4 shrink-0 text-muted-foreground" />
               {t("frameSearch.navLabel")}
+              {chevron}
             </Link>
           )}
           <button type="button" onClick={() => void roll()} className={cn(row, "text-left")}>
-            <ShuffleIcon className="size-[18px] shrink-0" />
+            <ShuffleIcon className="size-4 shrink-0 text-muted-foreground" />
             {t("footer.randomAnime")}
           </button>
           <InstallAppMenuRow />
@@ -350,26 +377,34 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
           {FEATURES.lightTheme && <MobileTheme />}
         </div>
 
-        {authed && (
-          <div className="mt-auto p-3">
-            <button
-              type="button"
-              onClick={() => {
-                logout();
-                onNavigate();
-                navigate("/");
-              }}
-              className={cn(row, "w-full text-destructive hover:bg-destructive/10 hover:text-destructive")}
-            >
-              <LogOutIcon className="size-[18px] shrink-0" />
-              {t("common.signOut")}
-            </button>
-          </div>
-        )}
-      </div>
+        <Separator />
+        <div className="p-1.5">
+          <Link to="/support" onClick={onNavigate} className={row}>
+            <SparklesIcon className="size-4 shrink-0 text-primary" />
+            {t("userMenu.support")}
+            {chevron}
+          </Link>
+        </div>
 
-      <div className="border-t border-border/60 px-5 py-3 text-xs text-muted-foreground/70">
-        {t("footer.rights", { year: new Date().getFullYear() })}
+        {authed && (
+          <>
+            <Separator />
+            <div className="p-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  onNavigate();
+                  navigate("/");
+                }}
+                className={cn(row, "w-full text-destructive hover:bg-destructive/10 hover:text-destructive")}
+              >
+                <LogOutIcon className="size-4 shrink-0" />
+                {t("common.signOut")}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </SheetContent>
   );
