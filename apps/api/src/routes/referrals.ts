@@ -1,7 +1,7 @@
 import { referralClaimInputSchema } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { claimReferralReward, referralState, referrerFor } from "../lib/referral.js";
+import { claimReferralReward, referralLeaders, referralState, referrerFor } from "../lib/referral.js";
 import { parse } from "../lib/validation.js";
 
 /** Invites: the account's code and ladders, taking a reward, and checking a friend's code. */
@@ -18,6 +18,12 @@ export const referralRoutes: FastifyPluginAsync = async (fastify) => {
       return claimReferralReward(fastify.prisma, request.userId!, rewardId);
     },
   );
+
+  // Who brought the most friends, and where the viewer stands.
+  fastify.get("/referrals/leaders", { preHandler: fastify.authenticate }, async (request, reply) => {
+    reply.header("cache-control", "private, max-age=60");
+    return referralLeaders(fastify.prisma, request.userId!);
+  });
 
   // For the sign-up form: whose code this is, so it can say "from <name>".
   fastify.get(

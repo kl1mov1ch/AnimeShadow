@@ -30,7 +30,7 @@ import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { RandomRoll } from "@/components/layout/random-roll";
 import { SearchBox } from "@/components/layout/search-box";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { UserMenu } from "@/components/layout/user-menu";
+import { RewardsWaiting, UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import { MorphIcon } from "@/components/ui/morph-icon";
 import { Separator } from "@/components/ui/separator";
@@ -352,6 +352,7 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
           <Link to="/profile?tab=invite" onClick={onNavigate} className="mx-2 mb-2 flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/15 via-fuchsia-500/10 to-transparent px-3 py-2.5 text-sm font-semibold">
             <GiftIcon className="size-4 shrink-0 text-primary" />
             <span className="flex-1">Пригласи друга — получи PRO</span>
+            <RewardsWaiting />
             <ChevronRightIcon className="size-4 text-muted-foreground" />
           </Link>
         )}

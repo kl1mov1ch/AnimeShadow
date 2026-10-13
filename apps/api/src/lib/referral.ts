@@ -144,3 +144,66 @@ export async function claimReferralReward(prisma: PrismaClient, userId: string, 
   if (def.title) await prisma.user.update({ where: { id: userId }, data: { titleUnlocked: true } });
   return referralState(prisma, userId);
 }
+
+export interface ReferralLeader {
+  id: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  friends: number;
+}
+
+/**
+ * Who has brought the most friends — the board on the invite page, and
+ * where the viewer stands on it.
+ */
+export async function referralLeaders(
+  prisma: PrismaClient,
+  viewerId: string | null,
+  limit = 10,
+): Promise<{ items: ReferralLeader[]; me: { rank: number | null; friends: number } }> {
+  const counts = await prisma.user.groupBy({
+    by: ["referredById"],
+    where: { referredById: { not: null } },
+    _count: { _all: true },
+    orderBy: { _count: { referredById: "desc" } },
+  });
+  const ranked = counts.filter((c) => c.referredById).map((c) => ({ id: c.referredById!, friends: c._count._all }));
+  const top = ranked.slice(0, limit);
+  const people = await prisma.user.findMany({
+    where: { id: { in: top.map((t) => t.id) }, isBanned: false },
+    select: { id: true, displayName: true, username: true, avatarUrl: true },
+  });
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const items = top
+    .map((t) => {
+      const p = byId.get(t.id);
+      return p ? { ...p, friends: t.friends } : null;
+    })
+    .filter((x): x is ReferralLeader => x != null);
+  const mine = viewerId ? ranked.findIndex((r) => r.id === viewerId) : -1;
+  return { items, me: { rank: mine >= 0 ? mine + 1 : null, friends: mine >= 0 ? ranked[mine]!.friends : 0 } };
+}
+
+/** For the admin: how many came by invite, rewards taken, and the top inviters. */
+export async function referralOverview(prisma: PrismaClient) {
+  const [referred, rewardsTaken, inviters, leaders] = await Promise.all([
+    prisma.user.count({ where: { referredById: { not: null } } }),
+    prisma.referralReward.count(),
+    prisma.user.groupBy({ by: ["referredById"], where: { referredById: { not: null } } }).then((r) => r.length),
+    referralLeaders(prisma, null, 20),
+  ]);
+  const ids = leaders.items.map((l) => l.id);
+  const [emails, rewards] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } }),
+    prisma.referralReward.groupBy({ by: ["userId"], where: { userId: { in: ids } }, _count: { _all: true } }),
+  ]);
+  const email = new Map(emails.map((e) => [e.id, e.email]));
+  const taken = new Map(rewards.map((r) => [r.userId, r._count._all]));
+  return {
+    referred,
+    inviters,
+    rewardsTaken,
+    top: leaders.items.map((l) => ({ ...l, email: email.get(l.id) ?? "", rewards: taken.get(l.id) ?? 0 })),
+  };
+}

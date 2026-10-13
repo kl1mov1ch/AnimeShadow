@@ -31,6 +31,7 @@ import { imageSrc } from "@/lib/format";
 import { useSetUsername, useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { LevelBadge, LevelBar } from "./level-visuals";
+import { NickTagEditor } from "./nick-tag-editor";
 import { levelOf } from "./profile-level";
 import { useProfileMedia } from "./use-profile-media";
 
@@ -361,6 +362,8 @@ function ProfileBasics({ profile }: { profile: MyProfile }) {
           </div>
         </div>
       </Group>
+
+      <NickTagEditor profile={profile} />
 
       <Group title="Статус" hint="Как вас видят другие прямо сейчас.">
         <div className="grid gap-2 sm:grid-cols-3">

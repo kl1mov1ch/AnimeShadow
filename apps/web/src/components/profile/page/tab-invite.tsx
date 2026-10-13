@@ -1,12 +1,13 @@
 import type { ReferralRewardState, ReferralState } from "@animeshadow/shared";
-import { CheckIcon, ClockIcon, CopyIcon, CrownIcon, GiftIcon, HeartIcon, HourglassIcon, LockIcon, MedalIcon, PenLineIcon, SendIcon, Share2Icon, SparklesIcon, UserPlusIcon, UsersIcon } from "lucide-react";
+import { CheckIcon, ClockIcon, CopyIcon, CrownIcon, GiftIcon, HeartIcon, HourglassIcon, LockIcon, MedalIcon, PenLineIcon, SendIcon, Share2Icon, SparklesIcon, TrophyIcon, UserPlusIcon, UsersIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ReactionGif } from "@/components/common/reaction-gif";
 import { PromoTimer } from "@/components/promo/promo-offer";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { inviteLink, useClaimReferral, useReferrals } from "@/lib/referral";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,10 @@ export function InviteTab() {
       <Stats state={data} />
       <Ladder state={data} track="friends" />
       <Ladder state={data} track="hours" />
-      <Friends state={data} />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <Friends state={data} />
+        <Leaders />
+      </div>
       <HowItWorks />
     </div>
   );
@@ -390,6 +394,66 @@ function Friends({ state }: { state: ReferralState }) {
             );
           })}
         </ul>
+      )}
+    </section>
+  );
+}
+
+/** Who brought the most friends — and where the viewer stands. */
+function Leaders() {
+  const { data } = useQuery({
+    queryKey: ["referrals", "leaders"],
+    queryFn: ({ signal }) =>
+      apiRequest<{
+        items: Array<{ id: string; displayName: string; username: string | null; avatarUrl: string | null; friends: number }>;
+        me: { rank: number | null; friends: number };
+      }>("/referrals/leaders", { signal }),
+    staleTime: 60_000,
+  });
+  const medal = ["text-amber-300", "text-zinc-300", "text-orange-400"];
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5">
+      <h3 className="flex items-center gap-2 font-display text-lg">
+        <TrophyIcon className="size-5 text-amber-300" />
+        Лучшие проводники
+      </h3>
+      {!data ? (
+        <Skeleton className="h-40 rounded-xl" />
+      ) : data.items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Пока никто никого не привёл — займи первое место.</p>
+      ) : (
+        <ol className="flex flex-col gap-1.5">
+          {data.items.map((p, i) => (
+            <li key={p.id} className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 odd:bg-background/30">
+              <span className={cn("w-5 text-center text-sm font-bold tabular-nums", medal[i] ?? "text-muted-foreground")}>{i + 1}</span>
+              <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-xs font-semibold">
+                {p.avatarUrl ? <img src={imageSrc(p.avatarUrl)} alt="" loading="lazy" className="size-full object-cover" /> : p.displayName.charAt(0)}
+              </span>
+              {p.username ? (
+                <Link to={`/profile/${p.username}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-primary">
+                  {p.displayName}
+                </Link>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.displayName}</span>
+              )}
+              <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums">
+                <UsersIcon className="size-3.5 text-muted-foreground" />
+                {p.friends}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {data && (
+        <p className="rounded-xl bg-primary/[0.08] px-3 py-2 text-xs text-foreground/80">
+          {data.me.rank ? (
+            <>
+              Ты на <b className="text-foreground">{data.me.rank}-м</b> месте — {data.me.friends} {plural(data.me.friends, "друг", "друга", "друзей")}.
+            </>
+          ) : (
+            "Приведи первого друга — и попадёшь в рейтинг."
+          )}
+        </p>
       )}
     </section>
   );

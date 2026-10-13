@@ -1,4 +1,5 @@
 import type { FeedEvent, PublicProfile } from "@animeshadow/shared";
+import { InviteTeaser } from "./invite-teaser";
 import {
   ActivityIcon,
   ArrowRightIcon,
@@ -74,10 +75,12 @@ export function OverviewTab({
   const list = !profile.hidden.list && (listItems === undefined || listItems.length > 0) ? <ListBreakdown profile={profile} go={go} /> : null;
   const wall = <WallPanel profile={profile} own={own} />;
   const friends = own ? <FriendsActivity userId={profile.id} /> : null;
+  const invite = own ? <InviteTeaser /> : null;
 
   if (!wide) {
     return (
       <div className="flex flex-col gap-4">
+        {invite}
         {top}
         {level}
         {compare}
@@ -95,6 +98,7 @@ export function OverviewTab({
   const side = own ? level : compare;
   return (
     <div className="flex flex-col gap-5">
+      {invite}
       {top && (
         <div className="grid grid-cols-12 items-stretch gap-5">
           <div className={cn("min-w-0", side ? "col-span-8" : "col-span-12")}>{top}</div>

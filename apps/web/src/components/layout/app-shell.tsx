@@ -2,6 +2,7 @@ import { GuestNudge } from "@/components/auth/guest-nudge";
 import { useEffect } from "react";
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { captureReferral } from "@/lib/referral";
+import { ReferralWatcher } from "@/components/referral-watcher";
 import { AchievementWatcher } from "@/components/achievement-watcher";
 import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
 import { SearchCommandMount } from "@/components/layout/search-command-mount";
@@ -40,6 +41,7 @@ export function AppShell() {
       <Toaster position="bottom-right" />
       <AchievementWatcher />
       <GuestNudge />
+      <ReferralWatcher />
       {/* Every plain `title` hint on the site, drawn as the site's tooltip. */}
       <GlobalTitleTooltips />
       <ScrollRestoration />

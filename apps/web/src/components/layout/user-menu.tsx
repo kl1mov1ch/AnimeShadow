@@ -1,15 +1,6 @@
-import {
-  ChevronRightIcon,
-  HeartIcon,
-  FolderHeartIcon,
-  LibraryIcon,
-  LogInIcon,
-  LogOutIcon,
-  Settings2Icon,
-  ShieldCheckIcon,
-  SparklesIcon,
-  UserPlusIcon,
-  WandSparklesIcon, GiftIcon } from "lucide-react";
+import { ChevronRightIcon, CrownIcon, FolderHeartIcon, GiftIcon, HeartIcon, LibraryIcon, LogInIcon, LogOutIcon, Settings2Icon, ShieldCheckIcon, SparklesIcon, UserPlusIcon, WandSparklesIcon } from "lucide-react";
+import { usePromo } from "@/components/promo/promo-offer";
+import { useReferrals } from "@/lib/referral";
 import type { ComponentType, ReactNode } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -111,6 +102,7 @@ export function UserMenu() {
                   {profile?.isPro && <ProMark className="text-xs" />}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">{handle ? `@${handle}` : user.email}</span>
+                <ProLeft />
               </span>
               <ChevronRightIcon className="mb-2 size-4 shrink-0 text-muted-foreground transition-transform group-hover/card:translate-x-0.5" />
             </span>
@@ -139,7 +131,10 @@ export function UserMenu() {
           <Row to="/library" icon={LibraryIcon}>{t("userMenu.list")}</Row>
           <Row to="/collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
           <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
-          <Row to="/profile?tab=invite" icon={GiftIcon}>Пригласить друга</Row>
+          <Row to="/profile?tab=invite" icon={GiftIcon}>
+            Пригласить друга
+            <RewardsWaiting />
+          </Row>
           <Row to="/profile?studio=profile" icon={Settings2Icon}>{t("userMenu.customise")}</Row>
           {user.role === "ADMIN" && <Row to="/admin" icon={ShieldCheckIcon}>{t("userMenu.admin")}</Row>}
         </div>
@@ -169,6 +164,28 @@ export function UserMenu() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** "PRO · 12 дн." under the name — amber in its last week; nothing for PRO for good or none. */
+function ProLeft() {
+  const { data } = usePromo();
+  const until = data?.phase === "pro" ? data.proUntil : data?.phase === "trial" ? data.trialUntil : null;
+  if (!until) return null;
+  const days = Math.max(0, Math.ceil((new Date(until).getTime() - Date.now()) / 86_400_000));
+  return (
+    <span className={cn("mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium", days <= 7 ? "text-amber-400" : "text-muted-foreground")}>
+      <CrownIcon className="size-3" />
+      PRO · ещё {days} дн.
+    </span>
+  );
+}
+
+/** How many referral rewards are waiting, as a small count. */
+export function RewardsWaiting() {
+  const { data } = useReferrals();
+  const n = data?.rewards.filter((r) => r.claimable).length ?? 0;
+  if (!n) return null;
+  return <span className="ml-1.5 inline-grid size-5 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{n}</span>;
 }
 
 function Row({ to, icon: Icon, children }: { to: string; icon: ComponentType<{ className?: string }>; children: ReactNode }) {

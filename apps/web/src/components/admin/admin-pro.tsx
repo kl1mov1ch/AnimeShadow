@@ -1,16 +1,6 @@
 import type { AdminProAction, AdminProQuery, AdminProRow, AdminProStats, Paginated, ProStatus } from "@animeshadow/shared";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  BadgePercentIcon,
-  CalendarPlusIcon,
-  CircleOffIcon,
-  CrownIcon,
-  FilterIcon,
-  GiftIcon,
-  MoreHorizontalIcon,
-  RotateCcwIcon,
-  TimerOffIcon,
-} from "lucide-react";
+import { BadgePercentIcon, CalendarPlusIcon, CircleOffIcon, CrownIcon, FilterIcon, GiftIcon, MoreHorizontalIcon, RotateCcwIcon, TimerOffIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/common/states";
@@ -124,6 +114,8 @@ export function AdminPro() {
           </button>
         ))}
       </div>
+
+      <ReferralPanel />
 
       <TableShell
         toolbar={
@@ -262,5 +254,58 @@ export function AdminPro() {
         )}
       </TableShell>
     </div>
+  );
+}
+
+type ReferralOverview = {
+  referred: number;
+  inviters: number;
+  rewardsTaken: number;
+  top: Array<{ id: string; displayName: string; email: string; avatarUrl: string | null; friends: number; rewards: number }>;
+};
+
+/** Invites at a glance: how many came by a friend's code, how many invited, rewards taken, the top inviters. */
+function ReferralPanel() {
+  const { data } = useQuery({
+    queryKey: ["admin", "referrals"],
+    queryFn: ({ signal }) => apiRequest<ReferralOverview>("/admin/referrals", { signal }),
+  });
+  if (!data) return null;
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <h2 className="flex items-center gap-2 font-display text-base">
+          <UsersIcon className="size-4 text-primary" />
+          Приглашения
+        </h2>
+        <span className="text-xs text-muted-foreground">
+          пришли по коду: <b className="text-foreground">{data.referred}</b>
+        </span>
+        <span className="text-xs text-muted-foreground">
+          пригласивших: <b className="text-foreground">{data.inviters}</b>
+        </span>
+        <span className="text-xs text-muted-foreground">
+          наград выдано: <b className="text-foreground">{data.rewardsTaken}</b>
+        </span>
+      </div>
+      {data.top.length > 0 && (
+        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {data.top.slice(0, 8).map((u, i) => (
+            <li key={u.id} className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/30 p-2">
+              <span className="w-4 text-center text-xs font-bold tabular-nums text-muted-foreground">{i + 1}</span>
+              <UserAvatar name={u.displayName} url={u.avatarUrl} className="size-8" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm font-semibold">{u.displayName}</span>
+                <span className="truncate text-[11px] text-muted-foreground">{u.email}</span>
+              </span>
+              <span className="shrink-0 text-right text-[11px] leading-tight text-muted-foreground">
+                <b className="block text-sm text-foreground">{u.friends}</b>
+                наград {u.rewards}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

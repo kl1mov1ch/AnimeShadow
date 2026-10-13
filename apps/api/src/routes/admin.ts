@@ -15,6 +15,7 @@ import {
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { listPro, setPro } from "../lib/admin-pro.js";
+import { referralOverview } from "../lib/referral.js";
 import { externalAnalytics } from "../lib/external-analytics.js";
 import { parse } from "../lib/validation.js";
 
@@ -86,6 +87,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PRO accounts: the list with its counts, and one change at a time.
   fastify.get("/admin/pro", guard, async (request) => listPro(fastify.prisma, parse(adminProQuerySchema, request.query)));
+  // Invites: how many came by a friend's code, rewards taken, top inviters.
+  fastify.get("/admin/referrals", guard, async () => referralOverview(fastify.prisma));
   fastify.post("/admin/pro/:id", guard, async (request) => {
     const { id } = parse(idParams, request.params);
     const input = parse(adminProActionSchema, request.body);
