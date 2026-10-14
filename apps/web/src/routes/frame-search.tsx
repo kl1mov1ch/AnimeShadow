@@ -21,7 +21,7 @@ import { PosterFallback } from "@/components/anime/poster-fallback";
 import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
 import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useFrameSearch } from "@/lib/query";
@@ -34,13 +34,34 @@ const step = (i: number) => ({ "--i": i }) as CSSProperties;
  *  spending the upload. */
 const MAX_BYTES = 4 * 1024 * 1024;
 
-function readAsDataUrl(file: File): Promise<string> {
+function readAsDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("read failed"));
     reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * The screenshot made small before it leaves the device: 640 px on the long
+ * side as JPEG — tens of kilobytes instead of megabytes, so the upload is
+ * instant even on a phone and the match comes back faster. The preview
+ * stays the original.
+ */
+async function shrinkForSearch(file: File): Promise<string> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } catch {
+    return readAsDataUrl(file);
+  }
 }
 
 function formatTimestamp(seconds: number): string {
@@ -85,9 +106,8 @@ function FrameSearchPage() {
         setLocalError(t("frameSearch.errorTooLarge"));
         return;
       }
-      const dataUrl = await readAsDataUrl(file);
-      setPreview(dataUrl);
-      search.mutate(dataUrl);
+      setPreview(URL.createObjectURL(file));
+      search.mutate(await shrinkForSearch(file));
     },
     [search, t],
   );
@@ -106,6 +126,25 @@ function FrameSearchPage() {
   }, [submit]);
 
   const signedOut = status !== "loading" && status !== "authenticated";
+
+  // While it waits: how many searches are ahead (trace.moe takes one at a time).
+  const [ahead, setAhead] = useState<number | null>(null);
+  useEffect(() => {
+    if (!search.isPending) {
+      setAhead(null);
+      return;
+    }
+    const tick = () =>
+      void apiRequest<{ running: number; waiting: number }>("/search/frame/queue")
+        .then((q) => setAhead(Math.max(0, q.waiting)))
+        .catch(() => undefined);
+    const first = setTimeout(tick, 1200);
+    const id = setInterval(tick, 2500);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [search.isPending]);
 
   const reset = () => {
     setPreview(null);
@@ -270,9 +309,14 @@ function FrameSearchPage() {
           <section className="flex min-w-0 flex-col gap-3">
             {search.isPending ? (
               <div className="flex flex-col gap-3">
-                <p className="flex items-center gap-2 text-sm font-medium text-primary">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
                   <ScanSearchIcon className="size-4 animate-pulse" />
                   {t("frameSearch.searching")}
+                  {ahead != null && ahead > 0 && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-300">
+                      в очереди: {ahead} — поиск идёт по одному, подождите немного
+                    </span>
+                  )}
                 </p>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="flex gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 p-3">

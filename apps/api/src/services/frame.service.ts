@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import sharp from "sharp";
 import {
   ANIME_WITH_GENRES_INCLUDE,
   type PrismaClient,
@@ -31,7 +32,13 @@ const MIN_SIMILARITY = 0.87;
 /** Enough to show a clear winner plus a couple of runners-up. */
 const MAX_RESULTS = 5;
 
-const TIMEOUT_MS = 25_000;
+const TIMEOUT_MS = 20_000;
+/** A frame this size identifies as well as a 4K one, and uploads and matches far faster. */
+const SEND_SIDE = 640;
+/** How long one search may wait its turn before it is told the queue is too long. */
+const MAX_WAIT_MS = 60_000;
+/** More waiting than this and a new search is turned away at once instead of hanging. */
+const MAX_QUEUE = 12;
 
 /** 4MB of image is far more than identifying a frame ever needs. */
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -90,7 +97,18 @@ export class FrameService {
    * Answers by image hash. The same screenshot searched twice — or by two
    * people — costs one search out of a small monthly quota, not two.
    */
-  private readonly cache = new TtlCache<FrameSearchResponse>(6 * 60 * 60_000, 200);
+  private readonly cache = new TtlCache<FrameSearchResponse>(24 * 60 * 60_000, 500);
+  /** The same frame asked for while it is being searched: one search, everyone gets its answer. */
+  private readonly inFlight = new Map<string, Promise<FrameSearchResponse>>();
+
+  /**
+   * trace.moe runs as many searches at once as the account allows — one on
+   * the free tier, for the whole site's IP. Searches beyond that wait here
+   * in order instead of failing with "busy" or piling up on trace.moe.
+   */
+  private running = 0;
+  private readonly waiting: Array<() => void> = [];
+  private limits = { concurrency: 1, quota: 100, quotaUsed: 0, at: 0 };
 
   constructor(deps: FrameServiceDeps) {
     this.prisma = deps.prisma;
@@ -98,12 +116,85 @@ export class FrameService {
     this.apiKey = deps.apiKey;
   }
 
+  /** How many searches are ahead right now — for the page's "в очереди". */
+  queue(): { running: number; waiting: number; quotaLeft: number | null } {
+    return {
+      running: this.running,
+      waiting: this.waiting.length,
+      quotaLeft: this.limits.at ? Math.max(0, this.limits.quota - this.limits.quotaUsed) : null,
+    };
+  }
+
+  /** The account's concurrency and what is left of the month, asked at most every five minutes. */
+  private async refreshLimits(): Promise<void> {
+    if (Date.now() - this.limits.at < 5 * 60_000) return;
+    try {
+      const res = await fetch("https://api.trace.moe/me", {
+        headers: this.apiKey ? { "x-trace-key": this.apiKey } : {},
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return;
+      const me = (await res.json()) as { concurrency?: number; quota?: number; quotaUsed?: number };
+      this.limits = {
+        concurrency: Math.max(1, me.concurrency ?? 1),
+        quota: me.quota ?? this.limits.quota,
+        quotaUsed: me.quotaUsed ?? this.limits.quotaUsed,
+        at: Date.now(),
+      };
+    } catch {
+      // Keep what we had.
+    }
+  }
+
+  private async slot<T>(work: () => Promise<T>): Promise<T> {
+    if (this.running >= this.limits.concurrency) {
+      if (this.waiting.length >= MAX_QUEUE) throw failure("busy", "Too many frame searches waiting");
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          const i = this.waiting.indexOf(go);
+          if (i >= 0) this.waiting.splice(i, 1);
+          reject(failure("busy", "Frame search queue is too long right now"));
+        }, MAX_WAIT_MS);
+        const go = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        this.waiting.push(go);
+      });
+    }
+    this.running += 1;
+    try {
+      return await work();
+    } finally {
+      this.running -= 1;
+      this.waiting.shift()?.();
+    }
+  }
+
   async searchByFrame(dataUrl: string, allowAdult: boolean): Promise<FrameSearchResponse> {
-    const image = decodeDataUrl(dataUrl);
+    const decoded = decodeDataUrl(dataUrl);
+    // Shrunk before anything else: a small JPEG uploads in a blink and
+    // matches faster, and the same picture sent at another size or format
+    // hashes the same.
+    const image = await shrink(decoded);
     const key = `${allowAdult ? "a" : "s"}:${createHash("sha256").update(image.bytes).digest("hex")}`;
     const cached = this.cache.get(key);
     if (cached) return cached;
+    const pending = this.inFlight.get(key);
+    if (pending) return pending;
 
+    const run = (async () => {
+      await this.refreshLimits();
+      if (this.limits.at && this.limits.quotaUsed >= this.limits.quota) {
+        throw failure("quota", "The monthly frame-search quota is used up");
+      }
+      return this.slot(() => this.ask(image, allowAdult, key));
+    })().finally(() => this.inFlight.delete(key));
+    this.inFlight.set(key, run);
+    return run;
+  }
+
+  private async ask(image: { mime: string; bytes: Buffer }, allowAdult: boolean, key: string): Promise<FrameSearchResponse> {
     let response: Response;
     try {
       response = await fetch(`${TRACE_MOE_URL}?cutBorders&anilistInfo`, {
@@ -126,6 +217,7 @@ export class FrameService {
       // The two limits of the free tier, each told apart, because each asks
       // the visitor for something different: wait a month, or wait a minute.
       if (response.status === 402) {
+        this.limits.quotaUsed = this.limits.quota;
         throw failure("quota", "The monthly frame-search quota is used up");
       }
       if (response.status === 429) {
@@ -164,6 +256,7 @@ export class FrameService {
       results: await this.attachCatalogue(hits),
       framesSearched: body.frameCount ?? 0,
     };
+    this.limits.quotaUsed += 1;
     this.cache.set(key, result);
     return result;
   }
@@ -221,6 +314,20 @@ function cleanFilename(filename: string | undefined): string | null {
   const withoutTags = withoutExt.replace(/[[(][^\])]*[\])]/g, " ");
   const cleaned = withoutTags.replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
   return cleaned.length > 0 ? cleaned : null;
+}
+
+/** At most 640 px on the long side, as JPEG — what trace.moe needs, nothing more. */
+async function shrink(image: { mime: string; bytes: Buffer }): Promise<{ mime: string; bytes: Buffer }> {
+  try {
+    const bytes = await sharp(image.bytes, { failOn: "none" })
+      .rotate()
+      .resize({ width: SEND_SIDE, height: SEND_SIDE, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+    return { mime: "image/jpeg", bytes };
+  } catch {
+    return image;
+  }
 }
 
 function decodeDataUrl(dataUrl: string): { mime: string; bytes: Buffer } {

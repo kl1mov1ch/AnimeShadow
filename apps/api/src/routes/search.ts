@@ -76,6 +76,12 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // How many searches are ahead: the page shows "в очереди: 2" while it waits.
+  fastify.get("/search/frame/queue", async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+    return fastify.services.frames.queue();
+  });
+
   fastify.post(
     "/search/frame",
     {
