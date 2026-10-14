@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * The welcome offer: the first month of PRO free, the second at half price.
  * New accounts get the free month at sign-up; accounts made before the offer
- * can take it once. For guests it is shown as a 30-day offer with a timer —
+ * can take it once. For guests it is shown as an offer ending this week, with a timer —
  * the rounds run back to back, so a new visitor always has one ahead.
  */
 export const PROMO = {
@@ -14,9 +14,10 @@ export const PROMO = {
   proMonthlyUsd: 2.99,
 } as const;
 
-/** When the first 30-day round started; every round after follows on. */
+/** When the first round started; every round after follows on. */
 const PROMO_EPOCH = Date.UTC(2026, 9, 1);
-const ROUND_MS = PROMO.trialDays * 86_400_000;
+/** The guests' timer runs a week at a time — a near deadline, not a far one. */
+const ROUND_MS = 7 * 86_400_000;
 
 /** The end of the current public round — what a guest's timer counts down to. */
 export function promoRoundEnd(now = Date.now()): Date {

@@ -1,4 +1,10 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, type LoaderFunctionArgs } from "react-router-dom";
+import { prefetchAnime } from "@/lib/prefetch";
+
+function animeLoader({ params }: LoaderFunctionArgs) {
+  if (params.id) prefetchAnime(params.id);
+  return null;
+}
 import { AppShell } from "@/components/layout/app-shell";
 import { RootError } from "@/routes/root-error";
 import { RouteError } from "@/routes/route-error";
@@ -42,8 +48,10 @@ export const router = createBrowserRouter([
           { path: "movies", lazy: () => import("@/routes/landing") },
           { path: "season/:year/:season", lazy: () => import("@/routes/landing") },
           { path: "year/:year", lazy: () => import("@/routes/landing") },
-          { path: "anime/:id", lazy: () => import("@/routes/anime-detail") },
-          { path: "anime/:id/:slug", lazy: () => import("@/routes/anime-detail") },
+          // The loader starts every request the page needs while its code
+          // is still downloading — nothing waits for anything else.
+          { path: "anime/:id", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
+          { path: "anime/:id/:slug", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
           { path: "library", lazy: () => import("@/routes/library") },
           { path: "recommendations", lazy: () => import("@/routes/recommendations") },
           { path: "frame-search", lazy: () => import("@/routes/frame-search") },

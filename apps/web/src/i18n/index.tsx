@@ -26,7 +26,7 @@ function loadEnglish(): Promise<void> {
 }
 const STORAGE_KEY = "animeshadow.locale.v1";
 
-function readLocale(): Locale {
+export function readLocale(): Locale {
   // Russian only while English is switched off (lib/features).
   if (!FEATURES.englishLocale) return DEFAULT_LOCALE;
   try {

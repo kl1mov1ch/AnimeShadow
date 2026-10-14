@@ -1,4 +1,5 @@
 import type { AnimeSummary } from "@animeshadow/shared";
+import { hoverPrefetch } from "@/lib/prefetch";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BookmarkCheckIcon,
@@ -165,6 +166,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         <Link
           to={animeHref(anime)}
           viewTransition
+          {...hoverPrefetch(animeHref(anime).slice("/anime/".length))}
           aria-label={title}
           className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
