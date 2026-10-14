@@ -366,11 +366,13 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     // ?w=480: a smaller copy (WebP), for thumbnails; ?wm=1: the site's mark
     // burned in (see lib/watermark). Each made once and kept on disk beside
     // the original — a 350 KB frame shown at 240 px wide becomes ~20 KB.
-    const q = request.query as { wm?: string; w?: string };
+    const q = request.query as { wm?: string; w?: string; f?: string };
     const wm = q.wm === "1";
+    // ?f=jpg: JPEG instead of WebP — for link previews (some apps don't show WebP there).
+    const jpg = q.f === "jpg";
     const width = [240, 360, 480, 640, 960, 1280].find((n) => String(n) === q.w) ?? null;
     const derived = wm || width != null;
-    const derivedFile = join(CACHE_DIR, `${key}${width ? `-w${width}` : ""}${wm ? "-wm" : ""}`);
+    const derivedFile = join(CACHE_DIR, `${key}${width ? `-w${width}` : ""}${wm ? "-wm" : ""}${jpg && width ? "-jpg" : ""}`);
     if (derived) {
       const done = await readFile(derivedFile).catch(() => null);
       if (done && done.length > 0) {
@@ -391,7 +393,7 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
           if (width) {
             out = await sharp(out, { failOn: "none" })
               .resize({ width, withoutEnlargement: true })
-              .webp({ quality: 72 })
+              [jpg ? "jpeg" : "webp"](jpg ? { quality: 82, mozjpeg: true } : { quality: 72 })
               .toBuffer();
           }
           buf = out;

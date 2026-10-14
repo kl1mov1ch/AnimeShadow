@@ -55,6 +55,10 @@ interface PageModel {
   canonical?: string;
   robots?: "index" | "noindex" | "noindex-nofollow";
   image?: string | null;
+  /** More pictures for previews (og:image can repeat): a poster after a wide frame. */
+  moreImages?: string[];
+  /** The main picture's size, when known — lets a preview draw it at once. */
+  imageSize?: { width: number; height: number };
   ogType?: "website" | "video.tv_show" | "video.movie" | "article" | "profile";
   jsonLd?: unknown[];
   body: string;
@@ -305,12 +309,21 @@ export class SeoRenderer {
       190,
     );
     const ratingCount = ourRating._count.score;
+    // A wide frame of the show (with the site's mark, 1280 px) leads previews
+    // in search and messengers — a poster is cut to a square there.
+    const frames = row.screenshots.slice(0, 6);
+    const wide = (src: string) => `${SITE}/api/img?u=${encodeURIComponent(src)}&w=1280&wm=1&f=jpg`;
+    const lead = frames[0] ? wide(frames[0]) : row.bannerImage ?? poster;
+    const minutes = /(\d+)/.exec(row.duration ?? "")?.[1];
+    const watchUrl = `${SITE}${canonical}#watch`;
 
     return {
-      title: `${name}${yearPart} — смотреть ${kind} онлайн бесплатно${row.type === "TV" ? ", все серии" : ""} | ${BRAND}`,
-      description,
+      title: `${name}${yearPart} — смотреть ${kind} онлайн бесплатно${row.type === "TV" ? (episodes ? `, все ${plural(episodes, "серия", "серии", "серий")}` : ", все серии") : ""} в хорошем качестве | ${BRAND}`,
+      description: clip(`${row.score != null && row.score > 0 ? `★ ${row.score.toFixed(1)}/10 · ` : ""}${description}`, 200),
       canonical,
-      image: poster,
+      image: lead,
+      moreImages: poster && lead !== poster ? [poster] : [],
+      imageSize: frames[0] ? { width: 1280, height: 720 } : undefined,
       ogType: row.type === "MOVIE" ? "video.movie" : "video.tv_show",
       jsonLd: [
         {
@@ -327,6 +340,7 @@ export class SeoRenderer {
           ...(row.studios.length ? { productionCompany: row.studios.map((s) => ({ "@type": "Organization", name: s })) } : {}),
           countryOfOrigin: { "@type": "Country", name: "Japan" },
           inLanguage: "ja",
+          potentialAction: { "@type": "WatchAction", target: watchUrl },
           ...(row.rating ? { contentRating: row.rating } : {}),
           // Only our own viewers' scores — never another site's rating.
           ...(ratingCount >= 3 && ourRating._avg.score != null
@@ -341,6 +355,25 @@ export class SeoRenderer {
               }
             : {}),
         },
+        // The player on the page, so search can show a video with a frame of the show.
+        ...(frames.length
+          ? [
+              {
+                "@context": "https://schema.org",
+                "@type": "VideoObject",
+                name: `${name} — смотреть онлайн${row.type === "TV" ? ", 1 серия" : ""}`,
+                description: clip(`${name}${yearPart}: ${row.synopsis ?? `${typeRu} онлайн бесплатно на ${BRAND}`}`, 300),
+                thumbnailUrl: frames.map(wide),
+                uploadDate: (row.airedFrom ?? row.createdAt).toISOString(),
+                ...(minutes ? { duration: `PT${minutes}M` } : {}),
+                embedUrl: watchUrl,
+                url: `${SITE}${canonical}`,
+                inLanguage: "ru",
+                isFamilyFriendly: !/^(r|rx)/i.test(row.rating ?? ""),
+                publisher: { "@type": "Organization", name: BRAND, logo: { "@type": "ImageObject", url: absolute(DEFAULT_IMAGE) } },
+              },
+            ]
+          : []),
         breadcrumbs([
           ["Главная", "/"],
           ["Каталог", "/browse"],
@@ -615,6 +648,10 @@ export class SeoRenderer {
       page.description ? `<meta property="og:description" content="${esc(page.description)}" />` : "",
       url ? `<meta property="og:url" content="${esc(url)}" />` : "",
       image ? `<meta property="og:image" content="${esc(image)}" />` : "",
+      image && page.imageSize ? `<meta property="og:image:width" content="${page.imageSize.width}" />` : "",
+      image && page.imageSize ? `<meta property="og:image:height" content="${page.imageSize.height}" />` : "",
+      image ? `<meta property="og:image:alt" content="${esc(page.title)}" />` : "",
+      ...(page.moreImages ?? []).map((m) => `<meta property="og:image" content="${esc(absolute(m))}" />`),
       `<meta name="twitter:card" content="${page.image ? "summary_large_image" : "summary"}" />`,
       `<meta name="twitter:title" content="${esc(page.title)}" />`,
       page.description ? `<meta name="twitter:description" content="${esc(page.description)}" />` : "",
