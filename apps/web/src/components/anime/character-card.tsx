@@ -82,7 +82,7 @@ export function CharacterCard({
               character" doesn't require opening the modal on every single
               one of a dozen names. */}
           <p className={cn("line-clamp-1 w-full text-[10px]", isMain ? "font-semibold text-primary" : "text-muted-foreground")}>
-            {isMain ? roleLabel : character.voiceActor?.name ?? roleLabel}
+            {roleLabel}
           </p>
         </button>
     );
@@ -122,11 +122,6 @@ export function CharacterCard({
         <p className={cn("text-xs", isMain ? "font-medium text-primary" : "text-muted-foreground")}>
           {roleLabel}
         </p>
-        {character.voiceActor && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {character.voiceActor.name}
-          </p>
-        )}
       </div>
     </button>
   );

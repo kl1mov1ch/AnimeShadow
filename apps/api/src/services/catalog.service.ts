@@ -1364,9 +1364,10 @@ export class CatalogService {
    * ranking), so it reflects real visits and not incidental lookups.
    */
   async getCharacters(id: number): Promise<Character[]> {
-    return this.auxCache.wrap(`characters:${id}`, async () => {
+    return this.auxCache.wrap(`characters:v2:${id}`, async () => {
       try {
-        return shikiToCharacters(await this.shikimori.getRoles(id));
+        // No voice actors: the site doesn't show them, and they were half the payload.
+        return shikiToCharacters(await this.shikimori.getRoles(id)).map((c) => ({ ...c, voiceActor: null }));
       } catch (error) {
         this.logger.warn({ error, id }, "character fetch failed");
         return [];
@@ -1379,10 +1380,21 @@ export class CatalogService {
    * Shikimori character ids are MAL ids, so the same id is safe to ask for.
    */
   async getCharacterDetail(id: number, lang: Locale = DEFAULT_LOCALE): Promise<CharacterDetail | null> {
-    const base = await this.auxCache.wrap(`character:v3:${id}`, async () => {
+    const base = await this.auxCache.wrap(`character:v4:${id}`, async () => {
       try {
         const detail = shikiToCharacterDetail(await this.shikimori.getCharacter(id));
-        return { ...detail, images: [...new Set(detail.images)].slice(0, 12) };
+        // The bio, names and pictures only: voice actors and the lists of other
+        // anime and manga aren't the site's business, and their posters were
+        // most of what the character window loaded.
+        return {
+          ...detail,
+          images: [...new Set(detail.images)].slice(0, 8),
+          seiyu: [],
+          animes: [],
+          mangas: [],
+          animeCount: null,
+          mangaCount: null,
+        };
       } catch (error) {
         this.logger.warn({ error, id }, "character detail fetch failed");
         return null;
@@ -1392,7 +1404,7 @@ export class CatalogService {
     if (!base || lang === "ru") return base;
     if (!base.description && base.facts.length === 0 && base.sections.length === 0) return base;
 
-    return this.auxCache.wrap(`character:v3:${id}:en`, async () => {
+    return this.auxCache.wrap(`character:v4:${id}:en`, async () => {
       const tr = (text: string) => this.translator.translate(text, "ru", "en").catch(() => null);
       const [translatedBio, translatedFacts, sections] = await Promise.all([
         base.description ? tr(base.description) : Promise.resolve(null),

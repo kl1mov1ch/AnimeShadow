@@ -53,6 +53,7 @@ import { glideTo } from "@/lib/glide";
 import { fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import {
+  queryKeys,
   useAnime,
   useAnimeStats,
   useLibrary,
@@ -101,6 +102,38 @@ function AnimeDetailView({ param }: { param: string }) {
     const at = Number(query.get("t"));
     return Number.isInteger(ep) && ep > 0 ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 } : null;
   }, [query]);
+  // The cast sits below the fold, but its first row should be there the
+  // moment it is scrolled to: the list and its first twelve faces are
+  // fetched while the browser is idle, right after the page itself.
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!data?.id) return;
+    const id = data.id;
+    const run = () => {
+      void client
+        .fetchQuery({
+          queryKey: queryKeys.characters(id),
+          queryFn: ({ signal }) => apiRequest<{ items: Character[] }>(`/anime/${id}/characters`, { signal }).then((r) => r.items),
+          staleTime: 30 * 60_000,
+        })
+        .then((items) => {
+          for (const c of items.slice(0, 12)) {
+            if (!c.imageUrl) continue;
+            const img = new Image();
+            img.decoding = "async";
+            img.src = imageSrc(c.imageUrl)!;
+          }
+        })
+        .catch(() => undefined);
+    };
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    const handle = idle ? idle(run, { timeout: 2500 }) : window.setTimeout(run, 1200);
+    return () => {
+      const cancel = (window as unknown as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+      if (idle && cancel) cancel(handle);
+      else window.clearTimeout(handle);
+    };
+  }, [data?.id, client]);
   useEffect(() => {
     setEpisode(startAt?.episode ?? 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
