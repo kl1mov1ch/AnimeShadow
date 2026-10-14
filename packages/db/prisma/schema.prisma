@@ -438,6 +438,17 @@ model PageView {
 /// (insert-if-absent with every batch of page views). "New or returning"
 /// is a key lookup here instead of a scan of everyone's whole history, and
 /// it outlives the raw page views, which are pruned.
+/// A browser that has been signed in, tied to that account (the latest one).
+/// Visitors are counted as people through this: an account on two devices is
+/// one person, a guest who signed in is a member, not a guest too.
+model VisitorUser {
+  visitorId String   @id
+  userId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
 model VisitorFirstSeen {
   visitorId String   @id
   firstAt   DateTime

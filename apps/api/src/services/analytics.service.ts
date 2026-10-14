@@ -146,6 +146,15 @@ export class AnalyticsService {
         const seen = first.get(row.visitorId);
         if (!seen || row.createdAt < seen) first.set(row.visitorId, row.createdAt);
       }
+      // Browsers seen signed in: tied to the account, for counting people.
+      const owners = new Map<string, string>();
+      for (const row of rows) if (row.userId) owners.set(row.visitorId, row.userId);
+      if (owners.size > 0) await this.prisma.$executeRaw`
+        INSERT INTO "VisitorUser" ("visitorId", "userId", "updatedAt")
+        SELECT v, u, now() FROM UNNEST(${[...owners.keys()]}::text[], ${[...owners.values()]}::text[]) AS x(v, u)
+        ON CONFLICT ("visitorId") DO UPDATE SET "userId" = EXCLUDED."userId", "updatedAt" = now()
+        WHERE "VisitorUser"."userId" <> EXCLUDED."userId"
+      `;
       if (first.size > 0) await this.prisma.$executeRaw`
         INSERT INTO "VisitorFirstSeen" ("visitorId", "firstAt")
         SELECT * FROM UNNEST(${[...first.keys()]}::text[], ${[...first.values()]}::timestamp(3)[])

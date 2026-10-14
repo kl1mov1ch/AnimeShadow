@@ -4,6 +4,7 @@ import {
   type PrismaClient,
   toSummaryDto,
 } from "@animeshadow/db";
+import { IS_MEMBER, moscowDayStart, NOT_BOT as PEOPLE_NOT_BOT, PERSON } from "../lib/people.js";
 import { proActive } from "../lib/pro.js";
 import {
   ADMIN_LIBRARY_STATUSES,
@@ -211,7 +212,7 @@ export class AdminService {
     const now = new Date();
     return {
       now,
-      todayStart: startOfUtcDay(now),
+      todayStart: moscowDayStart(now),
       last7: new Date(now.getTime() - 7 * DAY_MS),
       last30: new Date(now.getTime() - 30 * DAY_MS),
     };
@@ -230,13 +231,15 @@ export class AdminService {
 
   private async cachedSummary(): Promise<Omit<AdminSummary, "reportsOpen">> {
     return this.overviewCache.wrap("summary", async () => {
-      const since = startOfUtcDay(new Date());
+      // People today (Moscow day, no crawlers) — the same count as the
+      // overview's "today" and the day-by-day table.
+      const since = moscowDayStart();
       const [users, comments, today] = await Promise.all([
         this.prisma.user.count(),
         this.prisma.comment.count(),
         this.prisma.$queryRaw<Array<{ registered: boolean; visitors: number }>>`
-          SELECT ("userId" IS NOT NULL) AS registered, COUNT(DISTINCT "visitorId")::int AS visitors
-          FROM "PageView" WHERE "createdAt" >= ${since}
+          SELECT ${IS_MEMBER} AS registered, COUNT(DISTINCT ${PERSON})::int AS visitors
+          FROM "PageView" WHERE "createdAt" >= ${since} AND ${PEOPLE_NOT_BOT}
           GROUP BY 1
         `,
       ]);
@@ -282,13 +285,13 @@ export class AdminService {
             Array<{ registered: boolean; visitors: number; pageviews: number; anime: number; titles: number }>
           >`
             SELECT
-              ("userId" IS NOT NULL) AS registered,
-              COUNT(DISTINCT "visitorId")::int AS visitors,
+              ${IS_MEMBER} AS registered,
+              COUNT(DISTINCT ${PERSON})::int AS visitors,
               COUNT(*)::int AS pageviews,
               COUNT(*) FILTER (WHERE path ~ ${ANIME_PATH})::int AS anime,
               COUNT(DISTINCT substring(path from ${ANIME_PATH}))::int AS titles
             FROM "PageView"
-            WHERE "createdAt" >= ${since}
+            WHERE "createdAt" >= ${since} AND ${PEOPLE_NOT_BOT}
             GROUP BY 1
           `,
           this.prisma.watchSession.aggregate({
@@ -325,9 +328,11 @@ export class AdminService {
       this.prisma.user.count({ where: { createdAt: current } }),
       this.prisma.$queryRaw<Array<{ total: number; current: number }>>`
         SELECT
-          (SELECT COUNT(*) FROM "VisitorFirstSeen")::int AS total,
-          (SELECT COUNT(DISTINCT "visitorId") FROM "PageView"
-            WHERE "createdAt" >= ${w.last30} AND ${Prisma.raw(NOT_BOT)})::int AS current
+          ((SELECT COUNT(*) FROM "VisitorFirstSeen" f
+              WHERE NOT EXISTS (SELECT 1 FROM "VisitorUser" vu WHERE vu."visitorId" = f."visitorId"))
+            + (SELECT COUNT(DISTINCT "userId") FROM "VisitorUser"))::int AS total,
+          (SELECT COUNT(DISTINCT ${PERSON}) FROM "PageView"
+            WHERE "createdAt" >= ${w.last30} AND ${PEOPLE_NOT_BOT})::int AS current
       `,
       // All-time page views: the rolled-up days, plus the raw rows after them
       // (the raw table itself only keeps the last few months).

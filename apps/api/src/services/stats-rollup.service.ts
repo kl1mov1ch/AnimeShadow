@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@animeshadow/db";
+import { IS_MEMBER, PERSON } from "../lib/people.js";
 
 export interface StatsRollupServiceDeps {
   prisma: PrismaClient;
@@ -85,19 +86,30 @@ export class StatsRollupService {
 
   // -- rolling up ----------------------------------------------------------
 
-  /** Every finished day not rolled up yet, and the last two again. */
+  /**
+   * Every finished day with raw views but no totals yet (a gap anywhere,
+   * not only after the last one — today's live row must not hide one), and
+   * the last two again.
+   */
   private async rollup(): Promise<number> {
-    const [state] = await this.prisma.$queryRaw<Array<{ last: string | null; first: Date | null; today: string }>>`
+    const [state] = await this.prisma.$queryRaw<Array<{ missing: string | null; first: Date | null; today: string }>>`
+      WITH bounds AS (
+        SELECT (MIN("createdAt") AT TIME ZONE 'UTC' AT TIME ZONE ${STATS_TZ})::date AS first,
+          (now() AT TIME ZONE ${STATS_TZ})::date AS today
+        FROM "PageView"
+      )
       SELECT
-        (SELECT to_char(MAX(day), 'YYYY-MM-DD') FROM "StatDay") AS last,
+        (SELECT to_char(MIN(g)::date, 'YYYY-MM-DD')
+          FROM bounds, generate_series(bounds.first, bounds.today - 1, interval '1 day') g
+          WHERE NOT EXISTS (SELECT 1 FROM "StatDay" s WHERE s.day = g::date)) AS missing,
         (SELECT MIN("createdAt") FROM "PageView") AS first,
         to_char((now() AT TIME ZONE ${STATS_TZ})::date, 'YYYY-MM-DD') AS today
     `;
-    if (!state) return 0;
-    const firstDay = state.first ? zoneDay(state.first) : null;
-    let day = state.last ? shiftDay(state.last, -1) : firstDay;
-    if (!day) return 0;
-    if (firstDay && day < firstDay) day = firstDay;
+    if (!state?.first) return 0;
+    const firstDay = zoneDay(state.first);
+    const recent = shiftDay(state.today, -2);
+    let day = state.missing && state.missing < recent ? state.missing : recent;
+    if (day < firstDay) day = firstDay;
     let count = 0;
     for (; day < state.today && count < 800; day = shiftDay(day, 1), count++) {
       await this.rollupDay(day);
@@ -114,15 +126,18 @@ export class StatsRollupService {
     if (!bounds) return;
     const { f, t } = bounds;
     const d = Prisma.sql`${day}::date`;
+    // Each view carries its person (see lib/people.ts): the account behind
+    // the browser, or the browser when nobody ever signed in on it.
     const pv = Prisma.sql`pv AS (
-      SELECT * FROM "PageView" WHERE "createdAt" >= ${f} AND "createdAt" < ${t} AND ${NOT_BOT}
+      SELECT "PageView".*, ${PERSON} AS person, ${IS_MEMBER} AS member
+      FROM "PageView" WHERE "createdAt" >= ${f} AND "createdAt" < ${t} AND ${NOT_BOT}
     )`;
     const top = (dim: string, key: Prisma.Sql, limit: number, where: Prisma.Sql = Prisma.empty) =>
       this.prisma.$executeRaw`
         WITH ${pv}
         INSERT INTO "StatDayKey" (day, dim, key, views, uniques)
         SELECT ${d}, ${dim}, k, views, uniques FROM (
-          SELECT ${key} AS k, COUNT(*)::int AS views, COUNT(DISTINCT "visitorId")::int AS uniques
+          SELECT ${key} AS k, COUNT(*)::int AS views, COUNT(DISTINCT person)::int AS uniques
           FROM pv WHERE TRUE ${where}
           GROUP BY 1 ORDER BY views DESC LIMIT ${limit}
         ) x WHERE k IS NOT NULL
@@ -136,7 +151,7 @@ export class StatsRollupService {
       this.prisma.$executeRaw`
         WITH ${pv},
         marked AS (
-          SELECT "visitorId", "userId", "createdAt", "durationMs",
+          SELECT "visitorId", member, "createdAt", "durationMs",
             CASE WHEN LAG("createdAt") OVER w IS NULL OR "createdAt" - LAG("createdAt") OVER w > interval '30 minutes'
               THEN 1 ELSE 0 END AS start
           FROM pv WINDOW w AS (PARTITION BY "visitorId" ORDER BY "createdAt")
@@ -147,18 +162,24 @@ export class StatsRollupService {
         ),
         sessions AS (
           SELECT
-            CASE WHEN bool_or("userId" IS NOT NULL) THEN 'registered' ELSE 'guest' END AS aud,
+            CASE WHEN bool_or(member) THEN 'registered' ELSE 'guest' END AS aud,
             COUNT(*) AS n,
             GREATEST(EXTRACT(EPOCH FROM MAX("createdAt") - MIN("createdAt")), COALESCE(SUM("durationMs"), 0) / 1000.0) AS dur
           FROM sv GROUP BY "visitorId", sid
         ),
+        -- People, each once: new when the earliest of their browsers was first seen today.
+        people AS (
+          SELECT person, bool_or(member) AS member, MIN(f."firstAt") AS first, COUNT(*) AS n
+          FROM pv LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
+          GROUP BY person
+        ),
         views AS (
           SELECT
-            CASE WHEN pv."userId" IS NULL THEN 'guest' ELSE 'registered' END AS aud,
-            COUNT(*)::int AS pageviews,
-            COUNT(DISTINCT pv."visitorId")::int AS visitors,
-            COUNT(DISTINCT pv."visitorId") FILTER (WHERE f."firstAt" >= ${f})::int AS fresh
-          FROM pv LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
+            CASE WHEN member THEN 'registered' ELSE 'guest' END AS aud,
+            SUM(n)::int AS pageviews,
+            COUNT(*)::int AS visitors,
+            COUNT(*) FILTER (WHERE first >= ${f})::int AS fresh
+          FROM people
           GROUP BY 1
         ),
         s AS (

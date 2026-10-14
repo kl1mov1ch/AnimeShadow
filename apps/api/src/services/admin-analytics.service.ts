@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@animeshadow/db";
+import { IS_MEMBER, PERSON } from "../lib/people.js";
 import type {
   AdminAnalytics,
   AdminAnalyticsBreakdowns,
@@ -37,7 +38,7 @@ const ANIME_SLUG = "^/anime/([^/?#]+)";
 function sessioned(where: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`
     marked AS (
-      SELECT *,
+      SELECT "PageView".*, ${PERSON} AS person,
         CASE WHEN LAG("createdAt") OVER w IS NULL OR "createdAt" - LAG("createdAt") OVER w > interval '30 minutes'
           THEN 1 ELSE 0 END AS start
       FROM "PageView" WHERE ${where}
@@ -113,7 +114,7 @@ export class AdminAnalyticsService {
     const now = new Date();
     const where = this.filter(query, { from: new Date(now.getTime() - 5 * 60_000), to: new Date(now.getTime() + 60_000) });
     const [row] = await this.prisma.$queryRaw<Array<{ visitors: number; pageviews: number }>>`
-      SELECT COUNT(DISTINCT "visitorId")::int AS visitors, COUNT(*)::int AS pageviews
+      SELECT COUNT(DISTINCT ${PERSON})::int AS visitors, COUNT(*)::int AS pageviews
       FROM "PageView" WHERE ${where}
     `;
     return { visitors: row?.visitors ?? 0, pageviews: row?.pageviews ?? 0 };
@@ -138,8 +139,9 @@ export class AdminAnalyticsService {
   /** The WHERE for page views in a range, with every filter of the query. */
   private filter(query: AdminAnalyticsQuery, range: Range): Prisma.Sql {
     const parts: Prisma.Sql[] = [Prisma.sql`"createdAt" >= ${range.from}`, Prisma.sql`"createdAt" < ${range.to}`];
-    if (query.audience === "guests") parts.push(Prisma.sql`"userId" IS NULL`);
-    if (query.audience === "users") parts.push(Prisma.sql`"userId" IS NOT NULL`);
+    // Audiences are people (lib/people.ts): a browser ever signed in is a member's.
+    if (query.audience === "guests") parts.push(Prisma.sql`NOT ${IS_MEMBER}`);
+    if (query.audience === "users") parts.push(IS_MEMBER);
     if (query.device !== "all") parts.push(Prisma.sql`device = ${query.device}`);
     if (!query.bots) parts.push(Prisma.sql`(device IS NULL OR device <> 'bot')`);
     if (query.path) parts.push(Prisma.sql`path ILIKE ${`%${escapeLike(query.path)}%`}`);
@@ -153,7 +155,7 @@ export class AdminAnalyticsService {
     const [[traffic], [sessions], [fresh], registrations, watch, guestWatch] = await Promise.all([
       this.prisma.$queryRaw<Array<{ visitors: number; users: number; pageviews: number; avg_page: number | null }>>`
         SELECT
-          COUNT(DISTINCT "visitorId")::int AS visitors,
+          COUNT(DISTINCT ${PERSON})::int AS visitors,
           COUNT(DISTINCT "userId")::int AS users,
           COUNT(*)::int AS pageviews,
           (AVG("durationMs") FILTER (WHERE "durationMs" IS NOT NULL) / 1000.0)::float AS avg_page
@@ -175,13 +177,18 @@ export class AdminAnalyticsService {
           AVG(n)::float AS avg_pages
         FROM s
       `,
-      // New or returning: when the browser was first seen, by key lookup.
+      // New or returning, per person: new when the earliest of their browsers
+      // was first seen in the period.
       this.prisma.$queryRaw<Array<{ fresh: number; returning: number }>>`
         SELECT
-          COUNT(*) FILTER (WHERE f."firstAt" IS NULL OR f."firstAt" >= ${range.from})::int AS fresh,
-          COUNT(*) FILTER (WHERE f."firstAt" < ${range.from})::int AS returning
-        FROM (SELECT DISTINCT "visitorId" FROM "PageView" WHERE ${where}) seen
-        LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
+          COUNT(*) FILTER (WHERE first IS NULL OR first >= ${range.from})::int AS fresh,
+          COUNT(*) FILTER (WHERE first < ${range.from})::int AS returning
+        FROM (
+          SELECT seen.person, MIN(f."firstAt") AS first
+          FROM (SELECT DISTINCT "visitorId", ${PERSON} AS person FROM "PageView" WHERE ${where}) seen
+          LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
+          GROUP BY seen.person
+        ) p
       `,
       this.prisma.user.count({ where: { createdAt: { gte: range.from, lt: range.to } } }),
       query.audience === "guests"
@@ -219,11 +226,11 @@ export class AdminAnalyticsService {
         WITH ${sessioned(where)}
         SELECT
           to_char(date_trunc(${unit}, ${local}), 'YYYY-MM-DD"T"HH24:00') AS at,
-          COUNT(DISTINCT sv."visitorId")::int AS visitors,
+          COUNT(DISTINCT sv.person)::int AS visitors,
           COUNT(DISTINCT sv."userId")::int AS users,
           SUM(sv.start)::int AS sessions,
           COUNT(*)::int AS pageviews,
-          COUNT(DISTINCT sv."visitorId") FILTER (
+          COUNT(DISTINCT sv.person) FILTER (
             WHERE f."firstAt" IS NULL OR date_trunc(${unit}, f."firstAt") = date_trunc(${unit}, sv."createdAt")
           )::int AS fresh
         FROM sv LEFT JOIN "VisitorFirstSeen" f USING ("visitorId")
@@ -287,7 +294,7 @@ export class AdminAnalyticsService {
         SELECT
           ${key} AS key,
           COUNT(*)::int AS pageviews,
-          COUNT(DISTINCT "visitorId")::int AS visitors,
+          COUNT(DISTINCT person)::int AS visitors,
           (AVG("durationMs") FILTER (WHERE "durationMs" IS NOT NULL) / 1000.0)::float AS avg
         FROM sv
         WHERE start = 1
@@ -300,7 +307,7 @@ export class AdminAnalyticsService {
         SELECT
           ${key} AS key,
           COUNT(*)::int AS pageviews,
-          COUNT(DISTINCT "visitorId")::int AS visitors,
+          COUNT(DISTINCT ${PERSON})::int AS visitors,
           (AVG("durationMs") FILTER (WHERE "durationMs" IS NOT NULL) / 1000.0)::float AS avg
         FROM "PageView"
         WHERE ${where} ${extra}
