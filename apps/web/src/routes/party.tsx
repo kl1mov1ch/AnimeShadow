@@ -4,11 +4,12 @@ import {
   type PartyEvent,
   type PartyMember,
   type PartyPlayback,
+  type PartyQueueItem,
   type PartySnapshot,
   type PartyVisibility,
 } from "@animeshadow/shared";
 import { VISIBILITY } from "@/components/party/visibility";
-import { CheckIcon, Loader2Icon, LogInIcon, LogOutIcon, MinusIcon, PlayIcon, PlusIcon, QrCodeIcon, RepeatIcon, SendIcon, SlidersHorizontalIcon, UsersIcon } from "lucide-react";
+import { CheckIcon, HeartIcon, ListVideoIcon, Loader2Icon, LogInIcon, LogOutIcon, MinusIcon, PlayIcon, PlusIcon, QrCodeIcon, RefreshCwIcon, RepeatIcon, SendIcon, SkipForwardIcon, SlidersHorizontalIcon, UsersIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -21,7 +22,7 @@ import { PartyChat } from "@/components/party/party-chat";
 import { PartyPicker } from "@/components/party-picker";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest, apiStream } from "@/lib/api";
+import { ApiRequestError, apiRequest, apiStream } from "@/lib/api";
 import { animeHref, imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { usePeople, useWatchSources } from "@/lib/query";
@@ -76,21 +77,26 @@ function PartyRoom({ code }: { code: string }) {
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState(false);
   const [askLeave, setAskLeave] = useState(false);
+  const [proposing, setProposing] = useState(false);
   const navigate = useNavigate();
   const [closed, setClosed] = useState<string | null>(null);
   const closedRef = useRef(false);
   const offsetRef = useRef(0);
+  /** The clock is set from a measured round trip — event timestamps no longer move it. */
+  const clockSet = useRef(false);
+  const [queue, setQueue] = useState<PartyQueueItem[]>([]);
   const playbackRef = useRef<PartyPlayback | null>(null);
   playbackRef.current = playback;
 
   // ---- the room's event stream (reconnecting by itself)
   const handleRef = useRef<(e: PartyEvent) => void>(() => undefined);
   handleRef.current = (e: PartyEvent) => {
-    if ("now" in e && typeof e.now === "number") offsetRef.current = e.now - Date.now();
+    if (!clockSet.current && "now" in e && typeof e.now === "number") offsetRef.current = e.now - Date.now();
     switch (e.type) {
       case "hello":
-        offsetRef.current = e.party.now - Date.now();
+        if (!clockSet.current) offsetRef.current = e.party.now - Date.now();
         setParty(e.party);
+        setQueue(e.party.queue ?? []);
         setMembers(e.party.members);
         setPlayback(e.party.playback);
         setChat(e.party.chat);
@@ -105,6 +111,9 @@ function PartyRoom({ code }: { code: string }) {
         break;
       case "settings":
         setParty((p) => (p ? { ...p, settings: e.settings } : p));
+        break;
+      case "queue":
+        setQueue(e.queue);
         break;
       case "closed":
         closedRef.current = true;
@@ -156,6 +165,35 @@ function PartyRoom({ code }: { code: string }) {
     };
   }, [code]);
 
+  // ---- the room's clock: measured against the server, so every screen means the same second
+  useEffect(() => {
+    let alive = true;
+    const sync = async () => {
+      let best: { rtt: number; offset: number } | null = null;
+      for (let i = 0; i < 5 && alive; i++) {
+        const t0 = Date.now();
+        try {
+          const { now } = await apiRequest<{ now: number }>("/party-clock");
+          const t1 = Date.now();
+          const rtt = t1 - t0;
+          if (!best || rtt < best.rtt) best = { rtt, offset: now - (t0 + t1) / 2 };
+        } catch {
+          // Next sample.
+        }
+      }
+      if (alive && best) {
+        offsetRef.current = best.offset;
+        clockSet.current = true;
+      }
+    };
+    void sync();
+    const id = setInterval(() => void sync(), 60_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
   // ---- where playback should be right now, by the room's clock
   const expected = useCallback(() => {
     const p = playbackRef.current;
@@ -190,6 +228,7 @@ function PartyRoom({ code }: { code: string }) {
   const kodikUrl = !ownUrl && kodikSource ? sourceUrlFor(kodikSource, episode) : null;
 
   const isHost = party != null && user != null && party.hostId === user.id;
+  const onEndedRef = useRef<() => void>(() => undefined);
   const canControl = isHost || (party?.settings.allControl ?? false);
   const canControlRef = useRef(canControl);
   canControlRef.current = canControl;
@@ -215,6 +254,7 @@ function PartyRoom({ code }: { code: string }) {
   };
   const kodik = useKodikBridge(frame, {
     onTime: (t) => (localTime.current = t),
+    onEnded: () => onEndedRef.current(),
     onPlay: () => {
       localPlaying.current = true;
       if (Date.now() > kodikSuppress.current) report("play", localTime.current);
@@ -229,18 +269,33 @@ function PartyRoom({ code }: { code: string }) {
     },
   });
 
-  /** Bring this screen to the room's moment (only what differs). */
-  const align = useCallback(() => {
+  /**
+   * Bring this screen to the room's moment. Our player: within a third of a
+   * second it's left alone, up to two seconds it plays 8 % faster or slower
+   * until it's there (no jump), beyond that it seeks. Kodik's (whole seconds
+   * only): a seek past 2.5 s.
+   */
+  const rateRef = useRef(1);
+  const align = useCallback((force = false) => {
     const p = playbackRef.current;
     if (!p || !joined) return;
     const want = expected();
-    const drift = Math.abs(localTime.current - want);
-    const seek = drift > 2.5 ? want : undefined;
+    const diff = localTime.current - want;
+    const drift = Math.abs(diff);
     const playChange = p.playing !== localPlaying.current;
-    if (seek == null && !playChange) return;
     if (ownUrl) {
-      window.dispatchEvent(new CustomEvent("as:player-cmd", { detail: { seconds: seek, play: p.playing } }));
-    } else if (kodikUrl) {
+      const seek = force || drift > 2 ? want : undefined;
+      const rate = !p.playing || seek != null || drift < 0.3 ? 1 : diff < 0 ? 1.08 : 0.92;
+      if (seek == null && !playChange && rate === rateRef.current) return;
+      rateRef.current = rate;
+      window.dispatchEvent(new CustomEvent("as:player-cmd", { detail: { seconds: seek, play: p.playing, rate } }));
+      localPlaying.current = p.playing;
+      if (seek != null) localTime.current = seek;
+      return;
+    }
+    const seek = force || drift > 2.5 ? want : undefined;
+    if (seek == null && !playChange) return;
+    if (kodikUrl) {
       kodikSuppress.current = Date.now() + 1500;
       if (seek != null) kodik.seek(seek);
       if (p.playing) kodik.play();
@@ -255,7 +310,7 @@ function PartyRoom({ code }: { code: string }) {
   }, [playback, align]);
   useEffect(() => {
     if (!joined) return;
-    const id = setInterval(align, 3000);
+    const id = setInterval(() => align(), 1000);
     return () => clearInterval(id);
   }, [joined, align]);
 
@@ -271,24 +326,37 @@ function PartyRoom({ code }: { code: string }) {
     lastNet.current = { at: now, mbps };
     void apiRequest(`/party/${code}/net`, { method: "POST", body: { mbps: mbps == null ? null : Math.round(mbps * 10) / 10 } }).catch(() => undefined);
   };
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holding = useRef(false);
+  const loadingSent = useRef(false);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendLoading = (loading: boolean) => {
+    if (loadingSent.current === loading) return;
+    loadingSent.current = loading;
+    void apiRequest(`/party/${code}/loading`, { method: "POST", body: { loading } }).catch(() => undefined);
+  };
   const onBuffering = (buffering: boolean) => {
-    if (holdTimer.current) clearTimeout(holdTimer.current);
-    if (buffering) {
-      // Short of data for two seconds while the room plays: everyone waits for this screen.
-      holdTimer.current = setTimeout(() => {
-        const p = playbackRef.current;
-        if (!p?.playing || holding.current) return;
-        holding.current = true;
-        sendPlayback({ playing: false, position: localTime.current, waiting: true });
-      }, 2000);
-    } else if (holding.current) {
-      holdTimer.current = setTimeout(() => {
-        holding.current = false;
-        sendPlayback({ playing: true, position: localTime.current });
-      }, 1200);
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    // Short of data for over a second while the room plays: the room waits for this screen.
+    if (buffering && playbackRef.current?.playing) stallTimer.current = setTimeout(() => sendLoading(true), 1200);
+    else if (!buffering) sendLoading(false);
+  };
+  const onAhead = (seconds: number) => {
+    if (loadingSent.current && seconds >= 6) sendLoading(false);
+  };
+  // A new episode or title: whatever this screen was loading no longer holds anyone.
+  useEffect(() => {
+    loadingSent.current = false;
+  }, [episode, animeId]);
+
+  // ---- an episode's end: the host's screen moves the room on (the next episode, or the most wanted title)
+  const total0 = useRef(0);
+  const onEpisodeEnd = () => {
+    if (!isHost || !party?.settings.autoNext) return;
+    if (episode < total0.current) {
+      sendPlayback({ episode: episode + 1, playing: true, position: 0 });
+      return;
     }
+    const next = queue[0];
+    if (next) void apiRequest(`/party/${code}/playback`, { method: "POST", body: { animeId: next.anime.id, episode: 1, playing: true, position: 0 } }).catch(() => undefined);
   };
 
   const kodikNet = useSpeedProbe(Boolean(kodikUrl) && joined);
@@ -317,11 +385,13 @@ function PartyRoom({ code }: { code: string }) {
     else navigate("/party");
   };
 
+  onEndedRef.current = onEpisodeEnd;
   const total = useMemo(() => {
     const s = watch?.sources.find((x) => x.format === "hls");
     const fromOwn = s?.hlsEpisodes ? Math.max(0, ...Object.keys(s.hlsEpisodes).map(Number)) : 0;
     return Math.max(1, fromOwn, party?.anime.episodes ?? 0, episode);
   }, [watch, party, episode]);
+  total0.current = total;
 
   if (closed) {
     return (
@@ -429,6 +499,8 @@ function PartyRoom({ code }: { code: string }) {
               onUserAction={(a) => report(a.type, a.time)}
               onBuffering={onBuffering}
               onNet={reportNet}
+              onAhead={onAhead}
+              onEnded={() => onEndedRef.current()}
             />
           ) : kodikUrl ? (
             <iframe
@@ -448,9 +520,9 @@ function PartyRoom({ code }: { code: string }) {
 
           {/* Waiting for the slowest. */}
           {joined && playback.waitingFor && !playback.playing && (
-            <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/75 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur">
-              <Loader2Icon className="size-3.5 animate-spin" />
-              Ждём {playback.waitingFor} — серия подгружается
+            <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-full bg-black/75 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur">
+              <Loader2Icon className="size-3.5 shrink-0 animate-spin" />
+              <span className="truncate">Пауза: ждём {playback.waitingFor} — грузится</span>
             </div>
           )}
 
@@ -501,13 +573,45 @@ function PartyRoom({ code }: { code: string }) {
               {emoji}
             </button>
           ))}
-          <span className="ml-auto text-xs text-muted-foreground">
-            {canControl ? "Пауза, перемотка и серия — у всех сразу" : "Управляет создатель комнаты"} · со скоростью самого медленного
-          </span>
+          <button
+            type="button"
+            onClick={() => align(true)}
+            title="Встать на общий момент, если картинка разошлась"
+            className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <RefreshCwIcon className="size-3.5" />
+            Синхронизироваться
+          </button>
         </div>
+
+        <NextUp
+          code={code}
+          queue={queue}
+          myId={user?.id ?? null}
+          isHost={isHost}
+          canControl={canControl}
+          episode={episode}
+          total={total}
+          anime={party.anime}
+          autoNext={party.settings.autoNext}
+          onNextEpisode={() => sendPlayback({ episode: episode + 1, playing: true, position: 0 })}
+          onPropose={() => setProposing(true)}
+        />
       </section>
 
       <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro} capHeight={capHeight} settings={party.settings} />
+      <PartyPicker
+        open={proposing}
+        onOpenChange={setProposing}
+        title="Предложить аниме"
+        hint="Попадёт в «Что смотрим дальше» — остальные проголосуют."
+        onPick={async ({ anime }) => {
+          await apiRequest(`/party/${code}/queue`, { method: "POST", body: { animeId: anime.id } })
+            .then(() => toast.success("Предложено"))
+            .catch((error: unknown) => toast.error(error instanceof ApiRequestError ? error.message : "Не получилось"));
+          setProposing(false);
+        }}
+      />
       {managing && <HostPanel code={code} settings={party.settings} members={members} onClose={() => setManaging(false)} />}
       {(askLeave || blocker.state === "blocked") && (
         <ConfirmDialog
@@ -698,5 +802,109 @@ function InviteDialog({ code, party, members, onClose }: { code: string; party: 
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * "Дальше": the next episode (with whether it starts by itself), and the
+ * titles people proposed, most wanted first — a heart to vote, the host's
+ * "Включить" to put one on for everyone.
+ */
+function NextUp({
+  code,
+  queue,
+  myId,
+  isHost,
+  canControl,
+  episode,
+  total,
+  anime,
+  autoNext,
+  onNextEpisode,
+  onPropose,
+}: {
+  code: string;
+  queue: PartyQueueItem[];
+  myId: string | null;
+  isHost: boolean;
+  canControl: boolean;
+  episode: number;
+  total: number;
+  anime: PartySnapshot["anime"];
+  autoNext: boolean;
+  onNextEpisode: () => void;
+  onPropose: () => void;
+}) {
+  const vote = (id: number) => void apiRequest(`/party/${code}/queue/${id}/vote`, { method: "POST" }).catch(() => undefined);
+  const remove = (id: number) => void apiRequest(`/party/${code}/queue/${id}`, { method: "DELETE" }).catch(() => undefined);
+  const play = (id: number) =>
+    void apiRequest(`/party/${code}/playback`, { method: "POST", body: { animeId: id, episode: 1, playing: false, position: 0 } }).catch(() =>
+      toast.error("Не получилось включить"),
+    );
+  const hasNext = episode < total;
+  return (
+    <section className="flex flex-col gap-2.5 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-3">
+      <div className="flex items-center gap-2">
+        <ListVideoIcon className="size-4 text-primary" />
+        <p className="text-sm font-semibold">Что смотрим дальше</p>
+        <button type="button" onClick={onPropose} className="ml-auto inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10">
+          <PlusIcon className="size-3.5" />
+          Предложить аниме
+        </button>
+      </div>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+        {hasNext && (
+          <div className="flex w-56 shrink-0 items-center gap-2.5 rounded-xl bg-primary/[0.07] p-2 ring-1 ring-primary/25">
+            {anime.imageUrl && <img src={imageSrc(anime.imageUrl)} alt="" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Следующая серия</p>
+              <p className="truncate text-sm font-medium">Серия {episode + 1}</p>
+              <p className="text-[11px] text-muted-foreground">{autoNext ? "Включится сама в конце" : "Автопереход выключен"}</p>
+            </div>
+            {canControl && (
+              <button type="button" onClick={onNextEpisode} title="Включить сейчас" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+                <SkipForwardIcon className="size-4" />
+              </button>
+            )}
+          </div>
+        )}
+        {queue.map((q) => {
+          const mine = myId != null && q.votes.includes(myId);
+          return (
+            <div key={q.anime.id} className="flex w-56 shrink-0 items-center gap-2.5 rounded-xl bg-foreground/[0.04] p-2">
+              {q.anime.imageUrl && <img src={imageSrc(q.anime.imageUrl)} alt="" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-2 text-sm font-medium leading-tight">{q.anime.titleLocalized || q.anime.title}</p>
+                <p className="truncate text-[11px] text-muted-foreground">предложил(а) {q.by}</p>
+              </div>
+              <div className="flex shrink-0 flex-col items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => vote(q.anime.id)}
+                  title={mine ? "Убрать голос" : "Хочу это"}
+                  className={cn("inline-flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-semibold tabular-nums", mine ? "bg-rose-500/15 text-rose-400" : "text-muted-foreground hover:text-foreground")}
+                >
+                  <HeartIcon className={cn("size-3.5", mine && "fill-current")} />
+                  {q.votes.length}
+                </button>
+                {isHost && (
+                  <button type="button" onClick={() => play(q.anime.id)} title="Включить для всех" className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
+                    <PlayIcon className="size-3.5 fill-current" />
+                  </button>
+                )}
+                {(isHost || mine) && !isHost && (
+                  <button type="button" onClick={() => remove(q.anime.id)} title="Убрать" className="text-[10px] text-muted-foreground hover:text-rose-400">
+                    убрать
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {!hasNext && queue.length === 0 && (
+          <p className="py-3 text-xs text-muted-foreground">Это последняя серия. Предложите, что смотреть потом — остальные проголосуют.</p>
+        )}
+      </div>
+    </section>
   );
 }

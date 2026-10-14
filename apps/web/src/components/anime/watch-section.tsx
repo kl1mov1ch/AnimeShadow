@@ -938,6 +938,7 @@ export function CustomHlsPlayer({
   onUserAction,
   onBuffering,
   onNet,
+  onAhead,
   onTime,
 }: {
   src: string;
@@ -984,6 +985,8 @@ export function CustomHlsPlayer({
   onBuffering?: (buffering: boolean) => void;
   /** The line's measured speed, Mbit/s, every few seconds. */
   onNet?: (mbps: number | null) => void;
+  /** Seconds loaded past the playhead, every couple of seconds. */
+  onAhead?: (seconds: number) => void;
   /** Where playback is, and how long the episode runs. */
   onTime?: (time: number, duration: number) => void;
 }) {
@@ -1246,6 +1249,8 @@ export function CustomHlsPlayer({
   const [netHistory, setNetHistory] = useState<number[]>([]);
   const onNearEndRef = useRef(onNearEnd);
   const onNetRef = useRef(onNet);
+  const onAheadRef = useRef(onAhead);
+  onAheadRef.current = onAhead;
   onNetRef.current = onNet;
   const onBufferingRef = useRef(onBuffering);
   onBufferingRef.current = onBuffering;
@@ -1268,6 +1273,7 @@ export function CustomHlsPlayer({
           }
         }
         setBufferAhead(ahead);
+        onAheadRef.current?.(ahead);
         const length = Number.isFinite(video.duration) ? video.duration : 0;
         const left = length - video.currentTime;
         if (length > 0 && left < 150 && (ahead >= left - 2 || left < 45) && nearEndSentRef.current !== src) {
@@ -1280,8 +1286,9 @@ export function CustomHlsPlayer({
       onNetRef.current?.(bw > 0 ? bw / 1_000_000 : null);
     };
     sample();
-    const id = setInterval(sample, 2000);
+    const id = setInterval(sample, onAhead ? 1000 : 2000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWinner, src, reloadKey]);
 
   // "Go there" from a comment's moment (Player turns it into this event for us).
@@ -1307,8 +1314,10 @@ export function CustomHlsPlayer({
     const video = videoRef.current;
     if (!video) return;
     const onCmd = (e: Event) => {
-      const d = (e as CustomEvent<{ seconds?: number; play?: boolean; maxHeight?: number | null }>).detail;
+      const d = (e as CustomEvent<{ seconds?: number; play?: boolean; maxHeight?: number | null; rate?: number }>).detail;
       if (d.maxHeight !== undefined) engineRef.current?.capHeight(d.maxHeight);
+      // A gentle catch-up: a little faster or slower for a few seconds instead of a jump.
+      if (d.rate != null && Math.abs(video.playbackRate - d.rate) > 0.001) video.playbackRate = d.rate;
       const seek = d.seconds != null && Math.abs(video.currentTime - d.seconds) > 0.5;
       const play = d.play === true && video.paused;
       const pause = d.play === false && !video.paused;

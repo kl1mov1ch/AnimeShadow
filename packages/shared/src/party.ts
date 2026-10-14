@@ -13,6 +13,8 @@ export interface PartyMember {
   mbps: number | null;
   /** The host silenced them in the chat. */
   muted: boolean;
+  /** Their player is short of data right now. */
+  loading: boolean;
 }
 
 export interface PartyPlayback {
@@ -51,9 +53,34 @@ export interface PartySettings {
   reactions: boolean;
   /** Everyone may pause, seek and change episodes — otherwise only the host. */
   allControl: boolean;
+  /** Pause for anyone whose player is still loading, go on when they're ready. */
+  waitForSlow: boolean;
+  /** Quality for all capped to what the slowest line carries. */
+  capQuality: boolean;
+  /** Lines in the chat about joins, leaves, pauses and seeks. */
+  systemMessages: boolean;
+  /** At an episode's end the next one starts by itself. */
+  autoNext: boolean;
 }
 
-export const PARTY_DEFAULT_SETTINGS: PartySettings = { visibility: "public", stickers: true, gifs: true, reactions: true, allControl: false };
+export const PARTY_DEFAULT_SETTINGS: PartySettings = {
+  visibility: "public",
+  stickers: true,
+  gifs: true,
+  reactions: true,
+  allControl: false,
+  waitForSlow: true,
+  capQuality: true,
+  systemMessages: true,
+  autoNext: true,
+};
+
+/** "What to watch next": an anime proposed in the room, with its votes. */
+export interface PartyQueueItem {
+  anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; episodes: number | null };
+  by: string;
+  votes: string[];
+}
 
 export interface PartySnapshot {
   code: string;
@@ -63,6 +90,7 @@ export interface PartySnapshot {
   members: PartyMember[];
   playback: PartyPlayback;
   chat: PartyChatMessage[];
+  queue: PartyQueueItem[];
   /** Server clock, to work out where playback is now. */
   now: number;
 }
@@ -75,6 +103,7 @@ export type PartyEvent =
   | { type: "anime"; anime: PartySnapshot["anime"] }
   | { type: "settings"; settings: PartySettings }
   | { type: "closed"; reason: string }
+  | { type: "queue"; queue: PartyQueueItem[] }
   | { type: "chat"; message: PartyChatMessage }
   | { type: "reaction"; emoji: string; by: string; name: string }
   | { type: "ping"; now: number };
@@ -91,7 +120,14 @@ export const partySettingsInputSchema = z.object({
   gifs: z.boolean().optional(),
   reactions: z.boolean().optional(),
   allControl: z.boolean().optional(),
+  waitForSlow: z.boolean().optional(),
+  capQuality: z.boolean().optional(),
+  systemMessages: z.boolean().optional(),
+  autoNext: z.boolean().optional(),
 });
+
+export const partyLoadingInputSchema = z.object({ loading: z.boolean() });
+export const partyQueueInputSchema = z.object({ animeId: z.number().int().positive() });
 
 export const partyMuteInputSchema = z.object({ userId: z.string().min(1).max(40), muted: z.boolean() });
 

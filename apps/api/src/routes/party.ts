@@ -4,7 +4,9 @@ import {
   partyNetInputSchema,
   partyPlaybackInputSchema,
   partyReactionInputSchema,
+  partyLoadingInputSchema,
   partyMuteInputSchema,
+  partyQueueInputSchema,
   partySettingsInputSchema,
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
@@ -39,6 +41,33 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
     const { code } = parse(codeParams, request.params);
     const input = parse(partyMuteInputSchema, request.body);
     return party.mute(code, request.userId!, input.userId, input.muted);
+  });
+
+  fastify.post("/party/:code/loading", { ...auth, config: { rateLimit: { max: 120, timeWindow: "1 minute" } } }, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    party.loadingState(code, request.userId!, parse(partyLoadingInputSchema, request.body).loading);
+    return { ok: true };
+  });
+
+  fastify.post("/party/:code/queue", { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    return party.propose(code, request.userId!, parse(partyQueueInputSchema, request.body).animeId);
+  });
+
+  fastify.post("/party/:code/queue/:animeId/vote", { ...auth, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request) => {
+    const { code, animeId } = parse(codeParams.extend({ animeId: z.coerce.number().int().positive() }), request.params);
+    return party.vote(code, request.userId!, animeId);
+  });
+
+  fastify.delete("/party/:code/queue/:animeId", auth, async (request) => {
+    const { code, animeId } = parse(codeParams.extend({ animeId: z.coerce.number().int().positive() }), request.params);
+    return party.unpropose(code, request.userId!, animeId);
+  });
+
+  // The server's clock, for each screen to set its own against (a few samples, the quickest wins).
+  fastify.get("/party-clock", async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+    return { now: Date.now() };
   });
 
   fastify.post("/party/:code/leave", auth, async (request) => party.leave(parse(codeParams, request.params).code, request.userId!));

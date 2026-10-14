@@ -1,6 +1,6 @@
 import { PARTY_EMOJI, PARTY_MAX, PARTY_STICKERS, type PartyChatMessage, type PartyMember, type PartySettings, stickerUrl } from "@animeshadow/shared";
 import { SignalBars } from "./host-panel";
-import { CrownIcon, ImageIcon, LockIcon, MessageSquareIcon, SendIcon, SmileIcon, StickerIcon, WifiIcon } from "lucide-react";
+import { Loader2Icon, CrownIcon, ImageIcon, LockIcon, MessageSquareIcon, SendIcon, SmileIcon, StickerIcon, WifiIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -116,7 +116,14 @@ export function PartyChat({
               </span>
               <span className="max-w-24 truncate">{m.name}</span>
               {m.host && <CrownIcon className="size-3 fill-amber-400 text-amber-400" />}
-              <SignalBars mbps={m.mbps} />
+              {m.loading ? (
+                <span className="inline-flex items-center gap-1 text-amber-400" title="У этого участника грузится серия">
+                  <Loader2Icon className="size-3 animate-spin" />
+                  грузится
+                </span>
+              ) : (
+                <SignalBars mbps={m.mbps} />
+              )}
             </span>
           ))}
         </div>

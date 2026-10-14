@@ -1,5 +1,5 @@
 import type { PartyMember, PartySettings, PartyVisibility } from "@animeshadow/shared";
-import { CrownIcon, MicOffIcon, MessageSquareIcon, SlidersHorizontalIcon } from "lucide-react";
+import { CrownIcon, Loader2Icon, MicOffIcon, MessageSquareIcon, MoonIcon, SlidersHorizontalIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -95,10 +95,34 @@ export function HostPanel({
           </div>
         </section>
 
+        {/* One tap: nothing but the anime — no reactions, stickers, GIFs, chatter or waiting. */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => set({ reactions: false, stickers: false, gifs: false, systemMessages: false, waitForSlow: false })}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium transition-colors hover:border-foreground/30"
+          >
+            <MoonIcon className="size-3.5" />
+            Тихий режим — только аниме
+          </button>
+          <button
+            type="button"
+            onClick={() => set({ reactions: true, stickers: true, gifs: true, systemMessages: true, waitForSlow: true, capQuality: true, autoNext: true })}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium transition-colors hover:border-foreground/30"
+          >
+            <SparklesIcon className="size-3.5" />
+            Всё включить
+          </button>
+        </div>
+
         <section className="flex flex-col divide-y divide-[var(--accent-line-soft)] rounded-xl border border-[var(--accent-line-soft)]">
           {(
             [
               ["allControl", "Управлять могут все", "Пауза, перемотка и серии — у всех. Иначе только у вас."],
+              ["waitForSlow", "Ждать тех, у кого грузится", "Пауза у всех, пока у кого-то подгружается серия"],
+              ["capQuality", "Качество по самому медленному", "Всем одинаковое качество — чтобы никто не отставал"],
+              ["autoNext", "Автопереход", "В конце серии включается следующая (или самое желанное из очереди)"],
+              ["systemMessages", "Служебные сообщения", "«Аня поставила паузу», «Олег вошёл» в чате"],
               ["reactions", "Реакции", "Эмодзи, которые всплывают поверх видео"],
               ["stickers", "Стикеры в чате", "Анимированные стикеры (для PRO)"],
               ["gifs", "Гифки в чате", "Гифки из библиотеки сайта (для PRO)"],
@@ -152,8 +176,10 @@ export function HostPanel({
                     {m.name}
                     {m.host && <CrownIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />}
                     {m.muted && <MicOffIcon className="size-3.5 shrink-0 text-rose-400" />}
+                    {m.loading && <Loader2Icon className="size-3.5 shrink-0 animate-spin text-amber-400" />}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
+                    {m.loading ? "Грузится · " : ""}
                     {QUALITY[lineQuality(m.mbps)].label}
                     {m.mbps != null && ` · ${m.mbps.toFixed(1)} Мбит/с`}
                   </span>

@@ -13,6 +13,7 @@ import {
   type PartyListing,
   type PartyMember,
   type PartyPlayback,
+  type PartyQueueItem,
   type PartySettings,
   type PartySnapshot,
 } from "@animeshadow/shared";
@@ -41,8 +42,6 @@ interface Room {
   anime: PartySnapshot["anime"];
   hostId: string;
   playback: PartyPlayback;
-  /** Who paused the room to catch up (they may resume it). */
-  waitingBy: string | null;
   chat: PartyChatMessage[];
   /** Who has been in, by id — the ten places. */
   people: Map<string, Person>;
@@ -56,6 +55,12 @@ interface Room {
   /** Each person's line speed, Mbit/s. */
   net: Map<string, number | null>;
   muted: Set<string>;
+  /** Whose players are short of data right now. */
+  loading: Set<string>;
+  /** The room was paused by itself, for someone loading — it resumes by itself. */
+  autoPaused: boolean;
+  /** "What to watch next", by anime id. */
+  queue: Map<number, { anime: PartyQueueItem["anime"]; by: string; votes: Set<string>; at: number }>;
   /** Watch time per person, counted as the room plays. */
   watched: Map<string, Watched>;
   /** Titles shown in this room, for the log. */
@@ -128,7 +133,6 @@ export class PartyService {
       anime,
       hostId: userId,
       playback: { episode, playing: false, position: 0, updatedAt: now, by: userId, waitingFor: null },
-      waitingBy: null,
       chat: [this.line(`${person.name} создал(а) комнату. Позовите друзей — до ${PARTY_MAX} человек.`)],
       people: new Map([[userId, person]]),
       streams: new Map(),
@@ -138,6 +142,9 @@ export class PartyService {
       lastReaction: new Map(),
       net: new Map(),
       muted: new Set(),
+      loading: new Set(),
+      autoPaused: false,
+      queue: new Map(),
       watched: new Map(),
       titles: new Map([[anime.id, anime.titleLocalized || anime.title]]),
       countedAt: now,
@@ -155,6 +162,7 @@ export class PartyService {
       members: this.online(room),
       playback: room.playback,
       chat: room.chat.slice(-60),
+      queue: this.queueOf(room),
       now: Date.now(),
     };
   }
@@ -176,7 +184,7 @@ export class PartyService {
     if (userId === room.hostId) room.hostGoneAt = null;
     this.write(res, { type: "hello", party: this.snapshot(code) });
     if (!wasOnline) {
-      this.say(room, `${room.people.get(userId)!.name} присоединился(ась)`);
+      this.say(room, `${room.people.get(userId)!.name} присоединился(ась)`, true);
       this.broadcastMembers(room);
     }
     const ping = setInterval(() => this.write(res, { type: "ping", now: Date.now() }), 20_000);
@@ -190,8 +198,9 @@ export class PartyService {
         const me = room.people.get(userId);
         // The host's tab gone: a moment to come back (a reload), then the room closes.
         if (room.hostId === userId) room.hostGoneAt = Date.now();
-        else if (me) this.say(room, `${me.name} вышел(ла)`);
+        else if (me) this.say(room, `${me.name} вышел(ла)`, true);
         room.net.delete(userId);
+        if (room.loading.delete(userId)) this.afterLoading(room);
         this.broadcastMembers(room);
       }
       if (room.streams.size === 0) room.emptySince = Date.now();
@@ -216,10 +225,8 @@ export class PartyService {
   ): Promise<PartyPlayback> {
     const room = this.member(code, userId);
     const host = userId === room.hostId;
-    // Waiting for one's own loading, and resuming after it, is anyone's right;
-    // everything else is the host's unless they opened control to all.
-    const catchingUp = input.waiting === true || (room.waitingBy === userId && input.playing);
-    if (!host && !room.settings.allControl && !catchingUp) throw new ForbiddenError("Управляет создатель комнаты.");
+    if (!host && !room.settings.allControl) throw new ForbiddenError("Управляет создатель комнаты.");
+    room.autoPaused = false;
     if (input.animeId != null && !host && !room.settings.allControl) throw new ForbiddenError("Аниме меняет создатель комнаты.");
     this.count(room);
 
@@ -232,7 +239,9 @@ export class PartyService {
       if (!anime) throw new NotFoundError("Аниме не найдено.");
       room.anime = anime;
       room.titles.set(anime.id, anime.titleLocalized || anime.title);
-      room.waitingBy = null;
+      room.loading.clear();
+      room.queue.delete(anime.id);
+      this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
       room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId, waitingFor: null };
       this.broadcast(room, { type: "anime", anime });
       this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
@@ -241,28 +250,21 @@ export class PartyService {
     }
     const before = room.playback;
     const who = room.people.get(userId)?.name ?? "Кто-то";
-    room.waitingBy = input.waiting ? userId : null;
+    // A new episode: nobody is loading the old one any more.
+    if (before.episode !== input.episode) room.loading.clear();
     room.playback = {
       episode: input.episode,
       playing: input.playing,
       position: input.position,
       updatedAt: Date.now(),
       by: userId,
-      waitingFor: input.waiting ? who : null,
+      waitingFor: null,
     };
     this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
-    if (input.waiting) {
-      this.say(room, `Ждём ${who} — серия подгружается`);
-      return room.playback;
-    }
-    if (before.waitingFor && input.playing) {
-      this.say(room, `${who} догрузил(а) — продолжаем`);
-      return room.playback;
-    }
     if (before.episode !== input.episode) this.say(room, `${who} включил(а) ${input.episode} серию`);
-    else if (before.playing && !input.playing) this.say(room, `${who} поставил(а) паузу на ${clock(input.position)}`);
-    else if (!before.playing && input.playing && Math.abs(expected(before) - input.position) < 3) this.say(room, `${who} продолжил(а) просмотр`);
-    else if (Math.abs(expected(before) - input.position) >= 3) this.say(room, `${who} перемотал(а) на ${clock(input.position)}`);
+    else if (before.playing && !input.playing) this.say(room, `${who} поставил(а) паузу на ${clock(input.position)}`, true);
+    else if (!before.playing && input.playing && Math.abs(expected(before) - input.position) < 3) this.say(room, `${who} продолжил(а) просмотр`, true);
+    else if (Math.abs(expected(before) - input.position) >= 3) this.say(room, `${who} перемотал(а) на ${clock(input.position)}`, true);
     return room.playback;
   }
 
@@ -312,10 +314,110 @@ export class PartyService {
     if (next.gifs !== room.settings.gifs) said.push(next.gifs ? "гифки включены" : "гифки выключены");
     if (next.reactions !== room.settings.reactions) said.push(next.reactions ? "реакции включены" : "реакции выключены");
     if (next.allControl !== room.settings.allControl) said.push(next.allControl ? "управлять могут все" : "управляет только создатель");
+    if (next.waitForSlow !== room.settings.waitForSlow) said.push(next.waitForSlow ? "ждём тех, у кого грузится" : "не ждём отстающих");
+    if (next.capQuality !== room.settings.capQuality) said.push(next.capQuality ? "качество по самому медленному" : "каждый смотрит в своём качестве");
+    if (next.systemMessages !== room.settings.systemMessages) said.push(next.systemMessages ? "служебные сообщения включены" : "служебные сообщения выключены");
+    if (next.autoNext !== room.settings.autoNext) said.push(next.autoNext ? "следующая серия включается сама" : "без автоперехода");
+    const stopWaiting = room.settings.waitForSlow && !next.waitForSlow;
     room.settings = next;
     this.broadcast(room, { type: "settings", settings: next });
+    if (stopWaiting && room.autoPaused) {
+      room.loading.clear();
+      this.afterLoading(room);
+    }
+    if (patch.capQuality != null) this.broadcastMembers(room);
     if (said.length) this.say(room, `Создатель: ${said.join(", ")}`);
     return next;
+  }
+
+  /**
+   * A member's player is short of data (or ready again). With "wait for the
+   * slow" on, the room pauses at once for them — everyone sees who — and
+   * goes on by itself when nobody is loading any more.
+   */
+  loadingState(code: string, userId: string, loading: boolean): void {
+    const room = this.member(code, userId);
+    const had = room.loading.has(userId);
+    if (loading === had) return;
+    if (loading) room.loading.add(userId);
+    else room.loading.delete(userId);
+    if (loading && room.settings.waitForSlow && room.playback.playing) {
+      this.count(room);
+      room.autoPaused = true;
+      room.playback = { ...room.playback, playing: false, position: expected(room.playback), updatedAt: Date.now(), by: null, waitingFor: this.waitingNames(room) };
+      this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
+      this.say(room, `Пауза — ждём ${this.waitingNames(room)}: серия подгружается`, true);
+    } else if (room.autoPaused) {
+      this.afterLoading(room);
+    }
+    this.broadcastMembers(room);
+  }
+
+  /** Someone stopped loading: if nobody else is, an automatic pause ends. */
+  private afterLoading(room: Room) {
+    if (!room.autoPaused) return;
+    if (room.loading.size > 0) {
+      room.playback = { ...room.playback, waitingFor: this.waitingNames(room), updatedAt: Date.now() };
+      this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
+      return;
+    }
+    room.autoPaused = false;
+    this.count(room);
+    room.playback = { ...room.playback, playing: true, updatedAt: Date.now(), by: null, waitingFor: null };
+    this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
+    this.say(room, "Все догрузили — продолжаем", true);
+  }
+
+  private waitingNames(room: Room): string {
+    const names = [...room.loading].map((id) => room.people.get(id)?.name ?? "кого-то");
+    return names.length > 2 ? `${names.slice(0, 2).join(", ")} и ещё ${names.length - 2}` : names.join(" и ");
+  }
+
+  /** "What to watch next": anyone proposes an anime (it counts as their vote). */
+  async propose(code: string, userId: string, animeId: number) {
+    const room = this.member(code, userId);
+    if (animeId === room.anime.id) throw new BadRequestError("Это аниме уже идёт.");
+    const have = room.queue.get(animeId);
+    if (have) {
+      have.votes.add(userId);
+    } else {
+      if (room.queue.size >= 12) throw new BadRequestError("В очереди уже 12 аниме.");
+      const anime = await this.prisma.anime.findUnique({
+        where: { id: animeId },
+        select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true },
+      });
+      if (!anime) throw new NotFoundError("Аниме не найдено.");
+      room.queue.set(animeId, { anime, by: userId, votes: new Set([userId]), at: Date.now() });
+      this.say(room, `${room.people.get(userId)?.name ?? "Кто-то"} предлагает «${anime.titleLocalized || anime.title}»`);
+    }
+    this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    return { queue: this.queueOf(room) };
+  }
+
+  vote(code: string, userId: string, animeId: number) {
+    const room = this.member(code, userId);
+    const item = room.queue.get(animeId);
+    if (!item) throw new NotFoundError("Этого аниме нет в очереди.");
+    if (item.votes.has(userId)) item.votes.delete(userId);
+    else item.votes.add(userId);
+    this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    return { queue: this.queueOf(room) };
+  }
+
+  unpropose(code: string, userId: string, animeId: number) {
+    const room = this.member(code, userId);
+    const item = room.queue.get(animeId);
+    if (!item) return { queue: this.queueOf(room) };
+    if (item.by !== userId && room.hostId !== userId) throw new ForbiddenError("Убрать может тот, кто предложил, или создатель.");
+    room.queue.delete(animeId);
+    this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    return { queue: this.queueOf(room) };
+  }
+
+  private queueOf(room: Room): PartyQueueItem[] {
+    return [...room.queue.values()]
+      .sort((a, b) => b.votes.size - a.votes.size || a.at - b.at)
+      .map((q) => ({ anime: q.anime, by: room.people.get(q.by)?.name ?? "—", votes: [...q.votes] }));
   }
 
   /** The host mutes (or unmutes) someone in the chat. */
@@ -501,7 +603,7 @@ export class PartyService {
     return ids
       .map((id) => room.people.get(id))
       .filter((p): p is Person => p != null)
-      .map((p) => ({ ...p, host: p.id === room.hostId, mbps: room.net.get(p.id) ?? null, muted: room.muted.has(p.id) }));
+      .map((p) => ({ ...p, host: p.id === room.hostId, mbps: room.net.get(p.id) ?? null, muted: room.muted.has(p.id), loading: room.loading.has(p.id) }));
   }
 
   /** Adds the time since the last count to everyone in the room, if it was playing. */
@@ -521,6 +623,7 @@ export class PartyService {
 
   /** The highest quality every member's line carries (480/720/1080), or null while nobody has measured. */
   private capHeight(room: Room): number | null {
+    if (!room.settings.capQuality) return null;
     const speeds = this.online(room)
       .map((m) => m.mbps)
       .filter((v): v is number => v != null && v > 0);
@@ -537,7 +640,9 @@ export class PartyService {
     return { id: randomBytes(6).toString("hex"), at: Date.now(), author: null, kind: "system", text, media: null };
   }
 
-  private say(room: Room, text: string) {
+  /** A line from the room; `chatter` ones (joins, pauses, seeks) only while the host keeps them on. */
+  private say(room: Room, text: string, chatter = false) {
+    if (chatter && !room.settings.systemMessages) return;
     const message = this.line(text);
     this.push(room, message);
     this.broadcast(room, { type: "chat", message });
