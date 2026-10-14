@@ -936,7 +936,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}
           </div>
-          <CharacterModal character={selected} onOpenChange={(open) => !open && setSelected(null)} />
+          <CharacterModal character={selected} animeId={animeId} onOpenChange={(open) => !open && setSelected(null)} />
           {!searching && hidden > 0 && (
             <button
               type="button"

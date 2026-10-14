@@ -1,17 +1,18 @@
 import type { Character } from "@animeshadow/shared";
 import { StarIcon } from "lucide-react";
-import { useState } from "react";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
-import { useCharacterDetail } from "@/lib/query";
 import { cn } from "@/lib/utils";
+
+/** The catalogue's role names, in Russian. */
+export function roleName(role: string): string {
+  const r = role.toLowerCase();
+  if (r === "main") return "Главный герой";
+  if (r === "supporting") return "Второстепенный";
+  if (r === "background") return "Эпизодический";
+  return role;
+}
 
 interface CharacterCardProps {
   character: Character;
@@ -23,52 +24,6 @@ interface CharacterCardProps {
   onSelect?: (character: Character) => void;
 }
 
-/**
- * Hover preview: a one-line teaser, fetched only once the user actually
- * hovers — the full bio lives in the modal.
- */
-function HoverPreview({
-  character,
-  children,
-}: {
-  character: Character;
-  children: React.ReactNode;
-}) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const { data, isPending } = useCharacterDetail(open ? character.id : null);
-
-  return (
-    <Tooltip onOpenChange={setOpen}>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="top" className="max-w-60 text-left">
-        <p className="font-medium">{character.name}</p>
-        {/* The role and who voices them — the two things worth knowing
-            before deciding whether to open the full bio at all. */}
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {[
-            character.role.toLowerCase() === "main"
-              ? t("detail.mainRole")
-              : character.role,
-            character.voiceActor?.name,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        {isPending ? (
-          <Skeleton className="mt-1 h-3 w-32 bg-foreground/20" />
-        ) : data?.description ? (
-          <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">{data.description}</p>
-        ) : (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t("detail.characterModal.clickForMore")}
-          </p>
-        )}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function CharacterCard({
   character,
   prominent = false,
@@ -77,11 +32,10 @@ export function CharacterCard({
 }: CharacterCardProps) {
   const t = useT();
   const isMain = character.role.toLowerCase() === "main";
-  const roleLabel = isMain ? t("detail.mainRole") : character.role;
+  const roleLabel = isMain ? t("detail.mainRole") : roleName(character.role);
 
   if (compact) {
     return (
-      <HoverPreview character={character}>
         <button
           type="button"
           onClick={() => onSelect?.(character)}
@@ -98,7 +52,7 @@ export function CharacterCard({
           <div className="relative w-full">
             <div
               className={cn(
-                "aspect-square w-full overflow-hidden rounded-full border-2 bg-muted transition-[transform,border-color] duration-300 group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0",
+                "aspect-square w-full overflow-hidden rounded-full border-2 bg-muted transition-colors",
                 isMain ? "border-primary" : "border-border/60 group-hover:border-primary/40",
               )}
             >
@@ -127,13 +81,10 @@ export function CharacterCard({
           {/* Who plays them, when we know it — the reason "who voices this
               character" doesn't require opening the modal on every single
               one of a dozen names. */}
-          {character.voiceActor?.name && (
-            <p className="line-clamp-1 w-full text-[10px] text-muted-foreground">
-              {character.voiceActor.name}
-            </p>
-          )}
+          <p className={cn("line-clamp-1 w-full text-[10px]", isMain ? "font-semibold text-primary" : "text-muted-foreground")}>
+            {isMain ? roleLabel : character.voiceActor?.name ?? roleLabel}
+          </p>
         </button>
-      </HoverPreview>
     );
   }
 

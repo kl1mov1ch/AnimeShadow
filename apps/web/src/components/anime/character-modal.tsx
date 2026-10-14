@@ -1,4 +1,5 @@
 import type { Character, CharacterDetail } from "@animeshadow/shared";
+import { roleName } from "./character-card";
 import {
   BookMarkedIcon,
   BookOpenIcon,
@@ -8,6 +9,7 @@ import {
   EyeIcon,
   FilmIcon,
   HeartIcon,
+  ImageIcon,
   type LucideIcon,
   MicIcon,
   ShirtIcon,
@@ -15,7 +17,9 @@ import {
   UserIcon,
   ZapIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
+import { apiRequest } from "@/lib/api";
 import { Link } from "react-router-dom";
 import {
   Dialog,
@@ -49,9 +53,12 @@ type Tab = "about" | "voices" | "anime" | "manga";
 export function CharacterModal({
   character,
   onOpenChange,
+  animeId,
 }: {
   character: Character | null;
   onOpenChange: (open: boolean) => void;
+  /** The title it was opened from — its frames are shown under the bio. */
+  animeId?: number;
 }) {
   const { data, isPending, isError } = useCharacterDetail(character?.id ?? null);
 
@@ -69,6 +76,7 @@ export function CharacterModal({
 
             <CharacterInfo
               key={`i-${character.id}`}
+              animeId={animeId}
               character={character}
               data={data}
               isPending={isPending}
@@ -99,7 +107,7 @@ function CharacterGallery({
   const step = (dir: 1 | -1) => setIndex((safeIndex + dir + images.length) % images.length);
 
   const arrow =
-    "group absolute top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg border border-primary/30 bg-background/85 text-foreground shadow-md transition-all duration-200 hover:border-primary hover:bg-primary hover:text-primary-foreground active:scale-90";
+    "absolute top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg border border-primary/30 bg-background/85 text-foreground shadow-md transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground";
 
   return (
     <div className="relative flex shrink-0 flex-col gap-2.5 border-b border-[var(--accent-line-soft)] p-3 md:w-[40%] md:border-b-0 md:border-r md:p-4">
@@ -118,7 +126,7 @@ function CharacterGallery({
               key={current}
               src={imageSrc(current)}
               alt={character.name}
-              className="relative size-full animate-in object-contain fade-in duration-300"
+              className="relative size-full object-contain"
             />
           </>
         ) : (
@@ -129,10 +137,10 @@ function CharacterGallery({
         {images.length > 1 && (
           <>
             <button type="button" onClick={() => step(-1)} aria-label={t("common.previous")} className={cn(arrow, "left-2")}>
-              <ChevronLeftIcon className="size-5 transition-transform duration-200 group-hover:-translate-x-0.5" />
+              <ChevronLeftIcon className="size-5" />
             </button>
             <button type="button" onClick={() => step(1)} aria-label={t("common.next")} className={cn(arrow, "right-2")}>
-              <ChevronRightIcon className="size-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              <ChevronRightIcon className="size-5" />
             </button>
             <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-primary/30 bg-background/85 px-2.5 py-0.5 text-xs font-semibold tabular-nums">
               {safeIndex + 1} / {images.length}
@@ -151,7 +159,7 @@ function CharacterGallery({
               aria-label={`${i + 1}`}
               aria-current={i === safeIndex}
               className={cn(
-                "h-14 w-10 shrink-0 overflow-hidden rounded-md border-2 transition-all duration-200",
+                "h-14 w-10 shrink-0 overflow-hidden rounded-md border-2 transition-opacity",
                 i === safeIndex ? "border-primary shadow-md" : "border-transparent opacity-55 hover:opacity-100",
               )}
             >
@@ -230,7 +238,7 @@ function AppearanceGrid({ kind, items }: { kind: "anime" | "manga"; items: Appea
                   src={imageSrc(item.imageUrl)}
                   alt=""
                   loading="lazy"
-                  className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="size-full object-cover"
                 />
               ) : (
                 <PosterFallback title={item.title} seed={item.id} variant="avatar" />
@@ -247,7 +255,7 @@ function AppearanceGrid({ kind, items }: { kind: "anime" | "manga"; items: Appea
             {item.kind && <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{item.kind.replace(/_/g, " ")}</span>}
           </>
         );
-        const cls = "group flex min-w-0 animate-in flex-col gap-1 fade-in-0 slide-in-from-bottom-1 duration-300";
+        const cls = "group flex min-w-0 flex-col gap-1";
         const style = { animationDelay: `${Math.min(i, 12) * 25}ms`, animationFillMode: "both" };
         return kind === "anime" ? (
           <Link key={item.id} to={`/anime/${item.id}`} className={cls} style={style}>
@@ -270,7 +278,7 @@ function VoiceGrid({ actors }: { actors: SeiyuItem[] }) {
       {actors.map((actor, i) => (
         <div
           key={`${actor.name}-${i}`}
-          className="flex min-w-0 animate-in flex-col items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/60 p-3 text-center fade-in-0 slide-in-from-bottom-1 duration-300"
+          className="flex min-w-0 flex-col items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/60 p-3 text-center"
           style={{ animationDelay: `${Math.min(i, 12) * 30}ms`, animationFillMode: "both" }}
         >
           <span className="size-20 overflow-hidden rounded-full border-2 border-primary/40 bg-muted shadow-md">
@@ -293,7 +301,9 @@ function CharacterInfo({
   data,
   isPending,
   isError,
+  animeId,
 }: {
+  animeId?: number;
   character: Character;
   data: CharacterDetail | undefined;
   isPending: boolean;
@@ -342,7 +352,7 @@ function CharacterInfo({
               isMain ? "bg-primary text-primary-foreground shadow-md" : "border border-primary/30 bg-primary/10 text-primary",
             )}
           >
-            {isMain ? t("detail.mainRole") : character.role}
+            {isMain ? t("detail.mainRole") : roleName(character.role)}
           </span>
           <h2 className="font-display text-2xl leading-tight [overflow-wrap:anywhere] sm:text-3xl">
             {data?.name ?? character.name}
@@ -411,7 +421,7 @@ function CharacterInfo({
                 onClick={() => setTab(id)}
                 aria-pressed={tab === id}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 active:scale-95",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
                   tab === id
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
@@ -430,10 +440,11 @@ function CharacterInfo({
         </div>
       )}
 
-      <div key={tab} className="flex animate-in flex-col gap-5 p-4 fade-in-0 duration-300 sm:p-6">
+      <div key={tab} className="flex flex-col gap-5 p-4 sm:p-6">
         {tab === "voices" && <VoiceGrid actors={voiceActors} />}
         {tab === "anime" && <AppearanceGrid kind="anime" items={data?.animes ?? []} />}
         {tab === "manga" && <AppearanceGrid kind="manga" items={data?.mangas ?? []} />}
+        {tab === "about" && animeId != null && <AnimeFrames animeId={animeId} />}
         {tab === "about" &&
           (isPending ? (
             <div className="flex flex-col gap-2">
@@ -518,3 +529,45 @@ function CharacterInfo({
     </div>
   );
 }
+
+/**
+ * Frames from the anime the character was opened from — the catalogue's
+ * screenshots and episode stills. Small and lazy; a click opens one big.
+ * No source says which frame a character is in, so these are the title's.
+ */
+function AnimeFrames({ animeId }: { animeId: number }) {
+  const { data } = useQuery({
+    queryKey: ["hero-frames", animeId],
+    staleTime: Infinity,
+    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${animeId}/frames?v=2`, { signal }).then((r) => r.frames),
+  });
+  const [open, setOpen] = useState<string | null>(null);
+  const frames = (data ?? []).slice(0, 8);
+  if (frames.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <ImageIcon className="size-3.5" />
+        Кадры из аниме
+      </h3>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {frames.map((src) => (
+          <button
+            key={src}
+            type="button"
+            onClick={() => setOpen(open === src ? null : src)}
+            className={cn("aspect-video overflow-hidden rounded-lg border bg-card", open === src ? "border-primary" : "border-[var(--accent-line-soft)]")}
+          >
+            <img src={imageSrc(src)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+          </button>
+        ))}
+      </div>
+      {open && (
+        <button type="button" onClick={() => setOpen(null)} className="overflow-hidden rounded-xl border border-primary/40">
+          <img src={imageSrc(open)} alt="" className="w-full object-contain" />
+        </button>
+      )}
+    </section>
+  );
+}
+
