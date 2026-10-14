@@ -1836,3 +1836,8 @@ body:has([role="dialog"][data-state="open"]) main * {
 .nudge-heart { position: absolute; bottom: 30%; opacity: 0; animation: nudge-heart 3.2s ease-out infinite; }
 @keyframes nudge-heart { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(-46px) scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .nudge-ring, .nudge-bob, .nudge-heart { animation: none; } }
+
+/* Own player: the skip arrows turn a little on each press, the "+10" floats off. */
+@keyframes skip-on { 0% { rotate: 0deg; } 45% { rotate: 28deg; } 100% { rotate: 0deg; } }
+@keyframes skip-back { 0% { rotate: 0deg; } 45% { rotate: -28deg; } 100% { rotate: 0deg; } }
+@keyframes skip-float { 0% { opacity: 0; translate: 0 4px; } 25% { opacity: 1; } 100% { opacity: 0; translate: 0 -10px; } }

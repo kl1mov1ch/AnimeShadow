@@ -18,8 +18,8 @@ import {
   Settings2Icon,
   SkipForwardIcon,
   SparklesIcon,
-  Volume2Icon,
   VolumeXIcon,
+  WifiOffIcon,
   XIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +29,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 } from "@/components/ui/dropdown-menu";
-import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
@@ -45,6 +44,10 @@ import { PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/com
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
+import { attachEngine, type EngineHandle, type EngineStatus, loadHls, warmHls } from "@/components/player/hls-engine";
+import { FramePreview } from "@/components/player/frame-preview";
+import { SkipButton, VolumeControl } from "@/components/player/player-controls";
+import { formatTime, SeekBar } from "@/components/player/seek-bar";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -134,6 +137,12 @@ export function WatchSection({
   // so it leads wherever it can play the episode. Kodik stays one click
   // away on the switch, with all of its dubs.
   const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls") ?? []) : [];
+  // Our player's streaming code, fetched while the visitor reads the page —
+  // not after "play" is pressed.
+  const hasOwn = ownSources.length > 0;
+  useEffect(() => {
+    if (hasOwn) warmHls();
+  }, [hasOwn]);
   const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
   const canUseOwn = ownSources.length > 0;
   const [preferOwn, setPreferOwn] = useState(true);
@@ -875,23 +884,6 @@ function masterPlaylist(variants: Record<string, string>, heights: number[]): st
   return `${lines.join("\n")}\n`;
 }
 
-/** The bit of hls.js the quality menu talks to. */
-interface HlsLevels {
-  levels: Array<{ height: number }>;
-  currentLevel: number;
-}
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
-  const total = Math.floor(seconds);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return h > 0
-    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-    : `${m}:${String(s).padStart(2, "0")}`;
-}
-
 /**
  * A direct HLS stream (AniLibria) — Safari plays `.m3u8` natively, everything
  * else needs hls.js, loaded lazily so the ~50 KB of it never ships to a
@@ -991,14 +983,37 @@ function CustomHlsPlayer({
     if (!Number.isFinite(duration) || duration <= 0) return;
     resumedSrcRef.current = src;
     if (at >= RESUME_MIN_SECONDS && at <= duration - RESUME_TAIL_SECONDS) {
-      video.currentTime = at;
+      if (Math.abs(video.currentTime - at) > 2) video.currentTime = at;
+    } else if (video.currentTime > 1) {
+      video.currentTime = 0;
     }
   };
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [buffered, setBuffered] = useState(0);
+  const [buffered, setBuffered] = useState<Array<[number, number]>>([]);
+  // The browser refused to start with sound (no recent click): playing muted,
+  // with a button to bring the sound in.
+  const [autoMuted, setAutoMuted] = useState(false);
+  const startPlayback = (video: HTMLVideoElement) => {
+    video.muted = false;
+    void video.play().catch((error: unknown) => {
+      if ((error as { name?: string })?.name !== "NotAllowedError") return;
+      video.muted = true;
+      void video
+        .play()
+        .then(() => setAutoMuted(true))
+        .catch(() => undefined);
+    });
+  };
+  // What the stream is doing: loading, retrying after a drop, fine, given up.
+  const [status, setStatus] = useState<EngineStatus>({ kind: "loading" });
+  // Bumped by "Повторить": loads the same stream again from where it stopped.
+  const [reloadKey, setReloadKey] = useState(0);
+  // Once it has played, a later failure shows "retry" instead of handing
+  // the slot to another source mid-episode.
+  const playedRef = useRef(false);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -1023,7 +1038,7 @@ function CustomHlsPlayer({
 
   // Quality: the heights on offer, and the one actually on screen (with
   // "auto", hls.js moves between them as the connection allows).
-  const hlsRef = useRef<HlsLevels | null>(null);
+  const engineRef = useRef<EngineHandle | null>(null);
   const [levels, setLevels] = useState<number[]>([]);
   const [activeHeight, setActiveHeight] = useState<number | null>(null);
   // The picture's own height, for a stream that comes in one quality only.
@@ -1041,11 +1056,10 @@ function CustomHlsPlayer({
     let cancelled = false;
     setLevels([]);
     setActiveHeight(null);
+    setStatus({ kind: "loading" });
 
     const resumeIfWinner = () => {
-      if (!isWinnerRef.current) return;
-      video.muted = false;
-      void video.play().catch(() => undefined);
+      if (isWinnerRef.current) startPlayback(video);
     };
 
     const variants = variantsRef.current;
@@ -1068,94 +1082,101 @@ function CustomHlsPlayer({
       }
       resumeIfWinner();
     } else {
-      // The light build: everything a plain HLS stream needs (levels,
-      // switching, ABR) at two thirds of the full one's weight — no DRM,
-      // subtitle or alternate-audio machinery these streams never use.
-      void import("hls.js/light")
-        .then(({ default: Hls }) => {
+      // hls.js (the light build — no DRM, subtitles or alternate audio
+      // these streams never use), usually already fetched by warmHls().
+      void loadHls()
+        .then((Hls) => {
           if (cancelled) return;
-          if (Hls.isSupported()) {
-            // A fair first guess at the connection, so the opening seconds
-            // aren't spent at 480p on a line that carries 1080p easily.
-            // Starts low and climbs: the first picture comes fast even on a
-            // slow line; never fetches more pixels than the player shows.
-            const instance = new Hls({
-              enableWorker: true,
-              abrEwmaDefaultEstimate: 900_000,
-              capLevelToPlayerSize: true,
-              startFragPrefetch: true,
-              maxBufferLength: 30,
-              backBufferLength: 30,
-            });
-            if (variants && heights.length > 1) {
-              master = URL.createObjectURL(
-                new Blob([masterPlaylist(variants, heights)], { type: "application/vnd.apple.mpegurl" }),
-              );
-            }
-            instance.loadSource(master ?? src);
-            instance.attachMedia(video);
-            hlsRef.current = instance;
-            instance.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
-              setActiveHeight(instance.levels[data.level]?.height ?? null);
-            });
-            instance.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-              const parsed = data.levels.map((level) => level.height ?? 0);
-              if (parsed.length > 1) {
-                setLevels(parsed);
-                const index = wanted === "auto" ? -1 : parsed.indexOf(Number(wanted));
-                if (index >= 0) instance.currentLevel = index;
-              }
-              // "Ready" as far as the race is concerned: the manifest is
-              // parsed, so this source is real and answering. Waiting for
-              // `canplay` (a buffered first segment) meant the race's stall
-              // timer could retire a perfectly good stream mid-handshake and
-              // fall back to an iframe — the reason the custom player kept
-              // losing to Kodik on a slow first segment.
-              onReady();
-              resumeIfWinner();
-            });
-            instance.on(Hls.Events.ERROR, (_event, payload) => {
-              // hls.js recovers from most errors by itself; only a fatal one
-              // means this stream will not play in this browser. Reported at
-              // once so the race moves on, and logged so a report of "the
-              // custom player doesn't work here" has something behind it.
-              if (!payload.fatal || cancelled) return;
-              console.error(
-                "[AnimeShadow] HLS fatal error",
-                payload.type,
-                payload.details,
-              );
-              onFailedRef.current();
-            });
-            hls = instance;
-          } else {
-            // No native support and hls.js says it can't help either — set it
+          if (!Hls.isSupported()) {
+            // No native support and hls.js can't help either — set it
             // anyway; a handful of very old browsers still get lucky.
             video.src = src;
             resumeIfWinner();
+            return;
           }
+          if (variants && heights.length > 1) {
+            master = URL.createObjectURL(
+              new Blob([masterPlaylist(variants, heights)], { type: "application/vnd.apple.mpegurl" }),
+            );
+          }
+          const resumeAt = resumeRef.current;
+          const engine = attachEngine(Hls, video, master ?? src, {
+            startPosition: resumeAt >= RESUME_MIN_SECONDS ? resumeAt : -1,
+            startLevel: (parsed) => (parsed.length > 1 && wanted !== "auto" ? parsed.indexOf(Number(wanted)) : -1),
+            onLevels: (parsed) => {
+              if (parsed.length > 1) setLevels(parsed);
+            },
+            onLevelSwitched: setActiveHeight,
+            // "Ready" for the race: the manifest is parsed, so this source
+            // is real and answering — not after the first (slow) segment.
+            onManifest: () => {
+              onReady();
+              resumeIfWinner();
+            },
+            onStatus: setStatus,
+            onFatal: () => {
+              if (!playedRef.current) onFailedRef.current();
+            },
+          });
+          engineRef.current = engine;
+          hls = engine;
         })
         .catch((error: unknown) => {
-          // The chunk itself never arrived — offline, a stale service worker
-          // still pointing at a filename the last deploy replaced, or an
-          // extension blocking it. This path had no catch at all, so the
-          // promise rejected silently and the player simply never reported
-          // ready: the race sat out its full timeout and handed the slot to
-          // an iframe. Safari never comes through here (it plays HLS
-          // natively), which is exactly why the failure looked like "the
-          // custom player only works in Safari" rather than a failed import.
+          // The chunk never arrived (offline, a stale cached page pointing at
+          // a file the last deploy replaced, an extension blocking it).
           console.error("[AnimeShadow] hls.js failed to load", error);
-          if (!cancelled) onFailedRef.current();
+          if (cancelled) return;
+          setStatus({ kind: "failed", reason: "hls.js" });
+          onFailedRef.current();
         });
     }
 
     return () => {
       cancelled = true;
       hls?.destroy();
-      hlsRef.current = null;
+      engineRef.current = null;
       if (master) URL.revokeObjectURL(master);
     };
-  }, [src]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, reloadKey]);
+
+  // Frames for the seek bar's preview: the lowest quality is plenty for a
+  // picture the size of a stamp, and the cheapest to fetch.
+  const previewSrc = useMemo(() => {
+    const lowest = Object.keys(variants ?? {})
+      .map(Number)
+      .filter((h) => h > 0)
+      .sort((a, b) => a - b)[0];
+    return (lowest != null ? variants?.[String(lowest)] : null) ?? src;
+  }, [variants, src]);
+  const bufferingRef = useRef(false);
+  const [preview, setPreview] = useState<FramePreview | null>(null);
+  useEffect(() => {
+    if (!isWinner) return;
+    // The preview never takes the line from the episode: it waits while the
+    // main picture is short of data.
+    const next = new FramePreview(previewSrc, () => {
+      const video = videoRef.current;
+      return bufferingRef.current || !video || video.readyState < 3;
+    });
+    setPreview(next);
+    return () => {
+      next.destroy();
+      setPreview(null);
+    };
+  }, [previewSrc, isWinner]);
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
+
+  const reload = () => {
+    const video = videoRef.current;
+    if (video && video.currentTime > 0) {
+      resumeRef.current = video.currentTime;
+      resumedSrcRef.current = null;
+    }
+    setStatus({ kind: "loading" });
+    setReloadKey((k) => k + 1);
+  };
 
   // The viewer's speed, kept across episodes: a new stream starts at the
   // default rate, so the default is what gets set.
@@ -1172,8 +1193,7 @@ function CustomHlsPlayer({
     const video = videoRef.current;
     if (!video) return;
     if (isWinner) {
-      video.muted = false;
-      void video.play().catch(() => undefined);
+      startPlayback(video);
     } else {
       video.muted = true;
       video.pause();
@@ -1188,18 +1208,28 @@ function CustomHlsPlayer({
 
     const onTimeUpdate = () => {
       setCurrentTime(video.currentTime);
+      previewRef.current?.capture(video);
       onTimeRef.current?.(video.currentTime, Number.isFinite(video.duration) ? video.duration : 0);
     };
     const onDurationChange = () =>
       setDuration(Number.isFinite(video.duration) ? video.duration : 0);
     const onProgress = () => {
       const ranges = video.buffered;
-      setBuffered(ranges.length > 0 ? ranges.end(ranges.length - 1) : 0);
+      const out: Array<[number, number]> = [];
+      for (let i = 0; i < ranges.length; i++) out.push([ranges.start(i), ranges.end(i)]);
+      setBuffered(out);
     };
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
-    const onWaiting = () => setBuffering(true);
-    const onPlaying = () => setBuffering(false);
+    const onWaiting = () => {
+      bufferingRef.current = true;
+      setBuffering(true);
+    };
+    const onPlaying = () => {
+      bufferingRef.current = false;
+      playedRef.current = true;
+      setBuffering(false);
+    };
     const onVolumeChange = () => {
       setVolume(video.volume);
       setMuted(video.muted);
@@ -1247,12 +1277,19 @@ function CustomHlsPlayer({
   const playingRef = useRef(playing);
   playingRef.current = playing;
   const shownAtRef = useRef(0);
+  const overBarRef = useRef(false);
   const wake = () => {
     if (!controlsVisibleRef.current) shownAtRef.current = performance.now();
     setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     if (playingRef.current && !menuOpenRef.current) {
-      hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_MS);
+      // Not while the pointer rests on the bar — looking at a frame preview
+      // or about to press something is not "nothing touched".
+      const hide = () => {
+        if (overBarRef.current) hideTimerRef.current = setTimeout(hide, CONTROLS_HIDE_MS);
+        else setControlsVisible(false);
+      };
+      hideTimerRef.current = setTimeout(hide, CONTROLS_HIDE_MS);
     }
   };
   const toggleControls = () => {
@@ -1404,10 +1441,10 @@ function CustomHlsPlayer({
 
   const pickQuality = (value: string) => {
     setPlayerSetting({ quality: value });
-    const hls = hlsRef.current;
-    if (hls) {
+    const engine = engineRef.current;
+    if (engine) {
       // -1 is hls.js's "auto"; a level switch keeps the place by itself.
-      hls.currentLevel = value === "auto" ? -1 : hls.levels.findIndex((l) => l.height === Number(value));
+      engine.setLevel(value === "auto" ? -1 : engine.levels().findIndex((l) => l.height === Number(value)));
       return;
     }
     // Native playback: swap the stream and pick up where it was.
@@ -1534,7 +1571,6 @@ function CustomHlsPlayer({
   }, [isWinner]);
 
   const shownTime = scrubTime ?? currentTime;
-  const bufferedPct = duration > 0 ? Math.min(100, (buffered / duration) * 100) : 0;
   const canPip =
     typeof document !== "undefined" &&
     "pictureInPictureEnabled" in document &&
@@ -1549,6 +1585,14 @@ function CustomHlsPlayer({
           : t("watch.ctl.qualityAuto")
       : null;
   const centerVisible = controlsVisible || !playing;
+  const bandwidth = engineRef.current?.bandwidth() ?? 0;
+  const loadingLine = [
+    "Загрузка",
+    activeHeight ? `${activeHeight}p` : null,
+    bandwidth > 0 ? `${(bandwidth / 1_000_000).toFixed(1)} Мбит/с` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div
@@ -1603,11 +1647,52 @@ function CustomHlsPlayer({
             </div>
           )}
 
-          {playing && buffering && (
-            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-              <Loader2Icon className="size-9 animate-spin text-white/85" />
-            </div>
+          {autoMuted && muted && (
+            <button
+              type="button"
+              onClick={() => {
+                const video = videoRef.current;
+                if (video) video.muted = false;
+                setAutoMuted(false);
+              }}
+              className="absolute left-1/2 top-3 z-30 inline-flex -translate-x-1/2 animate-in items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-black shadow-lg fade-in-0 slide-in-from-top-2 active:scale-95"
+            >
+              <VolumeXIcon className="size-4" />
+              Включить звук
+            </button>
           )}
+          {status.kind === "failed" ? (
+            <div className="absolute inset-0 z-30 grid place-items-center bg-black/75 p-4 text-center">
+              <div className="flex max-w-xs flex-col items-center gap-2.5">
+                <span className="grid size-12 place-items-center rounded-full bg-rose-500/20 text-rose-300">
+                  <WifiOffIcon className="size-6" />
+                </span>
+                <p className="text-sm font-semibold text-white">Поток не отвечает</p>
+                <p className="text-xs leading-relaxed text-white/70">
+                  Сервер с видео сейчас не отдаёт эту серию. Попробуйте ещё раз — продолжим с того же места — или выберите Kodik над плеером.
+                </p>
+                <button
+                  type="button"
+                  onClick={reload}
+                  className="mt-1 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform active:scale-95"
+                >
+                  <RefreshCwIcon className="size-4" />
+                  Повторить
+                </button>
+              </div>
+            </div>
+          ) : (playing && buffering) || status.kind === "retrying" ? (
+            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+              <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-4 py-3 backdrop-blur-sm">
+                <Loader2Icon className="size-8 animate-spin text-white/90" />
+                <span className="text-[11px] font-medium text-white/85">
+                  {status.kind === "retrying"
+                    ? `Связь прервалась — пробуем снова (${status.attempt})`
+                    : loadingLine}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           {/* The middle of the picture: skip back, play, skip on — where a
               thumb is on a phone. With a mouse only the play button, and
@@ -1619,21 +1704,14 @@ function CustomHlsPlayer({
               centerVisible ? "opacity-100" : "opacity-0",
             )}
           >
-            <button
-              type="button"
-              onClick={() => skip(-settings.step)}
-              aria-label={t("watch.ctl.back", { n: settings.step })}
-              className={cn(
-                CENTER_BUTTON,
-                "size-11 @md/player:size-12 pointer-fine:hidden",
-                centerVisible && "pointer-events-auto",
-              )}
-            >
-              <RotateCcwIcon className="size-6" />
-              <span className="absolute inset-0 grid place-items-center pt-px text-[9px] font-bold tabular-nums">
-                {settings.step}
-              </span>
-            </button>
+            <SkipButton
+              dir={-1}
+              seconds={settings.step}
+              size="center"
+              onSkip={() => skip(-settings.step)}
+              label={t("watch.ctl.back", { n: settings.step })}
+              className={cn("pointer-fine:hidden", centerVisible && "pointer-events-auto")}
+            />
             <button
               type="button"
               onClick={togglePlay}
@@ -1653,21 +1731,14 @@ function CustomHlsPlayer({
                 className={cn("size-6 fill-current @md/player:size-7", !playing && "translate-x-0.5")}
               />
             </button>
-            <button
-              type="button"
-              onClick={() => skip(settings.step)}
-              aria-label={t("watch.ctl.forward", { n: settings.step })}
-              className={cn(
-                CENTER_BUTTON,
-                "size-11 @md/player:size-12 pointer-fine:hidden",
-                centerVisible && "pointer-events-auto",
-              )}
-            >
-              <RotateCwIcon className="size-6" />
-              <span className="absolute inset-0 grid place-items-center pt-px text-[9px] font-bold tabular-nums">
-                {settings.step}
-              </span>
-            </button>
+            <SkipButton
+              dir={1}
+              seconds={settings.step}
+              size="center"
+              onSkip={() => skip(settings.step)}
+              label={t("watch.ctl.forward", { n: settings.step })}
+              className={cn("pointer-fine:hidden", centerVisible && "pointer-events-auto")}
+            />
           </div>
 
           {/* Offered only while the opening is actually on screen, and only
@@ -1692,6 +1763,12 @@ function CustomHlsPlayer({
 
           <div
             onPointerDown={wake}
+            onPointerEnter={(e) => {
+              if (e.pointerType === "mouse") overBarRef.current = true;
+            }}
+            onPointerLeave={() => {
+              overBarRef.current = false;
+            }}
             onClickCapture={guardFresh}
             className={cn(
               // Slides down with the fade rather than only fading: the bar
@@ -1704,40 +1781,22 @@ function CustomHlsPlayer({
                 : "pointer-events-none translate-y-2 opacity-0",
             )}
           >
-            {/* Taller on a touch screen: a finger needs more than the four
-                pixels a mouse is happy with, and the thumb stays visible. */}
-            <div className="group relative flex h-5 items-center pointer-coarse:h-7">
-              <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/15">
-                <div
-                  className="h-full bg-white/35 transition-[width] duration-500 ease-out"
-                  style={{ width: `${bufferedPct}%` }}
-                />
-              </div>
-              <Slider
-                value={[shownTime]}
-                min={0}
-                max={duration || 0}
-                step={0.1}
-                aria-label={t("watch.ctl.seek")}
-                onValueChange={([v]) => {
-                  setScrubTime(v ?? 0);
-                  wake();
-                }}
-                onValueCommit={([v]) => {
-                  const video = videoRef.current;
-                  if (video && v != null) video.currentTime = v;
-                  setScrubTime(null);
-                  wake();
-                }}
-                // The track thickens under the pointer: the one place an
-                // extra pixel of height earns itself, since this is the
-                // control people actually aim at.
-                className={cn(
-                  "relative h-full [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-primary [&_[data-slot=slider-thumb]]:opacity-0 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-thumb]]:transition-opacity [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-transparent [&_[data-slot=slider-track]]:transition-all group-hover:[&_[data-slot=slider-thumb]]:opacity-100 group-hover:[&_[data-slot=slider-track]]:h-1.5 pointer-coarse:[&_[data-slot=slider-thumb]]:size-3.5 pointer-coarse:[&_[data-slot=slider-thumb]]:opacity-100",
-                  tone.range,
-                )}
-              />
-            </div>
+            <SeekBar
+              duration={duration}
+              current={currentTime}
+              buffered={buffered}
+              opening={opening}
+              preview={preview}
+              fill={tone.fill}
+              label={t("watch.ctl.seek")}
+              onActivity={wake}
+              onScrub={setScrubTime}
+              onCommit={(v) => {
+                const video = videoRef.current;
+                if (video) video.currentTime = v;
+                wake();
+              }}
+            />
 
             <div className="flex items-center gap-0.5 text-white">
               <button
@@ -1753,76 +1812,28 @@ function CustomHlsPlayer({
                   className="size-4 fill-current"
                 />
               </button>
-              <button
-                type="button"
-                onClick={() => skip(-settings.step)}
-                aria-label={t("watch.ctl.back", { n: settings.step })}
-                title={t("watch.ctl.back", { n: settings.step })}
-                className={cn(CONTROL_BUTTON, tone.button, "relative hidden @lg/player:flex pointer-coarse:hidden!")}
-              >
-                <RotateCcwIcon className="size-4 transition-transform duration-300 group-hover:-rotate-45" />
-                <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none tabular-nums">
-                  {settings.step}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => skip(settings.step)}
-                aria-label={t("watch.ctl.forward", { n: settings.step })}
-                title={t("watch.ctl.forward", { n: settings.step })}
-                className={cn(CONTROL_BUTTON, tone.button, "relative hidden @lg/player:flex pointer-coarse:hidden!")}
-              >
-                <RotateCwIcon className="size-4 transition-transform duration-300 group-hover:rotate-45" />
-                <span className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none tabular-nums">
-                  {settings.step}
-                </span>
-              </button>
+              <SkipButton
+                dir={-1}
+                seconds={settings.step}
+                onSkip={() => skip(-settings.step)}
+                label={t("watch.ctl.back", { n: settings.step })}
+                className="hidden @lg/player:grid pointer-coarse:hidden!"
+              />
+              <SkipButton
+                dir={1}
+                seconds={settings.step}
+                onSkip={() => skip(settings.step)}
+                label={t("watch.ctl.forward", { n: settings.step })}
+                className="hidden @lg/player:grid pointer-coarse:hidden!"
+              />
 
-              {/* Volume — a hover-reveal slider where there is a mouse and
-                  room for it; a phone just gets the mute toggle (it has its
-                  own volume buttons, and dragging a sliver-thin slider on
-                  touch fights the page's own scroll gesture). */}
-              <div className="group hidden items-center @md/player:flex pointer-coarse:hidden!">
-                <button
-                  type="button"
-                  onClick={toggleMute}
-                  aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                  className={cn(CONTROL_BUTTON, tone.button)}
-                >
-                  <MorphIcon
-                    on={muted || volume === 0}
-                    off={Volume2Icon}
-                    onIcon={VolumeXIcon}
-                    className="size-4"
-                    spin="ccw"
-                  />
-                </button>
-                <div className="w-0 overflow-hidden transition-all group-hover:w-16 group-focus-within:w-16">
-                  <Slider
-                    value={[muted ? 0 : volume]}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    aria-label={t("watch.ctl.volume")}
-                    onValueChange={([v]) => changeVolume(v ?? 0)}
-                    className="w-16 px-1 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-track]]:h-1"
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={toggleMute}
-                aria-label={muted || volume === 0 ? t("watch.unmute") : t("watch.mute")}
-                className={cn(CONTROL_BUTTON, tone.button, "@md/player:hidden pointer-coarse:flex!")}
-              >
-                <MorphIcon
-                  on={muted || volume === 0}
-                  off={Volume2Icon}
-                  onIcon={VolumeXIcon}
-                  className="size-4"
-                  spin="ccw"
-                />
-              </button>
+              <VolumeControl
+                volume={volume}
+                muted={muted}
+                onVolume={changeVolume}
+                onToggleMute={toggleMute}
+                labels={{ mute: t("watch.mute"), unmute: t("watch.unmute"), volume: t("watch.ctl.volume") }}
+              />
 
               <span className="ml-1 min-w-0 shrink truncate font-display text-[11px] tabular-nums text-white/85 @md/player:text-xs">
                 {formatTime(shownTime)}
@@ -2851,22 +2862,25 @@ export type PlayerSkin = "shadow" | "glass" | "accent";
 
 const SKINS: Record<
   PlayerSkin,
-  { bar: string; button: string; range: string }
+  { bar: string; button: string; range: string; fill: string }
 > = {
   shadow: {
     bar: "bg-gradient-to-t from-black/90 via-black/45 to-transparent]",
     button: "text-white/90 hover:bg-primary/25 hover:text-white",
     range: "[&_[data-slot=slider-range]]:bg-primary",
+    fill: "linear-gradient(90deg, color-mix(in srgb, var(--primary) 70%, #a855f7), var(--primary))",
   },
   glass: {
     bar: "bg-black/70 border-t border-white/15",
     button: "text-white/90 hover:bg-white/20 hover:text-white",
     range: "[&_[data-slot=slider-range]]:bg-white",
+    fill: "#ffffff",
   },
   accent: {
     bar: "bg-gradient-to-t from-[var(--accent)]/85 via-[var(--accent)]/35 to-transparent]",
     button: "text-white hover:bg-white/25",
     range: "[&_[data-slot=slider-range]]:bg-white",
+    fill: "#ffffff",
   },
 };
 
