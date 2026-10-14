@@ -518,3 +518,37 @@ export interface AdminExternalAnalytics {
   google: { measurementId: string | null; dashboardUrl: string | null };
   umami: { websiteId: string | null; dashboardUrl: string | null };
 }
+
+// ---------------------------------------------------------------------------
+// Attendance by day: unique people and repeat views kept apart.
+// ---------------------------------------------------------------------------
+
+export const adminDailyQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(366).default(30),
+});
+
+export const adminDailyRowSchema = z.object({
+  day: z.string(),
+  /** Unique browsers that day (each counted once, however many pages). */
+  visitors: z.number(),
+  /** Of them, seen for the first time. */
+  newVisitors: z.number(),
+  /** Of them, back again. */
+  returning: z.number(),
+  /** Of them, signed in / guests. */
+  registeredVisitors: z.number(),
+  guestVisitors: z.number(),
+  /** Every page view. */
+  pageviews: z.number(),
+  /** Page views beyond each visitor's first — the repeats, in a column of their own. */
+  repeatViews: z.number(),
+  sessions: z.number(),
+  /** Sessions of a single page. */
+  bounces: z.number(),
+  avgSessionSec: z.number(),
+  registrations: z.number(),
+  watchMinutes: z.number(),
+  /** Still going (today) — counted from the live rows, refreshed every few minutes. */
+  live: z.boolean(),
+});
+export type AdminDailyRow = z.infer<typeof adminDailyRowSchema>;

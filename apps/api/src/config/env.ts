@@ -87,6 +87,12 @@ const envSchema = z.object({
   /** ffmpeg, for the homepage hero's clips; without it there are none. */
   FFMPEG_PATH: z.string().min(1).default("ffmpeg"),
   HERO_CLIP_DIR: z.string().min(1).optional(),
+  /** Where the hourly log digests go (see lib/log-digest.ts). */
+  LOG_DIR: z.string().min(1).optional(),
+  /** Days of log digests kept; older files are deleted. */
+  LOG_KEEP_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  /** Log every request line (noisy). Off in production by default — the digest counts them. */
+  LOG_REQUESTS: z.enum(["true", "false"]).optional(),
   /** Days of raw page views kept; older days live on as daily rollups. */
   STATS_RAW_DAYS: z.coerce.number().int().min(14).default(90),
   ANILIBRIA_CATALOG_SYNC: z

@@ -1,5 +1,6 @@
 import {
   adminAnalyticsQuerySchema,
+  adminDailyQuerySchema,
   adminProActionSchema,
   adminProQuerySchema,
   adminBreakdownQuerySchema,
@@ -12,10 +13,13 @@ import {
   adminUserQuerySchema,
   adminVisitorsQuerySchema,
 } from "@animeshadow/shared";
+import { logDigest } from "../lib/log-digest-instance.js";
+import { env } from "../config/env.js";
 import { SECRET_RULES } from "../lib/secret-achievements.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { listPro, setPro } from "../lib/admin-pro.js";
+import { dailyAttendance } from "../lib/admin-daily.js";
 import { referralOverview } from "../lib/referral.js";
 import { externalAnalytics } from "../lib/external-analytics.js";
 import { parse } from "../lib/validation.js";
@@ -88,6 +92,20 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // PRO accounts: the list with its counts, and one change at a time.
   fastify.get("/admin/pro", guard, async (request) => listPro(fastify.prisma, parse(adminProQuerySchema, request.query)));
+  // The server's log, gathered by the hour; old digest files are deleted.
+  fastify.get("/admin/logs", guard, async (request) => {
+    const { hours } = parse(z.object({ hours: z.coerce.number().int().min(1).max(24 * 14).default(24) }), request.query);
+    const [recent, files] = await Promise.all([logDigest.recent(hours), logDigest.files()]);
+    return { hours: recent, files, keepDays: env.LOG_KEEP_DAYS };
+  });
+  fastify.post("/admin/logs/prune", guard, async () => ({ removed: await logDigest.prune() }));
+
+  // Attendance by day: unique people, new and returning, repeat views apart.
+  fastify.get("/admin/analytics/daily", guard, async (request) => {
+    const { days } = parse(adminDailyQuerySchema, request.query);
+    return { items: await dailyAttendance(fastify.prisma, fastify.services.statsRollup, days) };
+  });
+
   // Secret achievements: the rules (only ever sent here) and how many have each.
   fastify.get("/admin/achievements/secret", guard, async () => {
     const counts = await fastify.prisma.userAchievement.groupBy({

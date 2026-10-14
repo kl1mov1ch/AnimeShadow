@@ -8,6 +8,7 @@ import type {
   AdminVisitor,
   AdminVisitorsQuery,
 } from "@animeshadow/shared";
+import { DailyAttendancePanel } from "./admin-daily";
 import {
   ActivityIcon,
   ArrowDownIcon,
@@ -263,6 +264,7 @@ export function AdminAnalyticsTab() {
           )}
           <Kpis now={data.summary} before={data.previous} />
           <TrendPanel data={data} />
+          <DailyAttendancePanel />
           {/* Everything below loads its own data once scrolled to. */}
           <div className="grid gap-4 xl:grid-cols-2">
             <HeatmapPanel params={params} />

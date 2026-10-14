@@ -1,4 +1,5 @@
 import compress from "@fastify/compress";
+import { logDigest } from "./lib/log-digest-instance.js";
 import { referralRoutes } from "./routes/referrals.js";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -42,6 +43,9 @@ import { uploadsRoutes } from "./routes/uploads.js";
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: loggerConfig,
+    // A line for every request filled the system journal; production counts
+    // them in the hourly digest instead (LOG_REQUESTS=true brings them back).
+    disableRequestLogging: env.LOG_REQUESTS ? env.LOG_REQUESTS === "false" : isProduction,
     // Only the local reverse proxy (Caddy) may set X-Forwarded-For — trusting
     // it from anyone let a forged header reset the per-IP rate limit.
     trustProxy: ["127.0.0.1", "::1"],
@@ -130,6 +134,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     };
     httpRequestsTotal.inc(labels);
     httpRequestDuration.observe(labels, reply.elapsedTime / 1000);
+    logDigest.record(`${request.method} ${route}`, reply.statusCode, reply.elapsedTime);
   });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
@@ -159,6 +164,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
 
     request.log.error({ err: error }, "unhandled error");
+    logDigest.error(error.message || "unhandled error", `${request.method} ${request.routeOptions?.url ?? "unmatched"}`);
     const status =
       typeof error.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 500
         ? error.statusCode

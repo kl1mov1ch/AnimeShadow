@@ -4,6 +4,7 @@ import {
   type AdminMonitoringPanel,
   type AdminMonitoringRange,
 } from "@animeshadow/shared";
+import { ServerLogPanel } from "./admin-daily";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -90,6 +91,7 @@ export function AdminMonitoringTab() {
 
   return (
     <div className="flex flex-col gap-5">
+      <ServerLogPanel />
       <div
         className={cn(
           ENTER,

@@ -1,6 +1,7 @@
 import closeWithGrace from "close-with-grace";
 import { inBackground } from "./lib/priority.js";
 import { buildApp } from "./app.js";
+import { logDigest } from "./lib/log-digest-instance.js";
 import { env } from "./config/env.js";
 import { startIndexNow } from "./seo/indexnow.js";
 
@@ -13,6 +14,8 @@ closeWithGrace({ delay: 10_000 }, async ({ signal, err }) => {
     app.log.info({ signal }, "shutting down gracefully");
   }
   await app.close();
+  // The hour being counted goes to its file before the process ends.
+  await logDigest.flush();
 });
 
 try {
@@ -111,6 +114,9 @@ try {
   // pruned. Five minutes after start, then every six hours (see
   // StatsRollupService).
   setTimeout(() => void inBackground(() => app.services.statsRollup.run()), 5 * 60_000).unref();
+  // Old log digests deleted: at start, then every six hours.
+  void logDigest.prune();
+  setInterval(() => void logDigest.prune(), 6 * 60 * 60_000).unref();
   setInterval(() => void inBackground(() => app.services.statsRollup.run()), 6 * 60 * 60_000).unref();
   if (env.WATCH_WARM_INTERVAL_MS > 0) {
     // unref'd so a pending tick never keeps the process alive during shutdown.

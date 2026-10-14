@@ -61,6 +61,28 @@ export class StatsRollupService {
     }
   }
 
+  private todayAt = 0;
+  private todayRun: Promise<void> | null = null;
+
+  /**
+   * Today's row in StatDay, recounted from the live page views — at most
+   * once every five minutes, however many admins are looking. The nightly
+   * run redoes the day once it is over.
+   */
+  async refreshToday(): Promise<void> {
+    if (Date.now() - this.todayAt < 5 * 60_000) return;
+    if (this.todayRun) return this.todayRun;
+    this.todayRun = (async () => {
+      const [row] = await this.prisma.$queryRaw<Array<{ today: string }>>`
+        SELECT to_char((now() AT TIME ZONE ${STATS_TZ})::date, 'YYYY-MM-DD') AS today`;
+      if (row) await this.rollupDay(row.today);
+      this.todayAt = Date.now();
+    })().finally(() => {
+      this.todayRun = null;
+    });
+    return this.todayRun;
+  }
+
   // -- rolling up ----------------------------------------------------------
 
   /** Every finished day not rolled up yet, and the last two again. */
