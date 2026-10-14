@@ -164,7 +164,7 @@ export function SearchBox() {
             for the clear button once there's something to clear. */}
         <div
           className={cn(
-            "group relative flex items-center rounded-full border bg-card/60 transition-[border-color,background-color,box-shadow] duration-200",
+            "search-pill group relative flex items-center rounded-full border bg-card/60 transition-[border-color,background-color,box-shadow] duration-200",
             "focus-within:border-foreground/30 focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/20",
             open ? "border-foreground/20" : "border-border/60 hover:border-foreground/20",
           )}
@@ -393,7 +393,7 @@ function FloatingHint({ paused }: { paused: boolean }) {
           hint
         ) : (
           <>
-            <span className="text-muted-foreground/60">Например, </span>
+            <span className="hidden text-muted-foreground/60 xl:inline">Например, </span>
             <span className="text-foreground/75">{hint}</span>
           </>
         )}

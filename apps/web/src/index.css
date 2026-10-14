@@ -1863,3 +1863,34 @@ body:has([role="dialog"][data-state="open"]) main * {
   .hnav-tip { transition: none; }
 }
 
+/* ---- Header life: small motions, none of them moving the layout. ---- */
+.header-search { transition: max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+/* The section icons hop under the pointer; the current one pops in when you arrive. */
+.hnav-item:hover > svg { animation: hnav-hop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes hnav-hop { 0% { transform: translateY(0); } 40% { transform: translateY(-3px) rotate(-6deg); } 100% { transform: translateY(0); } }
+.hnav-active { animation: hnav-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.hnav-active > span { animation: hnav-name 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes hnav-pop { 0% { transform: scale(0.92); } 100% { transform: scale(1); } }
+@keyframes hnav-name { 0% { opacity: 0; transform: translateX(-4px); } 100% { opacity: 1; transform: none; } }
+/* Search: the magnifier leans in on hover; focused, a soft halo breathes once. */
+.search-pill > svg:first-child { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s; }
+.search-pill:hover > svg:first-child { transform: rotate(-14deg) scale(1.1); }
+.search-pill:focus-within { animation: search-halo 0.6s ease-out; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); }
+@keyframes search-halo { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 30%, transparent); } 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); } }
+/* The dice rolls, the bell rings. */
+.hdr-dice button:hover svg, .hdr-dice a:hover svg { animation: hdr-roll 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes hdr-roll { 0% { transform: rotate(0); } 100% { transform: rotate(180deg); } }
+.hdr-bell:hover svg { animation: hdr-ring 0.7s ease-in-out; transform-origin: 50% 10%; }
+@keyframes hdr-ring { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
+/* Scrolled: a hairline in the site's colours drifts slowly along the bottom edge. */
+.header-line {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 45%, transparent), color-mix(in srgb, #a855f7 35%, transparent), color-mix(in srgb, #38bdf8 35%, transparent), transparent);
+  background-size: 200% 100%;
+  animation: header-line 9s linear infinite;
+}
+@keyframes header-line { 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .header-search, .search-pill > svg:first-child { transition: none; }
+  .hnav-item:hover > svg, .hnav-active, .hnav-active > span, .search-pill:focus-within, .hdr-dice button:hover svg, .hdr-dice a:hover svg, .hdr-bell:hover svg, .header-line { animation: none; }
+}
+

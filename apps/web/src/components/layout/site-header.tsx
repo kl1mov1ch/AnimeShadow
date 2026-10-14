@@ -135,6 +135,7 @@ export function SiteHeader() {
         tuckAway && "max-md:-translate-y-full max-md:shadow-none",
       )}
     >
+      <span aria-hidden className={cn("header-line pointer-events-none absolute inset-x-0 -bottom-px h-px transition-opacity duration-500", scrolled ? "opacity-100" : "opacity-0")} />
       <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 lg:gap-5">
         <Wordmark textClassName="max-md:text-[0.79rem]" />
 
@@ -151,7 +152,7 @@ export function SiteHeader() {
               aria-label={label}
               className={({ isActive }) =>
                 cn(
-                  "hnav-item group relative flex h-8 items-center rounded-full px-2.5 text-sm font-medium transition-[background-color,color] duration-150",
+                  "hnav-item group relative flex h-8 items-center rounded-full px-2.5 text-sm font-medium transition-[background-color,color,transform] duration-150 active:scale-90",
                   isActive ? "hnav-active text-foreground" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
                 )
               }
@@ -177,15 +178,19 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        {/* Search: everything between the sections and the icons. */}
-        <div className="hidden min-w-0 flex-1 md:block lg:max-w-[38rem]">
+        {/* Search sits against the icons on the right: as wide as the room
+            between them and the sections allows (fewer sections — wider and
+            further right; more — narrower), and it grows while in use. */}
+        <div className="header-search ml-auto hidden min-w-[11rem] flex-1 basis-0 md:block md:max-w-[26rem] xl:max-w-[30rem] focus-within:md:max-w-[34rem]">
           <SearchBox />
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5">
+        <div className="flex shrink-0 items-center justify-end gap-0.5">
           {/* A guest's phone header has the invite in this spot instead. */}
           <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
-            <RandomRoll />
+            <span className="hdr-dice contents">
+              <RandomRoll />
+            </span>
           </div>
           <div className="hidden items-center md:flex">
             {FEATURES.frameSearch && (
@@ -197,7 +202,7 @@ export function SiteHeader() {
             {FEATURES.lightTheme && <ThemeToggle />}
             {(canInstall || isIosSafari) && <InstallAppButton />}
           </div>
-          <NotificationBell className="hidden md:grid" />
+          <NotificationBell className="hdr-bell hidden md:grid" />
           <div className="hidden md:block">
             <UserMenu />
           </div>
