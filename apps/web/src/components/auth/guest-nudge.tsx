@@ -132,7 +132,7 @@ export function GuestNudge() {
       )}
     >
       <div className="nudge-ring rounded-3xl p-px shadow-[0_24px_60px_-18px_rgb(0_0_0/0.85)]">
-        <div className="relative max-h-[25dvh] overflow-hidden rounded-[calc(1.5rem-1px)] bg-[color-mix(in_srgb,var(--card)_95%,white_5%)] p-3.5 md:max-h-none">
+        <div className="relative overflow-hidden rounded-[calc(1.5rem-1px)] bg-[color-mix(in_srgb,var(--card)_95%,white_5%)] p-3.5">
           <span aria-hidden className="pointer-events-none absolute -left-10 -top-12 size-36 rounded-full bg-primary/25 blur-3xl" />
           <button
             type="button"
@@ -179,7 +179,7 @@ export function GuestNudge() {
               </li>
             </ul>
           )}
-          <PromoStrip className="mt-3" />
+          <PromoStrip className="mt-3 max-md:hidden" />
           <div className="relative mt-2.5 flex items-center gap-2">
             <Link
               to="/register"

@@ -977,8 +977,8 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
 // collapsed view is always whole rows — two tidy rows of 6 up through
 // tablet, one single row of 12 on desktop, never a half-filled row
 // stretched wide by too few items.
-const CHARACTERS_COLLAPSED = 12;
-const CHARACTERS_GRID = "grid grid-cols-6 gap-x-2 gap-y-4 lg:grid-cols-12";
+const CHARACTERS_COLLAPSED = 10;
+const CHARACTERS_GRID = "grid grid-cols-5 gap-x-2.5 gap-y-4 sm:gap-x-3 lg:grid-cols-10";
 
 /**
  * The heading belongs to the content, not to the slot.

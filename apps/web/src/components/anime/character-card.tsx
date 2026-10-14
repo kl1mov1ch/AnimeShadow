@@ -1,7 +1,9 @@
-import type { Character } from "@animeshadow/shared";
+import type { Character, CharacterDetail } from "@animeshadow/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api";
 import { StarIcon } from "lucide-react";
 import { PosterFallback } from "@/components/anime/poster-fallback";
-import { useT } from "@/i18n";
+import { useLocale, useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -33,12 +35,30 @@ export function CharacterCard({
   const t = useT();
   const isMain = character.role.toLowerCase() === "main";
   const roleLabel = isMain ? t("detail.mainRole") : roleName(character.role);
+  const client = useQueryClient();
+  const { locale } = useLocale();
+  const warm = () =>
+    void client.prefetchQuery({
+      queryKey: ["character", character.id, locale],
+      queryFn: ({ signal }) => apiRequest<CharacterDetail>(`/characters/${character.id}`, { signal, query: { lang: locale } }),
+      staleTime: 30 * 60_000,
+    });
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const prefetch = {
+    onPointerEnter: () => {
+      timer = setTimeout(warm, 120);
+    },
+    onPointerLeave: () => timer && clearTimeout(timer),
+    onTouchStart: warm,
+    onFocus: warm,
+  };
 
   if (compact) {
     return (
         <button
           type="button"
           onClick={() => onSelect?.(character)}
+          {...prefetch}
           title={roleLabel}
           className="group flex w-full flex-col items-center gap-1.5 rounded-xl p-1 text-center outline-none transition-colors hover:bg-primary/[0.06] focus-visible:ring-2 focus-visible:ring-ring"
         >

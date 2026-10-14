@@ -107,7 +107,7 @@ export function GuestPlayerBanner() {
         }}
       >
         <DialogContent
-          className="overflow-hidden sm:max-w-md"
+          className="max-h-[90dvh] overflow-y-auto overflow-x-hidden sm:max-w-md"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <span

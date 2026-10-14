@@ -1782,6 +1782,19 @@ body:has([role="dialog"][data-state="open"]) main * {
 @keyframes ti-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-22px) scale(0.3); } }
 @media (prefers-reduced-motion: reduce) { .ti, .ti-ring, .ti-tick, .ti-sparks span { animation: none; stroke-dashoffset: 0; } [data-sonner-toast].toast-card { animation: none; } }
 
+/* "Favourite moment": the button's mark breathes; its hint plays the idea out. */
+.moment-btn-icon { animation: moment-breathe 2.4s ease-in-out infinite; }
+@keyframes moment-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+.mh-scene { background: radial-gradient(60% 80% at 30% 40%, rgb(255 92 138 / 0.35), transparent 70%), radial-gradient(50% 70% at 75% 60%, rgb(56 189 248 / 0.3), transparent 70%); animation: mh-scene 3.6s ease-in-out infinite; }
+@keyframes mh-scene { 0%, 100% { filter: hue-rotate(0deg); } 50% { filter: hue-rotate(40deg); } }
+.mh-fill { width: 0; animation: mh-fill 3.6s ease-in-out infinite; }
+@keyframes mh-fill { 0% { width: 0; } 45%, 100% { width: 58%; } }
+.mh-pin { left: calc(0.5rem + 58% - 0.75rem); opacity: 0; transform: scale(0.3) translateY(6px); animation: mh-pin 3.6s ease-out infinite; }
+@keyframes mh-pin { 0%, 48% { opacity: 0; transform: scale(0.3) translateY(6px); } 58% { opacity: 1; transform: scale(1.2) translateY(-4px); } 66%, 92% { opacity: 1; transform: scale(1) translateY(-4px); } 100% { opacity: 0; } }
+.mh-tag { opacity: 0; animation: mh-tag 3.6s ease-out infinite; }
+@keyframes mh-tag { 0%, 60% { opacity: 0; transform: translateY(-4px); } 70%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .moment-btn-icon, .mh-scene, .mh-fill, .mh-pin, .mh-tag { animation: none; } .mh-fill { width: 58%; } .mh-pin, .mh-tag { opacity: 1; } }
+
 /* Privacy previews: the block as it is, then blurring behind a lock, on a loop. */
 .pv-mock { animation: pv-blur 3.2s ease-in-out infinite; }
 .pv-lock { opacity: 0; animation: pv-lock 3.2s ease-in-out infinite; }

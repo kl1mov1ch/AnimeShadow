@@ -2572,14 +2572,31 @@ function Player({
                   type="button"
                   onClick={pinMoment}
                   disabled={addMoment.isPending}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-2.5 text-xs font-semibold transition-colors hover:bg-primary/20 disabled:opacity-60"
+                  className="moment-btn relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-3.5 text-xs font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:-translate-y-px active:scale-95 disabled:opacity-60"
                 >
-                  {authed ? <BookmarkPlusIcon className="size-3.5 text-primary" /> : <LockIcon className="size-3.5 text-primary" />}
+                  {authed ? <BookmarkPlusIcon className="moment-btn-icon size-4" /> : <LockIcon className="size-3.5" />}
                   <span className="hidden sm:inline">Любимый момент</span>
+                  <span className="sm:hidden">Момент</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-60">
-                {authed ? "Сохранить эту сцену с таймкодом и озвучкой в профиль — до пяти моментов" : "Доступно после входа — бесплатно"}
+              <TooltipContent side="bottom" className="w-64 border border-[var(--accent-line-soft)] bg-popover p-3 text-popover-foreground shadow-xl">
+                {/* How it works, played out: the playhead runs, stops on a scene, the mark pops. */}
+                <div className="mh-demo relative mb-2.5 h-16 overflow-hidden rounded-lg bg-gradient-to-br from-sky-900/60 via-fuchsia-900/40 to-black">
+                  <span className="mh-scene absolute inset-0" />
+                  <span className="absolute inset-x-2 bottom-2 h-1 rounded-full bg-white/20">
+                    <span className="mh-fill block h-full rounded-full bg-primary" />
+                  </span>
+                  <span className="mh-pin absolute bottom-3 grid size-6 place-items-center rounded-full bg-primary text-white shadow-lg">
+                    <BookmarkPlusIcon className="size-3.5" />
+                  </span>
+                  <span className="mh-tag absolute right-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-white">3 серия · 12:34</span>
+                </div>
+                <ol className="flex flex-col gap-1 text-[11.5px] leading-snug">
+                  <li><b className="text-primary">1.</b> Дойдите до любимой сцены</li>
+                  <li><b className="text-primary">2.</b> Нажмите «Любимый момент»</li>
+                  <li><b className="text-primary">3.</b> Сцена с серией, таймкодом и озвучкой — в профиле, до пяти штук</li>
+                </ol>
+                {!authed && <p className="mt-2 text-[11px] font-semibold text-primary">Доступно после входа — бесплатно</p>}
               </TooltipContent>
             </Tooltip>
           )}

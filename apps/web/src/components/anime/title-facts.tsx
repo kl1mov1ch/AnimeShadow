@@ -198,35 +198,37 @@ export function WatchTimeCard({ anime, className }: { anime: AnimeDetail; classN
       </div>
 
       {series && status === "anonymous" && (
-        <div className="relative min-h-32 flex-1 overflow-hidden rounded-xl border border-border/50">
-          {/* What it would look like, blurred — and why to sign up. */}
-          <div aria-hidden className="pointer-events-none flex select-none flex-col gap-2.5 p-3 opacity-60 blur-[3px]">
-            <div className="flex h-7 gap-1 rounded-lg bg-background/50 p-0.5">
-              <span className="flex-1 rounded-md bg-primary" />
-              <span className="flex-1" />
-            </div>
-            <div className="h-4 w-3/4 rounded bg-foreground/15" />
-            <div className="h-4 w-1/2 rounded bg-foreground/10" />
-            <div className="flex gap-1">
-              {Array.from({ length: 14 }, (_, i) => (
-                <span key={i} className="size-2 rounded-full bg-primary" style={{ opacity: 0.3 + i * 0.05 }} />
-              ))}
-            </div>
+        <div className="flex flex-1 flex-col gap-2.5 border-t border-border/50 pt-3">
+          {/* Worked out already: three paces, when each would finish. */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {[1, 3, 6].map((n) => {
+              const d = Math.ceil(episodes / n);
+              const dateLabel = nthWatchDay(d, false).toLocaleDateString(locale, { day: "numeric", month: "short" });
+              return (
+                <div key={n} className="flex flex-col gap-0.5 rounded-xl bg-foreground/[0.04] px-2 py-2 text-center">
+                  <span className="text-[10.5px] text-muted-foreground">по {n} в день</span>
+                  <span className="font-display text-base tabular-nums leading-tight">{d} дн.</span>
+                  <span className="text-[10px] text-muted-foreground">к {dateLabel}</span>
+                </div>
+              );
+            })}
           </div>
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[color-mix(in_srgb,var(--card)_65%,transparent)] p-3 text-center">
-            <p className="flex items-center gap-1.5 text-sm font-semibold">
-              <LockIcon className="size-3.5 text-primary" />
-              Калькулятор марафона
-            </p>
-            <p className="text-[11px] leading-snug text-muted-foreground">Темп, дата финиша, выходные — для участников</p>
-            <Link
-              to="/register"
-              className="mt-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-r from-primary to-fuchsia-500 px-3 text-xs font-bold text-white transition-transform active:scale-95"
-            >
-              <SparklesIcon className="size-3.5" />
-              Вступить бесплатно
-            </Link>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
+            {perEp != null && <span>Одна серия — {perEp} мин</span>}
+            <span>Без перерывов — {formatMinutes(totalMinutes, t)}</span>
+            <span>По выходным, по 4 серии — {Math.ceil(episodes / 8)} нед.</span>
           </div>
+          <Link
+            to="/register"
+            className="mt-auto flex items-center gap-2.5 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/12 to-fuchsia-500/10 px-3 py-2 transition-colors hover:border-primary/60"
+          >
+            <LockIcon className="size-4 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 text-[11.5px] leading-snug">
+              <b className="font-semibold">Свой темп, дата финиша и учёт посмотренного</b>
+              <span className="text-muted-foreground"> — в калькуляторе для участников</span>
+            </span>
+            <SparklesIcon className="size-4 shrink-0 text-primary" />
+          </Link>
         </div>
       )}
 
