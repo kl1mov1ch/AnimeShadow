@@ -25,6 +25,14 @@ export const commentRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // Comments tied to moments of one episode: marks on the player's bar.
+  fastify.get("/anime/:id/comment-marks", async (request, reply) => {
+    const { id } = parse(animeIdParams, request.params);
+    const { episode } = parse(z.object({ episode: z.coerce.number().int().min(1).max(5000) }), request.query);
+    reply.header("cache-control", "public, max-age=60");
+    return { marks: await comments.marks(id, episode) };
+  });
+
   // Per-address caps on writing: the global 600 a minute would let one
   // script flood a page with comments or votes.
   fastify.post(

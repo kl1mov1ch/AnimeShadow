@@ -1,5 +1,6 @@
 import type { Comment, CommentMode, CommentQuery } from "@animeshadow/shared";
 import {
+  ClockIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   FlagIcon,
@@ -54,6 +55,7 @@ import {
 } from "@/lib/query";
 import { ProMark } from "@/components/common/pro-mark";
 import { cn } from "@/lib/utils";
+import { clockLabel, jumpTo, usePlayerClock } from "@/lib/player-clock";
 
 const MODES: CommentMode[] = ["PUBLIC", "ANON", "SUPPORTER"];
 
@@ -267,6 +269,10 @@ function Composer({
   // closing the whole composer over it.
   const [quoting, setQuoting] = useState(quote != null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // Tie to the moment the player is at (top comments only).
+  const clock = usePlayerClock(animeId);
+  const [atMoment, setAtMoment] = useState(false);
+  const [moment, setMoment] = useState<{ episode: number; time: number } | null>(null);
 
   const submit = () => {
     const text = body.trim();
@@ -274,10 +280,17 @@ function Composer({
     const finalBody =
       quoting && quote ? buildQuotedBody(quote.author, quote.snippet, text) : text;
     create.mutate(
-      { animeId, body: finalBody, mode, parentId: parentId ?? null },
+      {
+        animeId,
+        body: finalBody,
+        mode,
+        parentId: parentId ?? null,
+        ...(atMoment && moment && !parentId ? { episode: moment.episode, atSeconds: Math.floor(moment.time) } : {}),
+      },
       {
         onSuccess: () => {
           setBody("");
+          setAtMoment(false);
           onDone?.();
         },
         onError: () => toast.error(t("errors.genericTitle")),
@@ -309,7 +322,25 @@ function Composer({
         className="resize-y bg-transparent"
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          {!parentId && clock && (
+            <button
+              type="button"
+              onClick={() => {
+                setMoment(clock);
+                setAtMoment((v) => !v);
+              }}
+              aria-pressed={atMoment}
+              title="Привязать комментарий к моменту в плеере — он появится на дорожке"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs transition-colors",
+                atMoment ? "bg-sky-500/20 font-semibold text-sky-600 dark:text-sky-300" : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+              )}
+            >
+              <ClockIcon className="size-3.5" />
+              {atMoment && moment ? `Серия ${moment.episode} · ${clockLabel(moment.time)}` : `К моменту ${clockLabel(clock.time)}`}
+            </button>
+          )}
           {MODES.map((m) => (
             <button
               key={m}
@@ -520,6 +551,18 @@ function CommentItem({
             </DropdownMenu>
           )}
         </div>
+
+        {comment.episode != null && comment.atSeconds != null && (
+          <button
+            type="button"
+            onClick={() => jumpTo(comment.episode!, comment.atSeconds!)}
+            title="Перейти к этому моменту"
+            className="inline-flex w-fit items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-600 transition-colors hover:bg-sky-500/25 dark:text-sky-300"
+          >
+            <ClockIcon className="size-3" />
+            Серия {comment.episode} · {clockLabel(comment.atSeconds)}
+          </button>
+        )}
 
         {editing ? (
           <div className="flex flex-col gap-2">

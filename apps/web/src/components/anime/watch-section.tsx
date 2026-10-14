@@ -52,6 +52,8 @@ import { FramePreview } from "@/components/player/frame-preview";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
 import { NEEDED_MBPS, NetStats } from "@/components/player/net-stats";
+import { type JumpDetail, publishClock } from "@/lib/player-clock";
+import type { CommentMark } from "@animeshadow/shared";
 import { fitSegments, SEGMENT_LABEL, segmentAt, type SkipSegment } from "@/lib/skip-times";
 import type { SkipSegmentRaw } from "@animeshadow/shared";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -916,6 +918,7 @@ function CustomHlsPlayer({
   segments = [],
   autoSkip = { op: false, ed: false },
   onNearEnd,
+  marks = [],
   onTime,
 }: {
   src: string;
@@ -950,6 +953,8 @@ function CustomHlsPlayer({
    * this one. Called once per episode.
    */
   onNearEnd?: () => void;
+  /** Comments tied to moments of this episode: marks on the bar, popping up as playback passes them. */
+  marks?: CommentMark[];
   /** Where playback is, and how long the episode runs. */
   onTime?: (time: number, duration: number) => void;
 }) {
@@ -1236,6 +1241,45 @@ function CustomHlsPlayer({
     const id = setInterval(sample, 2000);
     return () => clearInterval(id);
   }, [isWinner, src, reloadKey]);
+
+  // "Go there" from a comment's moment (Player turns it into this event for us).
+  useEffect(() => {
+    if (!isWinner) return;
+    const onSeek = (e: Event) => {
+      const video = videoRef.current;
+      const t = (e as CustomEvent<{ seconds: number }>).detail.seconds;
+      if (video && Number.isFinite(t)) {
+        video.currentTime = t;
+        void video.play().catch(() => undefined);
+      }
+    };
+    window.addEventListener("as:player-seek", onSeek);
+    return () => window.removeEventListener("as:player-seek", onSeek);
+  }, [isWinner]);
+
+  // Comments popping up at their moment — at most one at a time, four seconds each; can be turned off.
+  const [momentsOn, setMomentsOn] = useState(() => {
+    try {
+      return localStorage.getItem("as:moment-comments") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const [popped, setPopped] = useState<CommentMark | null>(null);
+  const shownMarksRef = useRef(new Set<string>());
+  useEffect(() => {
+    shownMarksRef.current = new Set();
+  }, [src]);
+  useEffect(() => {
+    if (!momentsOn || !isWinner || !playing || marks.length === 0) return;
+    const hit = marks.find((m) => currentTime >= m.atSeconds && currentTime < m.atSeconds + 2 && !shownMarksRef.current.has(m.id));
+    if (!hit) return;
+    shownMarksRef.current.add(hit.id);
+    setPopped(hit);
+    const timer = setTimeout(() => setPopped((p) => (p?.id === hit.id ? null : p)), 4500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Math.floor(currentTime), momentsOn, isWinner, playing]);
 
   const reload = () => {
     const video = videoRef.current;
@@ -1775,6 +1819,34 @@ function CustomHlsPlayer({
               className={cn(showNet && "pointer-events-auto")}
             />
           </div>
+          {popped && momentsOn && (
+            <div className="absolute bottom-16 left-3 z-20 flex max-w-[min(20rem,calc(100%-1.5rem))] animate-in items-start gap-2 rounded-2xl border border-white/10 bg-black/70 p-2.5 pr-8 text-white shadow-xl backdrop-blur-md fade-in-0 slide-in-from-left-4 @lg/player:bottom-20">
+              <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/30 text-[11px] font-bold">
+                {popped.avatarUrl ? <img src={imageSrc(popped.avatarUrl)} alt="" className="size-full object-cover" /> : popped.author.charAt(0)}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-semibold text-white/70">{popped.author}</span>
+                <span className="line-clamp-3 text-xs leading-snug">{popped.body}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMomentsOn(false);
+                  setPopped(null);
+                  try {
+                    localStorage.setItem("as:moment-comments", "off");
+                  } catch {
+                    // Fine.
+                  }
+                }}
+                aria-label="Не показывать комментарии в моментах"
+                title="Не показывать комментарии в моментах"
+                className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            </div>
+          )}
           {autoMuted && muted && (
             <button
               type="button"
@@ -1923,6 +1995,7 @@ function CustomHlsPlayer({
               current={currentTime}
               buffered={buffered}
               segments={fitted}
+              marks={marks}
               preview={preview}
               fill={tone.fill}
               label={t("watch.ctl.seek")}
@@ -2309,6 +2382,34 @@ function Player({
   const lastDuration = useRef(0);
   const resumeAt = useRef<number | null>(null);
 
+  // A comment's moment, chosen on the page: same episode — seek; another — switch and start there.
+  const [jump, setJump] = useState<JumpDetail | null>(null);
+  const winnerIsKodikRef = useRef(false);
+  useEffect(() => {
+    const onJump = (e: Event) => {
+      const d = (e as CustomEvent<JumpDetail>).detail;
+      if (d.episode === episode) {
+        if (winnerIsKodikRef.current) kodikSeekRef.current?.(d.seconds);
+        else window.dispatchEvent(new CustomEvent("as:player-seek", { detail: { seconds: d.seconds } }));
+        return;
+      }
+      setJump(d);
+      resumeAt.current = d.seconds;
+      onEpisodeChange(d.episode);
+    };
+    window.addEventListener("as:jump", onJump);
+    return () => window.removeEventListener("as:jump", onJump);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episode]);
+  const kodikSeekRef = useRef<((s: number) => void) | null>(null);
+
+  // Marks on our player's bar: this episode's comments tied to moments.
+  const { data: markData } = useQuery({
+    queryKey: ["comment-marks", animeId, episode],
+    queryFn: ({ signal }) => apiRequest<{ marks: CommentMark[] }>(`/anime/${animeId}/comment-marks`, { signal, query: { episode } }),
+    staleTime: 60_000,
+  });
+
   // A moment's link: Kodik is sent there once its player reports time.
   const startUsed = useRef(false);
   useEffect(() => {
@@ -2317,7 +2418,7 @@ function Player({
       resumeAt.current = startAt.seconds;
     }
   }, [startAt, episode]);
-  const momentStart = startAt && startAt.episode === episode ? startAt.seconds : null;
+  const momentStart = jump && jump.episode === episode ? jump.seconds : startAt && startAt.episode === episode ? startAt.seconds : null;
 
   // Pin where the picture is now as a favourite moment (five at most).
   const addMoment = useAddMoment();
@@ -2402,6 +2503,7 @@ function Player({
     },
     onTime: (time) => {
       lastTime.current = time;
+      publishClock(animeId, episode, time);
       if (resumeAt.current != null) {
         const at = resumeAt.current;
         resumeAt.current = null;
@@ -2438,6 +2540,8 @@ function Player({
       if (autoNext && nextEpisode != null && countdown == null) setCountdown(5);
     },
   });
+  kodikSeekRef.current = (seconds) => kodik.seek(seconds);
+  winnerIsKodikRef.current = winnerIsKodik;
 
   // The next episode starts after a short, cancellable count.
   useEffect(() => {
@@ -2630,7 +2734,9 @@ function Player({
                 onTime={(time, length) => {
                   lastTime.current = time;
                   if (length > 0) lastDuration.current = length;
+                  if (isWinner) publishClock(animeId, episode, time);
                 }}
+                marks={markData?.marks}
                 opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
                 segments={skipTimes?.segments}
                 autoSkip={{ op: prefs.skipOpening, ed: prefs.skipEnding }}

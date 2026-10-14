@@ -30,6 +30,7 @@ export function SeekBar({
   current,
   buffered,
   segments = [],
+  marks = [],
   preview,
   fill,
   onScrub,
@@ -43,6 +44,8 @@ export function SeekBar({
   buffered: Array<[number, number]>;
   /** The opening, ending and recap, marked on the bar and named in the preview. */
   segments?: SkipSegment[];
+  /** Comments tied to moments: dots above the bar, the nearest one shown in the preview. */
+  marks?: Array<{ id: string; atSeconds: number; body: string; author: string }>;
   preview: FramePreview | null;
   /** The watched part's colour (a CSS background). */
   fill: string;
@@ -93,6 +96,8 @@ export function SeekBar({
   const shown = dragging && hover ? hover.t : current;
   const pct = duration > 0 ? (shown / duration) * 100 : 0;
   const hoverSegment = hover ? segments.find((x) => hover.t >= x.start && hover.t < x.stop) : undefined;
+  // The comment under the pointer: within 1.5 % of the bar.
+  const hoverMark = hover && duration > 0 ? marks.find((m) => Math.abs(m.atSeconds - hover.t) < duration * 0.015) : undefined;
 
   // The tooltip stays inside the bar's width.
   const TIP = 192;
@@ -163,6 +168,11 @@ export function SeekBar({
           <span className="rounded-md bg-black/85 px-2 py-0.5 font-display text-xs tabular-nums text-white shadow">
             {formatTime(hover.t)}
           </span>
+          {hoverMark && (
+            <span className="w-full rounded-lg bg-black/85 px-2 py-1 text-[11px] leading-snug text-white shadow">
+              <b className="text-primary">{hoverMark.author}:</b> <span className="line-clamp-3">{hoverMark.body}</span>
+            </span>
+          )}
         </div>
       )}
 
@@ -205,6 +215,15 @@ export function SeekBar({
           <span className="absolute inset-y-0 left-0 rounded-full bg-white/25" style={{ width: `${(hover.t / Math.max(1, duration)) * 100}%` }} />
         )}
         <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: fill }} />
+        {duration > 0 &&
+          marks.map((m) => (
+            <span
+              key={m.id}
+              aria-hidden
+              className="absolute -top-1.5 size-1.5 -translate-x-1/2 rounded-full bg-sky-300 shadow-[0_0_6px_rgb(125_211_252)]"
+              style={{ left: `${(m.atSeconds / duration) * 100}%` }}
+            />
+          ))}
         <span
           aria-hidden
           className={cn(

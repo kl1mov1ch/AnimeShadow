@@ -316,6 +316,10 @@ model Comment {
   parentId     String?
   replies      Comment[] @relation("CommentReplies")
   body         String
+  /// Tied to a moment of an episode ("на 14:20 третьей серии"): shown as a
+  /// mark on the player's bar and popping up when playback gets there.
+  episode      Int?
+  atSeconds    Int?
   mode         String    @default("PUBLIC") // PUBLIC | ANON | SUPPORTER
   anonSeq      Int? // stable per (userId, animeId) once assigned
   likeCount    Int       @default(0)
@@ -328,6 +332,7 @@ model Comment {
   reports      CommentReport[]
 
   @@index([animeId, createdAt])
+  @@index([animeId, episode])
   @@index([userId])
   @@index([parentId])
 }

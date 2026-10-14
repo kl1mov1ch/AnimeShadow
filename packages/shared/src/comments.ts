@@ -28,6 +28,9 @@ const baseComment = z.object({
   animeId: z.number().int(),
   parentId: z.string().nullable(),
   body: z.string(),
+  /** The moment it's about, when tied to one. */
+  episode: z.number().int().nullable(),
+  atSeconds: z.number().int().nullable(),
   mode: commentModeSchema,
   author: commentAuthorSchema,
   likeCount: z.number().int(),
@@ -48,6 +51,9 @@ export const createCommentInputSchema = z.object({
   body: z.string().trim().min(1, "Enter a comment").max(4000, "Too long"),
   mode: commentModeSchema.default("PUBLIC"),
   parentId: z.string().nullable().optional(),
+  /** Tie it to a moment: both or neither. */
+  episode: z.number().int().min(1).max(5000).optional(),
+  atSeconds: z.number().int().min(0).max(36_000).optional(),
 });
 export type CreateCommentInput = z.infer<typeof createCommentInputSchema>;
 
@@ -67,3 +73,12 @@ export const commentQuerySchema = z.object({
   onlyAnon: z.coerce.boolean().optional(),
 });
 export type CommentQuery = z.infer<typeof commentQuerySchema>;
+
+/** A comment tied to a moment, as a mark on the player's bar. */
+export interface CommentMark {
+  id: string;
+  atSeconds: number;
+  body: string;
+  author: string;
+  avatarUrl: string | null;
+}

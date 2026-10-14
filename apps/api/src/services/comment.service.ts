@@ -4,6 +4,7 @@ import type {
   Comment,
   CommentAuthor,
   CommentQuery,
+  CommentMark,
   CreateCommentInput,
   CreateCommentReportInput,
 } from "@animeshadow/shared";
@@ -134,6 +135,8 @@ export class CommentService {
         userId,
         parentId,
         body: input.body,
+        // Replies follow their thread; only a top comment carries a moment.
+        ...(input.episode != null && input.atSeconds != null && !parentId ? { episode: input.episode, atSeconds: input.atSeconds } : {}),
         mode: input.mode,
         anonSeq,
       },
@@ -200,6 +203,30 @@ export class CommentService {
   async dismissReports(id: string): Promise<{ dismissed: number }> {
     const r = await this.prisma.commentReport.updateMany({ where: { commentId: id, status: "OPEN" }, data: { status: "DISMISSED" } });
     return { dismissed: r.count };
+  }
+
+  /** One episode's comments tied to moments, as marks for the player's bar (two hundred at most). */
+  async marks(animeId: number, episode: number): Promise<CommentMark[]> {
+    const rows = await this.prisma.comment.findMany({
+      where: { animeId, episode, atSeconds: { not: null }, deletedAt: null, parentId: null },
+      orderBy: [{ likeCount: "desc" }, { createdAt: "desc" }],
+      take: 200,
+      select: { id: true, atSeconds: true, body: true, mode: true, anonSeq: true, user: { select: { displayName: true, avatarUrl: true } } },
+    });
+    return rows
+      .map((r) => {
+        // A quoted reply keeps only its own words.
+        const text = r.body.replace(/^(>.*\n)+\n?/, "").trim();
+        const anon = r.mode === "ANON";
+        return {
+          id: r.id,
+          atSeconds: r.atSeconds!,
+          body: text.length > 140 ? `${text.slice(0, 139)}…` : text,
+          author: anon ? `Аниме-ниндзя #${r.anonSeq ?? 0}` : r.user.displayName,
+          avatarUrl: anon ? null : r.user.avatarUrl,
+        };
+      })
+      .sort((a, b) => a.atSeconds - b.atSeconds);
   }
 
   async vote(userId: string, id: string, value: -1 | 0 | 1): Promise<Comment> {
@@ -282,6 +309,8 @@ export class CommentService {
       animeId: row.animeId,
       parentId: row.parentId,
       body: row.body,
+      episode: deleted ? null : row.episode,
+      atSeconds: deleted ? null : row.atSeconds,
       mode: row.mode as Comment["mode"],
       author,
       likeCount: row.likeCount,
