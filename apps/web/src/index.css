@@ -1908,3 +1908,8 @@ body:has([role="dialog"][data-state="open"]) main * {
 @keyframes party-float { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 12% { opacity: 1; transform: translateY(-20px) scale(1.15); } 100% { opacity: 0; transform: translateY(-260px) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .party-float { animation-duration: 1.2s; } }
 
+/* Room chat: stickers, GIFs and big emoji pop in. */
+.party-pop { animation: party-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes party-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .party-pop { animation: none; } }
+

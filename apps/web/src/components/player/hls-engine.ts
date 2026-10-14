@@ -30,6 +30,8 @@ export interface EngineHandle {
   /** The line's measured speed, bits per second (0 while unknown). */
   bandwidth: () => number;
   levels: () => Array<{ height: number }>;
+  /** Never above this height (a room watching at its slowest member's pace); null lifts it. */
+  capHeight: (height: number | null) => void;
 }
 
 /** hls.js, fetched once and early: on the title page, before "play" is pressed. */
@@ -192,5 +194,17 @@ export function attachEngine(
     },
     bandwidth: () => (Number.isFinite(hls.bandwidthEstimate) ? hls.bandwidthEstimate : 0),
     levels: () => hls.levels.map((l) => ({ height: l.height })),
+    capHeight: (height) => {
+      if (height == null) {
+        hls.autoLevelCapping = -1;
+        return;
+      }
+      let index = -1;
+      hls.levels.forEach((l, i) => {
+        if (l.height <= height) index = i;
+      });
+      hls.autoLevelCapping = Math.max(0, index);
+      if (hls.currentLevel > hls.autoLevelCapping) hls.currentLevel = -1;
+    },
   };
 }

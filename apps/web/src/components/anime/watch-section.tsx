@@ -921,6 +921,8 @@ export function CustomHlsPlayer({
   onNearEnd,
   marks = [],
   onUserAction,
+  onBuffering,
+  onNet,
   onTime,
 }: {
   src: string;
@@ -963,6 +965,10 @@ export function CustomHlsPlayer({
    * are applied without being reported back.
    */
   onUserAction?: (action: { type: "play" | "pause" | "seek"; time: number }) => void;
+  /** Short of data / playing again — a room waits for its slowest member. */
+  onBuffering?: (buffering: boolean) => void;
+  /** The line's measured speed, Mbit/s, every few seconds. */
+  onNet?: (mbps: number | null) => void;
   /** Where playback is, and how long the episode runs. */
   onTime?: (time: number, duration: number) => void;
 }) {
@@ -1223,6 +1229,13 @@ export function CustomHlsPlayer({
   };
   const [netHistory, setNetHistory] = useState<number[]>([]);
   const onNearEndRef = useRef(onNearEnd);
+  const onNetRef = useRef(onNet);
+  onNetRef.current = onNet;
+  const onBufferingRef = useRef(onBuffering);
+  onBufferingRef.current = onBuffering;
+  useEffect(() => {
+    onBufferingRef.current?.(buffering);
+  }, [buffering]);
   onNearEndRef.current = onNearEnd;
   const nearEndSentRef = useRef<string | null>(null);
   const [bufferAhead, setBufferAhead] = useState(0);
@@ -1248,6 +1261,7 @@ export function CustomHlsPlayer({
       }
       const bw = engineRef.current?.bandwidth() ?? 0;
       if (bw > 0) setNetHistory((h) => [...h.slice(-14), bw / 1_000_000]);
+      onNetRef.current?.(bw > 0 ? bw / 1_000_000 : null);
     };
     sample();
     const id = setInterval(sample, 2000);
@@ -1277,7 +1291,8 @@ export function CustomHlsPlayer({
     const video = videoRef.current;
     if (!video) return;
     const onCmd = (e: Event) => {
-      const d = (e as CustomEvent<{ seconds?: number; play?: boolean }>).detail;
+      const d = (e as CustomEvent<{ seconds?: number; play?: boolean; maxHeight?: number | null }>).detail;
+      if (d.maxHeight !== undefined) engineRef.current?.capHeight(d.maxHeight);
       const seek = d.seconds != null && Math.abs(video.currentTime - d.seconds) > 0.5;
       const play = d.play === true && video.paused;
       const pause = d.play === false && !video.paused;

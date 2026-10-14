@@ -299,7 +299,7 @@ export function createServices(deps: ContainerDeps): Services {
     notifications,
     delivery,
     schedule: new ScheduleService(deps.prisma, anilist, deps.logger),
-    party: new PartyService(deps.prisma),
+    party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, "")),
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing }),

@@ -267,6 +267,14 @@ export class DeliveryService {
     return { telegram, push };
   }
 
+  /** One message to one person, by every channel they have on (a watch-together invite). */
+  async direct(userId: string, msg: { title: string; body: string; url: string; button: string }): Promise<boolean> {
+    const tg = await this.sendTelegramTo(userId, `🎬 <b>${escapeHtml(msg.title)}</b>
+${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
+    const push = await this.pushTo(userId, { title: msg.title, body: msg.body, url: msg.url, tag: "party" });
+    return tg || push > 0;
+  }
+
   // ---- delivery ------------------------------------------------------------
 
   /** New-episode lines just written: told by Telegram and push, one message per person. */

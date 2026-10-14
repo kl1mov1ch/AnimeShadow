@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import type { ServerResponse } from "node:http";
 import type { PrismaClient } from "@animeshadow/db";
 import {
+  emojiOnly,
   PARTY_MAX,
+  PARTY_STICKERS,
   type PartyChatMessage,
   type PartyEvent,
   type PartyMember,
@@ -10,11 +12,14 @@ import {
   type PartySnapshot,
 } from "@animeshadow/shared";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../lib/errors.js";
+import { proActive } from "../lib/pro.js";
+import type { DeliveryService } from "./delivery.service.js";
 
 interface Person {
   id: string;
   name: string;
   avatarUrl: string | null;
+  pro: boolean;
 }
 
 interface Room {
@@ -31,6 +36,8 @@ interface Room {
   emptySince: number | null;
   /** The last reaction per person, to keep a finger on the button from flooding the room. */
   lastReaction: Map<string, number>;
+  /** Each person's line speed, Mbit/s, as their player measures it. */
+  net: Map<string, number | null>;
 }
 
 const CHAT_KEEP = 120;
@@ -54,7 +61,11 @@ export class PartyService {
   private rooms = new Map<string, Room>();
   private sweeper: ReturnType<typeof setInterval>;
 
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly delivery: DeliveryService,
+    private readonly appUrl: string,
+  ) {
     this.sweeper = setInterval(() => this.sweep(), 60_000);
     this.sweeper.unref();
   }
@@ -74,13 +85,14 @@ export class PartyService {
       code,
       anime,
       hostId: userId,
-      playback: { episode, playing: false, position: 0, updatedAt: now, by: userId },
+      playback: { episode, playing: false, position: 0, updatedAt: now, by: userId, waitingFor: null },
       chat: [this.line(`${person.name} создал(а) комнату. Пригласите друзей по ссылке — до ${PARTY_MAX} человек.`)],
       people: new Map([[userId, person]]),
       streams: new Map(),
       createdAt: now,
       emptySince: now,
       lastReaction: new Map(),
+      net: new Map(),
     });
     return { code };
   }
@@ -105,7 +117,8 @@ export class PartyService {
     if (!online.has(userId) && online.size >= PARTY_MAX) {
       throw new ForbiddenError(`В комнате уже ${PARTY_MAX} человек.`);
     }
-    if (!room.people.has(userId)) room.people.set(userId, await this.person(userId));
+    // Fresh each time: PRO may have started (or ended) since the last visit.
+    room.people.set(userId, await this.person(userId));
     const streamId = randomBytes(6).toString("hex");
     const wasOnline = online.has(userId);
     room.streams.set(streamId, { personId: userId, res });
@@ -114,7 +127,7 @@ export class PartyService {
     if (!wasOnline) {
       const me = room.people.get(userId)!;
       this.say(room, `${me.name} присоединился(ась)`);
-      this.broadcast(room, { type: "members", members: this.online(room), now: Date.now() });
+      this.broadcastMembers(room);
     }
     const ping = setInterval(() => this.write(res, { type: "ping", now: Date.now() }), 20_000);
     return () => {
@@ -129,7 +142,8 @@ export class PartyService {
           const next = [...room.streams.values()][0]?.personId;
           if (next) room.hostId = next;
         }
-        this.broadcast(room, { type: "members", members: this.online(room), now: Date.now() });
+        room.net.delete(userId);
+        this.broadcastMembers(room);
       }
       if (room.streams.size === 0) room.emptySince = Date.now();
     };
@@ -138,7 +152,7 @@ export class PartyService {
   async playback(
     code: string,
     userId: string,
-    input: { animeId?: number | undefined; episode: number; playing: boolean; position: number },
+    input: { animeId?: number | undefined; episode: number; playing: boolean; position: number; waiting?: boolean | undefined },
   ): Promise<PartyPlayback> {
     const room = this.member(code, userId);
     // Another title for the whole room: everyone's page follows.
@@ -149,16 +163,32 @@ export class PartyService {
       });
       if (!anime) throw new NotFoundError("Аниме не найдено.");
       room.anime = anime;
-      room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId };
+      room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId, waitingFor: null };
       this.broadcast(room, { type: "anime", anime });
       this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
       this.say(room, `${room.people.get(userId)?.name ?? "Кто-то"} включил(а) «${anime.titleLocalized || anime.title}»`);
       return room.playback;
     }
     const before = room.playback;
-    room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId };
-    this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
     const who = room.people.get(userId)?.name ?? "Кто-то";
+    room.playback = {
+      episode: input.episode,
+      playing: input.playing,
+      position: input.position,
+      updatedAt: Date.now(),
+      by: userId,
+      waitingFor: input.waiting ? who : null,
+    };
+    this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
+    // Waiting for the slowest: said once, and the resume said too.
+    if (input.waiting) {
+      this.say(room, `Ждём ${who} — серия подгружается`);
+      return room.playback;
+    }
+    if (before.waitingFor && input.playing) {
+      this.say(room, `${who} догрузил(а) — продолжаем`);
+      return room.playback;
+    }
     if (before.episode !== input.episode) this.say(room, `${who} включил(а) ${input.episode} серию`);
     else if (before.playing && !input.playing) this.say(room, `${who} поставил(а) паузу на ${clock(input.position)}`);
     else if (!before.playing && input.playing && Math.abs(expected(before) - input.position) < 3) this.say(room, `${who} продолжил(а) просмотр`);
@@ -166,13 +196,71 @@ export class PartyService {
     return room.playback;
   }
 
-  chat(code: string, userId: string, text: string): PartyChatMessage {
+  /**
+   * A message. Emoji are everyone's; words, stickers and GIFs are PRO's — a
+   * room of strangers stays a room of reactions unless someone supports the site.
+   */
+  chat(code: string, userId: string, input: { text?: string | undefined; sticker?: string | undefined; gif?: string | undefined }): PartyChatMessage {
     const room = this.member(code, userId);
     const me = room.people.get(userId)!;
-    const message: PartyChatMessage = { id: randomBytes(6).toString("hex"), at: Date.now(), author: me, text };
+    let kind: PartyChatMessage["kind"];
+    let text = "";
+    let media: string | null = null;
+    if (input.sticker) {
+      if (!PARTY_STICKERS.some((s) => s.code === input.sticker)) throw new BadRequestError("Нет такого стикера.");
+      kind = "sticker";
+      media = input.sticker;
+    } else if (input.gif) {
+      kind = "gif";
+      media = input.gif;
+    } else {
+      text = (input.text ?? "").trim();
+      if (!text) throw new BadRequestError("Пустое сообщение.");
+      kind = emojiOnly(text) ? "emoji" : "text";
+    }
+    if (kind !== "emoji" && !me.pro) {
+      throw new ForbiddenError(kind === "text" ? "Писать в комнатах можно с PRO. Смайлики — всем." : "Стикеры и гифки — с PRO.");
+    }
+    const message: PartyChatMessage = { id: randomBytes(6).toString("hex"), at: Date.now(), author: me, kind, text, media };
     this.push(room, message);
     this.broadcast(room, { type: "chat", message });
     return message;
+  }
+
+  /** A member's line speed: the whole room's quality is capped to what the slowest can carry. */
+  net(code: string, userId: string, mbps: number | null): void {
+    const room = this.member(code, userId);
+    const before = room.net.get(userId);
+    room.net.set(userId, mbps);
+    // Only a change worth telling everyone about.
+    if (before == null || mbps == null || Math.abs((before ?? 0) - mbps) / Math.max(0.1, before ?? 1) > 0.25) this.broadcastMembers(room);
+  }
+
+  /**
+   * Friends called into the room: a Telegram message and a push to each (who
+   * has them on), and a line in the chat. Only mutual follows, nine at most.
+   */
+  async invite(code: string, userId: string, userIds: string[]): Promise<{ sent: number; reached: number }> {
+    const room = this.member(code, userId);
+    const me = room.people.get(userId)!;
+    const ids = [...new Set(userIds)].filter((id) => id !== userId).slice(0, PARTY_MAX - 1);
+    const mutual = await this.prisma.follow.findMany({
+      where: { followerId: { in: ids }, followingId: userId, follower: { followers: { some: { followerId: userId } } } },
+      select: { followerId: true },
+    });
+    const title = room.anime.titleLocalized || room.anime.title;
+    let reached = 0;
+    for (const { followerId } of mutual) {
+      const ok = await this.delivery.direct(followerId, {
+        title: `${me.name} зовёт смотреть вместе`,
+        body: `«${title}», ${room.playback.episode} серия — заходите в комнату`,
+        url: `${this.appUrl}/party/${room.code}`,
+        button: "▶ Войти в комнату",
+      });
+      if (ok) reached += 1;
+    }
+    if (mutual.length) this.say(room, `${me.name} позвал(а) друзей: ${mutual.length}`);
+    return { sent: mutual.length, reached };
   }
 
   react(code: string, userId: string, emoji: string): void {
@@ -200,9 +288,12 @@ export class PartyService {
   }
 
   private async person(userId: string): Promise<Person> {
-    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, displayName: true, avatarUrl: true } });
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, displayName: true, avatarUrl: true, proSince: true, proUntil: true, trialUntil: true },
+    });
     if (!u) throw new NotFoundError("Пользователь не найден.");
-    return { id: u.id, name: u.displayName, avatarUrl: u.avatarUrl };
+    return { id: u.id, name: u.displayName, avatarUrl: u.avatarUrl, pro: proActive(u) };
   }
 
   private online(room: Room): PartyMember[] {
@@ -210,11 +301,25 @@ export class PartyService {
     return ids
       .map((id) => room.people.get(id))
       .filter((p): p is Person => p != null)
-      .map((p) => ({ ...p, host: p.id === room.hostId }));
+      .map((p) => ({ ...p, host: p.id === room.hostId, mbps: room.net.get(p.id) ?? null }));
+  }
+
+  /** The highest quality every member's line carries (480/720/1080), or null while nobody has measured. */
+  private capHeight(room: Room): number | null {
+    const speeds = this.online(room)
+      .map((m) => m.mbps)
+      .filter((v): v is number => v != null && v > 0);
+    if (speeds.length === 0) return null;
+    const slowest = Math.min(...speeds);
+    return slowest >= 4.8 ? 1080 : slowest >= 2.4 ? 720 : 480;
+  }
+
+  private broadcastMembers(room: Room) {
+    this.broadcast(room, { type: "members", members: this.online(room), now: Date.now(), capHeight: this.capHeight(room) });
   }
 
   private line(text: string): PartyChatMessage {
-    return { id: randomBytes(6).toString("hex"), at: Date.now(), author: null, text };
+    return { id: randomBytes(6).toString("hex"), at: Date.now(), author: null, kind: "system", text, media: null };
   }
 
   private say(room: Room, text: string) {

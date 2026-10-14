@@ -1,6 +1,7 @@
 import {
   createPartyInputSchema,
   partyChatInputSchema,
+  partyNetInputSchema,
   partyPlaybackInputSchema,
   partyReactionInputSchema,
 } from "@animeshadow/shared";
@@ -54,7 +55,19 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/party/:code/chat", { ...auth, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request) => {
     const { code } = parse(codeParams, request.params);
-    return party.chat(code, request.userId!, parse(partyChatInputSchema, request.body).text);
+    return party.chat(code, request.userId!, parse(partyChatInputSchema, request.body));
+  });
+
+  fastify.post("/party/:code/invite", { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    const { userIds } = parse(z.object({ userIds: z.array(z.string().min(1).max(40)).min(1).max(9) }), request.body);
+    return party.invite(code, request.userId!, userIds);
+  });
+
+  fastify.post("/party/:code/net", { ...auth, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    party.net(code, request.userId!, parse(partyNetInputSchema, request.body).mbps);
+    return { ok: true };
   });
 
   fastify.post("/party/:code/react", { ...auth, config: { rateLimit: { max: 120, timeWindow: "1 minute" } } }, async (request) => {
