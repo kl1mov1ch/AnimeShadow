@@ -4,6 +4,7 @@ import {
   partyNetInputSchema,
   partyPlaybackInputSchema,
   partyReactionInputSchema,
+  partySettingsInputSchema,
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -19,7 +20,18 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/party", { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {
     const input = parse(createPartyInputSchema, request.body);
-    return party.create(request.userId!, input.animeId, input.episode);
+    return party.create(request.userId!, input.animeId, input.episode, input.visibility);
+  });
+
+  // The list of rooms going on (open ones, and friends' for their friends).
+  fastify.get("/party", { preHandler: fastify.optionalAuth }, async (request, reply) => {
+    reply.header("cache-control", "private, no-store");
+    return { rooms: await party.list(request.userId) };
+  });
+
+  fastify.patch("/party/:code/settings", auth, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    return party.settings(code, request.userId!, parse(partySettingsInputSchema, request.body).visibility);
   });
 
   fastify.get("/party/:code", auth, async (request) => party.snapshot(parse(codeParams, request.params).code));

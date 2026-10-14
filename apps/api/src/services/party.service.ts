@@ -9,7 +9,9 @@ import {
   type PartyEvent,
   type PartyMember,
   type PartyPlayback,
+  type PartyListing,
   type PartySnapshot,
+  type PartyVisibility,
 } from "@animeshadow/shared";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../lib/errors.js";
 import { proActive } from "../lib/pro.js";
@@ -24,6 +26,7 @@ interface Person {
 
 interface Room {
   code: string;
+  visibility: PartyVisibility;
   anime: PartySnapshot["anime"];
   hostId: string;
   playback: PartyPlayback;
@@ -70,7 +73,7 @@ export class PartyService {
     this.sweeper.unref();
   }
 
-  async create(userId: string, animeId: number, episode: number): Promise<{ code: string }> {
+  async create(userId: string, animeId: number, episode: number, visibility: PartyVisibility = "public"): Promise<{ code: string }> {
     const anime = await this.prisma.anime.findUnique({
       where: { id: animeId },
       select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true },
@@ -83,6 +86,7 @@ export class PartyService {
     const now = Date.now();
     this.rooms.set(code, {
       code,
+      visibility,
       anime,
       hostId: userId,
       playback: { episode, playing: false, position: 0, updatedAt: now, by: userId, waitingFor: null },
@@ -101,6 +105,7 @@ export class PartyService {
     const room = this.room(code);
     return {
       code: room.code,
+      visibility: room.visibility,
       anime: room.anime,
       hostId: room.hostId,
       members: this.online(room),
@@ -225,6 +230,63 @@ export class PartyService {
     this.push(room, message);
     this.broadcast(room, { type: "chat", message });
     return message;
+  }
+
+  /** The host decides who sees the room in the list. */
+  settings(code: string, userId: string, visibility: PartyVisibility): { visibility: PartyVisibility } {
+    const room = this.member(code, userId);
+    if (room.hostId !== userId) throw new ForbiddenError("Это может только создатель комнаты.");
+    room.visibility = visibility;
+    this.broadcast(room, { type: "settings", visibility });
+    const label = visibility === "public" ? "открытой — она видна всем в списке" : visibility === "friends" ? "только для друзей" : "только по ссылке";
+    this.say(room, `Комната стала ${label}`);
+    return { visibility };
+  }
+
+  /**
+   * The rooms going on, as the viewer may see them: open ones, and the
+   * friends-only rooms of their friends (and any room they're in). Busiest
+   * first; empty rooms aren't listed.
+   */
+  async list(viewerId: string | undefined): Promise<PartyListing[]> {
+    const rooms = [...this.rooms.values()].filter((r) => r.streams.size > 0);
+    if (rooms.length === 0) return [];
+    let friends = new Set<string>();
+    if (viewerId) {
+      const rows = await this.prisma.follow.findMany({
+        where: { followingId: viewerId, follower: { followers: { some: { followerId: viewerId } } } },
+        select: { followerId: true },
+      });
+      friends = new Set(rows.map((r) => r.followerId));
+    }
+    const now = Date.now();
+    const out: PartyListing[] = [];
+    for (const room of rooms) {
+      const online = this.online(room);
+      const mine = viewerId != null && online.some((m) => m.id === viewerId);
+      const hostFriend = friends.has(room.hostId);
+      const friendInside = online.some((m) => friends.has(m.id));
+      const visible = mine || room.visibility === "public" || (room.visibility === "friends" && hostFriend);
+      if (!visible) continue;
+      const host = room.people.get(room.hostId);
+      const p = room.playback;
+      out.push({
+        code: room.code,
+        anime: room.anime,
+        episode: p.episode,
+        playing: p.playing,
+        position: p.playing ? p.position + (now - p.updatedAt) / 1000 : p.position,
+        visibility: room.visibility,
+        host: { id: room.hostId, name: host?.name ?? "—", avatarUrl: host?.avatarUrl ?? null },
+        members: online.length,
+        faces: online.slice(0, 5).map((m) => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl })),
+        full: online.length >= PARTY_MAX,
+        friends: hostFriend || friendInside,
+        mine,
+        createdAt: room.createdAt,
+      });
+    }
+    return out.sort((a, b) => Number(b.mine) - Number(a.mine) || Number(b.friends) - Number(a.friends) || b.members - a.members || b.createdAt - a.createdAt);
   }
 
   /** A member's line speed: the whole room's quality is capped to what the slowest can carry. */

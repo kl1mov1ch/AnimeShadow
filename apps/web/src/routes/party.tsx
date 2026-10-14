@@ -5,7 +5,9 @@ import {
   type PartyMember,
   type PartyPlayback,
   type PartySnapshot,
+  type PartyVisibility,
 } from "@animeshadow/shared";
+import { VISIBILITY } from "@/components/party/visibility";
 import { CheckIcon, Loader2Icon, LogInIcon, MinusIcon, PlayIcon, PlusIcon, QrCodeIcon, RepeatIcon, SendIcon, UsersIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -92,6 +94,9 @@ function PartyRoom({ code }: { code: string }) {
         break;
       case "playback":
         setPlayback(e.playback);
+        break;
+      case "settings":
+        setParty((p) => (p ? { ...p, visibility: e.visibility } : p));
         break;
       case "anime":
         setParty((p) => (p ? { ...p, anime: e.anime } : p));
@@ -307,6 +312,15 @@ function PartyRoom({ code }: { code: string }) {
               <RepeatIcon className="size-3.5" />
               <span className="hidden sm:inline">Аниме</span>
             </button>
+            <VisibilityControl
+              value={party.visibility}
+              host={party.hostId === user?.id || members.find((m) => m.id === user?.id)?.host === true}
+              onChange={(v) =>
+                void apiRequest(`/party/${code}/settings`, { method: "PATCH", body: { visibility: v } })
+                  .then(() => setParty((p) => (p ? { ...p, visibility: v } : p)))
+                  .catch(() => toast.error("Не получилось поменять"))
+              }
+            />
             <button
               type="button"
               onClick={() => setInviting(true)}
@@ -425,6 +439,36 @@ function PartyRoom({ code }: { code: string }) {
       />
       {inviting && <InviteDialog code={code} party={party} members={members} onClose={() => setInviting(false)} />}
     </div>
+  );
+}
+
+/** Who sees the room in the list — the host changes it, everyone else sees which it is. */
+function VisibilityControl({ value, host, onChange }: { value: PartyVisibility; host: boolean; onChange: (v: PartyVisibility) => void }) {
+  const V = VISIBILITY[value];
+  if (!host) {
+    return (
+      <span title={V.hint} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs text-muted-foreground">
+        <V.icon className="size-3.5" />
+        <span className="hidden sm:inline">{V.label}</span>
+      </span>
+    );
+  }
+  return (
+    <label title="Кто видит комнату в списке" className="relative inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] pl-3 pr-2 text-xs font-medium">
+      <V.icon className="size-3.5 text-primary" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as PartyVisibility)}
+        className="cursor-pointer appearance-none bg-transparent pr-4 outline-none"
+      >
+        {(Object.keys(VISIBILITY) as PartyVisibility[]).map((v) => (
+          <option key={v} value={v}>
+            {VISIBILITY[v].label}
+          </option>
+        ))}
+      </select>
+      <span aria-hidden className="pointer-events-none absolute right-2 text-[9px] text-muted-foreground">▼</span>
+    </label>
   );
 }
 

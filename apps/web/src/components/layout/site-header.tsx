@@ -23,7 +23,6 @@ import {
   WandSparklesIcon,
   XIcon, GiftIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
-import { usePartyStarter } from "@/components/party-picker";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
@@ -108,6 +107,7 @@ export function SiteHeader() {
   const { t } = useI18n();
   const { status, user } = useAuth();
   const { canInstall, isIosSafari } = usePwaInstall();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
   const scrolled = useScrolled();
@@ -128,7 +128,7 @@ export function SiteHeader() {
   ];
 
   const openSearch = () => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
-  const party = usePartyStarter();
+
 
   return (
     <header
@@ -191,10 +191,9 @@ export function SiteHeader() {
         <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5 md:ml-0">
           {/* A guest's phone header has the invite in this spot instead. */}
           {/* Watching together: pick an anime, get a room. */}
-          <HeaderIcon label="Смотреть вместе" onClick={party.start} className="hidden md:grid">
+          <HeaderIcon label="Совместный просмотр" to="/party" className="hidden md:grid">
             <UsersIcon />
           </HeaderIcon>
-          {party.picker}
           <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
             <span className="hdr-dice contents">
               <RandomRoll />
@@ -240,7 +239,7 @@ export function SiteHeader() {
               onNavigate={() => setMenuOpen(false)}
               onParty={() => {
                 setMenuOpen(false);
-                party.start();
+                navigate("/party");
               }}
             />
           </Sheet>

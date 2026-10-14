@@ -37,8 +37,13 @@ export interface PartyChatMessage {
   media: string | null;
 }
 
+/** Who sees the room in the list: everyone, the host's friends, or nobody (link only). */
+export const PARTY_VISIBILITY = ["public", "friends", "link"] as const;
+export type PartyVisibility = (typeof PARTY_VISIBILITY)[number];
+
 export interface PartySnapshot {
   code: string;
+  visibility: PartyVisibility;
   anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; episodes: number | null };
   hostId: string;
   members: PartyMember[];
@@ -54,6 +59,7 @@ export type PartyEvent =
   | { type: "members"; members: PartyMember[]; now: number; capHeight: number | null }
   | { type: "playback"; playback: PartyPlayback; now: number }
   | { type: "anime"; anime: PartySnapshot["anime"] }
+  | { type: "settings"; visibility: PartyVisibility }
   | { type: "chat"; message: PartyChatMessage }
   | { type: "reaction"; emoji: string; by: string; name: string }
   | { type: "ping"; now: number };
@@ -61,7 +67,30 @@ export type PartyEvent =
 export const createPartyInputSchema = z.object({
   animeId: z.number().int().positive(),
   episode: z.number().int().min(1).max(5000).default(1),
+  visibility: z.enum(PARTY_VISIBILITY).default("public"),
 });
+
+export const partySettingsInputSchema = z.object({ visibility: z.enum(PARTY_VISIBILITY) });
+
+/** A room in the list of rooms ("Совместный просмотр"). */
+export interface PartyListing {
+  code: string;
+  anime: PartySnapshot["anime"];
+  episode: number;
+  playing: boolean;
+  /** Where playback is now, seconds. */
+  position: number;
+  visibility: PartyVisibility;
+  host: { id: string; name: string; avatarUrl: string | null };
+  members: number;
+  faces: Array<{ id: string; name: string; avatarUrl: string | null }>;
+  full: boolean;
+  /** Someone the viewer is friends with is in the room (or hosts it). */
+  friends: boolean;
+  /** The viewer is in it. */
+  mine: boolean;
+  createdAt: number;
+}
 
 export const partyPlaybackInputSchema = z.object({
   /** Paused because this member is still loading (it resumes when they're ready). */

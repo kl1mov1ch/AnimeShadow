@@ -24,12 +24,15 @@ export function PartyPicker({
   onOpenChange,
   title = "Совместный просмотр",
   hint = "Выберите аниме — серию выберете в комнате. Пригласите до 9 друзей по ссылке.",
+  header,
   onPick,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
   hint?: string;
+  /** Anything above the search (who will see the room, when creating one). */
+  header?: React.ReactNode;
   onPick: (pick: PartyPick) => void | Promise<void>;
 }) {
   const [q, setQ] = useState("");
@@ -65,6 +68,7 @@ export function PartyPicker({
               <DialogDescription className="text-xs">{hint}</DialogDescription>
             </div>
           </div>
+          {header}
           <label className="relative block">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
