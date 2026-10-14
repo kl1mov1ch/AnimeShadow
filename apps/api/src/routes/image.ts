@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { watermark } from "../lib/watermark.js";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
@@ -361,8 +362,28 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const key = createHash("sha1").update(target.toString()).digest("hex");
-    const send = (buf: Buffer, hit: boolean) =>
-      reply
+    // ?wm=1: the frame with the site's mark burned in (see lib/watermark),
+    // made once and kept beside the original.
+    const wm = (request.query as { wm?: string }).wm === "1";
+    const wmFile = join(CACHE_DIR, `${key}-wm`);
+    if (wm) {
+      const done = await readFile(wmFile).catch(() => null);
+      if (done && done.length > 0) {
+        return reply
+          .header("content-type", "image/jpeg")
+          .header("cache-control", "public, max-age=2592000, immutable")
+          .header("cross-origin-resource-policy", "cross-origin")
+          .header("x-cache", "HIT")
+          .send(done);
+      }
+    }
+    const send = async (raw: Buffer, hit: boolean) => {
+      let buf = raw;
+      if (wm) {
+        buf = await watermark(raw).catch(() => raw);
+        if (buf !== raw) await writeFile(wmFile, buf).catch(() => undefined);
+      }
+      return reply
         .header("content-type", sniff(buf))
         .header("cache-control", "public, max-age=2592000, immutable")
         .header("cross-origin-resource-policy", "cross-origin")
@@ -370,6 +391,7 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
         .header("access-control-allow-origin", "*")
         .header("x-cache", hit ? "HIT" : "MISS")
         .send(buf);
+    };
 
     const cached = await readFile(join(CACHE_DIR, key)).catch(() => null);
     if (cached && cached.length > 0) return send(cached, true);

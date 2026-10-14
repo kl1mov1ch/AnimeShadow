@@ -752,6 +752,12 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
   );
 }
 
+/** A frame with the site's mark burned in (made once on the server, see lib/watermark). */
+function framed(src: string): string {
+  const url = imageSrc(src) ?? src;
+  return url.includes("/api/img?") ? `${url}&wm=1` : url;
+}
+
 /** The title's screenshots (the catalogue's, cached on the server for an hour). */
 function useAnimeFrames(animeId: number) {
   return useQuery({
@@ -779,7 +785,7 @@ function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
             onClick={() => setOpen(i)}
             className="aspect-video overflow-hidden rounded-lg border border-[var(--accent-line-soft)] bg-muted transition-colors hover:border-primary/60"
           >
-            <img src={imageSrc(src)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+            <img src={framed(src)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
           </button>
         ))}
       </div>
@@ -788,7 +794,7 @@ function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
           <DialogTitle className="sr-only">Кадр из «{title}»</DialogTitle>
           {open != null && (
             <div className="relative bg-black">
-              <img src={imageSrc(shown[open]!)} alt="" className="max-h-[80dvh] w-full object-contain" />
+              <img src={framed(shown[open]!)} alt="" className="max-h-[80dvh] w-full object-contain" />
               {shown.length > 1 && (
                 <>
                   <button type="button" aria-label="Предыдущий" onClick={() => step(-1)} className="absolute left-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary">
