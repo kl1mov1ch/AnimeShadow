@@ -20,6 +20,7 @@ import {
   UserPlusIcon,
   WandSparklesIcon,
   XIcon, GiftIcon } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -200,6 +201,7 @@ export function SiteHeader() {
             {FEATURES.lightTheme && <ThemeToggle />}
             {(canInstall || isIosSafari) && <InstallAppButton />}
           </div>
+          <NotificationBell className="hidden md:grid" />
           <div className="hidden md:block">
             <UserMenu />
           </div>
@@ -214,6 +216,7 @@ export function SiteHeader() {
               Вступить
             </Link>
           )}
+          <NotificationBell className="md:hidden" />
           <HeaderIcon label={t("common.search")} onClick={openSearch} className="md:hidden">
             <SearchIcon />
           </HeaderIcon>

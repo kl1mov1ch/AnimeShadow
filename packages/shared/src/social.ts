@@ -69,3 +69,31 @@ export type CreateWallPostInput = z.infer<typeof createWallPostInputSchema>;
 /** One event from someone the viewer follows. */
 export const friendEventSchema = feedEventSchema.extend({ user: userCardSchema });
 export type FriendEvent = z.infer<typeof friendEventSchema>;
+
+// ---------------------------------------------------------------------------
+// Notifications: new episodes of titles in one's list.
+// ---------------------------------------------------------------------------
+
+export const notificationSchema = z.object({
+  id: z.string(),
+  kind: z.literal("episode"),
+  anime: z.object({
+    id: z.number().int(),
+    slug: z.string(),
+    title: z.string(),
+    titleLocalized: z.string().nullable(),
+    imageUrl: z.string().nullable(),
+  }),
+  episode: z.number().int(),
+  /** The first new episode, when several came out at once. */
+  fromEpisode: z.number().int().nullable(),
+  createdAt: z.string(),
+  read: z.boolean(),
+});
+export type AppNotification = z.infer<typeof notificationSchema>;
+
+export const notificationsReadInputSchema = z.object({
+  /** These; or every one of this title; or, with neither, all. */
+  ids: z.array(z.string()).max(200).optional(),
+  animeId: z.number().int().positive().optional(),
+});

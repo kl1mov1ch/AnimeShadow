@@ -1,4 +1,5 @@
 import type { LibraryEntry, LibraryStatus } from "@animeshadow/shared";
+import { NewEpisodesBlock } from "@/components/library/new-episodes";
 import type { AnimeType } from "@animeshadow/shared";
 import {
   LayoutGridIcon,
@@ -309,6 +310,7 @@ export function Component() {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start xl:gap-6">
+      <NewEpisodesBlock />
       {/* ------------------------------------------------------------ */}
       {/* The side panel: what is in the list, and every way to cut it. */}
       {/* ------------------------------------------------------------ */}

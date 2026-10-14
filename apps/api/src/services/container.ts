@@ -1,4 +1,5 @@
 import { AllohaClient } from "@animeshadow/alloha";
+import { NotificationService } from "./notification.service.js";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
@@ -97,6 +98,7 @@ export interface Services {
   adminPrisma: PrismaClient;
   landing: LandingService;
   kodikSync: KodikCatalogSync;
+  notifications: NotificationService;
   anilibriaSync: AnilibriaCatalogSync;
   seo: SeoRenderer;
 }
@@ -246,6 +248,7 @@ export function createServices(deps: ContainerDeps): Services {
   setGaugeSource(() => admin.gaugeSnapshot());
 
   const landing = new LandingService({ prisma: deps.prisma });
+  const notifications = new NotificationService(deps.prisma, deps.logger);
   return {
     catalog,
     auth,
@@ -272,7 +275,8 @@ export function createServices(deps: ContainerDeps): Services {
     adminAnalytics: new AdminAnalyticsService({ prisma: adminPrisma }),
     adminPrisma,
     landing,
-    kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
+    notifications,
+    kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing }),
   };

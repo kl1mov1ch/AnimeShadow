@@ -1,4 +1,5 @@
 import { genreHref } from "@/lib/format";
+import { useMarkNotificationsRead, useUnreadNotifications } from "@/lib/notifications";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -102,6 +103,14 @@ function AnimeDetailView({ param }: { param: string }) {
     const at = Number(query.get("t"));
     return Number.isInteger(ep) && ep > 0 ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 } : null;
   }, [query]);
+  // Opening a title reads its "new episode" lines.
+  const markRead = useMarkNotificationsRead();
+  const { data: unreadCount = 0 } = useUnreadNotifications();
+  useEffect(() => {
+    if (data?.id && unreadCount > 0) markRead.mutate({ animeId: data.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id, unreadCount > 0]);
+
   // The cast sits below the fold, but its first row should be there the
   // moment it is scrolled to: the list and its first twelve faces are
   // fetched while the browser is idle, right after the page itself.

@@ -1,4 +1,5 @@
 import { type AnimeRow, Prisma, type PrismaClient, toAnimeRow } from "@animeshadow/db";
+import type { NotificationService } from "./notification.service.js";
 import { type KodikClient, type KodikGroup, toAnimeDetail } from "@animeshadow/kodik";
 import type { FastifyBaseLogger } from "fastify";
 
@@ -6,6 +7,13 @@ export interface KodikSyncDeps {
   prisma: PrismaClient;
   kodik: KodikClient;
   logger: FastifyBaseLogger;
+  /** Told each title's newest episode on every pass (new-episode notifications). */
+  notifications?: NotificationService;
+}
+
+/** The newest episode in a group: the highest any of its dubs has. */
+function latestEpisode(g: KodikGroup): number {
+  return Math.max(0, ...g.translations.map((t) => Number(t.last_episode ?? t.episodes_count ?? 0) || 0));
 }
 
 /** Kodik answers at most 100 rows a page. */
@@ -47,6 +55,36 @@ export class KodikCatalogSync {
   private readonly prisma: PrismaClient;
   private readonly kodik: KodikClient;
   private readonly log: FastifyBaseLogger;
+  private readonly notifications?: NotificationService;
+  private checking = false;
+
+  /**
+   * The quick check for new episodes: the 200 most recently updated rows
+   * on Kodik — two requests — every twenty minutes, nothing stored but
+   * the episode marks (see NotificationService).
+   */
+  async checkNewEpisodes(): Promise<void> {
+    if (!this.notifications || this.checking) return;
+    this.checking = true;
+    try {
+      let cursor: string | undefined;
+      const latest = new Map<number, number>();
+      for (let page = 0; page < 2; page++) {
+        const { groups, nextCursor } = await this.kodik.list(
+          { types: "anime-serial", sort: "updated_at", order: "desc", limit: PAGE, has_field: "shikimori_id" },
+          cursor,
+        );
+        for (const g of groups) if (!this.isHentai(g)) latest.set(g.shikimoriId, Math.max(latest.get(g.shikimoriId) ?? 0, latestEpisode(g)));
+        if (!nextCursor) break;
+        cursor = nextCursor;
+      }
+      await this.notifications.observe(latest);
+    } catch (error) {
+      this.log.warn({ err: error }, "new episode check failed");
+    } finally {
+      this.checking = false;
+    }
+  }
   private running = false;
   private genreIds: Map<string, number> | null = null;
 
@@ -54,6 +92,7 @@ export class KodikCatalogSync {
     this.prisma = deps.prisma;
     this.kodik = deps.kodik;
     this.log = deps.logger;
+    this.notifications = deps.notifications;
   }
 
   /** A full pass when there has never been one (or it's a week old), else a recent one. */
@@ -106,6 +145,11 @@ export class KodikCatalogSync {
     const wanted = groups.filter((g) => !this.isHentai(g));
     const skipped = groups.length - wanted.length;
     if (wanted.length === 0) return { created: 0, filled: 0, skipped };
+    if (this.notifications) {
+      await this.notifications
+        .observe(new Map(wanted.map((g) => [g.shikimoriId, latestEpisode(g)])))
+        .catch((error) => this.log.warn({ err: error }, "episode marks failed"));
+    }
     const ids = wanted.map((g) => g.shikimoriId);
     const existing = await this.prisma.anime.findMany({
       where: { id: { in: ids } },

@@ -1,4 +1,5 @@
 import compress from "@fastify/compress";
+import { notificationRoutes } from "./routes/notifications.js";
 import { logDigest } from "./lib/log-digest-instance.js";
 import { referralRoutes } from "./routes/referrals.js";
 import cors from "@fastify/cors";
@@ -212,6 +213,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(heroRoutes);
       await api.register(promoRoutes);
       await api.register(referralRoutes);
+      await api.register(notificationRoutes);
     },
     { prefix: "/api" },
   );

@@ -124,6 +124,7 @@ model User {
   reviews       Review[]
   progress      WatchProgress[]
   moments       FavoriteMoment[]
+  notifications Notification[]
   comments      Comment[]
   commentVotes  CommentVote[]
   sessions      WatchSession[]
@@ -937,4 +938,30 @@ model FavoriteMoment {
   createdAt DateTime @default(now())
 
   @@index([userId, position])
+}
+
+/// The newest episode a title is known to have — what a new one is
+/// measured against. Written by the Kodik checks (see NotificationService).
+model EpisodeMark {
+  animeId   Int      @id
+  latest    Int
+  updatedAt DateTime @updatedAt
+}
+
+/// Something to tell an account: for now, new episodes of a title in its list.
+model Notification {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  kind      String    @default("episode")
+  animeId   Int
+  /// The newest episode out; `fromEpisode` the first new one when several came at once.
+  episode   Int
+  fromEpisode Int?
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  @@unique([userId, animeId, episode])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }

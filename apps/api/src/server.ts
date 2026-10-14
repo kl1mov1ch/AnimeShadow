@@ -95,6 +95,10 @@ try {
   if (env.KODIK_CATALOG_SYNC) {
     setTimeout(() => void app.services.kodikSync.runScheduled(), 120_000).unref();
     setInterval(() => void app.services.kodikSync.runScheduled(), 6 * 60 * 60_000).unref();
+    // New episodes, every twenty minutes: two requests to Kodik.
+    setTimeout(() => void inBackground(() => app.services.kodikSync.checkNewEpisodes()), 90_000).unref();
+    setInterval(() => void inBackground(() => app.services.kodikSync.checkNewEpisodes()), 20 * 60_000).unref();
+    setInterval(() => void app.services.notifications.prune().catch(() => 0), 24 * 60 * 60_000).unref();
   }
   // AniLibria's catalogue, matched to ours: three minutes after start, then
   // checked every six hours (a full read runs at most once a day).
