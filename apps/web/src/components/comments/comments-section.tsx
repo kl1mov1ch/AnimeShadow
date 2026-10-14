@@ -21,6 +21,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   type ProfileModalTarget,
   UserProfileModal,
+  useProfilePrefetch,
 } from "@/components/user-profile-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -353,13 +354,22 @@ function CommentItem({
   /** The top-level comment a reply belongs to: replying to a reply joins that thread. */
   threadId?: string;
   /** Undefined for a deleted/anon author — there's no one to open a profile for. */
-  onOpenProfile: (author: { id: string; username: string | null }) => void;
+  onOpenProfile: (author: ProfileModalTarget) => void;
 }) {
   const t = useT();
   const { locale } = useLocale();
   const { user, status } = useAuth();
   const navigate = useNavigate();
   const vote = useVoteComment(animeId);
+  const prefetch = useProfilePrefetch();
+  const authorTarget: ProfileModalTarget | null =
+    comment.author.kind === "user" && comment.author.id
+      ? {
+          id: comment.author.id,
+          username: comment.author.username,
+          preview: { displayName: comment.author.displayName, avatarUrl: comment.author.avatarUrl },
+        }
+      : null;
   const edit = useEditComment(animeId);
   const del = useDeleteComment(animeId);
 
@@ -402,7 +412,8 @@ function CommentItem({
       {comment.author.kind === "user" && comment.author.id ? (
         <button
           type="button"
-          onClick={() => onOpenProfile({ id: comment.author.id!, username: comment.author.username })}
+          {...prefetch(authorTarget!)}
+          onClick={() => onOpenProfile(authorTarget!)}
           aria-label={t("comments.viewProfile")}
           className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -432,7 +443,8 @@ function CommentItem({
           {comment.author.kind === "user" && comment.author.id ? (
             <button
               type="button"
-              onClick={() => onOpenProfile({ id: comment.author.id!, username: comment.author.username })}
+              {...prefetch(authorTarget!)}
+          onClick={() => onOpenProfile(authorTarget!)}
               className="font-medium hover:text-primary"
             >
               {comment.author.displayName}
