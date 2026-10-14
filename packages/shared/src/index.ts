@@ -23,6 +23,7 @@ export * from "./quests.js";
 export * from "./reports.js";
 export * from "./promo.js";
 export * from "./referral.js";
+export * from "./schedule.js";
 
 const DIACRITICS = /[̀-ͯ]/g;
 const NON_SLUG = /[^a-z0-9]+/g;

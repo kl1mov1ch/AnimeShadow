@@ -17,6 +17,13 @@ export interface AniListClientOptions {
   minIntervalMs?: number;
 }
 
+/** One episode's broadcast: which title (by MyAnimeList id), which episode, when (unix seconds). */
+export interface AniListAiring {
+  malId: number;
+  episode: number;
+  airingAt: number;
+}
+
 /** One cover/banner set, already stripped of AniList's placeholder art. */
 export interface AniListArtwork {
   /**
@@ -150,6 +157,40 @@ export class AniListClient {
       { search: title },
     );
     return bySearch?.Media ? toMedia(bySearch.Media) : null;
+  }
+
+  /**
+   * Every episode airing between two moments (unix seconds), soonest first:
+   * the episode number, when (Japanese broadcast) and the title's MyAnimeList
+   * id. Paged by AniList fifty at a time; a week of a busy season is 4–6 pages.
+   */
+  async getAiringSchedule(from: number, to: number, maxPages = 10): Promise<AniListAiring[]> {
+    const out: AniListAiring[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      type SchedulePage = {
+        Page?: {
+          pageInfo?: { hasNextPage?: boolean };
+          airingSchedules?: Array<{ airingAt: number; episode: number; media?: { idMal?: number | null; isAdult?: boolean } | null }>;
+        };
+      };
+      // A page that timed out is asked again (twice) before the week is
+      // given up on — half a week would read as "nothing airs".
+      let result: SchedulePage | null = null;
+      for (let attempt = 0; attempt < 3 && !result?.Page; attempt++) {
+        result = await this.query<SchedulePage>(
+          `query($page:Int,$from:Int,$to:Int){ Page(page:$page,perPage:50){ pageInfo{ hasNextPage }
+            airingSchedules(airingAt_greater:$from, airingAt_lesser:$to, sort:TIME){ airingAt episode media{ idMal isAdult } } } }`,
+          { page, from, to },
+        );
+      }
+      if (!result?.Page) throw new Error(`AniList schedule page ${page} failed`);
+      const rows = result?.Page?.airingSchedules ?? [];
+      for (const row of rows) {
+        if (row.media?.idMal && !row.media.isAdult) out.push({ malId: row.media.idMal, episode: row.episode, airingAt: row.airingAt });
+      }
+      if (!result?.Page?.pageInfo?.hasNextPage) break;
+    }
+    return out;
   }
 
   /** One title by AniList's own id — what trace.moe hands back. */

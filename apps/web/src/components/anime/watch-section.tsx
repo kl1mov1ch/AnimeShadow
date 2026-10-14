@@ -48,6 +48,8 @@ import { attachEngine, type EngineHandle, type EngineStatus, loadHls, warmHls } 
 import { FramePreview } from "@/components/player/frame-preview";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
+import { fitSegments, SEGMENT_LABEL, segmentAt, type SkipSegment } from "@/lib/skip-times";
+import type { SkipSegmentRaw } from "@animeshadow/shared";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -907,6 +909,8 @@ function CustomHlsPlayer({
   resumeFrom = 0,
   onEnded,
   opening = null,
+  segments = [],
+  autoSkip = { op: false, ed: false },
   onTime,
 }: {
   src: string;
@@ -931,6 +935,10 @@ function CustomHlsPlayer({
   onEnded?: () => void;
   /** Where this episode's opening sits, when the provider marked it. */
   opening?: { start: number; stop: number } | null;
+  /** AniSkip's marks for this episode (all lengths); fitted to this copy here. */
+  segments?: SkipSegmentRaw[];
+  /** The viewer's "skip the opening / ending" switches. */
+  autoSkip?: { op: boolean; ed: boolean };
   /** Where playback is, and how long the episode runs. */
   onTime?: (time: number, duration: number) => void;
 }) {
@@ -1570,6 +1578,25 @@ function CustomHlsPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWinner]);
 
+  // Exact marks only, once each per episode: an opening is jumped over, an
+  // ending at the very end counts as the episode's end (autoplay goes on).
+  const skippedRef = useRef<{ src: string; done: Set<string> }>({ src, done: new Set() });
+  if (skippedRef.current.src !== src) skippedRef.current = { src, done: new Set() };
+  useEffect(() => {
+    if (!isWinner || !playing || duration <= 0) return;
+    const seg = segmentAt(fitSegments(segments, duration, opening), currentTime);
+    if (!seg || !seg.exact) return;
+    const key = `${seg.kind}:${seg.start}`;
+    if (skippedRef.current.done.has(key)) return;
+    if ((seg.kind === "op" && !autoSkip.op) || (seg.kind === "ed" && !autoSkip.ed) || seg.kind === "recap") return;
+    skippedRef.current.done.add(key);
+    const video = videoRef.current;
+    if (!video) return;
+    if (seg.kind === "ed" && seg.stop >= duration - 5) onEndedRef.current?.();
+    else video.currentTime = seg.stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, isWinner, playing, duration]);
+
   const shownTime = scrubTime ?? currentTime;
   const canPip =
     typeof document !== "undefined" &&
@@ -1585,6 +1612,8 @@ function CustomHlsPlayer({
           : t("watch.ctl.qualityAuto")
       : null;
   const centerVisible = controlsVisible || !playing;
+  const fitted = useMemo(() => fitSegments(segments, duration, opening), [segments, duration, opening]);
+  const activeSegment = segmentAt(fitted, currentTime);
   const bandwidth = engineRef.current?.bandwidth() ?? 0;
   const loadingLine = [
     "Загрузка",
@@ -1741,25 +1770,34 @@ function CustomHlsPlayer({
             />
           </div>
 
-          {/* Offered only while the opening is actually on screen, and only
-              where the provider marked it — a guessed skip that lands in the
-              middle of a scene is worse than no button. */}
-          {opening != null &&
-            currentTime >= opening.start &&
-            currentTime < opening.stop - 1 && (
-              <button
-                type="button"
-                onClick={() => {
-                  const video = videoRef.current;
-                  if (video) video.currentTime = opening.stop;
-                  wake();
-                }}
-                className="absolute bottom-16 right-2 z-20 flex animate-in items-center gap-1.5 rounded-lg border border-white/25 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary/80 active:scale-95 @lg/player:bottom-20 @lg/player:right-4"
+          {/* "Пропустить …" while a marked part is on screen: the opening,
+              the ending or a recap. */}
+          {activeSegment && (
+            <button
+              key={`${activeSegment.kind}-${activeSegment.start}`}
+              type="button"
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                if (activeSegment.kind === "ed" && activeSegment.stop >= duration - 5) onEndedRef.current?.();
+                else video.currentTime = activeSegment.stop;
+                wake();
+              }}
+              className="absolute bottom-16 right-2 z-20 flex animate-in items-center gap-2 rounded-xl border border-white/25 bg-black/75 px-3.5 py-2 text-sm font-semibold text-white shadow-xl backdrop-blur-sm transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary active:scale-95 @lg/player:bottom-20 @lg/player:right-4"
+            >
+              <SkipForwardIcon className="size-4" />
+              Пропустить {SEGMENT_LABEL[activeSegment.kind]}
+              <span
+                aria-hidden
+                className="h-1 w-8 overflow-hidden rounded-full bg-white/25"
               >
-                <SkipForwardIcon className="size-3.5" />
-                {t("watch.skipOpening")}
-              </button>
-            )}
+                <span
+                  className="block h-full bg-white"
+                  style={{ width: `${Math.min(100, ((currentTime - activeSegment.start) / Math.max(1, activeSegment.stop - activeSegment.start)) * 100)}%` }}
+                />
+              </span>
+            </button>
+          )}
 
           <div
             onPointerDown={wake}
@@ -1785,7 +1823,7 @@ function CustomHlsPlayer({
               duration={duration}
               current={currentTime}
               buffered={buffered}
-              opening={opening}
+              segments={fitted}
               preview={preview}
               fill={tone.fill}
               label={t("watch.ctl.seek")}
@@ -2130,17 +2168,22 @@ function Player({
   const wantTimes = winnerIsKodik && (prefs.skipOpening || prefs.skipEnding);
   const { data: skipTimes } = useQuery({
     queryKey: ["skip-times", animeId, episode],
-    enabled: wantTimes,
     staleTime: Infinity,
     retry: false,
     queryFn: ({ signal }) =>
-      apiRequest<{ opening: { start: number; stop: number } | null; ending: { start: number; stop: number } | null }>(
+      apiRequest<{
+        opening: { start: number; stop: number } | null;
+        ending: { start: number; stop: number } | null;
+        segments?: SkipSegmentRaw[];
+      }>(
         `/anime/${animeId}/skip-times`,
         { signal, query: { episode } },
       ),
   });
-  const opening = known ?? skipTimes?.opening ?? null;
-  const ending = skipTimes?.ending ?? null;
+  // Fitted to the length Kodik reports; only exact marks are skipped by themselves.
+  const kodikSegments = (): SkipSegment[] => fitSegments(skipTimes?.segments, lastDuration.current, known);
+  const opening = kodikSegments().find((x) => x.kind === "op") ?? null;
+  const ending = kodikSegments().find((x) => x.kind === "ed") ?? null;
 
   // Once per episode each: resume, skip the opening, act on the ending.
   const done = useRef({ episode, resumed: false, opening: false, ending: false });
@@ -2266,16 +2309,19 @@ function Player({
         return;
       }
       if (time > 10) d.resumed = true;
-      if (prefs.skipOpening && opening && !d.opening && time >= opening.start && time < opening.stop - 2) {
+      const segs = kodikSegments();
+      const op = segs.find((x) => x.kind === "op" && x.exact);
+      const ed = segs.find((x) => x.kind === "ed" && x.exact);
+      if (prefs.skipOpening && op && !d.opening && time >= op.start && time < op.stop - 2) {
         d.opening = true;
-        kodik.seek(opening.stop);
+        kodik.seek(op.stop);
         setNotice(t("watch.skippedOpening"));
         return;
       }
-      if (prefs.skipEnding && ending && !d.ending && time >= ending.start && time < ending.stop - 2) {
+      if (prefs.skipEnding && ed && !d.ending && time >= ed.start && time < ed.stop - 2) {
         d.ending = true;
         if (autoNext && nextEpisode != null) setCountdown(5);
-        else kodik.seek(ending.stop);
+        else kodik.seek(ed.stop);
       }
     },
     onEnded: () => {
@@ -2467,6 +2513,8 @@ function Player({
                   if (length > 0) lastDuration.current = length;
                 }}
                 opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
+                segments={skipTimes?.segments}
+                autoSkip={{ op: prefs.skipOpening, ed: prefs.skipEnding }}
               />
             );
           }

@@ -1,4 +1,5 @@
 import { AllohaClient } from "@animeshadow/alloha";
+import { ScheduleService } from "./schedule.service.js";
 import { DeliveryService } from "./delivery.service.js";
 import { NotificationService } from "./notification.service.js";
 import { isBackground } from "../lib/priority.js";
@@ -103,6 +104,7 @@ export interface Services {
   kodikSync: KodikCatalogSync;
   notifications: NotificationService;
   delivery: DeliveryService;
+  schedule: ScheduleService;
   anilibriaSync: AnilibriaCatalogSync;
   seo: SeoRenderer;
 }
@@ -289,6 +291,7 @@ export function createServices(deps: ContainerDeps): Services {
     landing,
     notifications,
     delivery,
+    schedule: new ScheduleService(deps.prisma, anilist, deps.logger),
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing }),

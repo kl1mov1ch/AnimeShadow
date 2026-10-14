@@ -57,6 +57,7 @@ export const router = createBrowserRouter([
           { path: "recommendations", lazy: () => import("@/routes/recommendations") },
           { path: "frame-search", lazy: () => import("@/routes/frame-search") },
           { path: "collections", lazy: () => import("@/routes/collections") },
+          { path: "schedule", lazy: () => import("@/routes/schedule") },
           { path: "collections/new", lazy: () => import("@/routes/collection-edit") },
           { path: "collections/stats", lazy: () => import("@/routes/collections-stats") },
           { path: "collections/c/:slug", lazy: () => import("@/routes/curated-collection") },

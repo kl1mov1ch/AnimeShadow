@@ -1,4 +1,5 @@
 import {
+  CalendarClockIcon,
   BookmarkIcon,
   HeartIcon,
   ChevronRightIcon,
@@ -140,6 +141,7 @@ export function SiteHeader() {
     { to: "/", label: t("nav.discover"), end: true, Icon: HouseIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
     { to: "/collections", label: t("nav.collections"), end: false, Icon: LibraryBigIcon },
+    { to: "/schedule", label: "Расписание", end: false, Icon: CalendarClockIcon },
     ...(status === "authenticated"
       ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
       : []),

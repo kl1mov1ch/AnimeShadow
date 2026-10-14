@@ -2,6 +2,13 @@ import { Loader2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { FramePreview } from "./frame-preview";
+import { SEGMENT_LABEL, type SkipSegment } from "@/lib/skip-times";
+
+const SEGMENT_TONE: Record<SkipSegment["kind"], string> = {
+  op: "bg-amber-300/55",
+  ed: "bg-violet-300/55",
+  recap: "bg-sky-300/50",
+};
 
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -22,7 +29,7 @@ export function SeekBar({
   duration,
   current,
   buffered,
-  opening,
+  segments = [],
   preview,
   fill,
   onScrub,
@@ -34,7 +41,8 @@ export function SeekBar({
   current: number;
   /** Loaded ranges, in seconds. */
   buffered: Array<[number, number]>;
-  opening?: { start: number; stop: number } | null;
+  /** The opening, ending and recap, marked on the bar and named in the preview. */
+  segments?: SkipSegment[];
   preview: FramePreview | null;
   /** The watched part's colour (a CSS background). */
   fill: string;
@@ -84,7 +92,7 @@ export function SeekBar({
 
   const shown = dragging && hover ? hover.t : current;
   const pct = duration > 0 ? (shown / duration) * 100 : 0;
-  const inOpening = hover && opening && hover.t >= opening.start && hover.t < opening.stop;
+  const hoverSegment = hover ? segments.find((x) => hover.t >= x.start && hover.t < x.stop) : undefined;
 
   // The tooltip stays inside the bar's width.
   const TIP = 192;
@@ -145,8 +153,10 @@ export function SeekBar({
                   <Loader2Icon className="size-5 animate-spin text-white/80" />
                 </span>
               )}
-              {inOpening && (
-                <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">Опенинг</span>
+              {hoverSegment && (
+                <span className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-white">
+                  {SEGMENT_LABEL[hoverSegment.kind]}
+                </span>
               )}
             </div>
           )}
@@ -182,13 +192,15 @@ export function SeekBar({
             style={{ left: `${(from / Math.max(1, duration)) * 100}%`, width: `${((to - from) / Math.max(1, duration)) * 100}%` }}
           />
         ))}
-        {opening && duration > 0 && (
-          <span
-            title="Опенинг"
-            className="absolute inset-y-0 bg-amber-300/45"
-            style={{ left: `${(opening.start / duration) * 100}%`, width: `${((opening.stop - opening.start) / duration) * 100}%` }}
-          />
-        )}
+        {duration > 0 &&
+          segments.map((seg) => (
+            <span
+              key={`${seg.kind}-${seg.start}`}
+              title={SEGMENT_LABEL[seg.kind]}
+              className={cn("absolute inset-y-0", SEGMENT_TONE[seg.kind])}
+              style={{ left: `${(seg.start / duration) * 100}%`, width: `${((seg.stop - seg.start) / duration) * 100}%` }}
+            />
+          ))}
         {hover && !dragging && (
           <span className="absolute inset-y-0 left-0 rounded-full bg-white/25" style={{ width: `${(hover.t / Math.max(1, duration)) * 100}%` }} />
         )}

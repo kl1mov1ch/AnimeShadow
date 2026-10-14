@@ -105,6 +105,9 @@ try {
   // polling, starting well after a deploy's trial run on the spare port has
   // been stopped — Telegram lets only one copy read.
   setTimeout(() => app.services.delivery.startPolling(), 75_000).unref();
+  // The broadcast schedule, this week and next, ready before anyone asks.
+  setTimeout(() => void inBackground(() => app.services.schedule.warm()), 20_000).unref();
+  setInterval(() => void inBackground(() => app.services.schedule.warm()), 25 * 60_000).unref();
   // AniLibria's catalogue, matched to ours: three minutes after start, then
   // checked every six hours (a full read runs at most once a day).
   if (env.ANILIBRIA_CATALOG_SYNC) {
