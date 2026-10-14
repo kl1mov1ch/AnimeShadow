@@ -29,9 +29,23 @@
          blank page all that time — and the player's provider is warmed on
          the title page, once its sources are known. -->
     <title>AnimeShadow — смотреть аниме онлайн бесплатно</title>
+    <!-- The boot screen: drawn by the HTML alone, before any script or
+         stylesheet arrives — on a slow line the page is never blank or
+         white. React replaces it the moment the app starts. -->
+    <style>
+      html, body { margin: 0; background: #0a0b10; }
+      .boot { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 45%, rgba(255, 77, 109, 0.14), transparent 70%), #0a0b10; }
+      .boot-mark { position: relative; width: 84px; height: 84px; display: grid; place-items: center; }
+      .boot-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.07); border-top-color: #ff4d6d; border-right-color: #e879f9; animation: boot-spin 0.9s linear infinite; }
+      .boot-glyph { font: 700 38px/1 system-ui, "Segoe UI", sans-serif; color: #ff4d6d; animation: boot-pulse 1.6s ease-in-out infinite; text-shadow: 0 0 18px rgba(255, 77, 109, 0.6); }
+      .boot-name { position: absolute; top: calc(50% + 62px); left: 0; right: 0; text-align: center; font: 600 13px/1 system-ui, "Segoe UI", sans-serif; letter-spacing: 0.24em; color: rgba(255, 255, 255, 0.55); text-transform: uppercase; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @keyframes boot-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.88); opacity: 0.7; } }
+      @media (prefers-reduced-motion: reduce) { .boot-ring, .boot-glyph { animation-duration: 3s; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot" role="status" aria-label="Загрузка"><div class="boot-mark"><span class="boot-ring"></span><span class="boot-glyph">影</span></div><div class="boot-name">AnimeShadow</div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

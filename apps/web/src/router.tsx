@@ -8,15 +8,16 @@ function animeLoader({ params }: LoaderFunctionArgs) {
 import { AppShell } from "@/components/layout/app-shell";
 import { RootError } from "@/routes/root-error";
 import { RouteError } from "@/routes/route-error";
-import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 
+/** The same boot screen the HTML draws, until the first page is ready. */
 function RouteFallback() {
   return (
-    <div className="flex min-h-dvh items-center justify-center">
-      <span aria-hidden className="text-4xl text-primary">
-        <SlicedGlyph />
-      </span>
-      <span className="sr-only">Loading</span>
+    <div className="boot" role="status" aria-label="Загрузка">
+      <div className="boot-mark">
+        <span className="boot-ring" />
+        <span className="boot-glyph">影</span>
+      </div>
+      <div className="boot-name">AnimeShadow</div>
     </div>
   );
 }

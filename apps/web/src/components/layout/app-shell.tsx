@@ -1,4 +1,5 @@
 import { GuestNudge } from "@/components/auth/guest-nudge";
+import { NavProgress } from "@/components/layout/nav-progress";
 import { useEffect, useRef } from "react";
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { captureReferral } from "@/lib/referral";
@@ -50,6 +51,7 @@ export function AppShell() {
       <Toaster position="bottom-right" />
       <AchievementWatcher />
       <GuestNudge />
+      <NavProgress />
       <ReferralWatcher />
       {/* Every plain `title` hint on the site, drawn as the site's tooltip. */}
       <GlobalTitleTooltips />
