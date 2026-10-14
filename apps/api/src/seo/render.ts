@@ -57,6 +57,8 @@ interface PageModel {
   image?: string | null;
   /** More pictures for previews (og:image can repeat): a poster after a wide frame. */
   moreImages?: string[];
+  /** Search phrases this page answers (Yandex still reads them). */
+  keywords?: string[];
   /** The main picture's size, when known — lets a preview draw it at once. */
   imageSize?: { width: number; height: number };
   ogType?: "website" | "video.tv_show" | "video.movie" | "article" | "profile";
@@ -187,7 +189,21 @@ export class SeoRenderer {
     const now = seasonOf(new Date());
     const seasons = [0, -1, -2, -3].map((d) => shiftSeason(now, d));
     return {
-      title: `${BRAND} — смотреть аниме онлайн бесплатно в хорошем качестве`,
+      title: `Смотреть аниме онлайн бесплатно в хорошем качестве — ${BRAND}`,
+      keywords: [
+        "смотреть аниме онлайн бесплатно",
+        "аниме онлайн",
+        "аниме смотреть онлайн в хорошем качестве",
+        "аниме с русской озвучкой",
+        "аниме бесплатно без регистрации",
+        "новые серии аниме",
+        "онгоинги",
+        "топ аниме",
+        "аниме сериалы",
+        "аниме фильмы",
+        `аниме ${new Date().getFullYear()}`,
+        "смотреть аниме вместе с друзьями",
+      ],
       description:
         "Смотрите аниме онлайн бесплатно: онгоинги и новые серии каждую неделю, топ аниме, фильмы и сериалы с русской озвучкой и субтитрами. Каталог с удобным поиском и своим списком просмотра.",
       canonical: "/",
@@ -316,6 +332,23 @@ export class SeoRenderer {
     const lead = frames[0] ? wide(frames[0]) : row.bannerImage ?? poster;
     const minutes = /(\d+)/.exec(row.duration ?? "")?.[1];
     const watchUrl = `${SITE}${canonical}#watch`;
+    const epWord = episodes ? plural(episodes, "серия", "серии", "серий") : null;
+    const faq: Array<[string, string]> = [
+      [
+        `Где смотреть «${name}» онлайн бесплатно?`,
+        `«${name}»${yearPart} можно смотреть онлайн бесплатно на ${BRAND}${epWord ? ` — ${epWord}` : ""} в хорошем качестве${dubs.length ? `, с озвучкой ${dubs.slice(0, 4).join(", ")}` : ""}. Без регистрации; с аккаунтом сайт запомнит, где вы остановились.`,
+      ],
+      ...(episodes && row.type !== "MOVIE"
+        ? [[`Сколько серий в аниме «${name}»?`, `${row.airing === "AIRING" ? "Аниме ещё выходит. Запланировано" : "Всего"} ${epWord}${row.duration ? ` по ${row.duration}` : ""}.`] as [string, string]]
+        : []),
+      ...(dubs.length
+        ? [[`В какой озвучке есть «${name}»?`, `На ${BRAND} доступны озвучки: ${dubs.join(", ")}. Переключить озвучку можно прямо в плеере.`] as [string, string]]
+        : []),
+      ...(row.synopsis ? [[`О чём аниме «${name}»?`, clip(row.synopsis, 320)] as [string, string]] : []),
+      ...(similar.length
+        ? [[`Что посмотреть похожее на «${name}»?`, `Похожие аниме: ${similar.slice(0, 6).map((s) => s.titleLocalized ?? s.title).join(", ")}.`] as [string, string]]
+        : []),
+    ];
 
     return {
       title: `${name}${yearPart} — смотреть ${kind} онлайн бесплатно${row.type === "TV" ? (episodes ? `, все ${plural(episodes, "серия", "серии", "серий")}` : ", все серии") : ""} в хорошем качестве | ${BRAND}`,
@@ -324,6 +357,18 @@ export class SeoRenderer {
       image: lead,
       moreImages: poster && lead !== poster ? [poster] : [],
       imageSize: frames[0] ? { width: 1280, height: 720 } : undefined,
+      keywords: [
+        `${name} смотреть онлайн`,
+        `${name} смотреть онлайн бесплатно`,
+        ...(row.type !== "MOVIE" ? [`${name} все серии`] : [`${name} фильм`]),
+        `аниме ${name}`,
+        ...(row.year ? [`${name} ${row.year}`] : []),
+        ...altNames.slice(0, 3).map((a) => `${a} смотреть онлайн`),
+        ...dubs.slice(0, 3).map((d) => `${name} озвучка ${d}`),
+        ...genres.slice(0, 3).map((g) => `аниме ${g.toLowerCase()}`),
+        "смотреть аниме онлайн бесплатно",
+        "аниме с русской озвучкой",
+      ],
       ogType: row.type === "MOVIE" ? "video.movie" : "video.tv_show",
       jsonLd: [
         {
@@ -374,6 +419,11 @@ export class SeoRenderer {
               },
             ]
           : []),
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+        },
         breadcrumbs([
           ["Главная", "/"],
           ["Каталог", "/browse"],
@@ -395,6 +445,8 @@ export class SeoRenderer {
         ${row.background ? `<p>${esc(clip(row.background, 800))}</p>` : ""}
         ${comments.length ? `<h2>Отзывы зрителей</h2>${comments.map((c) => `<blockquote><p>${esc(clip(c.body, 400))}</p><footer>— ${esc(c.user.displayName)}</footer></blockquote>`).join("")}` : ""}
         ${similar.length ? section("Похожие аниме", null, similar) : ""}
+        <h2>Частые вопросы</h2>
+        ${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}
       `),
     };
   }
@@ -407,6 +459,12 @@ export class SeoRenderer {
     return {
       title: page.copy.title,
       description: page.copy.description,
+      keywords: [
+        page.copy.title.split(" | ")[0]!.split(" — ")[0]!.toLowerCase(),
+        `${page.copy.title.split(" | ")[0]!.split(" — ")[0]!.toLowerCase()} смотреть онлайн`,
+        "смотреть аниме онлайн бесплатно",
+        "аниме с русской озвучкой",
+      ],
       canonical: path,
       robots: page.total === 0 ? "noindex" : "index",
       image: page.items[0]?.imageLargeUrl ?? page.items[0]?.imageUrl ?? null,
@@ -639,6 +697,7 @@ export class SeoRenderer {
     const tags = [
       `<title>${esc(page.title)}</title>`,
       page.description ? `<meta name="description" content="${esc(page.description)}" />` : "",
+      page.keywords?.length ? `<meta name="keywords" content="${esc([...new Set(page.keywords)].join(", "))}" />` : "",
       `<meta name="robots" content="${robots}" />`,
       url ? `<link rel="canonical" href="${esc(url)}" />` : "",
       `<meta property="og:site_name" content="${BRAND}" />`,

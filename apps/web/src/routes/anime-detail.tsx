@@ -1,4 +1,5 @@
 import { genreHref } from "@/lib/format";
+import { AnimeFaq } from "@/components/anime/anime-faq";
 import { useMarkNotificationsRead, useUnreadNotifications } from "@/lib/notifications";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
@@ -449,6 +450,10 @@ function AnimeDetailView({ param }: { param: string }) {
         <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
           <CommentsSectionM animeId={data.id} />
         </Panel>
+      </WhenNear>
+
+      <WhenNear minHeight={200}>
+        <AnimeFaq anime={data} title={title} />
       </WhenNear>
     </article>
   );

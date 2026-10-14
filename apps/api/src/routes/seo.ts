@@ -68,6 +68,8 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
       "Disallow: /api/admin",
       "Disallow: /api/auth",
       "Disallow: /api/me",
+      // Watch-together rooms live for an evening: nothing to keep in an index.
+      "Disallow: /party/",
       "",
       // Yandex: the same page with tracking tags is still the same page.
       "User-agent: Yandex",
@@ -86,7 +88,12 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
       "Disallow: /api/admin",
       "Disallow: /api/auth",
       "Disallow: /api/me",
+      // Watch-together rooms live for an evening: nothing to keep in an index.
+      "Disallow: /party/",
       "Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid&fbclid",
+      // A title's page opened on an episode or a second (?ep=3&t=120) is still that page.
+      "Clean-param: ep&t /anime/",
+      "Clean-param: ref",
       "",
       `Sitemap: ${SITE}/sitemap.xml`,
       "",
@@ -160,7 +167,7 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: { id: "asc" },
         skip: (n - 1) * ANIME_PER_SITEMAP,
         take: ANIME_PER_SITEMAP,
-        select: { slug: true, updatedAt: true, members: true, imageLargeUrl: true, imageUrl: true, titleLocalized: true, title: true },
+        select: { slug: true, updatedAt: true, members: true, imageLargeUrl: true, imageUrl: true, titleLocalized: true, title: true, screenshots: true },
       });
       return urlset(
         rows.map((a) => {
@@ -168,6 +175,15 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
           const image = a.imageLargeUrl ?? a.imageUrl;
           return `<url><loc>${SITE}/anime/${esc(a.slug)}</loc><lastmod>${a.updatedAt.toISOString()}</lastmod><priority>${priority}</priority>${
             image ? `<image:image><image:loc>${esc(image)}</image:loc><image:title>${esc(a.titleLocalized ?? a.title)}</image:title></image:image>` : ""
+          }${
+            // Frames of the show (with the site's mark) for image search, three per title.
+            a.screenshots
+              .slice(0, 3)
+              .map(
+                (f, i) =>
+                  `<image:image><image:loc>${esc(`${SITE}/api/img?u=${encodeURIComponent(f)}&w=1280&wm=1&f=jpg`)}</image:loc><image:title>${esc(`${a.titleLocalized ?? a.title} — кадр ${i + 1}`)}</image:title></image:image>`,
+              )
+              .join("")
           }</url>`;
         }),
         true,
