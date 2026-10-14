@@ -1011,8 +1011,11 @@ model Notification {
 /// and its keys. Dropped when the push service says it is gone (404/410).
 model PushSubscription {
   id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
+  /// The account, once known; a guest's subscription has only the browser id
+  /// and is told about new episodes of what that browser watched.
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?
+  visitorId String?
   endpoint  String   @unique
   p256dh    String
   auth      String
@@ -1020,6 +1023,7 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([visitorId])
 }
 
 /// A one-time code behind "Подключить Telegram": t.me/<bot>?start=<code>

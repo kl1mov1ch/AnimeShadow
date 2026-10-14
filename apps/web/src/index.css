@@ -1894,3 +1894,12 @@ body:has([role="dialog"][data-state="open"]) main * {
   .hnav-item:hover > svg, .hnav-active, .hnav-active > span, .search-pill:focus-within, .hdr-dice button:hover svg, .hdr-dice a:hover svg, .hdr-bell:hover svg, .header-line { animation: none; }
 }
 
+/* Push offer: the bell rings now and then; the sample notification slides in. */
+.push-bell svg { animation: push-ring 2.8s ease-in-out infinite; transform-origin: 50% 10%; }
+@keyframes push-ring { 0%, 70%, 100% { transform: rotate(0); } 74% { transform: rotate(16deg); } 78% { transform: rotate(-14deg); } 82% { transform: rotate(10deg); } 86% { transform: rotate(-6deg); } 90% { transform: rotate(0); } }
+.push-preview { animation: push-preview 0.7s 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes push-preview { from { opacity: 0; transform: translateY(-14px) scale(0.96); } to { opacity: 1; transform: none; } }
+/* The corner card sits under the guest invite: the invite moves up while it shows. */
+@media (min-width: 768px) { html[data-push-corner] .guest-nudge { bottom: 6.25rem; transition: bottom 0.4s ease; } }
+@media (prefers-reduced-motion: reduce) { .push-bell svg, .push-preview { animation: none; } }
+

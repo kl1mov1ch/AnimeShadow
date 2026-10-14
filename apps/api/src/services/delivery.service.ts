@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type { PrismaClient } from "@animeshadow/db";
 import type { NotifySettings } from "@animeshadow/shared";
 import type { FastifyBaseLogger } from "fastify";
@@ -12,12 +14,51 @@ export interface EpisodeNews {
   fromEpisode: number | null;
 }
 
+/** A title whose newest episode just grew (see NotificationService.observe). */
+export interface EpisodeGrowth {
+  animeId: number;
+  from: number;
+  to: number;
+}
+
+/**
+ * The VAPID pair push needs: from the environment if set, otherwise made
+ * once and kept in a file next to the API (data/vapid.json) — push works
+ * with nothing to configure, and the same keys survive restarts and
+ * deploys (new keys would orphan every browser already subscribed).
+ */
+function vapidKeys(config: DeliveryConfig, log: FastifyBaseLogger): { publicKey: string; privateKey: string } | null {
+  if (config.vapidPublicKey && config.vapidPrivateKey) return { publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey };
+  const file = resolve(config.dataDir ?? resolve(process.cwd(), "data"), "vapid.json");
+  try {
+    if (existsSync(file)) {
+      const saved = JSON.parse(readFileSync(file, "utf8")) as { publicKey?: string; privateKey?: string };
+      if (saved.publicKey && saved.privateKey) return { publicKey: saved.publicKey, privateKey: saved.privateKey };
+    }
+    const keys = webpush.generateVAPIDKeys();
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(keys, null, 2));
+    try {
+      chmodSync(file, 0o600);
+    } catch {
+      // Windows: no modes — fine.
+    }
+    log.info({ file }, "push: VAPID keys created");
+    return keys;
+  } catch (error) {
+    log.warn({ err: (error as Error).message }, "push: no VAPID keys, push is off");
+    return null;
+  }
+}
+
 export interface DeliveryConfig {
   telegramToken?: string | undefined;
   telegramPolling: boolean;
   vapidPublicKey?: string | undefined;
   vapidPrivateKey?: string | undefined;
   vapidSubject: string;
+  /** Where generated VAPID keys are kept (default: <cwd>/data). */
+  dataDir?: string;
   /** The site's address, for links in messages. */
   appUrl: string;
 }
@@ -45,15 +86,20 @@ export class DeliveryService {
   private botName: string | null = null;
   private polling = false;
   private stopPolling: AbortController | null = null;
+  private readonly vapid: { publicKey: string; privateKey: string } | null;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly log: FastifyBaseLogger,
     private readonly config: DeliveryConfig,
   ) {
-    if (this.pushReady) {
-      webpush.setVapidDetails(config.vapidSubject, config.vapidPublicKey!, config.vapidPrivateKey!);
-    }
+    this.vapid = vapidKeys(config, log);
+    if (this.vapid) webpush.setVapidDetails(config.vapidSubject, this.vapid.publicKey, this.vapid.privateKey);
+  }
+
+  /** For a guest's browser: the key to subscribe with. */
+  get publicKey(): string | null {
+    return this.vapid?.publicKey ?? null;
   }
 
   get telegramReady(): boolean {
@@ -61,7 +107,7 @@ export class DeliveryService {
   }
 
   get pushReady(): boolean {
-    return Boolean(this.config.vapidPublicKey && this.config.vapidPrivateKey);
+    return this.vapid != null;
   }
 
   // ---- settings ------------------------------------------------------------
@@ -84,7 +130,7 @@ export class DeliveryService {
       },
       push: {
         available: this.pushReady,
-        publicKey: this.pushReady ? this.config.vapidPublicKey! : null,
+        publicKey: this.vapid?.publicKey ?? null,
         enabled: user?.notifyPush ?? true,
         devices,
       },
@@ -92,6 +138,8 @@ export class DeliveryService {
   }
 
   async update(userId: string, input: { telegram?: boolean; push?: boolean }): Promise<NotifySettings> {
+    // Push off means gone: the browsers are forgotten (offered again later on the site).
+    if (input.push === false) await this.prisma.pushSubscription.deleteMany({ where: { userId } });
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -120,11 +168,22 @@ export class DeliveryService {
     return this.settings(userId);
   }
 
-  async subscribe(userId: string, sub: { endpoint: string; keys: { p256dh: string; auth: string } }, userAgent?: string) {
+  async subscribe(
+    userId: string,
+    sub: { endpoint: string; keys: { p256dh: string; auth: string }; visitorId?: string | undefined },
+    userAgent?: string,
+  ) {
     await this.prisma.pushSubscription.upsert({
       where: { endpoint: sub.endpoint },
-      create: { userId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, userAgent: userAgent?.slice(0, 300) ?? null },
-      update: { userId, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+      create: {
+        userId,
+        visitorId: sub.visitorId ?? null,
+        endpoint: sub.endpoint,
+        p256dh: sub.keys.p256dh,
+        auth: sub.keys.auth,
+        userAgent: userAgent?.slice(0, 300) ?? null,
+      },
+      update: { userId, p256dh: sub.keys.p256dh, auth: sub.keys.auth, ...(sub.visitorId ? { visitorId: sub.visitorId } : {}) },
     });
     await this.prisma.user.update({ where: { id: userId }, data: { notifyPush: true } });
     return this.settings(userId);
@@ -133,6 +192,67 @@ export class DeliveryService {
   async unsubscribe(userId: string, endpoint: string) {
     await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
     return this.settings(userId);
+  }
+
+  /** A guest agreed: this browser hears about new episodes of what it watched. */
+  async subscribeGuest(visitorId: string, sub: { endpoint: string; keys: { p256dh: string; auth: string } }, userAgent?: string) {
+    const existing = await this.prisma.pushSubscription.findUnique({ where: { endpoint: sub.endpoint }, select: { userId: true } });
+    await this.prisma.pushSubscription.upsert({
+      where: { endpoint: sub.endpoint },
+      create: { visitorId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, userAgent: userAgent?.slice(0, 300) ?? null },
+      // Already an account's: stays the account's.
+      update: { visitorId, p256dh: sub.keys.p256dh, auth: sub.keys.auth, ...(existing?.userId ? {} : { userId: null }) },
+    });
+    return { ok: true };
+  }
+
+  /** Off in this browser: the row goes (whoever's it was — the endpoint itself is the proof). */
+  async forgetEndpoint(endpoint: string): Promise<{ ok: true }> {
+    await this.prisma.pushSubscription.deleteMany({ where: { endpoint } });
+    return { ok: true };
+  }
+
+  /**
+   * Guests subscribed in a browser that watched these titles in the last two
+   * months: a push per title, told the episode that came out.
+   */
+  async deliverGuests(grown: EpisodeGrowth[]): Promise<void> {
+    if (!this.pushReady || grown.length === 0) return;
+    const since = new Date(Date.now() - 60 * 86_400_000);
+    const watched = await this.prisma.guestWatchSession.findMany({
+      where: { animeId: { in: grown.map((g) => g.animeId) }, startedAt: { gte: since } },
+      select: { visitorId: true, animeId: true },
+      distinct: ["visitorId", "animeId"],
+    });
+    if (watched.length === 0) return;
+    const subs = await this.prisma.pushSubscription.findMany({
+      where: { userId: null, visitorId: { in: [...new Set(watched.map((w) => w.visitorId))] } },
+    });
+    if (subs.length === 0) return;
+    const anime = await this.prisma.anime.findMany({
+      where: { id: { in: grown.map((g) => g.animeId) } },
+      select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true },
+    });
+    const titles = new Map(anime.map((a) => [a.id, a]));
+    const growth = new Map(grown.map((g) => [g.animeId, g]));
+    let sent = 0;
+    for (const sub of subs) {
+      const mine = watched.filter((w) => w.visitorId === sub.visitorId).map((w) => w.animeId);
+      for (const animeId of mine.slice(0, 3)) {
+        const a = titles.get(animeId);
+        const g = growth.get(animeId);
+        if (!a || !g) continue;
+        const line = g.from < g.to ? `Вышли серии ${g.from}–${g.to}` : `Вышла ${g.to} серия`;
+        if (await this.sendPush(sub, {
+          title: a.titleLocalized || a.title,
+          body: `${line} — смотреть на AnimeShadow`,
+          url: `${this.config.appUrl}/anime/${a.slug || a.id}?ep=${g.from}#watch`,
+          icon: a.imageUrl ?? undefined,
+          tag: `anime-${a.id}`,
+        })) sent += 1;
+      }
+    }
+    this.log.info({ subscriptions: subs.length, sent }, "new episodes pushed to guests");
   }
 
   /** "Проверить": one message by every channel that is on. */
@@ -235,21 +355,28 @@ export class DeliveryService {
     if (!user?.notifyPush) return 0;
     const subs = await this.prisma.pushSubscription.findMany({ where: { userId } });
     let sent = 0;
-    for (const sub of subs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(payload),
-          { TTL: 24 * 3600, urgency: "normal" },
-        );
-        sent += 1;
-      } catch (error) {
-        const status = (error as { statusCode?: number }).statusCode;
-        if (status === 404 || status === 410) await this.prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => undefined);
-        else this.log.warn({ status, err: (error as Error).message }, "push failed");
-      }
-    }
+    for (const sub of subs) if (await this.sendPush(sub, payload)) sent += 1;
     return sent;
+  }
+
+  private async sendPush(
+    sub: { id: string; endpoint: string; p256dh: string; auth: string },
+    payload: { title: string; body: string; url: string; icon?: string | undefined; tag?: string },
+  ): Promise<boolean> {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        JSON.stringify(payload),
+        { TTL: 24 * 3600, urgency: "normal" },
+      );
+      return true;
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      // Gone at the browser's end (unsubscribed, cleared): forgotten here too.
+      if (status === 404 || status === 410) await this.prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => undefined);
+      else this.log.warn({ status, err: (error as Error).message }, "push failed");
+      return false;
+    }
   }
 
   // ---- the bot -------------------------------------------------------------

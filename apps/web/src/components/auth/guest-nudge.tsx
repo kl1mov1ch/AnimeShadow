@@ -122,8 +122,9 @@ export function GuestNudge() {
     <div
       role="dialog"
       aria-label={copy.title}
+      data-guest-nudge
       className={cn(
-        "fixed z-50 animate-in duration-500 fade-in-0",
+        "guest-nudge fixed z-50 animate-in duration-500 fade-in-0",
         // Phone: a compact card in the middle. Computer: the bottom-left corner.
         "inset-x-0 top-1/2 mx-auto w-[min(22rem,calc(100vw-2rem))] -translate-y-1/2 zoom-in-90",
         "md:inset-x-auto md:bottom-5 md:left-5 md:top-auto md:mx-0 md:translate-y-0",

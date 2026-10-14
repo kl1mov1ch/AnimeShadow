@@ -262,7 +262,12 @@ export function createServices(deps: ContainerDeps): Services {
     vapidSubject: deps.vapid?.subject ?? "mailto:admin@animeshadow.online",
     appUrl: deps.email.appUrl.replace(/\/$/, ""),
   });
-  const notifications = new NotificationService(deps.prisma, deps.logger, (items) => delivery.deliver(items));
+  const notifications = new NotificationService(
+    deps.prisma,
+    deps.logger,
+    (items) => delivery.deliver(items),
+    (grown) => delivery.deliverGuests(grown),
+  );
   return {
     catalog,
     auth,

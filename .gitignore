@@ -46,3 +46,7 @@ apps/web/dist-prev/
 
 # Hourly log digests (apps/api/logs)
 logs/
+
+# push keys made by the API on first start (see delivery.service.ts)
+apps/api/data/
+data/vapid.json

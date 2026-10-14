@@ -123,7 +123,11 @@ export const notifySettingsInputSchema = z.object({
 export const pushSubscriptionInputSchema = z.object({
   endpoint: z.string().url().max(1000),
   keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(8).max(100) }),
+  /** The browser's id, so a guest's subscription becomes the account's on sign-in. */
+  visitorId: z.string().min(8).max(100).optional(),
 });
+
+export const guestPushInputSchema = pushSubscriptionInputSchema.extend({ visitorId: z.string().min(8).max(100) });
 
 export const pushUnsubscribeInputSchema = z.object({ endpoint: z.string().url().max(1000) });
 

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@animeshadow/db";
-import type { EpisodeNews } from "./delivery.service.js";
+import type { EpisodeGrowth, EpisodeNews } from "./delivery.service.js";
 import type { AppNotification } from "@animeshadow/shared";
 import type { FastifyBaseLogger } from "fastify";
 
@@ -20,6 +20,8 @@ export class NotificationService {
     private readonly log: FastifyBaseLogger,
     /** Told of every batch written — Telegram and push go out from there. */
     private readonly onCreated?: (items: EpisodeNews[]) => Promise<void>,
+    /** Told of every title that grew — guests' browsers are pushed from there. */
+    private readonly onGrown?: (grown: EpisodeGrowth[]) => Promise<void>,
   ) {}
 
   /** Each title's newest episode, as a source reports it. Returns how many notifications went out. */
@@ -56,6 +58,9 @@ export class NotificationService {
     });
     if (data.length > 0) await this.prisma.notification.createMany({ data, skipDuplicates: true });
     this.log.info({ titles: grown.length, sent: data.length }, "new episode notifications");
+    if (this.onGrown) {
+      void this.onGrown(grown).catch((error: unknown) => this.log.warn({ err: (error as Error).message }, "guest push failed"));
+    }
     if (data.length > 0 && this.onCreated) {
       void this.onCreated(data).catch((error: unknown) => this.log.warn({ err: (error as Error).message }, "delivery failed"));
     }

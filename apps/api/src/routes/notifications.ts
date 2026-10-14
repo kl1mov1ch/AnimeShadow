@@ -3,6 +3,7 @@ import {
   notifySettingsInputSchema,
   pushSubscriptionInputSchema,
   pushUnsubscribeInputSchema,
+  guestPushInputSchema,
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { parse } from "../lib/validation.js";
@@ -39,6 +40,21 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/me/push/subscribe", { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) =>
     delivery.subscribe(request.userId!, parse(pushSubscriptionInputSchema, request.body), request.headers["user-agent"]),
+  );
+
+  // Guests: the key, subscribing by browser id, and "off" by the endpoint itself.
+  fastify.get("/push/key", async (_request, reply) => {
+    reply.header("cache-control", "public, max-age=3600");
+    return { publicKey: delivery.publicKey };
+  });
+
+  fastify.post("/push/subscribe", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {
+    const input = parse(guestPushInputSchema, request.body);
+    return delivery.subscribeGuest(input.visitorId, input, request.headers["user-agent"]);
+  });
+
+  fastify.post("/push/unsubscribe", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) =>
+    delivery.forgetEndpoint(parse(pushUnsubscribeInputSchema, request.body).endpoint),
   );
 
   fastify.post("/me/push/unsubscribe", auth, async (request) =>
