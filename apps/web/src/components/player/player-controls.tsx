@@ -81,7 +81,7 @@ export function VolumeControl({
         >
           <span className="absolute inset-x-0 h-1 rounded-full bg-white/20" />
           <span
-            className="absolute left-0 h-1 rounded-full bg-gradient-to-r from-primary via-fuchsia-400 to-sky-300"
+            className="absolute left-0 h-1 rounded-full bg-primary"
             style={{ width: `${level * 100}%` }}
           />
           <span

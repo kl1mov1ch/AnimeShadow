@@ -80,7 +80,7 @@ export function Component() {
           <button
             type="button"
             onClick={create}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-5 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-transform active:scale-95"
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/25 transition-transform active:scale-95"
           >
             <PlusIcon className="size-4" />
             Создать комнату

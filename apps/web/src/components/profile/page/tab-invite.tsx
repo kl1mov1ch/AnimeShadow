@@ -335,7 +335,7 @@ function Ladder({ state, track }: { state: ReferralState; track: "friends" | "ho
                   type="button"
                   disabled={claim.isPending}
                   onClick={() => take(r)}
-                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-gradient-to-r from-primary to-fuchsia-500 px-3 text-xs font-bold text-white shadow-md shadow-primary/30 transition-transform active:scale-95 disabled:opacity-60 sm:w-full sm:justify-center"
+                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-primary px-3 text-xs font-bold text-white shadow-md shadow-primary/30 transition-transform active:scale-95 disabled:opacity-60 sm:w-full sm:justify-center"
                 >
                   <GiftIcon className="size-3.5" />
                   Забрать

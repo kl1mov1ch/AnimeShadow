@@ -3019,7 +3019,7 @@ function Player({
                   type="button"
                   onClick={pinMoment}
                   disabled={addMoment.isPending}
-                  className="moment-btn relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-3.5 text-xs font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:-translate-y-px active:scale-95 disabled:opacity-60"
+                  className="moment-btn relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full bg-primary px-3.5 text-xs font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:-translate-y-px active:scale-95 disabled:opacity-60"
                 >
                   {authed ? <BookmarkPlusIcon className="moment-btn-icon size-4" /> : <LockIcon className="size-3.5" />}
                   <span className="hidden sm:inline">Любимый момент</span>

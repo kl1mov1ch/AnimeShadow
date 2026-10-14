@@ -366,7 +366,7 @@ function ProfileModalBody({
             <Link
               to="/login"
               onClick={onClose}
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 text-sm font-bold text-white shadow-lg shadow-primary/25"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-primary text-sm font-bold text-white shadow-lg shadow-primary/25"
             >
               <UserPlusIcon className="size-4" />
               Подписаться
@@ -380,7 +380,7 @@ function ProfileModalBody({
                 "inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-bold transition-[transform,background-color] active:scale-95 disabled:opacity-60",
                 social?.isFollowing
                   ? "border border-border/70 bg-background/40 text-foreground hover:border-rose-400/50 hover:text-rose-400"
-                  : "bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 text-white shadow-lg shadow-primary/25",
+                  : "bg-primary text-primary-foreground shadow-md shadow-primary/20",
               )}
             >
               {social?.isFollowing ? <UserCheckIcon className="size-4" /> : <UserPlusIcon className="size-4" />}

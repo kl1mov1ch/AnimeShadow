@@ -51,7 +51,7 @@ export function NickTagEditor({ profile }: { profile: MyProfile }) {
         <div className="flex flex-wrap gap-2">
           <Link
             to="/profile?tab=invite"
-            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-fuchsia-500 px-3 text-xs font-bold text-white"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground"
           >
             <UserPlusIcon className="size-3.5" />
             Пригласить друзей

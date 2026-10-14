@@ -157,7 +157,7 @@ export function PartyChat({
                   <span
                     className={cn(
                       "whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-sm [overflow-wrap:anywhere]",
-                      mine ? "rounded-br-md bg-gradient-to-br from-primary to-fuchsia-500 text-white" : "rounded-bl-md bg-foreground/[0.08]",
+                      mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-foreground/[0.08]",
                     )}
                   >
                     {m.text}
