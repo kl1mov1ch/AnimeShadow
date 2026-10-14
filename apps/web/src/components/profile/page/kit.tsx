@@ -101,7 +101,7 @@ export function Pills<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={cn("-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
       {options.map((o) => {
         const on = o.value === value;
         return (

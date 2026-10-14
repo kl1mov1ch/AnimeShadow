@@ -121,7 +121,7 @@ export function ProfileView({
       { id: "activity", label: "Активность" },
       { id: "collections", label: "Подборки", count: collections?.items.length ?? "" },
       // Only on one's own profile: inviting friends and its rewards.
-      ...(own ? [{ id: "invite" as const, label: "Приглашения" }] : []),
+      ...(own ? [{ id: "invite" as const, label: "Пригласить" }] : []),
     ],
     [profile.hidden.list, list?.length, earned, profile.achievements.length, collections?.items.length, social, own],
   );

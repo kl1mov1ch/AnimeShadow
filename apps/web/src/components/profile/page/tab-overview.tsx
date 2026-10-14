@@ -182,11 +182,11 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
         </div>
       )}
       {(favorites.length > 0 || own) && (
-        <ol className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-4 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+        <ol className="grid grid-cols-5 gap-1.5 sm:gap-4">
           {favorites.map((anime, i) => (
             <li
               key={anime.id}
-              className="w-[30%] shrink-0 snap-start animate-in fade-in-0 slide-in-from-bottom-2 sm:w-auto"
+              className="min-w-0 animate-in fade-in-0 slide-in-from-bottom-2"
               style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
             >
               <Link to={animeHref(anime)} viewTransition className="group block">
@@ -201,13 +201,13 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
                   )}
                   <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
                   {anime.score != null && (
-                    <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+                    <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-[9.5px] font-semibold tabular-nums text-white sm:right-1.5 sm:top-1.5 sm:px-1.5 sm:text-[11px]">
                       <StarIcon className="size-3 fill-amber-400 text-amber-400" />
                       {anime.score.toFixed(1)}
                     </span>
                   )}
                 </span>
-                <span className="mt-2 line-clamp-2 block text-xs font-medium leading-snug transition-colors group-hover:text-primary">
+                <span className="mt-1.5 line-clamp-2 block text-[10.5px] font-medium leading-snug transition-colors group-hover:text-primary sm:mt-2 sm:text-xs">
                   {labels.title(anime)}
                 </span>
               </Link>
@@ -256,9 +256,9 @@ function WatchingNow({ profile, own }: { profile: PublicProfile; own: boolean })
 
   return (
     <Panel title={own ? "Продолжить" : "Сейчас смотрит"} icon={TvIcon}>
-      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 [&::-webkit-scrollbar]:hidden">
+      <div className="grid gap-2 sm:-mx-5 sm:flex sm:snap-x sm:gap-3 sm:overflow-x-auto sm:px-5 sm:pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {isPending
-          ? Array.from({ length: 3 }, (_, i) => <div key={i} className="h-24 w-[16rem] max-w-[78%] shrink-0 animate-pulse rounded-2xl bg-foreground/[0.05]" />)
+          ? Array.from({ length: 3 }, (_, i) => <div key={i} className="h-24 shrink-0 animate-pulse rounded-2xl bg-foreground/[0.05] sm:w-[16rem]" />)
           : items.map((item, i) => {
               const episodes = item.anime.episodes ?? null;
               const done = item.completed ? item.episode : Math.max(0, item.episode - 1);
@@ -268,7 +268,11 @@ function WatchingNow({ profile, own }: { profile: PublicProfile; own: boolean })
                   key={item.anime.id}
                   to={own ? `${animeHref(item.anime)}#watch` : animeHref(item.anime)}
                   viewTransition
-                  className="group relative flex w-[16rem] max-w-[78%] shrink-0 snap-start gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-background/40 p-2.5 transition-[border-color,transform] duration-300 animate-in fade-in-0 hover:-translate-y-0.5 hover:border-primary/40"
+                  className={cn(
+                    "group relative flex min-w-0 shrink-0 snap-start gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-background/40 p-2.5 transition-[border-color,transform] duration-300 animate-in fade-in-0 hover:-translate-y-0.5 hover:border-primary/40 sm:w-[16rem]",
+                    i >= 4 && "max-sm:hidden",
+                  )}
+                  
                   style={{ animationDelay: `${i * 50}ms`, animationFillMode: "backwards" }}
                 >
                   <span className="relative h-[4.5rem] w-12 shrink-0 overflow-hidden rounded-xl bg-muted">

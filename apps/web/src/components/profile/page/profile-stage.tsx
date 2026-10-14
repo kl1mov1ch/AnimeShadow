@@ -167,7 +167,7 @@ export function ProfileStage({
           </p>
           {profile.bio && <Bio text={profile.bio} />}
           {pinned.length > 0 && (
-            <div className="-mx-4 mt-1 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+            <div className="mt-1 flex flex-wrap gap-1.5">
               {pinned.map((a) => (
                 <Tooltip key={a.id}>
                   <TooltipTrigger asChild>
@@ -199,7 +199,7 @@ export function ProfileStage({
             profile={profile}
             own={own}
             onNeedUsername={onNeedUsername}
-            className="order-3 h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:order-none sm:gap-2 sm:px-4 lg:flex-none"
+            className="order-3 h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-14 max-sm:flex-col max-sm:gap-1 max-sm:text-[11px]"
           />
           {own ? (
             <button
@@ -218,7 +218,7 @@ export function ProfileStage({
                   type="button"
                   onClick={onWrite}
                   title="Написать на стене"
-                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none"
+                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-14 max-sm:flex-col max-sm:gap-1 max-sm:text-[11px]"
                 >
                   <MessageSquarePlusIcon className="size-4 shrink-0" />
                   <span className="truncate">Написать</span>
@@ -229,7 +229,7 @@ export function ProfileStage({
                   type="button"
                   onClick={onCompare}
                   title="Сравнить вкусы"
-                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none"
+                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-14 max-sm:flex-col max-sm:gap-1 max-sm:text-[11px]"
                 >
                   <GitCompareArrowsIcon className="size-4 shrink-0" />
                   <span className="truncate">Сравнить</span>
@@ -311,27 +311,27 @@ export function PlayerStrip({ profile }: { profile: PublicProfile }) {
       value: <CountUp value={hours > 0 ? hours : minutes} />,
     },
     { label: "досмотрено", value: <CountUp value={s.titlesCompleted} /> },
-    { label: "средняя оценка", value: s.meanScore != null ? <CountUp value={s.meanScore} decimals={1} /> : "—" },
+    { label: "оценка", value: s.meanScore != null ? <CountUp value={s.meanScore} decimals={1} /> : "—" },
   ];
   return (
     <div
       className={cn(
-        "grid gap-3 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:p-4 lg:items-center",
+        "grid grid-cols-[minmax(0,1fr)] gap-3 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:p-4 lg:items-center",
         !profile.hidden.stats && "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
       )}
     >
-      <div className="flex items-center gap-4 px-1 py-1">
+      <div className="flex min-w-0 items-center gap-3 px-0.5 py-1 sm:gap-4 sm:px-1">
         {/* Room around the medallion for its rays and crown. */}
-        <span className="grid shrink-0 place-items-center p-1.5 pt-3 sm:p-2.5 sm:pt-4">
-          <LevelBadge info={level} size={64} />
+        <span className="grid shrink-0 place-items-center p-1 pt-2.5 sm:p-2.5 sm:pt-4">
+          <LevelBadge info={level} size={56} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="mb-2 flex items-baseline gap-2 truncate">
-            <span className="font-display text-lg leading-none sm:text-xl" style={{ color: level.tier.colors[0] }}>
+          <p className="mb-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="shrink-0 font-display text-lg leading-none sm:text-xl" style={{ color: level.tier.colors[0] }}>
               {level.tier.name}
             </span>
             {level.nextTier && (
-              <span className="truncate text-[11px] text-muted-foreground">
+              <span className="min-w-0 truncate text-[11px] text-muted-foreground">
                 → «{level.nextTier.name}» с {level.nextTier.from} ур.
               </span>
             )}
@@ -342,7 +342,7 @@ export function PlayerStrip({ profile }: { profile: PublicProfile }) {
       {!profile.hidden.stats && (
         <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
           {cells.map((c) => (
-            <div key={c.label} className="flex min-w-0 flex-col items-center justify-center rounded-2xl bg-background/40 px-1 py-2.5 text-center sm:py-3">
+            <div key={c.label} className="flex min-w-0 flex-col items-center justify-center rounded-2xl bg-background/40 px-0.5 py-2.5 text-center sm:px-1 sm:py-3">
               <span className="font-display text-lg leading-none tabular-nums sm:text-2xl">{c.value}</span>
               <span className="mt-1 truncate text-[10px] text-muted-foreground sm:text-[11px]">{c.label}</span>
             </div>
@@ -391,11 +391,11 @@ export function ProfileTabs<T extends string>({
     <nav
       aria-label="Разделы профиля"
       className={cn(
-        "sticky z-20 -mx-4 border-b border-[var(--accent-line-soft)] bg-background px-4 transition-[top] duration-300 ease-out sm:mx-0 sm:px-0 md:top-16",
+        "sticky z-20 -mx-4 border-b border-[var(--accent-line-soft)] bg-background px-4 py-1.5 transition-[top] duration-300 ease-out sm:mx-0 sm:px-0 sm:py-0 md:top-14",
         tucked ? "max-md:top-0" : "max-md:top-14",
       )}
     >
-      <div ref={rowRef} role="tablist" className="relative flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={rowRef} role="tablist" className="relative grid grid-cols-4 gap-1 sm:flex sm:overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab) => {
           const on = tab.id === value;
           return (
@@ -407,15 +407,15 @@ export function ProfileTabs<T extends string>({
               data-tab={tab.id}
               onClick={() => onChange(tab.id)}
               className={cn(
-                "inline-flex h-12 shrink-0 items-center gap-1.5 px-3 text-sm font-medium transition-colors duration-200",
-                on ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                "inline-flex h-8 min-w-0 shrink-0 items-center justify-center gap-1 rounded-lg px-1 text-[12px] font-medium transition-colors duration-200 sm:h-12 sm:justify-start sm:gap-1.5 sm:rounded-none sm:px-3 sm:text-sm",
+                on ? "text-foreground max-sm:bg-primary/15 max-sm:text-primary" : "text-muted-foreground hover:text-foreground max-sm:bg-foreground/[0.04]",
               )}
             >
-              {tab.label}
+              <span className="min-w-0 truncate">{tab.label}</span>
               {tab.count != null && tab.count !== "" && (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors",
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors max-sm:hidden",
                     on ? "bg-primary/20 text-primary" : "bg-foreground/[0.07] text-muted-foreground",
                   )}
                 >
@@ -428,7 +428,7 @@ export function ProfileTabs<T extends string>({
         {line && (
           <span
             aria-hidden
-            className="absolute bottom-0 h-0.5 rounded-full bg-primary transition-[left,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            className="absolute bottom-0 hidden h-0.5 rounded-full bg-primary transition-[left,width] sm:block duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{ left: line.left, width: line.width }}
           />
         )}

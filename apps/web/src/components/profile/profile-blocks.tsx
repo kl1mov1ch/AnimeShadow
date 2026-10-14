@@ -676,9 +676,9 @@ function YearBlock({ userId }: { userId: string }) {
           </div>
           {/* Columns share the width, so the year always spans the block
               edge to edge instead of stopping two thirds of the way. */}
-          <div className="overflow-x-auto pb-1 [scrollbar-width:thin]">
+          <div className="pb-1">
             <div
-              className="grid min-w-[30rem] gap-[2px]"
+              className="grid gap-[2px]"
               style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}
             >
               {weeks.map((week, wi) => (

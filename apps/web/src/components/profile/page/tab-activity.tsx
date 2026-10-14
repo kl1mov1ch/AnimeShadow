@@ -102,28 +102,28 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
     >
       <div className="flex flex-col gap-4">
         <div className="min-w-0">
-          <div ref={scroller} className="relative overflow-x-auto pb-1 [scrollbar-width:thin]">
-            <div className="inline-flex flex-col gap-1">
-              <div className="flex gap-[3px] pl-0 text-[10px] text-muted-foreground">
+          <div ref={scroller} className="relative pb-1">
+            <div className="flex flex-col gap-1">
+              <div className="grid gap-[2px] text-[9px] text-muted-foreground sm:gap-[3px] sm:text-[10px]" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
                 {weeks.map((week, i) => {
                   const first = week.find((d) => d.inYear && d.key.endsWith("-01"));
                   return (
-                    <span key={i} className="w-[11px] shrink-0 overflow-visible whitespace-nowrap sm:w-[13px]">
+                    <span key={i} className="overflow-visible whitespace-nowrap">
                       {first ? MONTHS[Number(first.key.slice(5, 7)) - 1] : ""}
                     </span>
                   );
                 })}
               </div>
-              <div className={cn("flex gap-[3px] transition-opacity", isPending && "opacity-40")}>
+              <div className={cn("grid gap-[2px] transition-opacity sm:gap-[3px]", isPending && "opacity-40")} style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
                 {weeks.map((week, i) => (
-                  <div key={i} className="flex flex-col gap-[3px]">
+                  <div key={i} className="flex min-w-0 flex-col gap-[2px] sm:gap-[3px]">
                     {week.map((day) => (
                       <span
                         key={day.key}
                         data-today={day.today || undefined}
                         title={day.inYear ? `${new Date(day.key).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}: ${day.n} ${plural(day.n, "серия", "серии", "серий")}` : undefined}
                         className={cn(
-                          "size-[11px] rounded-[3px] transition-colors sm:size-[13px]",
+                          "aspect-square w-full rounded-[2px] transition-colors sm:rounded-[3px]",
                           !day.inYear ? "bg-transparent" : day.future ? "bg-foreground/[0.025]" : heat(day.n),
                           day.today && "ring-1 ring-primary ring-offset-1 ring-offset-background",
                         )}

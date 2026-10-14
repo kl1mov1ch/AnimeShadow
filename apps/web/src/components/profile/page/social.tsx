@@ -203,7 +203,7 @@ export function SocialLine({
   return (
     <div
       className={cn(
-        "-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:gap-2 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden",
+        "flex flex-wrap items-center gap-1.5 sm:gap-2",
         className,
       )}
     >

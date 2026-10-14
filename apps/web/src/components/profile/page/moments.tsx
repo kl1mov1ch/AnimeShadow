@@ -27,7 +27,7 @@ export function MomentsStrip({ items, own }: { items: FavoriteMoment[]; own: boo
     );
   }
   return (
-    <ol className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-4 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+    <ol className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-4">
       {items.map((m, i) => (
         <MomentCard key={m.id} moment={m} index={i} total={items.length} own={own} />
       ))}
@@ -43,7 +43,7 @@ function MomentCard({ moment, index, total, own }: { moment: FavoriteMoment; ind
   const title = moment.anime.titleLocalized || moment.anime.title;
 
   return (
-    <li className="w-[42%] shrink-0 snap-start sm:w-auto">
+    <li className="min-w-0">
       <Link to={momentHref(moment)} className="group block">
         <span className="relative block aspect-[2/3] overflow-hidden rounded-2xl bg-muted shadow-lg shadow-black/30 ring-1 ring-white/5">
           {moment.anime.imageUrl && <img src={imageSrc(moment.anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
@@ -54,8 +54,8 @@ function MomentCard({ moment, index, total, own }: { moment: FavoriteMoment; ind
               <PlayIcon className="size-5 fill-current" />
             </span>
           </span>
-          <span className="absolute inset-x-2 bottom-2 flex flex-col gap-1">
-            <span className="w-fit rounded-md bg-primary px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums text-primary-foreground">
+          <span className="absolute inset-x-1.5 bottom-1.5 flex min-w-0 flex-col gap-1 sm:inset-x-2 sm:bottom-2">
+            <span className="w-fit max-w-full truncate rounded-md bg-primary px-1 py-0.5 font-mono text-[9.5px] font-bold tabular-nums text-primary-foreground sm:px-1.5 sm:text-[11px]">
               {moment.episode} серия · {clock(moment.seconds)}
             </span>
             {moment.dub && (

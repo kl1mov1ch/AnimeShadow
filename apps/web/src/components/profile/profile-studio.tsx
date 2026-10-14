@@ -121,7 +121,7 @@ export function ProfileStudio({
                 <p className="font-display text-lg">Настройки профиля</p>
               </div>
 
-              <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] sm:mx-0 sm:flex-col sm:overflow-y-auto sm:px-0 [&::-webkit-scrollbar]:hidden">
+              <nav className="grid grid-cols-4 gap-1 sm:flex sm:flex-col sm:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {SECTIONS.map(({ id, icon: Icon, title, hint }) => {
                   const on = tab === id;
                   return (
@@ -131,13 +131,13 @@ export function ProfileStudio({
                       onClick={() => setTab(id)}
                       aria-current={on}
                       className={cn(
-                        "group flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-[background-color,color] duration-200 sm:py-2.5",
+                        "group flex min-w-0 shrink-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-center transition-[background-color,color] duration-200 sm:flex-row sm:gap-2.5 sm:px-3 sm:py-2.5 sm:text-left",
                         on ? "bg-primary text-primary-foreground shadow-md shadow-primary/25" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
                       )}
                     >
                       <Icon className="size-4 shrink-0" />
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium leading-tight">{title}</span>
+                        <span className="block truncate text-[11px] font-medium leading-tight sm:text-sm">{title}</span>
                         <span className={cn("hidden truncate text-[11px] leading-tight sm:block", on ? "text-primary-foreground/75" : "text-muted-foreground/70")}>
                           {hint}
                         </span>

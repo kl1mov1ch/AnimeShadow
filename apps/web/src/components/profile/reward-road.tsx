@@ -42,6 +42,9 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
   const level = info.level;
 
   const passed = nodes.filter((n) => n.level <= level).length;
+  // A phone shows the stops around the account (no sideways road), all on request.
+  const [allStops, setAllStops] = useState(false);
+  const near = (i: number) => allStops || (i >= passed - 2 && i <= passed + 3);
   const next = nodes[passed];
   const prevLevel = passed > 0 ? nodes[passed - 1]!.level : 1;
   // How far between the last stop passed and the next one, by experience.
@@ -122,14 +125,14 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
       <div
         ref={scroller}
         onScroll={sync}
-        className="-mx-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:-mx-5 sm:px-5 [&::-webkit-scrollbar]:hidden"
+        className="pb-1 sm:-mx-5 sm:overflow-x-auto sm:px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <ol className="relative flex" style={{ width: nodes.length * NODE }}>
+        <ol className="relative grid grid-cols-3 gap-x-1 gap-y-4 sm:flex sm:w-[var(--road)] sm:gap-0" style={{ "--road": `${nodes.length * NODE}px` } as React.CSSProperties}>
           {/* The road, and how far along it the account is. */}
-          <span aria-hidden className="absolute top-[30px] h-1.5 rounded-full bg-foreground/10" style={{ left: NODE / 2, width: (nodes.length - 1) * NODE }} />
+          <span aria-hidden className="absolute top-[30px] hidden h-1.5 rounded-full bg-foreground/10 sm:block" style={{ left: NODE / 2, width: (nodes.length - 1) * NODE }} />
           <span
             aria-hidden
-            className="absolute top-[30px] h-1.5 rounded-full transition-[width] duration-1000 ease-out"
+            className="absolute top-[30px] hidden h-1.5 rounded-full transition-[width] duration-1000 ease-out sm:block"
             style={{
               left: NODE / 2,
               width: Math.max(0, Math.min((nodes.length - 1) * NODE, fill - NODE / 2)),
@@ -141,7 +144,11 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
             const reached = node.level <= level;
             const isNext = i === passed;
             return (
-              <li key={node.level} className="relative flex flex-col items-center gap-2 px-1 text-center" style={{ width: NODE }}>
+              <li
+                key={node.level}
+                className={cn("relative flex min-w-0 flex-col items-center gap-2 px-1 text-center sm:w-[var(--node)]", !near(i) && "max-sm:hidden")}
+                style={{ "--node": `${NODE}px` } as React.CSSProperties}
+              >
                 <span
                   className={cn(
                     "relative z-10 grid size-[66px] place-items-center rounded-full border-2 bg-background transition-[border-color,box-shadow]",
@@ -207,9 +214,20 @@ export function RewardRoad({ profile, own }: { profile: PublicProfile; own: bool
         </ol>
       </div>
 
+      {/* A phone: the rest of the stops on request. */}
+      {nodes.length > 6 && (
+        <button
+          type="button"
+          onClick={() => setAllStops((v) => !v)}
+          className="mx-auto rounded-full border border-[var(--accent-line-soft)] px-4 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:hidden"
+        >
+          {allStops ? "Только ближайшие" : `Все награды · ${nodes.length}`}
+        </button>
+      )}
+
       {/* Our own scrollbar: arrows and a track to tap along. */}
       {view.size < 1 && (
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 sm:flex">
           <button
             type="button"
             aria-label="Назад"
