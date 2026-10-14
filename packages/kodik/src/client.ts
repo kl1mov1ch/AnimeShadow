@@ -95,6 +95,38 @@ export class KodikClient {
     return [...groupByShikimori(results).values()];
   }
 
+  /**
+   * The fallback when a title has no Kodik row under its Shikimori id (fresh
+   * releases are often added before anyone fills that id in): search by each
+   * name, keep only rows of the same year (±1) whose own Shikimori id is
+   * empty or the same, and group them as this title.
+   */
+  async findByTitles(shikimoriId: number, titles: string[], year: number | null): Promise<KodikGroup | null> {
+    const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+    const wanted = new Set(titles.map(norm).filter((t) => t.length >= 3));
+    for (const title of titles) {
+      const { results } = await this.post<KodikResponse<KodikResult>>("/search", {
+        title,
+        types: "anime,anime-serial",
+        with_material_data: true,
+        with_episodes_data: true,
+        limit: 50,
+      });
+      const rows = results.filter((r) => {
+        const sid = Number(r.shikimori_id);
+        if (Number.isInteger(sid) && sid > 0 && sid !== shikimoriId) return false;
+        if (year != null && r.year != null && Math.abs(r.year - year) > 1) return false;
+        const names = [r.title, r.title_orig, r.other_title].map(norm);
+        return names.some((n) => n.length >= 3 && (wanted.has(n) || [...wanted].some((w) => n.includes(w) || w.includes(n))));
+      });
+      if (rows.length === 0) continue;
+      let primary = rows[0]!;
+      for (const r of rows) if (score(r) > score(primary)) primary = r;
+      return { shikimoriId, primary, translations: rows };
+    }
+    return null;
+  }
+
   /** A page of the catalogue. Returns groups plus the next-page cursor. */
   async list(
     params: KodikListParams = {},

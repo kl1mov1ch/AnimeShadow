@@ -511,7 +511,7 @@ export class WatchService {
     // starts right away too.
     const existing = await this.prisma.anime.findUnique({
       where: { id: malId },
-      select: { kinopoiskId: true, title: true, titleEnglish: true, titleLocalized: true },
+      select: { kinopoiskId: true, title: true, titleEnglish: true, titleLocalized: true, year: true },
     });
     let kinopoiskId = existing?.kinopoiskId ?? null;
     const eagerAlloha =
@@ -536,7 +536,11 @@ export class WatchService {
     // 1. Kodik
     let kodikFailed = false;
     try {
-      const group = await this.kodik.getByShikimoriId(malId);
+      // By Shikimori id first; a fresh release may not carry it yet on
+      // Kodik's side, so then by name (same year, no other title's id).
+      const group =
+        (await this.kodik.getByShikimoriId(malId)) ??
+        (titles.length > 0 ? await withTimeout(this.kodik.findByTitles(malId, titles, existing?.year ?? null), 6_000, null) : null);
       if (group) {
         const kp = Number(group.primary.kinopoisk_id);
         if (Number.isInteger(kp) && kp > 0) kinopoiskId = kp;
