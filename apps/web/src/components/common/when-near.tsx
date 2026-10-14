@@ -12,7 +12,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 export function WhenNear({
   children,
   minHeight = 280,
-  margin = 800,
+  margin = 1600,
 }: {
   children: ReactNode;
   minHeight?: number;

@@ -156,12 +156,13 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                     className={cn(
                       "relative rounded-full p-0.5 transition-opacity",
                       selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-                      !unlocked && "cursor-not-allowed opacity-45",
+                      // A locked one leaves room for its lock: it never sits on the name.
+                      !unlocked && "cursor-not-allowed pr-3 opacity-45",
                     )}
                   >
                     <ProfileTitleBadge title={title.id} tip={false} />
                     {!unlocked && (
-                      <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-card text-muted-foreground ring-1 ring-border">
+                      <span className="absolute -top-1 right-0 grid size-4 place-items-center rounded-full bg-card text-muted-foreground ring-1 ring-border">
                         <LockIcon className="size-2.5" />
                       </span>
                     )}

@@ -89,7 +89,11 @@ export function ProfileStudio({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(90dvh,48rem)] sm:max-w-5xl sm:rounded-3xl sm:border">
+      <DialogContent
+        // No ring on the first section the moment the window opens.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[min(90dvh,48rem)] sm:max-w-5xl sm:rounded-3xl sm:border"
+      >
         <SettingsSearchProvider>
           <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[17.5rem_minmax(0,1fr)] sm:grid-rows-1">
             {/* The column: the profile as it is now, and the sections. */}

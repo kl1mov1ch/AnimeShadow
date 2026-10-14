@@ -228,7 +228,8 @@ export function WatchSection({
   }
 
   if (isPending && active) {
-    return <PlayerShell frames={[]} loading />;
+    // The title's own pictures while the sources are found — never a black box.
+    return <PlayerShell frames={facadeFrames(anime, catalog, episode)} loading />;
   }
 
   if (data?.available && data.sources.length > 0) {
@@ -313,6 +314,7 @@ function facadeFrames(
     add(info.thumb);
   }
   if (out.length === 0) add(anime.bannerImage);
+  if (out.length === 0) add(anime.imageUrl);
   return out.slice(0, 8);
 }
 
@@ -374,6 +376,12 @@ function PlayerShell({
           aria-label={label}
           className="group relative -mx-4 block aspect-video overflow-hidden border border-x-0 bg-black sm:mx-0 sm:rounded-xl sm:border-x"
         >
+          {/* No picture at all: the site's own backdrop, not an empty black box. */}
+          {usable.length === 0 && (
+            <span aria-hidden className="absolute inset-0 grid place-items-center bg-[radial-gradient(80%_100%_at_30%_20%,color-mix(in_srgb,var(--primary)_28%,transparent),transparent_65%),radial-gradient(60%_80%_at_85%_80%,color-mix(in_srgb,#a855f7_22%,transparent),transparent_70%)]">
+              <span className="font-display text-[9rem] leading-none text-white/[0.06]">影</span>
+            </span>
+          )}
           {usable.map((frame, i) => (
             <img
               key={frame}
