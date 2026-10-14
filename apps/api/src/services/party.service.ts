@@ -135,10 +135,28 @@ export class PartyService {
     };
   }
 
-  playback(code: string, userId: string, input: { episode: number; playing: boolean; position: number }): PartyPlayback {
+  async playback(
+    code: string,
+    userId: string,
+    input: { animeId?: number | undefined; episode: number; playing: boolean; position: number },
+  ): Promise<PartyPlayback> {
     const room = this.member(code, userId);
+    // Another title for the whole room: everyone's page follows.
+    if (input.animeId != null && input.animeId !== room.anime.id) {
+      const anime = await this.prisma.anime.findUnique({
+        where: { id: input.animeId },
+        select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true },
+      });
+      if (!anime) throw new NotFoundError("Аниме не найдено.");
+      room.anime = anime;
+      room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId };
+      this.broadcast(room, { type: "anime", anime });
+      this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
+      this.say(room, `${room.people.get(userId)?.name ?? "Кто-то"} включил(а) «${anime.titleLocalized || anime.title}»`);
+      return room.playback;
+    }
     const before = room.playback;
-    room.playback = { ...input, updatedAt: Date.now(), by: userId };
+    room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId };
     this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
     const who = room.people.get(userId)?.name ?? "Кто-то";
     if (before.episode !== input.episode) this.say(room, `${who} включил(а) ${input.episode} серию`);

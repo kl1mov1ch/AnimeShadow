@@ -7,7 +7,8 @@ import {
   type PartyPlayback,
   type PartySnapshot,
 } from "@animeshadow/shared";
-import { CheckIcon, CopyIcon, CrownIcon, Loader2Icon, LogInIcon, PlayIcon, SendIcon, UsersIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, CrownIcon, Loader2Icon, LogInIcon, PlayIcon, RepeatIcon, SendIcon, UsersIcon } from "lucide-react";
+import { PartyPicker } from "@/components/party-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -84,6 +85,10 @@ function PartyRoom({ code }: { code: string }) {
       case "playback":
         setPlayback(e.playback);
         break;
+      case "anime":
+        setParty((p) => (p ? { ...p, anime: e.anime } : p));
+        setOwnFailed(false);
+        break;
       case "chat":
         setChat((c) => [...c.slice(-150), e.message]);
         break;
@@ -150,6 +155,7 @@ function PartyRoom({ code }: { code: string }) {
   const { data: watch } = useWatchSources(animeId, animeId > 0);
   const episode = playback?.episode ?? 1;
   const [ownFailed, setOwnFailed] = useState(false);
+  const [picking, setPicking] = useState(false);
   const own = !ownFailed ? watch?.sources.find((s) => s.format === "hls" && s.hlsEpisodes?.[String(episode)]) : undefined;
   const kodikSource = watch?.sources.find((s) => s.format !== "hls" && isKodikUrl(s.embedUrl) && (!s.iframeEpisodes || s.iframeEpisodes[String(episode)]));
   const ownUrl = own ? sourceUrlFor(own, episode) : null;
@@ -251,6 +257,15 @@ function PartyRoom({ code }: { code: string }) {
             <Link to={animeHref(party.anime)} className="block truncate font-display text-lg leading-tight hover:text-primary">{title}</Link>
           </div>
           <div className="flex basis-full items-center gap-2 sm:basis-auto">
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            title="Сменить аниме для всей комнаты"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--accent-line-soft)] px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          >
+            <RepeatIcon className="size-3.5" />
+            <span className="hidden sm:inline">Сменить аниме</span>
+          </button>
           <label className="flex flex-1 items-center gap-2 text-sm sm:flex-none">
             <span className="text-muted-foreground">Серия</span>
             <select
@@ -359,6 +374,18 @@ function PartyRoom({ code }: { code: string }) {
       </section>
 
       <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} />
+      <PartyPicker
+        open={picking}
+        onOpenChange={setPicking}
+        title="Сменить аниме"
+        hint="Новое аниме включится у всех в комнате."
+        onPick={async ({ anime, episode }) => {
+          await apiRequest(`/party/${code}/playback`, { method: "POST", body: { animeId: anime.id, episode, playing: false, position: 0 } }).catch(() =>
+            toast.error("Не получилось сменить аниме"),
+          );
+          setPicking(false);
+        }}
+      />
     </div>
   );
 }

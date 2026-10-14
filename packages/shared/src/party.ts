@@ -44,6 +44,7 @@ export type PartyEvent =
   | { type: "hello"; party: PartySnapshot }
   | { type: "members"; members: PartyMember[]; now: number }
   | { type: "playback"; playback: PartyPlayback; now: number }
+  | { type: "anime"; anime: PartySnapshot["anime"] }
   | { type: "chat"; message: PartyChatMessage }
   | { type: "reaction"; emoji: string; by: string; name: string }
   | { type: "ping"; now: number };
@@ -54,6 +55,8 @@ export const createPartyInputSchema = z.object({
 });
 
 export const partyPlaybackInputSchema = z.object({
+  /** Another title for the whole room (anyone may switch it). */
+  animeId: z.number().int().positive().optional(),
   episode: z.number().int().min(1).max(5000),
   playing: z.boolean(),
   position: z.number().min(0).max(36_000),

@@ -1,4 +1,5 @@
 import {
+  UsersIcon,
   CalendarClockIcon,
   BookmarkIcon,
   HeartIcon,
@@ -22,6 +23,7 @@ import {
   WandSparklesIcon,
   XIcon, GiftIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
+import { usePartyStarter } from "@/components/party-picker";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
@@ -126,6 +128,7 @@ export function SiteHeader() {
   ];
 
   const openSearch = () => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
+  const party = usePartyStarter();
 
   return (
     <header
@@ -187,6 +190,11 @@ export function SiteHeader() {
 
         <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5 md:ml-0">
           {/* A guest's phone header has the invite in this spot instead. */}
+          {/* Watching together: pick an anime, get a room. */}
+          <HeaderIcon label="Смотреть вместе" onClick={party.start} className="hidden md:grid">
+            <UsersIcon />
+          </HeaderIcon>
+          {party.picker}
           <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
             <span className="hdr-dice contents">
               <RandomRoll />
@@ -227,7 +235,14 @@ export function SiteHeader() {
                 <MorphIcon on={menuOpen} off={MenuIcon} onIcon={XIcon} className="size-5" />
               </Button>
             </SheetTrigger>
-            <MobileMenu nav={nav} onNavigate={() => setMenuOpen(false)} />
+            <MobileMenu
+              nav={nav}
+              onNavigate={() => setMenuOpen(false)}
+              onParty={() => {
+                setMenuOpen(false);
+                party.start();
+              }}
+            />
           </Sheet>
         </div>
       </div>
@@ -296,7 +311,7 @@ function MobileTelegramRow({ row, onNavigate }: { row: string; onNavigate: () =>
   );
 }
 
-function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => void }) {
+function MobileMenu({ nav, onNavigate, onParty }: { nav: NavItem[]; onNavigate: () => void; onParty: () => void }) {
   const { t } = useI18n();
   const { status, user, logout } = useAuth();
   const navigate = useNavigate();
@@ -428,6 +443,10 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
               {chevron}
             </Link>
           )}
+          <button type="button" onClick={onParty} className={cn(row, "text-left")}>
+            <UsersIcon className="size-4 shrink-0 text-muted-foreground" />
+            Смотреть вместе
+          </button>
           <button type="button" onClick={() => void roll()} className={cn(row, "text-left")}>
             <ShuffleIcon className="size-4 shrink-0 text-muted-foreground" />
             {t("footer.randomAnime")}
