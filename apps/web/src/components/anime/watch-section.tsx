@@ -1,6 +1,7 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
 import { useAddMoment } from "@/lib/moments";
 import {
+  UsersIcon,
   PaletteIcon,
   BookmarkPlusIcon,
   FastForwardIcon,
@@ -39,7 +40,7 @@ import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
 import { persistPlayerSettings, pictureFilter, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PicturePanel, PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
@@ -905,7 +906,7 @@ function masterPlaylist(variants: Record<string, string>, heights: number[]): st
  * gets to look like the rest of the site (rounded pills, the primary accent
  * on the seek bar) instead of whatever the platform's stock controls render.
  */
-function CustomHlsPlayer({
+export function CustomHlsPlayer({
   src,
   variants = null,
   skin,
@@ -919,6 +920,7 @@ function CustomHlsPlayer({
   autoSkip = { op: false, ed: false },
   onNearEnd,
   marks = [],
+  onUserAction,
   onTime,
 }: {
   src: string;
@@ -955,6 +957,12 @@ function CustomHlsPlayer({
   onNearEnd?: () => void;
   /** Comments tied to moments of this episode: marks on the bar, popping up as playback passes them. */
   marks?: CommentMark[];
+  /**
+   * Watching together: what the viewer did (play, pause, a seek), so the
+   * room can follow. Commands from the room (window event "as:player-cmd")
+   * are applied without being reported back.
+   */
+  onUserAction?: (action: { type: "play" | "pause" | "seek"; time: number }) => void;
   /** Where playback is, and how long the episode runs. */
   onTime?: (time: number, duration: number) => void;
 }) {
@@ -1020,7 +1028,11 @@ function CustomHlsPlayer({
   // The browser refused to start with sound (no recent click): playing muted,
   // with a button to bring the sound in.
   const [autoMuted, setAutoMuted] = useState(false);
+  // Until when the player's own play/pause/seek events are the page's doing, not the viewer's.
+  const suppressUntilRef = useRef(0);
   const startPlayback = (video: HTMLVideoElement) => {
+    // Started by the page, not the viewer: not reported to a watch-together room.
+    suppressUntilRef.current = performance.now() + 2000;
     video.muted = false;
     void video.play().catch((error: unknown) => {
       if ((error as { name?: string })?.name !== "NotAllowedError") return;
@@ -1256,6 +1268,43 @@ function CustomHlsPlayer({
     window.addEventListener("as:player-seek", onSeek);
     return () => window.removeEventListener("as:player-seek", onSeek);
   }, [isWinner]);
+
+  // Watching together: commands from the room, and the viewer's own actions reported to it.
+  const onUserActionRef = useRef(onUserAction);
+  onUserActionRef.current = onUserAction;
+  useEffect(() => {
+    if (!isWinner) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const onCmd = (e: Event) => {
+      const d = (e as CustomEvent<{ seconds?: number; play?: boolean }>).detail;
+      const seek = d.seconds != null && Math.abs(video.currentTime - d.seconds) > 0.5;
+      const play = d.play === true && video.paused;
+      const pause = d.play === false && !video.paused;
+      if (!seek && !play && !pause) return;
+      suppressUntilRef.current = performance.now() + 1200;
+      if (seek) video.currentTime = d.seconds!;
+      if (play) startPlayback(video);
+      if (pause) video.pause();
+    };
+    const report = (type: "play" | "pause" | "seek") => () => {
+      if (!onUserActionRef.current || performance.now() < suppressUntilRef.current) return;
+      onUserActionRef.current({ type, time: video.currentTime });
+    };
+    const onPlay = report("play");
+    const onPause = report("pause");
+    const onSeeked = report("seek");
+    window.addEventListener("as:player-cmd", onCmd);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("seeked", onSeeked);
+    return () => {
+      window.removeEventListener("as:player-cmd", onCmd);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("seeked", onSeeked);
+    };
+  }, [isWinner, src]);
 
   // Comments popping up at their moment — at most one at a time, four seconds each; can be turned off.
   const [momentsOn, setMomentsOn] = useState(() => {
@@ -2199,6 +2248,8 @@ function Player({
   /** Every source on this side is dead — the other side is worth a try. */
   onAllFailed?: (() => void) | undefined;
 }) {
+  const navigate = useNavigate();
+  const [partyBusy, setPartyBusy] = useState(false);
   const { picture } = usePlayerSettings();
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead). Rather
@@ -2863,6 +2914,29 @@ function Player({
             pulse — the one moment it's fair to draw the eye — and its own
             popover opens right here instead of a screen-center dialog. */}
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* Watching together: a room on this episode, then a link for friends. */}
+          {winnerId != null && (
+            <button
+              type="button"
+              disabled={partyBusy}
+              onClick={() => {
+                if (!authed) {
+                  navigate("/login", { state: { from: window.location.pathname } });
+                  return;
+                }
+                setPartyBusy(true);
+                void apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId, episode } })
+                  .then(({ code }) => navigate(`/party/${code}`))
+                  .catch(() => toast.error("Не получилось создать комнату"))
+                  .finally(() => setPartyBusy(false));
+              }}
+              title="Смотреть вместе с друзьями — до 10 человек, с чатом"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] px-3 text-xs font-semibold text-foreground/85 transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60"
+            >
+              {partyBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : <UsersIcon className="size-3.5" />}
+              <span className="hidden sm:inline">Вместе</span>
+            </button>
+          )}
           {/* The picture's look — for any player, Kodik's included (the filter sits on its frame). */}
           {winnerId != null && (
             <Popover>
@@ -3168,6 +3242,7 @@ const SKIN_KEY = "as:player-skin";
  * our own.
  */
 export type PlayerSkin = "shadow" | "glass" | "accent";
+export { sourceUrlFor };
 
 const SKINS: Record<
   PlayerSkin,

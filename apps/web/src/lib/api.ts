@@ -113,6 +113,53 @@ export async function apiRequest<T>(
 }
 
 /**
+ * A server-sent event stream from the API, read with fetch so the signed-in
+ * token travels as a header (EventSource can't send one). Calls `onData` for
+ * every `data:` line (parsed JSON) and `onError` for an `event: error`; the
+ * promise settles when the stream ends or `signal` aborts.
+ */
+export async function apiStream(
+  path: string,
+  handlers: { onData: (data: unknown) => void; onError?: (message: string) => void },
+  signal: AbortSignal,
+): Promise<void> {
+  const url = new URL(`${API_BASE}/api${path}`, window.location.origin);
+  const response = await fetch(url, {
+    headers: { accept: "text/event-stream", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+    credentials: "include",
+    signal,
+  });
+  if (!response.ok || !response.body) throw new ApiRequestError(response.status, "INTERNAL_ERROR" as ApiError["error"]["code"], "stream failed");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+    let cut: number;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      const isError = /^event: error$/m.test(block);
+      const data = block
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => l.slice(6))
+        .join("\n");
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data) as { message?: string };
+        if (isError) handlers.onError?.(parsed.message ?? "error");
+        else handlers.onData(parsed);
+      } catch {
+        // A broken line: skipped.
+      }
+    }
+  }
+}
+
+/**
  * A file from the API, saved to disk under `filename` — for downloads that
  * need the signed-in user's token, which a plain link can't carry.
  */

@@ -1903,3 +1903,8 @@ body:has([role="dialog"][data-state="open"]) main * {
 @media (min-width: 768px) { html[data-push-corner] .guest-nudge { bottom: 6.25rem; transition: bottom 0.4s ease; } }
 @media (prefers-reduced-motion: reduce) { .push-bell svg, .push-preview { animation: none; } }
 
+/* Watching together: reactions float up over the picture. */
+.party-float { animation: party-float 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+@keyframes party-float { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 12% { opacity: 1; transform: translateY(-20px) scale(1.15); } 100% { opacity: 0; transform: translateY(-260px) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .party-float { animation-duration: 1.2s; } }
+
