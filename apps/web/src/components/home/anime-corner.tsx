@@ -631,7 +631,7 @@ function FactsStrip() {
         subtitle="История создания, рекорды и неожиданные повороты"
       />
       <div
-        className={cn(PANEL, "isolate min-h-52 flex-row gap-4")}
+        className={cn(PANEL, "isolate min-h-52 flex-col gap-3 sm:flex-row sm:gap-4")}
         onTouchStart={(e) => (touch.current = e.touches[0]?.clientX ?? null)}
         onTouchEnd={(e) => {
           const x0 = touch.current;
@@ -653,37 +653,71 @@ function FactsStrip() {
                 className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden h-full w-1/2 object-cover opacity-15 [mask-image:linear-gradient(to_left,#000,transparent)] sm:block"
               />
             )}
+            {/* A computer: the poster as a column beside the fact. */}
             {fact.anime?.image ? (
-              <Link to={animeHref(fact.anime)} viewTransition className="shrink-0 self-start">
-                <img src={imageSrc(fact.anime.image)} alt="" loading="lazy" className="aspect-[2/3] w-16 rounded-xl object-cover ring-1 ring-white/10 sm:w-32" />
+              <Link to={animeHref(fact.anime)} viewTransition className="hidden shrink-0 self-start sm:block">
+                <img src={imageSrc(fact.anime.image)} alt="" loading="lazy" className="aspect-[2/3] w-32 rounded-xl object-cover ring-1 ring-white/10" />
               </Link>
             ) : (
               <span className="hidden aspect-[2/3] w-32 shrink-0 place-items-center rounded-xl bg-foreground/[0.05] font-display text-5xl text-muted-foreground/40 sm:grid">影</span>
             )}
-            <div key={`${deal}-${at}`} className="flex min-w-0 flex-1 animate-in flex-col gap-2 duration-300 fade-in-0">
-              <span className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <span className="rounded-md bg-primary/12 px-1.5 py-0.5 text-primary">{FACT_KIND[fact.kind ?? "trivia"]}</span>
-                {fact.year && <span className="tabular-nums">{fact.year}</span>}
-                <span className="font-normal normal-case tracking-normal">· {at + 1} из {count}</span>
-              </span>
-              <p className="font-display text-xl leading-tight sm:text-2xl">{fact.title}</p>
-              <p className="max-w-3xl text-sm leading-relaxed text-foreground/85 sm:text-[15px]">{fact.text}</p>
-              <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-                {fact.anime && (
-                  <Link to={animeHref(fact.anime)} viewTransition className="inline-flex h-9 items-center rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/20">
-                    Смотреть «{fact.anime.title}»
+            <div key={`${deal}-${at}`} className="flex min-w-0 flex-1 animate-in flex-col gap-2.5 duration-300 fade-in-0">
+              {/* A phone: a small poster beside the label and the title; the text gets the whole width below. */}
+              <div className="flex items-start gap-3">
+                {fact.anime?.image && (
+                  <Link to={animeHref(fact.anime)} viewTransition className="shrink-0 sm:hidden">
+                    <img src={imageSrc(fact.anime.image)} alt="" loading="lazy" className="aspect-[2/3] w-14 rounded-lg object-cover ring-1 ring-white/10" />
                   </Link>
                 )}
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span className="rounded-md bg-primary/12 px-1.5 py-0.5 text-primary">{FACT_KIND[fact.kind ?? "trivia"]}</span>
+                    {fact.year && <span className="tabular-nums">{fact.year}</span>}
+                  </span>
+                  <p className="font-display text-lg leading-tight [overflow-wrap:anywhere] sm:text-2xl">{fact.title}</p>
+                </div>
+              </div>
+              <p className="max-w-3xl text-sm leading-relaxed text-foreground/85 sm:text-[15px]">{fact.text}</p>
+
+              {/* Which fact of how many, as dots. */}
+              <div className="flex items-center gap-1.5" aria-label={`Факт ${at + 1} из ${count}`}>
+                {Array.from({ length: count }, (_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setAt(i)}
+                    aria-label={`Факт ${i + 1}`}
+                    className={cn("h-1.5 rounded-full transition-all duration-300", i === at ? "w-6 bg-primary" : "w-1.5 bg-foreground/20 hover:bg-foreground/40")}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-auto flex items-center gap-1.5 pt-0.5">
+                {fact.anime && (
+                  <Link
+                    to={animeHref(fact.anime)}
+                    viewTransition
+                    className="inline-flex h-9 min-w-0 flex-1 items-center justify-center rounded-lg bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 sm:flex-none"
+                  >
+                    <span className="truncate">Смотреть «{fact.anime.title}»</span>
+                  </Link>
+                )}
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <button type="button" onClick={() => step(-1)} aria-label="Предыдущий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
                     ‹
                   </button>
                   <button type="button" onClick={() => step(1)} aria-label="Следующий факт" className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
                     ›
                   </button>
-                  <button type="button" onClick={more} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={more}
+                    aria-label={t("home.facts.more")}
+                    title={t("home.facts.more")}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground sm:px-3"
+                  >
                     <ShuffleIcon className="size-3.5" />
-                    {t("home.facts.more")}
+                    <span className="hidden sm:inline">{t("home.facts.more")}</span>
                   </button>
                 </div>
               </div>
