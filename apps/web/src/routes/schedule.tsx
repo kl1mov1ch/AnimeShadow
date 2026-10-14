@@ -233,10 +233,12 @@ function NextUp({ item }: { item: ScheduleItem }) {
           Серия {item.episode}
           {item.episodes ? ` из ${item.episodes}` : ""} · {new Intl.DateTimeFormat("ru-RU", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(new Date(at))}, {clock(new Date(at))} МСК
         </span>
-        <span className="mt-1 flex gap-1.5">
+        <span className="mt-1 grid w-full max-w-[17rem] grid-cols-4 gap-1.5">
           {(["дн", "ч", "мин", "сек"] as const).map((unit, i) => (
-            <span key={unit} className="flex min-w-12 flex-col items-center rounded-xl bg-black/30 px-2 py-1.5 ring-1 ring-white/10 sm:min-w-14">
-              <span className="font-display text-lg leading-none tabular-nums sm:text-xl">{String(parts[i]).padStart(2, "0")}</span>
+            <span key={unit} className="flex min-w-0 flex-col items-center rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10">
+              <span className={cn("font-display leading-none tabular-nums", String(parts[i]).length >= 3 ? "text-base sm:text-lg" : "text-lg sm:text-xl")}>
+                {String(parts[i]).padStart(2, "0")}
+              </span>
               <span className="text-[10px] text-muted-foreground">{unit}</span>
             </span>
           ))}

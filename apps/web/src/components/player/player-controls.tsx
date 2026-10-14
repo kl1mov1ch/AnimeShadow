@@ -91,17 +91,12 @@ export function VolumeControl({
             )}
             style={{ left: `${level * 100}%` }}
           />
-          <span
-            className={cn(
-              "pointer-events-none absolute -top-5 -translate-x-1/2 rounded bg-black/85 px-1.5 text-[10px] font-semibold tabular-nums text-white opacity-0 transition-opacity",
-              active && "opacity-100",
-            )}
-            style={{ left: `${level * 100}%` }}
-          >
-            {Math.round(level * 100)}%
-          </span>
         </div>
       </div>
+      {/* The level, always in numbers next to the slider. */}
+      <span className="w-0 overflow-hidden text-right text-[11px] font-semibold tabular-nums text-white/85 transition-[width] duration-300 group-hover/vol:w-9 group-focus-within/vol:w-9 pointer-coarse:hidden">
+        {Math.round(level * 100)}%
+      </span>
     </div>
   );
 }

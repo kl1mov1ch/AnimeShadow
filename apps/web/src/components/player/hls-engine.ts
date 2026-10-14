@@ -51,6 +51,13 @@ export function warmHls(): void {
   else setTimeout(run, 800);
 }
 
+/** A slow line (or the browser's data saver): load gently, keep more ahead. */
+export function slowLine(): boolean {
+  const c = (navigator as Navigator & { connection?: { downlink?: number; saveData?: boolean; effectiveType?: string } }).connection;
+  if (!c) return false;
+  return Boolean(c.saveData) || (c.downlink != null && c.downlink > 0 && c.downlink < 1.5) || c.effectiveType === "2g" || c.effectiveType === "3g";
+}
+
 /** A first guess at the line, in bits per second. */
 function lineEstimate(): number {
   const downlink = (navigator as Navigator & { connection?: { downlink?: number; saveData?: boolean } }).connection;
@@ -67,16 +74,23 @@ const retry = (maxNumRetry: number, retryDelayMs: number, maxRetryDelayMs: numbe
 });
 
 export function hlsConfig(extra: Partial<HlsConfig> = {}): Partial<HlsConfig> {
+  const slow = slowLine();
   return {
     enableWorker: true,
     abrEwmaDefaultEstimate: lineEstimate(),
     capLevelToPlayerSize: true,
     startFragPrefetch: true,
-    // Enough ahead to ride out a slow segment, not so much that a seek
-    // throws away a minute of downloaded video on a slow line.
-    maxBufferLength: 24,
-    maxMaxBufferLength: 60,
-    backBufferLength: 30,
+    // A slow line starts at the lowest quality.
+    ...(slow ? { startLevel: 0 } : {}),
+    // Going up only with real room to spare, coming down early: no segment
+    // fetched in a quality the line then can't keep up with (and thrown away).
+    abrBandWidthFactor: 0.85,
+    abrBandWidthUpFactor: slow ? 0.5 : 0.65,
+    // Ahead: enough to ride out a slow segment. A slow line keeps loading
+    // further while paused (up to two minutes), so a pause buys smooth play.
+    maxBufferLength: slow ? 40 : 24,
+    maxMaxBufferLength: slow ? 120 : 60,
+    backBufferLength: slow ? 15 : 30,
     maxBufferHole: 0.5,
     nudgeMaxRetry: 6,
     fragLoadPolicy: {

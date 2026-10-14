@@ -1,6 +1,7 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
 import { useAddMoment } from "@/lib/moments";
 import {
+  Volume2Icon,
   UsersIcon,
   PaletteIcon,
   BookmarkPlusIcon,
@@ -48,7 +49,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
-import { attachEngine, type EngineHandle, type EngineStatus, loadHls, warmHls } from "@/components/player/hls-engine";
+import { attachEngine, type EngineHandle, type EngineStatus, loadHls, slowLine, warmHls } from "@/components/player/hls-engine";
 import { FramePreview } from "@/components/player/frame-preview";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
@@ -692,9 +693,10 @@ function Countdown({ target }: { target: Date }) {
   });
 
   return (
-    <div className="flex flex-col items-center gap-4 rounded-xl border bg-card/60 p-8 text-center">
+    <div className="flex w-full flex-col items-center gap-4 rounded-xl border bg-card/60 p-4 text-center sm:p-8">
       <p className="text-sm font-medium text-primary">{t("watch.comingOn", { date: dateLabel })}</p>
-      <div className="grid grid-cols-4 gap-3">
+      {/* Four equal cells that never outgrow the card: a three- or four-digit day count gets smaller digits. */}
+      <div className="grid w-full max-w-md grid-cols-4 gap-1.5 sm:gap-3">
         {[
           [days, t("watch.days")],
           [hours, t("watch.hours")],
@@ -703,12 +705,17 @@ function Countdown({ target }: { target: Date }) {
         ].map(([value, unit], i) => (
           <div
             key={i}
-            className="flex min-w-16 flex-col rounded-lg bg-secondary/60 px-3 py-2"
+            className="flex min-w-0 flex-col items-center rounded-lg bg-secondary/60 px-1 py-2 sm:px-3"
           >
-            <span className="font-display text-3xl tabular-nums">
+            <span
+              className={cn(
+                "max-w-full font-display leading-none tabular-nums",
+                String(value).length >= 4 ? "text-lg sm:text-2xl" : String(value).length === 3 ? "text-xl sm:text-3xl" : "text-2xl sm:text-3xl",
+              )}
+            >
               {String(value).padStart(2, "0")}
             </span>
-            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <span className="mt-1 max-w-full truncate text-[10px] uppercase tracking-wide text-muted-foreground sm:text-[11px]">
               {unit}
             </span>
           </div>
@@ -1197,7 +1204,8 @@ export function CustomHlsPlayer({
     if (!isWinner) return;
     // The preview never takes the line from the episode: it waits while the
     // main picture is short of data.
-    const next = new FramePreview(previewSrc, () => {
+    // On a slow line the preview uses only frames already played — it never fetches.
+    const next = new FramePreview(slowLine() ? null : previewSrc, () => {
       const video = videoRef.current;
       return bufferingRef.current || !video || video.readyState < 3;
     });
@@ -1609,7 +1617,16 @@ export function CustomHlsPlayer({
     if (!video) return;
     video.volume = next;
     video.muted = next === 0;
+    showVolumeOsd(next);
     wake();
+  };
+  // A changed volume, said big in the middle for a moment: "65%".
+  const [volumeOsd, setVolumeOsd] = useState<number | null>(null);
+  const osdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showVolumeOsd = (v: number) => {
+    setVolumeOsd(Math.round(v * 100));
+    if (osdTimer.current) clearTimeout(osdTimer.current);
+    osdTimer.current = setTimeout(() => setVolumeOsd(null), 900);
   };
 
   const changeSpeed = (rate: number) => {
@@ -1883,6 +1900,15 @@ export function CustomHlsPlayer({
               className={cn(showNet && "pointer-events-auto")}
             />
           </div>
+          {volumeOsd != null && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl bg-black/70 px-4 py-2.5 text-white backdrop-blur">
+              {volumeOsd === 0 ? <VolumeXIcon className="size-5" /> : <Volume2Icon className="size-5" />}
+              <span className="font-display text-xl tabular-nums">{volumeOsd}%</span>
+              <span className="h-1.5 w-20 overflow-hidden rounded-full bg-white/20">
+                <span className="block h-full rounded-full bg-white" style={{ width: `${volumeOsd}%` }} />
+              </span>
+            </div>
+          )}
           {popped && momentsOn && (
             <div className="absolute bottom-16 left-3 z-20 flex max-w-[min(20rem,calc(100%-1.5rem))] animate-in items-start gap-2 rounded-2xl border border-white/10 bg-black/70 p-2.5 pr-8 text-white shadow-xl backdrop-blur-md fade-in-0 slide-in-from-left-4 @lg/player:bottom-20">
               <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/30 text-[11px] font-bold">
