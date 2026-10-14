@@ -2182,8 +2182,8 @@ function Player({
   });
   // Fitted to the length Kodik reports; only exact marks are skipped by themselves.
   const kodikSegments = (): SkipSegment[] => fitSegments(skipTimes?.segments, lastDuration.current, known);
-  const opening = kodikSegments().find((x) => x.kind === "op") ?? null;
-  const ending = kodikSegments().find((x) => x.kind === "ed") ?? null;
+  // Called only from Kodik's time events (after the refs below exist), never during render.
+  const hasSkipTimes = known != null || (skipTimes?.segments?.length ?? 0) > 0;
 
   // Once per episode each: resume, skip the opening, act on the ending.
   const done = useRef({ episode, resumed: false, opening: false, ending: false });
@@ -2763,7 +2763,7 @@ function Player({
               prefs={prefs}
               onToggle={togglePref}
               supported={winnerIsKodik || displaySource.format === "hls"}
-              hasTimes={opening != null || ending != null || !wantTimes}
+              hasTimes={hasSkipTimes || !wantTimes}
               hasNext={nextEpisode != null}
             />
           }
