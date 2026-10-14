@@ -1,14 +1,24 @@
-import { ChevronLeftIcon, ChevronRightIcon, GaugeIcon, RotateCwIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, GaugeIcon, PaletteIcon, RotateCwIcon } from "lucide-react";
 import { forwardRef, useState } from "react";
 import { useT } from "@/i18n";
-import { SKIP_STEPS, SPEEDS, speedLabel } from "@/lib/player-settings";
+import {
+  PICTURE_DEFAULT,
+  PICTURE_PRESETS,
+  type PictureSettings,
+  presetOf,
+  SKIP_STEPS,
+  setPlayerSetting,
+  SPEEDS,
+  speedLabel,
+  usePlayerSettings,
+} from "@/lib/player-settings";
 import { cn } from "@/lib/utils";
 
 export type QualityChoice =
   | { options: Array<{ value: string; label: string }>; value: string; onPick: (value: string) => void }
   | { note: string; /** The one quality there is, when known ("720p"). */ current?: string };
 
-export type SettingsPage = "main" | "quality" | "speed" | "step";
+export type SettingsPage = "main" | "quality" | "speed" | "step" | "picture";
 
 /**
  * The player's settings — quality, speed, how far a skip jumps — as a small
@@ -38,6 +48,7 @@ export const PlayerSettingsMenu = forwardRef<
 >(function PlayerSettingsMenu({ speed, onSpeed, step, onStep, quality, initialPage = "main", onClose, className }, ref) {
   const t = useT();
   const [page, setPage] = useState<SettingsPage>(initialPage);
+  const { picture } = usePlayerSettings();
 
   const qualityNow =
     "note" in quality ? null : (quality.options.find((o) => o.value === quality.value)?.label ?? null);
@@ -76,6 +87,12 @@ export const PlayerSettingsMenu = forwardRef<
             value={t("watch.ctl.stepValue", { n: step })}
             onClick={() => setPage("step")}
           />
+          <Row
+            icon={<PaletteIcon className="size-4" />}
+            label="Картинка"
+            value={PICTURE_PRESETS.find((p) => p.id === presetOf(picture))?.label ?? "Своя"}
+            onClick={() => setPage("picture")}
+          />
           <p className="mx-1 mt-1 border-t border-white/10 px-1.5 pb-0.5 pt-2 text-[10px] leading-snug text-white/45 pointer-coarse:hidden">
             {t("watch.ctl.keys")}
           </p>
@@ -88,7 +105,7 @@ export const PlayerSettingsMenu = forwardRef<
             className="flex h-10 shrink-0 items-center gap-1.5 border-b border-white/10 px-2.5 text-sm font-medium transition-colors hover:bg-white/[0.06]"
           >
             <ChevronLeftIcon className="size-4 text-white/60" />
-            {page === "quality" ? t("watch.ctl.quality") : page === "speed" ? t("watch.ctl.speed") : t("watch.ctl.step")}
+            {page === "quality" ? t("watch.ctl.quality") : page === "speed" ? t("watch.ctl.speed") : page === "picture" ? "Картинка" : t("watch.ctl.step")}
           </button>
           <div className="min-h-0 overflow-y-auto overscroll-contain p-1.5">
             {page === "quality" &&
@@ -116,6 +133,7 @@ export const PlayerSettingsMenu = forwardRef<
                 ))}
               </div>
             )}
+            {page === "picture" && <PicturePanel picture={picture} />}
             {page === "step" && (
               <div className="grid grid-cols-5 gap-1">
                 {SKIP_STEPS.map((n) => (
@@ -170,5 +188,56 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * The picture's look: ready-made ones (brighter, richer colours, for old
+ * shows, softer, for the night) and three sliders for one's own. It applies
+ * as you move — what you see is the result.
+ */
+export function PicturePanel({ picture }: { picture: PictureSettings }) {
+  const active = presetOf(picture);
+  const set = (patch: Partial<PictureSettings>) => setPlayerSetting({ picture: { ...picture, ...patch } });
+  return (
+    <div className="flex flex-col gap-2.5 p-0.5">
+      <div className="grid grid-cols-3 gap-1">
+        {PICTURE_PRESETS.map((p) => (
+          <Chip key={p.id} active={p.id === active} onClick={() => setPlayerSetting({ picture: p.value })}>
+            {p.label}
+          </Chip>
+        ))}
+      </div>
+      {(
+        [
+          ["brightness", "Яркость"],
+          ["contrast", "Контраст"],
+          ["saturation", "Цвет"],
+        ] as const
+      ).map(([key, label]) => (
+        <label key={key} className="flex items-center gap-2 px-1 text-xs">
+          <span className="w-16 shrink-0 text-white/70">{label}</span>
+          <input
+            type="range"
+            min={50}
+            max={150}
+            step={2}
+            value={picture[key]}
+            onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<PictureSettings>)}
+            className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--primary)]"
+          />
+          <span className="w-9 shrink-0 text-right tabular-nums text-white/60">{picture[key]}%</span>
+        </label>
+      ))}
+      {active !== "normal" && (
+        <button
+          type="button"
+          onClick={() => setPlayerSetting({ picture: PICTURE_DEFAULT })}
+          className="mx-1 rounded-lg py-1.5 text-xs text-white/60 transition-colors hover:bg-white/[0.07] hover:text-white"
+        >
+          Сбросить
+        </button>
+      )}
+    </div>
   );
 }

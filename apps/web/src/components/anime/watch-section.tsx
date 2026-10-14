@@ -1,6 +1,7 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
 import { useAddMoment } from "@/lib/moments";
 import {
+  PaletteIcon,
   BookmarkPlusIcon,
   FastForwardIcon,
   HistoryIcon,
@@ -25,7 +26,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,11 +38,12 @@ import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
-import { persistPlayerSettings, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
+import { persistPlayerSettings, pictureFilter, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
 import { Link } from "react-router-dom";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
-import { PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
+import { PicturePanel, PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
@@ -913,6 +915,7 @@ function CustomHlsPlayer({
   opening = null,
   segments = [],
   autoSkip = { op: false, ed: false },
+  onNearEnd,
   onTime,
 }: {
   src: string;
@@ -941,6 +944,12 @@ function CustomHlsPlayer({
   segments?: SkipSegmentRaw[];
   /** The viewer's "skip the opening / ending" switches. */
   autoSkip?: { op: boolean; ed: boolean };
+  /**
+   * Near the end with the rest of the episode already loaded (or under 45 s
+   * left): the next episode can start loading without taking the line from
+   * this one. Called once per episode.
+   */
+  onNearEnd?: () => void;
   /** Where playback is, and how long the episode runs. */
   onTime?: (time: number, duration: number) => void;
 }) {
@@ -1196,6 +1205,9 @@ function CustomHlsPlayer({
     }
   };
   const [netHistory, setNetHistory] = useState<number[]>([]);
+  const onNearEndRef = useRef(onNearEnd);
+  onNearEndRef.current = onNearEnd;
+  const nearEndSentRef = useRef<string | null>(null);
   const [bufferAhead, setBufferAhead] = useState(0);
   useEffect(() => {
     if (!isWinner) return;
@@ -1210,6 +1222,12 @@ function CustomHlsPlayer({
           }
         }
         setBufferAhead(ahead);
+        const length = Number.isFinite(video.duration) ? video.duration : 0;
+        const left = length - video.currentTime;
+        if (length > 0 && left < 150 && (ahead >= left - 2 || left < 45) && nearEndSentRef.current !== src) {
+          nearEndSentRef.current = src;
+          onNearEndRef.current?.();
+        }
       }
       const bw = engineRef.current?.bandwidth() ?? 0;
       if (bw > 0) setNetHistory((h) => [...h.slice(-14), bw / 1_000_000]);
@@ -1314,7 +1332,8 @@ function CustomHlsPlayer({
 
   useEffect(() => {
     const onFsChange = () => {
-      setIsFullscreen(document.fullscreenElement === containerRef.current);
+      const fs = document.fullscreenElement;
+      setIsFullscreen(fs != null && (fs === containerRef.current || fs.contains(containerRef.current)));
       if (!document.fullscreenElement) orientation()?.unlock?.();
     };
     document.addEventListener("fullscreenchange", onFsChange);
@@ -1550,7 +1569,9 @@ function CustomHlsPlayer({
       video.webkitEnterFullscreen();
       return;
     }
-    const container = containerRef.current as
+    // The frame around the player, not the player itself: the next episode
+    // is a new player (it was loading ahead), and full screen stays on.
+    const container = (containerRef.current?.parentElement ?? containerRef.current) as
       | (HTMLDivElement & { webkitRequestFullscreen?: () => void })
       | null;
     const request =
@@ -1708,6 +1729,7 @@ function CustomHlsPlayer({
         onLoadedMetadata={applyResume}
         onCanPlay={applyResume}
         onEnded={() => onEndedRef.current?.()}
+        style={{ filter: pictureFilter(settings.picture) }}
         className="absolute inset-0 size-full"
         tabIndex={-1}
       />
@@ -2104,6 +2126,7 @@ function Player({
   /** Every source on this side is dead — the other side is worth a try. */
   onAllFailed?: (() => void) | undefined;
 }) {
+  const { picture } = usePlayerSettings();
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead). Rather
   // than load one and wait to find out it's dead, load the top few at once,
@@ -2429,6 +2452,8 @@ function Player({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown]);
   useEffect(() => setCountdown(null), [episode]);
+  // Which episode asked for the next one to be loaded ahead (see CustomHlsPlayer.onNearEnd).
+  const [preloadFor, setPreloadFor] = useState<number | null>(null);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(null), 2500);
@@ -2584,9 +2609,16 @@ function Player({
           if (source.format === "hls") {
             const url = sourceUrlFor(source, episode);
             if (!url) return null;
+            // The next episode, loading out of sight once this one is almost
+            // done. Both are keyed by their address: when the episode moves
+            // on, the one already loaded *is* the new episode — React keeps
+            // it, and it starts at once instead of from nothing.
+            const nextUrl =
+              isWinner && preloadFor === episode && nextEpisode != null ? sourceUrlFor(source, nextEpisode) : null;
             return (
+              <Fragment key={source.id}>
               <CustomHlsPlayer
-                key={source.id}
+                key={url}
                 src={url}
                 variants={source.hlsVariants?.[String(episode)] ?? null}
                 skin={skin}
@@ -2602,7 +2634,20 @@ function Player({
                 opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
                 segments={skipTimes?.segments}
                 autoSkip={{ op: prefs.skipOpening, ed: prefs.skipEnding }}
+                onNearEnd={() => setPreloadFor(episode)}
               />
+              {nextUrl && nextUrl !== url && (
+                <CustomHlsPlayer
+                  key={nextUrl}
+                  src={nextUrl}
+                  variants={source.hlsVariants?.[String(nextEpisode)] ?? null}
+                  skin={skin}
+                  isWinner={false}
+                  onReady={() => undefined}
+                  onFailed={() => undefined}
+                />
+              )}
+              </Fragment>
             );
           }
 
@@ -2625,6 +2670,7 @@ function Player({
               }
               referrerPolicy="no-referrer"
               onLoad={() => handleLoad(id)}
+              style={{ filter: pictureFilter(picture) }}
               className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
               tabIndex={isWinner ? undefined : -1}
               aria-hidden={isWinner ? undefined : true}
@@ -2711,6 +2757,28 @@ function Player({
             pulse — the one moment it's fair to draw the eye — and its own
             popover opens right here instead of a screen-center dialog. */}
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {/* The picture's look — for any player, Kodik's included (the filter sits on its frame). */}
+          {winnerId != null && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Картинка: яркость, контраст, цвет"
+                  title="Картинка"
+                  className={cn(
+                    "grid size-8 place-items-center rounded-full border border-[var(--accent-line-soft)] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground",
+                    pictureFilter(picture) && "border-primary/40 text-primary",
+                  )}
+                >
+                  <PaletteIcon className="size-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 border-white/10 bg-neutral-950/95 p-2 text-white">
+                <p className="px-1 pb-2 text-xs font-semibold">Картинка</p>
+                <PicturePanel picture={picture} />
+              </PopoverContent>
+            </Popover>
+          )}
           {winnerId != null && (
             <Tooltip>
               <TooltipTrigger asChild>
