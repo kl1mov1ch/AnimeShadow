@@ -1,4 +1,5 @@
-import { PARTY_EMOJI, PARTY_MAX, PARTY_STICKERS, type PartyChatMessage, type PartyMember, stickerUrl } from "@animeshadow/shared";
+import { PARTY_EMOJI, PARTY_MAX, PARTY_STICKERS, type PartyChatMessage, type PartyMember, type PartySettings, stickerUrl } from "@animeshadow/shared";
+import { SignalBars } from "./host-panel";
 import { CrownIcon, ImageIcon, LockIcon, MessageSquareIcon, SendIcon, SmileIcon, StickerIcon, WifiIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -51,6 +52,7 @@ export function PartyChat({
   myId,
   pro,
   capHeight,
+  settings,
 }: {
   code: string;
   members: PartyMember[];
@@ -58,7 +60,9 @@ export function PartyChat({
   myId: string | null;
   pro: boolean;
   capHeight: number | null;
+  settings: PartySettings;
 }) {
+  const muted = members.find((m) => m.id === myId)?.muted ?? false;
   const [tab, setTab] = useState<Tab>(pro ? "text" : "emoji");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -112,9 +116,7 @@ export function PartyChat({
               </span>
               <span className="max-w-24 truncate">{m.name}</span>
               {m.host && <CrownIcon className="size-3 fill-amber-400 text-amber-400" />}
-              {m.mbps != null && (
-                <span className={cn("tabular-nums", m.mbps < 1.2 ? "text-rose-400" : m.mbps < 2.4 ? "text-amber-400" : "text-emerald-400")}>{m.mbps.toFixed(1)}</span>
-              )}
+              <SignalBars mbps={m.mbps} />
             </span>
           ))}
         </div>
@@ -196,6 +198,10 @@ export function PartyChat({
         </div>
 
         <div className="px-2 pb-2">
+          {muted ? (
+            <p className="rounded-xl bg-rose-500/10 p-3 text-center text-xs text-rose-400">Создатель комнаты отключил вам чат.</p>
+          ) : (
+          <>
           {tab === "text" &&
             (pro ? (
               <form
@@ -236,7 +242,8 @@ export function PartyChat({
             </div>
           )}
 
-          {tab === "stickers" &&
+          {tab === "stickers" && !settings.stickers && <Off text="Стикеры выключены создателем комнаты" />}
+          {tab === "stickers" && settings.stickers &&
             (pro ? (
               <div className="grid max-h-44 grid-cols-6 gap-1 overflow-y-auto">
                 {PARTY_STICKERS.map((s) => (
@@ -256,7 +263,8 @@ export function PartyChat({
               <ProLock text="Анимированные стикеры — для участников с PRO." onEmoji={() => setTab("emoji")} />
             ))}
 
-          {tab === "gif" &&
+          {tab === "gif" && !settings.gifs && <Off text="Гифки выключены создателем комнаты" />}
+          {tab === "gif" && settings.gifs &&
             (pro ? (
               <div className="grid max-h-44 grid-cols-3 gap-1 overflow-y-auto">
                 {Object.entries(gifs ?? {})
@@ -279,6 +287,8 @@ export function PartyChat({
             ) : (
               <ProLock text="Гифки в чате — для участников с PRO." onEmoji={() => setTab("emoji")} />
             ))}
+          </>
+          )}
         </div>
       </div>
     </aside>
@@ -302,4 +312,8 @@ function ProLock({ text, onEmoji }: { text: string; onEmoji: () => void }) {
       </div>
     </div>
   );
+}
+
+function Off({ text }: { text: string }) {
+  return <p className="rounded-xl bg-foreground/[0.05] p-3 text-center text-xs text-muted-foreground">{text}</p>;
 }

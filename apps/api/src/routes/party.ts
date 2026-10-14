@@ -4,6 +4,7 @@ import {
   partyNetInputSchema,
   partyPlaybackInputSchema,
   partyReactionInputSchema,
+  partyMuteInputSchema,
   partySettingsInputSchema,
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
@@ -31,7 +32,22 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch("/party/:code/settings", auth, async (request) => {
     const { code } = parse(codeParams, request.params);
-    return party.settings(code, request.userId!, parse(partySettingsInputSchema, request.body).visibility);
+    return party.settings(code, request.userId!, parse(partySettingsInputSchema, request.body));
+  });
+
+  fastify.post("/party/:code/mute", auth, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    const input = parse(partyMuteInputSchema, request.body);
+    return party.mute(code, request.userId!, input.userId, input.muted);
+  });
+
+  fastify.post("/party/:code/leave", auth, async (request) => party.leave(parse(codeParams, request.params).code, request.userId!));
+
+  // A small download to measure a line the page can't otherwise see (Kodik's player).
+  const probe = Buffer.alloc(384 * 1024, 7);
+  fastify.get("/party/speedtest", async (_request, reply) => {
+    reply.header("cache-control", "no-store").header("content-type", "application/octet-stream").header("content-encoding", "identity");
+    return reply.send(probe);
   });
 
   fastify.get("/party/:code", auth, async (request) => party.snapshot(parse(codeParams, request.params).code));

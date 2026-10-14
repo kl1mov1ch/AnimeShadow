@@ -8,9 +8,12 @@ import {
   type PartyVisibility,
 } from "@animeshadow/shared";
 import { VISIBILITY } from "@/components/party/visibility";
-import { CheckIcon, Loader2Icon, LogInIcon, MinusIcon, PlayIcon, PlusIcon, QrCodeIcon, RepeatIcon, SendIcon, UsersIcon } from "lucide-react";
+import { CheckIcon, Loader2Icon, LogInIcon, LogOutIcon, MinusIcon, PlayIcon, PlusIcon, QrCodeIcon, RepeatIcon, SendIcon, SlidersHorizontalIcon, UsersIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { HostPanel } from "@/components/party/host-panel";
+import { NetPanel, useSpeedProbe } from "@/components/party/net-panel";
 import { toast } from "sonner";
 import { CustomHlsPlayer, sourceUrlFor } from "@/components/anime/watch-section";
 import { QrShareCard } from "@/components/common/qr-share";
@@ -71,6 +74,11 @@ function PartyRoom({ code }: { code: string }) {
   const [ownFailed, setOwnFailed] = useState(false);
   const [picking, setPicking] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [askLeave, setAskLeave] = useState(false);
+  const navigate = useNavigate();
+  const [closed, setClosed] = useState<string | null>(null);
+  const closedRef = useRef(false);
   const offsetRef = useRef(0);
   const playbackRef = useRef<PartyPlayback | null>(null);
   playbackRef.current = playback;
@@ -96,7 +104,11 @@ function PartyRoom({ code }: { code: string }) {
         setPlayback(e.playback);
         break;
       case "settings":
-        setParty((p) => (p ? { ...p, visibility: e.visibility } : p));
+        setParty((p) => (p ? { ...p, settings: e.settings } : p));
+        break;
+      case "closed":
+        closedRef.current = true;
+        setClosed(e.reason);
         break;
       case "anime":
         setParty((p) => (p ? { ...p, anime: e.anime } : p));
@@ -134,7 +146,7 @@ function PartyRoom({ code }: { code: string }) {
           if (!alive) return;
         }
         setConnected(false);
-        if (!alive) return;
+        if (!alive || closedRef.current) return;
         await sleep(Math.min(10_000, 800 * 2 ** Math.min(attempt, 4)));
       }
     })();
@@ -177,6 +189,12 @@ function PartyRoom({ code }: { code: string }) {
   const ownUrl = own ? sourceUrlFor(own, episode) : null;
   const kodikUrl = !ownUrl && kodikSource ? sourceUrlFor(kodikSource, episode) : null;
 
+  const isHost = party != null && user != null && party.hostId === user.id;
+  const canControl = isHost || (party?.settings.allControl ?? false);
+  const canControlRef = useRef(canControl);
+  canControlRef.current = canControl;
+  const toldNoControl = useRef(0);
+
   const localTime = useRef(0);
   const localPlaying = useRef(false);
   const kodikSuppress = useRef(0);
@@ -185,6 +203,14 @@ function PartyRoom({ code }: { code: string }) {
     localTime.current = time;
     if (type === "play") localPlaying.current = true;
     if (type === "pause") localPlaying.current = false;
+    // Not ours to steer: the room puts this screen back at its next check.
+    if (!canControlRef.current) {
+      if (Date.now() - toldNoControl.current > 15_000) {
+        toldNoControl.current = Date.now();
+        toast("Управляет создатель комнаты", { description: "Пауза и перемотка вернутся к общему моменту" });
+      }
+      return;
+    }
     sendPlayback({ playing: type === "seek" ? localPlaying.current : type === "play", position: time });
   };
   const kodik = useKodikBridge(frame, {
@@ -265,12 +291,50 @@ function PartyRoom({ code }: { code: string }) {
     }
   };
 
+  const kodikNet = useSpeedProbe(Boolean(kodikUrl) && joined);
+  useEffect(() => {
+    if (kodikNet.length) reportNet(kodikNet[kodikNet.length - 1]!);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kodikNet.length]);
+
+  // ---- leaving: asked first (the host's leaving closes the room for everyone)
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => !closedRef.current && joined && currentLocation.pathname !== nextLocation.pathname);
+  useEffect(() => {
+    if (!joined || closed) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [joined, closed]);
+  const confirmingRef = useRef(false);
+  /** Out of the room: told to the server, then on to where the viewer was going. */
+  const leave = () => {
+    confirmingRef.current = true;
+    closedRef.current = true;
+    void apiRequest(`/party/${code}/leave`, { method: "POST" }).catch(() => undefined);
+    if (blocker.state === "blocked") blocker.proceed();
+    else navigate("/party");
+  };
+
   const total = useMemo(() => {
     const s = watch?.sources.find((x) => x.format === "hls");
     const fromOwn = s?.hlsEpisodes ? Math.max(0, ...Object.keys(s.hlsEpisodes).map(Number)) : 0;
     return Math.max(1, fromOwn, party?.anime.episodes ?? 0, episode);
   }, [watch, party, episode]);
 
+  if (closed) {
+    return (
+      <Centered>
+        <UsersIcon className="size-10 text-muted-foreground" />
+        <h1 className="font-display text-xl">Комната закрыта</h1>
+        <p className="text-sm text-muted-foreground">{closed}</p>
+        <Link to="/party" className="inline-flex h-10 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
+          К списку комнат
+        </Link>
+      </Centered>
+    );
+  }
   if (fatal) {
     return (
       <Centered>
@@ -301,33 +365,48 @@ function PartyRoom({ code }: { code: string }) {
             </p>
             <Link to={animeHref(party.anime)} className="block truncate font-display text-lg leading-tight hover:text-primary">{title}</Link>
           </div>
-          <div className="flex basis-full flex-wrap items-center gap-2 sm:basis-auto">
-            <EpisodeStepper value={episode} total={total} onChange={(n) => sendPlayback({ episode: n, playing: true, position: 0 })} />
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              title="Сменить аниме для всей комнаты"
-              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-            >
-              <RepeatIcon className="size-3.5" />
-              <span className="hidden sm:inline">Аниме</span>
-            </button>
-            <VisibilityControl
-              value={party.visibility}
-              host={party.hostId === user?.id || members.find((m) => m.id === user?.id)?.host === true}
-              onChange={(v) =>
-                void apiRequest(`/party/${code}/settings`, { method: "PATCH", body: { visibility: v } })
-                  .then(() => setParty((p) => (p ? { ...p, visibility: v } : p)))
-                  .catch(() => toast.error("Не получилось поменять"))
-              }
-            />
+          <div className="flex basis-full flex-wrap items-center gap-2">
+            <EpisodeStepper value={episode} total={total} disabled={!canControl} onChange={(n) => sendPlayback({ episode: n, playing: true, position: 0 })} />
+            {canControl && (
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                title="Сменить аниме для всей комнаты"
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+              >
+                <RepeatIcon className="size-3.5" />
+                <span className="hidden sm:inline">Аниме</span>
+              </button>
+            )}
+            {isHost ? (
+              <button
+                type="button"
+                onClick={() => setManaging(true)}
+                title="Управление комнатой"
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                <SlidersHorizontalIcon className="size-3.5" />
+                <span className="hidden sm:inline">Управление</span>
+              </button>
+            ) : (
+              <VisibilityBadge value={party.settings.visibility} />
+            )}
             <button
               type="button"
               onClick={() => setInviting(true)}
-              className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-transform active:scale-95 sm:ml-0"
+              className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-transform active:scale-95"
             >
               <QrCodeIcon className="size-4" />
               Пригласить
+            </button>
+            <button
+              type="button"
+              onClick={() => (joined ? setAskLeave(true) : navigate("/party"))}
+              title="Выйти из комнаты"
+              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-rose-400/50 hover:text-rose-400"
+            >
+              <LogOutIcon className="size-3.5" />
+              <span className="hidden sm:inline">Выйти</span>
             </button>
           </div>
         </header>
@@ -406,9 +485,12 @@ function PartyRoom({ code }: { code: string }) {
           )}
         </div>
 
+        {kodikUrl && joined && <NetPanel history={kodikNet} />}
+
         {/* Reactions. */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {PARTY_REACTIONS.map((emoji) => (
+          {!party.settings.reactions && <span className="text-xs text-muted-foreground">Реакции выключены создателем</span>}
+          {party.settings.reactions && PARTY_REACTIONS.map((emoji) => (
             <button
               key={emoji}
               type="button"
@@ -419,11 +501,32 @@ function PartyRoom({ code }: { code: string }) {
               {emoji}
             </button>
           ))}
-          <span className="ml-auto text-xs text-muted-foreground">Пауза, перемотка и серия — у всех сразу, со скоростью самого медленного</span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {canControl ? "Пауза, перемотка и серия — у всех сразу" : "Управляет создатель комнаты"} · со скоростью самого медленного
+          </span>
         </div>
       </section>
 
-      <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro} capHeight={capHeight} />
+      <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro} capHeight={capHeight} settings={party.settings} />
+      {managing && <HostPanel code={code} settings={party.settings} members={members} onClose={() => setManaging(false)} />}
+      {(askLeave || blocker.state === "blocked") && (
+        <ConfirmDialog
+          open
+          onOpenChange={(v) => {
+            if (v || confirmingRef.current) return;
+            setAskLeave(false);
+            if (blocker.state === "blocked") blocker.reset();
+          }}
+          title={isHost ? "Закрыть комнату?" : "Выйти из комнаты?"}
+          description={
+            isHost
+              ? "Вы создатель: когда вы выйдете, комната закроется для всех, кто в ней смотрит."
+              : "Просмотр продолжится без вас. Вернуться можно по ссылке, пока комната открыта."
+          }
+          confirmLabel={isHost ? "Закрыть и выйти" : "Выйти"}
+          onConfirm={leave}
+        />
+      )}
 
       <PartyPicker
         open={picking}
@@ -442,38 +545,19 @@ function PartyRoom({ code }: { code: string }) {
   );
 }
 
-/** Who sees the room in the list — the host changes it, everyone else sees which it is. */
-function VisibilityControl({ value, host, onChange }: { value: PartyVisibility; host: boolean; onChange: (v: PartyVisibility) => void }) {
+/** Which kind of room this is, for the people in it. */
+function VisibilityBadge({ value }: { value: PartyVisibility }) {
   const V = VISIBILITY[value];
-  if (!host) {
-    return (
-      <span title={V.hint} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs text-muted-foreground">
-        <V.icon className="size-3.5" />
-        <span className="hidden sm:inline">{V.label}</span>
-      </span>
-    );
-  }
   return (
-    <label title="Кто видит комнату в списке" className="relative inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] pl-3 pr-2 text-xs font-medium">
-      <V.icon className="size-3.5 text-primary" />
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as PartyVisibility)}
-        className="cursor-pointer appearance-none bg-transparent pr-4 outline-none"
-      >
-        {(Object.keys(VISIBILITY) as PartyVisibility[]).map((v) => (
-          <option key={v} value={v}>
-            {VISIBILITY[v].label}
-          </option>
-        ))}
-      </select>
-      <span aria-hidden className="pointer-events-none absolute right-2 text-[9px] text-muted-foreground">▼</span>
-    </label>
+    <span title={V.hint} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs text-muted-foreground">
+      <V.icon className="size-3.5" />
+      <span className="hidden sm:inline">{V.label}</span>
+    </span>
   );
 }
 
 /** The episode: −1 / +1 and the number typed in, from 1 to the last. */
-function EpisodeStepper({ value, total, onChange }: { value: number; total: number; onChange: (n: number) => void }) {
+function EpisodeStepper({ value, total, onChange, disabled = false }: { value: number; total: number; onChange: (n: number) => void; disabled?: boolean }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
   const commit = () => {
@@ -482,7 +566,10 @@ function EpisodeStepper({ value, total, onChange }: { value: number; total: numb
     else setDraft(String(value));
   };
   return (
-    <div className="flex h-10 items-center overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-background/60">
+    <div
+      title={disabled ? "Серию меняет создатель комнаты" : undefined}
+      className={cn("flex h-10 items-center overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-background/60", disabled && "pointer-events-none opacity-60")}
+    >
       <button
         type="button"
         disabled={value <= 1}

@@ -9,8 +9,10 @@ export interface PartyMember {
   avatarUrl: string | null;
   host: boolean;
   pro: boolean;
-  /** The line's speed this member reports, Mbit/s (null: unknown, e.g. Kodik's player). */
+  /** The line's speed this member reports, Mbit/s (null: not measured yet). */
   mbps: number | null;
+  /** The host silenced them in the chat. */
+  muted: boolean;
 }
 
 export interface PartyPlayback {
@@ -41,9 +43,21 @@ export interface PartyChatMessage {
 export const PARTY_VISIBILITY = ["public", "friends", "link"] as const;
 export type PartyVisibility = (typeof PARTY_VISIBILITY)[number];
 
+/** What the host decides about their room. */
+export interface PartySettings {
+  visibility: PartyVisibility;
+  stickers: boolean;
+  gifs: boolean;
+  reactions: boolean;
+  /** Everyone may pause, seek and change episodes — otherwise only the host. */
+  allControl: boolean;
+}
+
+export const PARTY_DEFAULT_SETTINGS: PartySettings = { visibility: "public", stickers: true, gifs: true, reactions: true, allControl: false };
+
 export interface PartySnapshot {
   code: string;
-  visibility: PartyVisibility;
+  settings: PartySettings;
   anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; episodes: number | null };
   hostId: string;
   members: PartyMember[];
@@ -59,7 +73,8 @@ export type PartyEvent =
   | { type: "members"; members: PartyMember[]; now: number; capHeight: number | null }
   | { type: "playback"; playback: PartyPlayback; now: number }
   | { type: "anime"; anime: PartySnapshot["anime"] }
-  | { type: "settings"; visibility: PartyVisibility }
+  | { type: "settings"; settings: PartySettings }
+  | { type: "closed"; reason: string }
   | { type: "chat"; message: PartyChatMessage }
   | { type: "reaction"; emoji: string; by: string; name: string }
   | { type: "ping"; now: number };
@@ -70,7 +85,15 @@ export const createPartyInputSchema = z.object({
   visibility: z.enum(PARTY_VISIBILITY).default("public"),
 });
 
-export const partySettingsInputSchema = z.object({ visibility: z.enum(PARTY_VISIBILITY) });
+export const partySettingsInputSchema = z.object({
+  visibility: z.enum(PARTY_VISIBILITY).optional(),
+  stickers: z.boolean().optional(),
+  gifs: z.boolean().optional(),
+  reactions: z.boolean().optional(),
+  allControl: z.boolean().optional(),
+});
+
+export const partyMuteInputSchema = z.object({ userId: z.string().min(1).max(40), muted: z.boolean() });
 
 /** A room in the list of rooms ("Совместный просмотр"). */
 export interface PartyListing {

@@ -145,6 +145,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // Watching together: sessions of the last month, summed from the session logs.
+  fastify.get("/admin/party-stats", guard, async () => fastify.services.party.stats(30));
+
   fastify.get("/admin/comments", guard, async (request) => {
     const query = parse(adminCommentQuerySchema, request.query);
     return admin.listComments(query);

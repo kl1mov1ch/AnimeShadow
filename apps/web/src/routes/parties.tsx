@@ -9,7 +9,8 @@ import { PageHero } from "@/components/common/page-hero";
 import { PartyPicker } from "@/components/party-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
+import { useIsPro } from "@/components/promo/promo-offer";
 import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -52,9 +53,17 @@ export function Component() {
   });
   const total = data?.rooms.reduce((n, r) => n + r.members, 0) ?? 0;
 
+  const isPro = useIsPro();
   const create = () => {
     if (status !== "authenticated") {
       navigate("/login", { state: { from: "/party" } });
+      return;
+    }
+    if (isPro === false) {
+      toast("Создавать комнаты можно с PRO", {
+        description: "Заходить в чужие комнаты — всем, бесплатно.",
+        action: { label: "Получить PRO", onClick: () => navigate("/support") },
+      });
       return;
     }
     setPicking(true);
@@ -75,6 +84,7 @@ export function Component() {
           >
             <PlusIcon className="size-4" />
             Создать комнату
+            {isPro === false && <span className="rounded-md bg-white/25 px-1.5 text-[10px] font-bold">PRO</span>}
           </button>
         }
       >
@@ -174,8 +184,8 @@ export function Component() {
             const { code } = await apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId: anime.id, episode, visibility } });
             setPicking(false);
             navigate(`/party/${code}`);
-          } catch {
-            toast.error("Не получилось создать комнату");
+          } catch (error) {
+            toast.error(error instanceof ApiRequestError ? error.message : "Не получилось создать комнату");
           }
         }}
       />

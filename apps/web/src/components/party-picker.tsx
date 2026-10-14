@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { apiRequest } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useContinueWatching, useSmartSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -144,8 +144,8 @@ export function usePartyStarter() {
           const { code } = await apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId: anime.id, episode } });
           setOpen(false);
           navigate(`/party/${code}`);
-        } catch {
-          toast.error("Не получилось создать комнату");
+        } catch (error) {
+          toast.error(error instanceof ApiRequestError ? error.message : "Не получилось создать комнату");
         }
       }}
     />

@@ -105,6 +105,7 @@ try {
   // polling, starting well after a deploy's trial run on the spare port has
   // been stopped — Telegram lets only one copy read.
   setTimeout(() => app.services.delivery.startPolling(), 75_000).unref();
+  setInterval(() => void app.services.party.prune(env.LOG_KEEP_DAYS).catch(() => 0), 24 * 60 * 60_000).unref();
   // The broadcast schedule, this week and next, ready before anyone asks.
   setTimeout(() => void inBackground(() => app.services.schedule.warm()), 20_000).unref();
   setInterval(() => void inBackground(() => app.services.schedule.warm()), 25 * 60_000).unref();

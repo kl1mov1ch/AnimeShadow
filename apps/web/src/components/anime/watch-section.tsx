@@ -36,7 +36,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
-import { apiRequest } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
@@ -2976,7 +2976,11 @@ function Player({
                 setPartyBusy(true);
                 void apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId, episode } })
                   .then(({ code }) => navigate(`/party/${code}`))
-                  .catch(() => toast.error("Не получилось создать комнату"))
+                  .catch((error: unknown) =>
+                    toast.error(error instanceof ApiRequestError ? error.message : "Не получилось создать комнату", {
+                      action: { label: "PRO", onClick: () => navigate("/support") },
+                    }),
+                  )
                   .finally(() => setPartyBusy(false));
               }}
               title="Смотреть вместе с друзьями — до 10 человек, с чатом"

@@ -19,6 +19,13 @@ export function usePromo() {
   });
 }
 
+/** PRO now (paid, granted or the free month) — what the site's PRO features ask. Null while unknown. */
+export function useIsPro(): boolean | null {
+  const { data } = usePromo();
+  if (!data) return null;
+  return data.phase === "pro" || data.phase === "trial";
+}
+
 export function useClaimPromo() {
   const client = useQueryClient();
   return useMutation({

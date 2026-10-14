@@ -1,6 +1,6 @@
 import type { AdminDailyRow } from "@animeshadow/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDaysIcon, FileTextIcon, ScrollTextIcon, Trash2Icon } from "lucide-react";
+import { CalendarDaysIcon, FileTextIcon, ScrollTextIcon, Trash2Icon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyBlock, LiveDot, Panel } from "@/components/admin/admin-ui";
@@ -314,6 +314,74 @@ export function SecretAchievementsPanel() {
           </li>
         ))}
       </ul>
+    </Panel>
+  );
+}
+
+interface PartyStats {
+  days: number;
+  sessions: number;
+  viewers: number;
+  minutes: number;
+  live: { rooms: number; people: number };
+  titles: Array<{ id: number; title: string; sessions: number; viewers: number }>;
+  people: Array<{ id: string; name: string; minutes: number; episodes: number; sessions: number }>;
+  recent: Array<{ code: string; endedAt: string; minutes: number; reason: string; titles: Array<{ title: string }>; people: Array<{ name: string; minutes: number; episodes: number }> }>;
+}
+
+const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} ч ${min % 60} мин` : `${min} мин`);
+
+/**
+ * Watching together, over the last month: rooms leave nothing behind but a
+ * line in the log when they close — who watched how long and how many
+ * episodes, of what. Summed here.
+ */
+export function PartyStatsPanel() {
+  const { data, isPending } = useQuery({
+    queryKey: ["admin", "party-stats"],
+    queryFn: ({ signal }) => apiRequest<PartyStats>("/admin/party-stats", { signal }),
+    refetchInterval: 60_000,
+  });
+  return (
+    <Panel title="Совместный просмотр" description="За 30 дней, по журналу закрытых комнат. Сами комнаты и чаты не хранятся." icon={<UsersIcon />}>
+      {isPending || !data ? (
+        <Skeleton className="h-48 rounded-xl" />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: "Сессий", value: fmt(data.sessions) },
+              { label: "Зрителей", value: fmt(data.viewers) },
+              { label: "Просмотрено вместе", value: hm(data.minutes) },
+              { label: "Сейчас", value: `${data.live.rooms} комн. · ${data.live.people} чел.`, live: data.live.rooms > 0 },
+            ].map((k) => (
+              <div key={k.label} className="rounded-xl border border-border/50 bg-background/30 p-3">
+                <p className="flex items-center gap-1.5 font-display text-xl tabular-nums">
+                  {k.live && <LiveDot />}
+                  {k.value}
+                </p>
+                <p className="text-[11px] text-muted-foreground">{k.label}</p>
+              </div>
+            ))}
+          </div>
+          {data.sessions === 0 ? (
+            <EmptyBlock>Пока ни одной сессии дольше полуминуты.</EmptyBlock>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-3">
+              <RouteList title="Что смотрят (сессий / зрителей)" rows={data.titles.map((t) => [t.title, `${t.sessions}`, `${t.viewers} чел.`])} />
+              <RouteList title="Кто больше смотрит (время / серий)" rows={data.people.map((p) => [p.name, hm(p.minutes), `${p.episodes} сер.`])} />
+              <RouteList
+                title="Последние сессии"
+                rows={data.recent.map((s) => [
+                  `${s.titles.map((t) => t.title).join(", ")} · ${new Date(s.endedAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+                  `${s.people.length} чел.`,
+                  hm(s.people.reduce((n, p) => n + p.minutes, 0)),
+                ])}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </Panel>
   );
 }
