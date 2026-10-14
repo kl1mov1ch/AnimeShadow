@@ -20,6 +20,7 @@ import {
   UserPlusIcon,
   WandSparklesIcon,
   XIcon, GiftIcon } from "lucide-react";
+import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
@@ -265,6 +266,36 @@ function HeaderIcon({
 
 /* ---------------- mobile menu ---------------- */
 
+/** The phone menu's "Подключить Telegram" (or its state, once tied). */
+function MobileTelegramRow({ row, onNavigate }: { row: string; onNavigate: () => void }) {
+  const navigate = useNavigate();
+  const { state, connect } = useTelegramConnect();
+  if (state === "unavailable") return null;
+  const tied = state === "connected" || state === "off";
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (tied) {
+          onNavigate();
+          navigate("/profile?studio=notify");
+        } else connect();
+      }}
+      className={cn(row, "text-left")}
+    >
+      <TelegramGlyph className="size-4 shrink-0 text-sky-400" />
+      <span className="flex-1">{tied ? "Telegram" : state === "blocked" ? "Снова подключить Telegram" : "Подключить Telegram"}</span>
+      {state === "connected" ? (
+        <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">✓ подключён</span>
+      ) : state === "off" ? (
+        <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">выкл.</span>
+      ) : (
+        <span className="rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-300">новые серии</span>
+      )}
+    </button>
+  );
+}
+
 function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => void }) {
   const { t } = useI18n();
   const { status, user, logout } = useAuth();
@@ -382,6 +413,7 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
         <Separator />
         {/* What else. */}
         <div className="flex flex-col p-1.5">
+          {authed && <MobileTelegramRow row={row} onNavigate={onNavigate} />}
           {authed && (
             <Link to="/profile?studio=profile" onClick={onNavigate} className={row}>
               <Settings2Icon className="size-4 shrink-0 text-muted-foreground" />

@@ -92,6 +92,41 @@ export const notificationSchema = z.object({
 });
 export type AppNotification = z.infer<typeof notificationSchema>;
 
+/** Where new episodes are told besides the bell: the Telegram bot and browser push. */
+export interface NotifySettings {
+  telegram: {
+    /** The server has a bot. */
+    available: boolean;
+    /** Its @username, for the link. */
+    bot: string | null;
+    /** The bot can write to this account (signed in by Telegram, or linked). */
+    connected: boolean;
+    /** It tried and was blocked: press Start in the bot again. */
+    blocked: boolean;
+    enabled: boolean;
+  };
+  push: {
+    available: boolean;
+    /** VAPID public key for PushManager.subscribe. */
+    publicKey: string | null;
+    enabled: boolean;
+    /** Browsers subscribed. */
+    devices: number;
+  };
+}
+
+export const notifySettingsInputSchema = z.object({
+  telegram: z.boolean().optional(),
+  push: z.boolean().optional(),
+});
+
+export const pushSubscriptionInputSchema = z.object({
+  endpoint: z.string().url().max(1000),
+  keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(8).max(100) }),
+});
+
+export const pushUnsubscribeInputSchema = z.object({ endpoint: z.string().url().max(1000) });
+
 export const notificationsReadInputSchema = z.object({
   /** These; or every one of this title; or, with neither, all. */
   ids: z.array(z.string()).max(200).optional(),

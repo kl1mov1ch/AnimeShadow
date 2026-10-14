@@ -1,4 +1,5 @@
 import { AllohaClient } from "@animeshadow/alloha";
+import { DeliveryService } from "./delivery.service.js";
 import { NotificationService } from "./notification.service.js";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
@@ -61,6 +62,8 @@ export interface ContainerDeps {
     kodikDirectToken?: string | undefined;
   };
   telegramBotToken?: string | undefined;
+  telegramPolling?: boolean;
+  vapid?: { publicKey?: string | undefined; privateKey?: string | undefined; subject: string };
   traceMoeApiKey?: string | undefined;
   adminEmails: string[];
   email: {
@@ -99,6 +102,7 @@ export interface Services {
   landing: LandingService;
   kodikSync: KodikCatalogSync;
   notifications: NotificationService;
+  delivery: DeliveryService;
   anilibriaSync: AnilibriaCatalogSync;
   seo: SeoRenderer;
 }
@@ -248,7 +252,15 @@ export function createServices(deps: ContainerDeps): Services {
   setGaugeSource(() => admin.gaugeSnapshot());
 
   const landing = new LandingService({ prisma: deps.prisma });
-  const notifications = new NotificationService(deps.prisma, deps.logger);
+  const delivery = new DeliveryService(deps.prisma, deps.logger, {
+    telegramToken: deps.telegramBotToken,
+    telegramPolling: deps.telegramPolling ?? true,
+    vapidPublicKey: deps.vapid?.publicKey,
+    vapidPrivateKey: deps.vapid?.privateKey,
+    vapidSubject: deps.vapid?.subject ?? "mailto:admin@animeshadow.online",
+    appUrl: deps.email.appUrl.replace(/\/$/, ""),
+  });
+  const notifications = new NotificationService(deps.prisma, deps.logger, (items) => delivery.deliver(items));
   return {
     catalog,
     auth,
@@ -276,6 +288,7 @@ export function createServices(deps: ContainerDeps): Services {
     adminPrisma,
     landing,
     notifications,
+    delivery,
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing }),

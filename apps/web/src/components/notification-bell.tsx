@@ -137,13 +137,22 @@ export function NotificationBell({ className }: { className?: string }) {
             items.map((n) => <NotificationRow key={n.id} n={n} onOpen={() => setOpen(false)} />)
           )}
         </div>
-        <Link
-          to="/library#new-episodes"
-          onClick={() => setOpen(false)}
-          className="block border-t border-border/60 px-3.5 py-2.5 text-center text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Все в «Моём списке»
-        </Link>
+        <div className="grid grid-cols-2 border-t border-border/60 text-xs font-medium text-muted-foreground">
+          <Link
+            to="/library#new-episodes"
+            onClick={() => setOpen(false)}
+            className="px-3.5 py-2.5 text-center transition-colors hover:text-foreground"
+          >
+            Все в «Моём списке»
+          </Link>
+          <Link
+            to="/profile?studio=notify"
+            onClick={() => setOpen(false)}
+            className="border-l border-border/60 px-3.5 py-2.5 text-center transition-colors hover:text-foreground"
+          >
+            Telegram и push
+          </Link>
+        </div>
       </PopoverContent>
     </Popover>
   );

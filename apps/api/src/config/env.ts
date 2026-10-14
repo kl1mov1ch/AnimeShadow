@@ -114,6 +114,20 @@ const envSchema = z.object({
     z.string().optional(),
   ),
 
+  // The same bot also writes new-episode messages: it reads its chats by
+  // long polling (no webhook to set up). Unset: only in production, so a
+  // developer's copy never fights the live site for the bot's messages;
+  // "false" on a second production copy — Telegram allows one reader per bot.
+  TELEGRAM_BOT_POLLING: z
+    .preprocess((value) => (value === "" ? undefined : value), z.enum(["true", "false"]).optional())
+    .transform((value) => (value == null ? undefined : value === "true")),
+
+  // ---- Browser push notifications (Web Push). Generate the pair once with
+  // `npx web-push generate-vapid-keys`; without it push is simply not offered.
+  VAPID_PUBLIC_KEY: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  VAPID_PRIVATE_KEY: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),
+  VAPID_SUBJECT: z.string().default("mailto:admin@animeshadow.online"),
+
   // ---- Search by frame (trace.moe). Optional key: without one the free tier
   // allows 100 searches a month per IP, one at a time — and a server's single
   // IP is shared by every visitor, so that is 100 a month for the whole site.

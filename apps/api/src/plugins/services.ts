@@ -31,6 +31,8 @@ export default fp(
         kodikDirectToken: env.KODIK_DIRECT_TOKEN,
       },
       telegramBotToken: env.TELEGRAM_BOT_TOKEN,
+      telegramPolling: env.TELEGRAM_BOT_POLLING ?? env.NODE_ENV === "production",
+      vapid: { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT },
       traceMoeApiKey: env.TRACE_MOE_API_KEY,
       adminEmails: env.ADMIN_EMAILS,
       email: {

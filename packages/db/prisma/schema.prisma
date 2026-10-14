@@ -29,6 +29,17 @@ model User {
   /// Widget — see AuthService.loginWithTelegram. Null for email/password-only
   /// accounts.
   telegramId    String?         @unique
+  /// The private chat the bot writes new-episode messages to: set by /start
+  /// with a link code from the account page (a Telegram sign-in already
+  /// allows the bot to write to telegramId, used when this is empty).
+  telegramChatId    String?
+  /// The bot was blocked or the chat is gone: nothing is sent until the
+  /// person presses Start in the bot again.
+  telegramBlockedAt DateTime?
+  /// New episodes by Telegram / as browser push notifications. The bell on
+  /// the site is always on.
+  notifyTelegram    Boolean       @default(true)
+  notifyPush        Boolean       @default(true)
   username      String?         @unique
   bio           String?
   avatarUrl     String?
@@ -125,6 +136,7 @@ model User {
   progress      WatchProgress[]
   moments       FavoriteMoment[]
   notifications Notification[]
+  pushSubscriptions PushSubscription[]
   comments      Comment[]
   commentVotes  CommentVote[]
   commentReports CommentReport[]
@@ -993,4 +1005,27 @@ model Notification {
   @@unique([userId, animeId, episode])
   @@index([userId, createdAt])
   @@index([userId, readAt])
+}
+
+/// A browser that agreed to push notifications (Web Push): where to send
+/// and its keys. Dropped when the push service says it is gone (404/410).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// A one-time code behind "Подключить Telegram": t.me/<bot>?start=<code>
+/// ties the chat that pressed Start to the account. Valid for 15 minutes.
+model TelegramLinkCode {
+  code      String   @id
+  userId    String
+  expiresAt DateTime
 }

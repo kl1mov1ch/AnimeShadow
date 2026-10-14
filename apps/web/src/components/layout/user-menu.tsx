@@ -1,4 +1,5 @@
 import { ChevronRightIcon, CrownIcon, FolderHeartIcon, GiftIcon, HeartIcon, LibraryIcon, LogInIcon, LogOutIcon, Settings2Icon, ShieldCheckIcon, SparklesIcon, UserPlusIcon, WandSparklesIcon } from "lucide-react";
+import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
 import { usePromo } from "@/components/promo/promo-offer";
 import { useReferrals } from "@/lib/referral";
 import type { ComponentType, ReactNode } from "react";
@@ -135,6 +136,7 @@ export function UserMenu() {
             Пригласить друга
             <RewardsWaiting />
           </Row>
+          <TelegramMenuItem />
           <Row to="/profile?studio=profile" icon={Settings2Icon}>{t("userMenu.customise")}</Row>
           {user.role === "ADMIN" && <Row to="/admin" icon={ShieldCheckIcon}>{t("userMenu.admin")}</Row>}
         </div>
@@ -163,6 +165,33 @@ export function UserMenu() {
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * "Подключить Telegram" — new episodes from the bot; once tied, a check and
+ * the way to the notification settings.
+ */
+function TelegramMenuItem() {
+  const navigate = useNavigate();
+  const { state, connect } = useTelegramConnect();
+  if (state === "unavailable") return null;
+  const tied = state === "connected" || state === "off";
+  return (
+    <DropdownMenuItem
+      className="rounded-lg px-3 py-2"
+      onSelect={() => (tied ? navigate("/profile?studio=notify") : connect())}
+    >
+      <TelegramGlyph className="size-4 text-sky-400" />
+      <span className="flex-1 whitespace-nowrap">{tied ? "Telegram" : state === "blocked" ? "Подключить снова" : "Подключить Telegram"}</span>
+      {state === "connected" ? (
+        <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">✓ подключён</span>
+      ) : state === "off" ? (
+        <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">выкл.</span>
+      ) : (
+        <span className="size-2 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]" title="Новые серии в Telegram" />
+      )}
+    </DropdownMenuItem>
   );
 }
 

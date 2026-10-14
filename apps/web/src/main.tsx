@@ -44,7 +44,8 @@ window.addEventListener("vite:preloadError", () => {
   window.location.reload();
 });
 
-// The site no longer uses a service worker. The one people already had kept
+// The site no longer uses a service worker (the push-notification one,
+// /push-sw.js, only shows notifications and is kept — see lib/push.ts). The one people already had kept
 // serving an old copy of the site after every deploy (see vite.config.ts);
 // /sw.js is now a worker that removes itself. Any registration still left in
 // this browser is dropped here too, with the caches it filled — the page
@@ -52,7 +53,13 @@ window.addEventListener("vite:preloadError", () => {
 if ("serviceWorker" in navigator) {
   void navigator.serviceWorker
     .getRegistrations()
-    .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+    .then((registrations) =>
+      Promise.all(
+        registrations
+          .filter((r) => !(r.active ?? r.installing ?? r.waiting)?.scriptURL.endsWith("/push-sw.js"))
+          .map((r) => r.unregister()),
+      ),
+    )
     .catch(() => undefined);
   if ("caches" in window) {
     void caches

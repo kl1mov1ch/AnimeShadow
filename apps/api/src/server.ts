@@ -13,6 +13,7 @@ closeWithGrace({ delay: 10_000 }, async ({ signal, err }) => {
   } else {
     app.log.info({ signal }, "shutting down gracefully");
   }
+  app.services.delivery.stop();
   await app.close();
   // The hour being counted goes to its file before the process ends.
   await logDigest.flush();
@@ -100,6 +101,10 @@ try {
     setInterval(() => void inBackground(() => app.services.kodikSync.checkNewEpisodes()), 20 * 60_000).unref();
     setInterval(() => void app.services.notifications.prune().catch(() => 0), 24 * 60 * 60_000).unref();
   }
+  // The Telegram bot's chats (/start with a link code, /stop): read by long
+  // polling, starting well after a deploy's trial run on the spare port has
+  // been stopped — Telegram lets only one copy read.
+  setTimeout(() => app.services.delivery.startPolling(), 75_000).unref();
   // AniLibria's catalogue, matched to ours: three minutes after start, then
   // checked every six hours (a full read runs at most once a day).
   if (env.ANILIBRIA_CATALOG_SYNC) {

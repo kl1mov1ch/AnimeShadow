@@ -1,6 +1,7 @@
 import type { EarnedAchievement, MyProfile } from "@animeshadow/shared";
 import { MAX_SHOWCASE_ACHIEVEMENTS } from "@animeshadow/shared";
 import {
+  BellRingIcon,
   CheckIcon,
   DicesIcon,
   ExternalLinkIcon,
@@ -32,10 +33,11 @@ import { useSetUsername, useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { LevelBadge, LevelBar } from "./level-visuals";
 import { NickTagEditor } from "./nick-tag-editor";
+import { NotifySettingsSection } from "./notify-settings";
 import { levelOf } from "./profile-level";
 import { useProfileMedia } from "./use-profile-media";
 
-export type StudioTab = "profile" | "look" | "showcase" | "taste" | "privacy" | "list" | "account";
+export type StudioTab = "profile" | "look" | "showcase" | "taste" | "privacy" | "notify" | "list" | "account";
 
 const SECTIONS: Array<{ id: StudioTab; icon: typeof PaletteIcon; title: string; hint: string }> = [
   { id: "profile", icon: UserRoundIcon, title: "Профиль", hint: "Аватар, обложка, ник, описание, статус" },
@@ -43,6 +45,7 @@ const SECTIONS: Array<{ id: StudioTab; icon: typeof PaletteIcon; title: string; 
   { id: "showcase", icon: TrophyIcon, title: "Витрина", hint: "Достижения под вашим именем" },
   { id: "taste", icon: HeartIcon, title: "Вкусы", hint: "Любимые жанры для рекомендаций" },
   { id: "privacy", icon: LockIcon, title: "Приватность", hint: "Кто что видит в профиле" },
+  { id: "notify", icon: BellRingIcon, title: "Уведомления", hint: "Новые серии в Telegram и браузере" },
   { id: "list", icon: UploadIcon, title: "Список", hint: "Импорт из MAL и Shikimori, экспорт" },
   { id: "account", icon: UserCogIcon, title: "Аккаунт", hint: "Почта, возраст, удаление" },
 ];
@@ -179,6 +182,7 @@ export function ProfileStudio({
                 {tab === "showcase" && <ShowcaseEditor profile={profile} />}
                 {tab === "taste" && taste}
                 {tab === "privacy" && <PrivacySection profile={profile} />}
+                {tab === "notify" && <NotifySettingsSection />}
                 {tab === "list" && <PortabilitySection />}
                 {tab === "account" && account}
               </div>
