@@ -446,26 +446,25 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
           </Link>
         </div>
 
-        {authed && (
-          <>
-            <Separator />
-            <div className="p-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  logout();
-                  onNavigate();
-                  navigate("/");
-                }}
-                className={cn(row, "w-full text-destructive hover:bg-destructive/10 hover:text-destructive")}
-              >
-                <LogOutIcon className="size-4 shrink-0" />
-                {t("common.signOut")}
-              </button>
-            </div>
-          </>
-        )}
       </div>
+
+      {/* Signing out: always at the very bottom of the menu, outside what scrolls. */}
+      {authed && (
+        <div className="border-t border-[var(--accent-line-soft)] p-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              onNavigate();
+              navigate("/");
+            }}
+            className={cn(row, "w-full text-destructive hover:bg-destructive/10 hover:text-destructive")}
+          >
+            <LogOutIcon className="size-4 shrink-0" />
+            {t("common.signOut")}
+          </button>
+        </div>
+      )}
     </SheetContent>
   );
 }
