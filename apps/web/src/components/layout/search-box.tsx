@@ -146,7 +146,7 @@ export function SearchBox() {
 
 
   return (
-    <div ref={rootRef} className="relative w-full min-w-0 sm:w-[min(360px,42vw)] lg:w-[min(340px,22vw)] 2xl:w-[360px]">
+    <div ref={rootRef} className="relative w-full min-w-0">
       <Command
         shouldFilter={false}
         loop
@@ -164,7 +164,7 @@ export function SearchBox() {
             for the clear button once there's something to clear. */}
         <div
           className={cn(
-            "group relative flex items-center rounded-lg border bg-card/60 transition-[border-color,background-color,box-shadow] duration-200",
+            "group relative flex items-center rounded-full border bg-card/60 transition-[border-color,background-color,box-shadow] duration-200",
             "focus-within:border-foreground/30 focus-within:bg-card focus-within:ring-2 focus-within:ring-ring/20",
             open ? "border-foreground/20" : "border-border/60 hover:border-foreground/20",
           )}
@@ -190,7 +190,7 @@ export function SearchBox() {
               if (event.key === "Enter" && term.trim().length >= 2 && !document.querySelector("[cmdk-item][data-selected=true]")) submit(term);
             }}
             aria-label={t("search.open")}
-            className="h-10 w-full rounded-lg bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
+            className="h-9 w-full rounded-full bg-transparent pl-9 pr-16 text-sm outline-none placeholder:text-muted-foreground/80 [&::-webkit-search-cancel-button]:appearance-none"
           />
 
           {!term && (
@@ -198,7 +198,11 @@ export function SearchBox() {
               aria-hidden
               className="pointer-events-none absolute left-9 right-20 overflow-hidden text-sm text-muted-foreground/80"
             >
-              <span className="block truncate">{mode === "anime" ? t("search.hintTitle") : mode === "people" ? "Ник или имя человека" : t("search.hintCollections")}</span>
+              {mode === "anime" ? (
+                <FloatingHint paused={open} />
+              ) : (
+                <span className="block truncate">{mode === "people" ? "Ник или имя человека" : t("search.hintCollections")}</span>
+              )}
             </span>
           )}
 
@@ -352,5 +356,48 @@ export function SearchBox() {
       </Command>
       <UserProfileModal target={person} onOpenChange={(open) => !open && setPerson(null)} />
     </div>
+  );
+}
+
+/** What one can type, shown in turn: a title, a genre, a studio, a year, a mood. */
+const HINTS = [
+  "Поиск аниме…",
+  "«Магическая битва»",
+  "исекай 2026",
+  "студия MAPPA",
+  "романтика в школе",
+  "«Фрирен»",
+  "что-то до 12 серий",
+  "сёнэн с боями",
+  "«Атака титанов»",
+  "уютное повседневное",
+];
+
+/**
+ * The search field's placeholder, alive: a word floats up, stays a few
+ * seconds, floats away, the next comes up. Still while the field is in use
+ * (and for anyone who asked their system for less motion).
+ */
+function FloatingHint({ paused }: { paused: boolean }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (paused || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => setIndex((i) => (i + 1) % HINTS.length), 3200);
+    return () => clearInterval(id);
+  }, [paused]);
+  const hint = HINTS[paused ? 0 : index]!;
+  return (
+    <span className="relative block h-5 overflow-hidden">
+      <span key={hint} className="search-hint block truncate leading-5">
+        {index === 0 || paused ? (
+          hint
+        ) : (
+          <>
+            <span className="text-muted-foreground/60">Например, </span>
+            <span className="text-foreground/75">{hint}</span>
+          </>
+        )}
+      </span>
+    </span>
   );
 }

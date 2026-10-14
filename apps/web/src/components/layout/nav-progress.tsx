@@ -27,7 +27,7 @@ export function NavProgress() {
   }, [busy]);
   if (!shown) return null;
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[3px]">
+    <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[2px]">
       <div className={done ? "nav-progress nav-progress-done" : "nav-progress"} />
     </div>
   );

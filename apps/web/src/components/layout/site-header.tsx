@@ -23,9 +23,9 @@ import {
   XIcon, GiftIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
 import { NotificationBell } from "@/components/notification-bell";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
 import { ReactionGif } from "@/components/common/reaction-gif";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
@@ -56,30 +56,6 @@ interface NavItem {
   label: string;
   end: boolean;
   Icon: typeof HouseIcon;
-}
-
-/**
- * Where the active section's underline sits, measured off the link itself,
- * so it can slide from one section to the next instead of jumping.
- */
-function useNavIndicator(navRef: React.RefObject<HTMLElement | null>) {
-  const location = useLocation();
-  const [box, setBox] = useState<{ left: number; width: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const nav = navRef.current;
-    if (!nav) return;
-    const measure = () => {
-      const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
-      setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(nav);
-    return () => observer.disconnect();
-  }, [navRef, location.pathname]);
-
-  return box;
 }
 
 /** Whether the page has scrolled away from the top — the header gains a shadow. */
@@ -132,7 +108,6 @@ export function SiteHeader() {
   const { canInstall, isIosSafari } = usePwaInstall();
   const [menuOpen, setMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
-  const indicator = useNavIndicator(navRef);
   const scrolled = useScrolled();
   const { down, nearTop } = useScrollDirection();
   const tuckAway = down && !nearTop && !menuOpen;
@@ -160,36 +135,50 @@ export function SiteHeader() {
         tuckAway && "max-md:-translate-y-full max-md:shadow-none",
       )}
     >
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 lg:gap-8">
+      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 lg:gap-5">
         <Wordmark textClassName="max-md:text-[0.79rem]" />
 
-        {/* The sections: a soft pill slides under the one you're in. */}
-        <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden items-center gap-0.5 lg:flex">
-          {indicator && (
-            <span aria-hidden className="hnav-pill absolute inset-y-0 rounded-full" style={{ left: indicator.left, width: indicator.width }} />
-          )}
-          {nav.map((item) => (
+        {/* The sections, as icons: the one you're in shows its name, the
+            others open theirs under the pointer — the bar stays short and
+            the search gets the room. */}
+        <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden items-center gap-0.5 rounded-full border border-border/50 bg-card/40 p-1 lg:flex">
+          {nav.map(({ to, label, end, Icon }) => (
             <NavLink
               viewTransition
-              key={item.to}
-              to={item.to}
-              end={item.end}
+              key={to}
+              to={to}
+              end={end}
+              aria-label={label}
               className={({ isActive }) =>
                 cn(
-                  "relative z-10 flex h-9 items-center whitespace-nowrap rounded-full px-3.5 text-sm font-medium transition-colors duration-200",
-                  isActive ? "text-foreground" : "text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground",
+                  "hnav-item group relative flex h-8 items-center rounded-full px-2.5 text-sm font-medium transition-[background-color,color] duration-300",
+                  isActive ? "hnav-active text-foreground" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
                 )
               }
             >
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  <Icon className={cn("size-[17px] shrink-0 transition-transform duration-300 group-hover:scale-110", isActive && "text-primary")} />
+                  <span
+                    className={cn(
+                      "hnav-label overflow-hidden whitespace-nowrap",
+                      isActive ? "max-w-32 pl-1.5 opacity-100" : "max-w-0 opacity-0 group-hover:max-w-32 group-hover:pl-1.5 group-hover:opacity-100 group-focus-visible:max-w-32 group-focus-visible:pl-1.5 group-focus-visible:opacity-100",
+                    )}
+                  >
+                    {label}
+                  </span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
-        <div className="ml-auto flex min-w-0 items-center justify-end gap-1">
-          <div className="hidden min-w-0 md:block">
-            <SearchBox />
-          </div>
+        {/* Search: everything between the sections and the icons. */}
+        <div className="hidden min-w-0 flex-1 md:block lg:max-w-[38rem]">
+          <SearchBox />
+        </div>
+
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5">
           {/* A guest's phone header has the invite in this spot instead. */}
           <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
             <RandomRoll />
