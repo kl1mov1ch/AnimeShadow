@@ -15,7 +15,7 @@ export function ReactionGif({ category, className }: { category: string; classNa
   return (
     <span className={cn("relative block overflow-hidden rounded-2xl bg-foreground/[0.06]", className)}>
       {url ? (
-        <img key={url} src={url} alt="" loading="lazy" onError={() => setBroken(true)} className="size-full animate-in object-cover duration-500 fade-in-0" />
+        <img key={url} src={url} alt="" decoding="async" onError={() => setBroken(true)} className="size-full object-cover" />
       ) : (
         <span aria-hidden className="grid size-full place-items-center font-display text-4xl text-primary/30">
           影

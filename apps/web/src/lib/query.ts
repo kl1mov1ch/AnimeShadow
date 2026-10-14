@@ -72,6 +72,7 @@ import {
 } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
 import { apiRequest } from "./api.js";
+import { pickGif, useGifLibrary } from "./gifs";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -292,10 +293,17 @@ export function useCharacterDetail(id: number | null) {
  * need to reroll on every re-render, just when a genuinely different empty
  * state appears.
  */
+/**
+ * A reaction gif: from the site's own library when it has the category
+ * (instant, cached a year), from the live endpoint only otherwise.
+ */
 export function useReactionGif(category: string, enabled = true) {
-  return useQuery({
+  const { data: library, isFetched } = useGifLibrary();
+  const own = pickGif(library, category);
+  const live = useQuery({
     queryKey: ["reaction-gif", category],
-    enabled,
+    // Asked only once the library has said it has nothing for this one.
+    enabled: enabled && !own && (isFetched || library !== undefined),
     queryFn: ({ signal }) =>
       apiRequest<{ url: string; category: string }>("/fun/reaction", {
         signal,
@@ -304,6 +312,8 @@ export function useReactionGif(category: string, enabled = true) {
     staleTime: Infinity,
     retry: 1,
   });
+  if (own) return { ...live, data: { url: own, category }, isPending: false };
+  return live;
 }
 
 export function useRecommendations(id: number, enabled = true) {

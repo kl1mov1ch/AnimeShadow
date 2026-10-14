@@ -1,7 +1,8 @@
 import { GuestNudge } from "@/components/auth/guest-nudge";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
 import { captureReferral } from "@/lib/referral";
+import { useGifLibrary, warmGifs } from "@/lib/gifs";
 import { ReferralWatcher } from "@/components/referral-watcher";
 import { AchievementWatcher } from "@/components/achievement-watcher";
 import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
@@ -22,6 +23,14 @@ export function AppShell() {
   useExternalAnalytics();
   // ?ref=CODE on any page: kept until the visitor signs up.
   useEffect(() => captureReferral(), []);
+  // The site's gifs: the list once, the common ones fetched while idle.
+  const { data: gifLibrary } = useGifLibrary();
+  const warmed = useRef(false);
+  useEffect(() => {
+    if (warmed.current || !gifLibrary || Object.keys(gifLibrary).length === 0) return;
+    warmed.current = true;
+    warmGifs(gifLibrary);
+  }, [gifLibrary]);
   useServerHeadHandoff();
 
   return (
