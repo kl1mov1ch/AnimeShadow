@@ -1,4 +1,5 @@
 import {
+  BellRingIcon,
   CalendarClockIcon,
   BookmarkIcon,
   HeartIcon,
@@ -22,6 +23,8 @@ import {
   WandSparklesIcon,
   XIcon, GiftIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
+import { currentSubscription, disablePushHere, enablePushHere, pushSupport } from "@/lib/push";
+import { toast } from "sonner";
 import { NotificationBell } from "@/components/notification-bell";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
@@ -266,6 +269,42 @@ function HeaderIcon({
 
 /* ---------------- mobile menu ---------------- */
 
+/** A guest's "Уведомления": browser push about what they watch, in one tap. */
+function GuestPushTile({ tile }: { tile: string }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    void currentSubscription().then((sub) => setOn(Boolean(sub)));
+  }, []);
+  if (pushSupport() !== "ok" || on == null) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (on) {
+          void disablePushHere().then(() => {
+            setOn(false);
+            toast("Уведомления выключены");
+          });
+          return;
+        }
+        enablePushHere(false)
+          .then(() => {
+            setOn(true);
+            toast.success("Уведомления включены", { description: "Новые серии того, что вы смотрите, придут сюда" });
+          })
+          .catch((error: Error) => {
+            if (error.message === "denied") toast.error("Браузер запретил уведомления", { description: "Разрешите их в настройках сайта" });
+          });
+      }}
+      className={cn(tile, "text-left")}
+    >
+      <BellRingIcon className="size-4 shrink-0 text-amber-400" />
+      <span className="min-w-0 flex-1 truncate">Уведомления</span>
+      {on ? <span className="size-2 shrink-0 rounded-full bg-emerald-400" /> : <span className="rounded-full bg-amber-500/15 px-1.5 text-[11px] font-bold text-amber-500">+</span>}
+    </button>
+  );
+}
+
 /** The phone menu's "Подключить Telegram" (or its state, once tied). */
 function MobileTelegramRow({ row, onNavigate }: { row: string; onNavigate: () => void }) {
   const navigate = useNavigate();
@@ -284,13 +323,13 @@ function MobileTelegramRow({ row, onNavigate }: { row: string; onNavigate: () =>
       className={cn(row, "text-left")}
     >
       <TelegramGlyph className="size-4 shrink-0 text-sky-400" />
-      <span className="flex-1">{tied ? "Telegram" : state === "blocked" ? "Снова подключить Telegram" : "Подключить Telegram"}</span>
+      <span className="min-w-0 flex-1 truncate">{tied ? "Telegram" : state === "blocked" ? "Подключить" : "Telegram"}</span>
       {state === "connected" ? (
-        <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">✓ подключён</span>
+        <span className="size-2 shrink-0 rounded-full bg-emerald-400" title="Подключён" />
       ) : state === "off" ? (
-        <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">выкл.</span>
+        <span className="text-[10px] text-muted-foreground">выкл.</span>
       ) : (
-        <span className="rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-300">новые серии</span>
+        <span className="rounded-full bg-sky-500/15 px-1.5 text-[11px] font-bold text-sky-600 dark:text-sky-300">+</span>
       )}
     </button>
   );
@@ -309,11 +348,13 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
   // The same rows as the account menu in the header.
   const row =
     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground/85 outline-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:bg-foreground/[0.07]";
-  const chevron = <ChevronRightIcon className="ml-auto size-3.5 text-muted-foreground/60" />;
+  // A quick action: a small tile, two to a row.
+  const tile =
+    "flex min-w-0 items-center gap-2 rounded-xl border border-[var(--accent-line-soft)] bg-card/50 px-3 py-2.5 text-[13px] font-medium text-foreground/85 outline-none transition-[background-color,border-color,transform] hover:border-foreground/20 hover:text-foreground active:scale-95";
   const banner = profile?.bannerUrl ? imageSrc(profile.bannerUrl) : undefined;
 
   return (
-    <SheetContent side="right" className="flex w-[min(20rem,88vw)] flex-col gap-0 overflow-hidden border-l border-[var(--accent-line-soft)] p-0">
+    <SheetContent side="right" className="flex w-[min(22rem,90vw)] flex-col gap-0 overflow-hidden border-l border-[var(--accent-line-soft)] p-0">
       <SheetHeader className="sr-only">
         <SheetTitle>AnimeShadow</SheetTitle>
       </SheetHeader>
@@ -388,50 +429,64 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
           </Link>
         )}
 
-        <Separator />
-        {/* Where. */}
-        <nav className="flex flex-col p-1.5">
-          {nav.map(({ to, label, end, Icon }) => (
+        {/* Where: the sections as tiles, three to a row — one tap, no hunting down a list. */}
+        <nav className="grid grid-cols-3 gap-1.5 px-3 pb-3 pt-1">
+          {nav.map(({ to, label, end, Icon }, i) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               onClick={onNavigate}
-              className={({ isActive }) => cn(row, isActive && "bg-foreground/[0.07] font-semibold text-foreground")}
+              style={{ animationDelay: `${i * 35}ms`, animationFillMode: "backwards" }}
+              className={({ isActive }) =>
+                cn(
+                  "menu-tile flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl border px-1 py-3 text-center text-[12px] font-medium transition-[background-color,border-color,transform] active:scale-95",
+                  isActive
+                    ? "border-primary/40 bg-primary/12 text-foreground"
+                    : "border-[var(--accent-line-soft)] bg-card/50 text-foreground/80 hover:border-foreground/20 hover:text-foreground",
+                )
+              }
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={cn("size-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                  {label}
-                  {chevron}
+                  <span className={cn("grid size-9 place-items-center rounded-xl", isActive ? "bg-primary text-primary-foreground" : "bg-foreground/[0.06] text-muted-foreground")}>
+                    <Icon className="size-[18px]" />
+                  </span>
+                  <span className="w-full truncate">{label}</span>
                 </>
               )}
             </NavLink>
           ))}
         </nav>
 
-        <Separator />
-        {/* What else. */}
-        <div className="flex flex-col p-1.5">
-          {authed && <MobileTelegramRow row={row} onNavigate={onNavigate} />}
+        {/* What else: quick things, two to a row. */}
+        <div className="grid grid-cols-2 gap-1.5 px-3 pb-3">
+          {authed && <MobileTelegramRow row={tile} onNavigate={onNavigate} />}
           {authed && (
-            <Link to="/profile?studio=profile" onClick={onNavigate} className={row}>
-              <Settings2Icon className="size-4 shrink-0 text-muted-foreground" />
-              {t("userMenu.customise")}
-              {chevron}
+            <Link to="/profile?studio=notify" onClick={onNavigate} className={tile}>
+              <BellRingIcon className="size-4 shrink-0 text-amber-400" />
+              <span className="min-w-0 flex-1 truncate">Уведомления</span>
+            </Link>
+          )}
+          {authed && (
+            <Link to="/profile?studio=profile" onClick={onNavigate} className={tile}>
+              <Settings2Icon className="size-4 shrink-0 text-violet-400" />
+              <span className="min-w-0 flex-1 truncate">Настроить</span>
             </Link>
           )}
           {FEATURES.frameSearch && (
-            <Link to="/frame-search" onClick={onNavigate} className={row}>
-              <ScanSearchIcon className="size-4 shrink-0 text-muted-foreground" />
-              {t("frameSearch.navLabel")}
-              {chevron}
+            <Link to="/frame-search" onClick={onNavigate} className={tile}>
+              <ScanSearchIcon className="size-4 shrink-0 text-emerald-400" />
+              <span className="min-w-0 flex-1 truncate">По кадру</span>
             </Link>
           )}
-          <button type="button" onClick={() => void roll()} className={cn(row, "text-left")}>
-            <ShuffleIcon className="size-4 shrink-0 text-muted-foreground" />
-            {t("footer.randomAnime")}
+          {!authed && <GuestPushTile tile={tile} />}
+          <button type="button" onClick={() => void roll()} className={cn(tile, "text-left")}>
+            <ShuffleIcon className="size-4 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 truncate">Случайное</span>
           </button>
+        </div>
+        <div className="flex flex-col px-1.5">
           <InstallAppMenuRow />
           {FEATURES.englishLocale && <MobileLanguage />}
           {FEATURES.lightTheme && <MobileTheme />}
@@ -446,26 +501,25 @@ function MobileMenu({ nav, onNavigate }: { nav: NavItem[]; onNavigate: () => voi
           </Link>
         </div>
 
-        {authed && (
-          <>
-            <Separator />
-            <div className="p-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  logout();
-                  onNavigate();
-                  navigate("/");
-                }}
-                className={cn(row, "w-full text-destructive hover:bg-destructive/10 hover:text-destructive")}
-              >
-                <LogOutIcon className="size-4 shrink-0" />
-                {t("common.signOut")}
-              </button>
-            </div>
-          </>
-        )}
       </div>
+
+      {/* Signing out: always at the very bottom, outside what scrolls. */}
+      {authed && (
+        <div className="border-t border-[var(--accent-line-soft)] bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              onNavigate();
+              navigate("/");
+            }}
+            className={cn(row, "w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive")}
+          >
+            <LogOutIcon className="size-4 shrink-0" />
+            {t("common.signOut")}
+          </button>
+        </div>
+      )}
     </SheetContent>
   );
 }
