@@ -1,6 +1,10 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
 import {
+  FastForwardIcon,
+  HistoryIcon,
+  ListEndIcon,
   Loader2Icon,
+  LockIcon,
   Maximize2Icon,
   Minimize2Icon,
   PauseIcon,
@@ -11,13 +15,10 @@ import {
   RotateCwIcon,
   Settings2Icon,
   SkipForwardIcon,
-  FastForwardIcon,
-  HistoryIcon,
-  ListEndIcon,
-  XIcon,
   SparklesIcon,
   Volume2Icon,
   VolumeXIcon,
+  XIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
@@ -34,7 +35,8 @@ import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
-import { setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
+import { persistPlayerSettings, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
+import { Link } from "react-router-dom";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
@@ -535,7 +537,8 @@ function runtimeMinutes(duration: string | null): number | null {
  * purpose: credits, and the fact that the runtime here is a title-wide
  * average that individual episodes miss in both directions.
  */
-const COMPLETE_AT = 0.8;
+/** Watched this much of an episode — it counts as seen. */
+const COMPLETE_AT = 0.75;
 
 /**
  * Records roughly where a signed-in user left off on one episode — a
@@ -904,6 +907,7 @@ function CustomHlsPlayer({
   resumeFrom = 0,
   onEnded,
   opening = null,
+  onTime,
 }: {
   src: string;
   /** This episode in every quality the provider publishes ("480" → manifest, …). */
@@ -927,9 +931,13 @@ function CustomHlsPlayer({
   onEnded?: () => void;
   /** Where this episode's opening sits, when the provider marked it. */
   opening?: { start: number; stop: number } | null;
+  /** Where playback is, and how long the episode runs. */
+  onTime?: (time: number, duration: number) => void;
 }) {
   const t = useT();
   const tone = SKINS[skin];
+  const onTimeRef = useRef(onTime);
+  onTimeRef.current = onTime;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1161,7 +1169,10 @@ function CustomHlsPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    const onTimeUpdate = () => setCurrentTime(video.currentTime);
+    const onTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      onTimeRef.current?.(video.currentTime, Number.isFinite(video.duration) ? video.duration : 0);
+    };
     const onDurationChange = () =>
       setDuration(Number.isFinite(video.duration) ? video.duration : 0);
     const onProgress = () => {
@@ -1963,7 +1974,8 @@ function Player({
   // Whether finishing an episode should load the next one. Remembered,
   // because that *is* a preference — and defaulting to on, since the whole
   // point of a series is that there is another one after this.
-  const { prefs, toggle: togglePref } = usePlayerPrefs();
+  const member = useAuth().status === "authenticated";
+  const { prefs, toggle: togglePref } = usePlayerPrefs(member);
   const autoNext = prefs.autoNext;
 
   const winner = data.sources.find((s) => s.id === winnerId) ?? null;
@@ -2110,7 +2122,33 @@ function Player({
   // Where playback was: moving the player to another window reloads the
   // embed, which then picks up from here.
   const lastTime = useRef(0);
+  const lastDuration = useRef(0);
   const resumeAt = useRef<number | null>(null);
+
+  // A guest's speed and quality last for the page; a member's are remembered.
+  useEffect(() => persistPlayerSettings(authed), [authed]);
+
+  // Switched to another episode (or left) having watched three quarters of
+  // this one: it's seen — ticked without waiting for the very end, which
+  // nobody sits through with the credits rolling.
+  const watchedRef = useRef(watchedEpisodes);
+  watchedRef.current = watchedEpisodes;
+  useEffect(() => {
+    lastTime.current = 0;
+    lastDuration.current = 0;
+    const leaving = episode;
+    return () => {
+      if (!authed) return;
+      const at = lastTime.current;
+      const length = lastDuration.current || (runtimeMinutes(runtime) ?? 0) * 60;
+      if (length <= 0 || at / length < COMPLETE_AT || watchedRef.current.get(leaving)?.completed) return;
+      update.mutate(
+        { episode: leaving, positionSeconds: Math.round(at), completed: true },
+        { onSuccess: () => toast.success(`Серия ${leaving} отмечена просмотренной`, { description: "Досмотрено больше трёх четвертей" }) },
+      );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episode, authed]);
 
   const fold = async () => {
     if (pipWin) {
@@ -2145,6 +2183,9 @@ function Player({
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const kodik = useKodikBridge(kodikFrame, {
+    onDuration: (d) => {
+      lastDuration.current = d;
+    },
     onTime: (time) => {
       lastTime.current = time;
       if (resumeAt.current != null) {
@@ -2203,6 +2244,7 @@ function Player({
   // Shift+N / Shift+P: next and previous episode, from anywhere on the page.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!authed) return;
       if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
       if ((e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable=true]")) return;
       if (e.code === "KeyN" && nextEpisode != null) onEpisodeChange(nextEpisode);
@@ -2210,7 +2252,7 @@ function Player({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [episode, nextEpisode, onEpisodeChange]);
+  }, [episode, nextEpisode, onEpisodeChange, authed]);
 
   // `exhausted` means the race tried everything it had and nothing
   // answered. Reported once per mount, which is enough: the parent
@@ -2279,6 +2321,10 @@ function Player({
 
   /** Star a dub, or un-star it — the same button both ways. */
   const toggleFavourite = (title: string) => {
+    if (!authed) {
+      toast.info("Любимая озвучка — для участников", { description: "Войдите, и сайт будет сразу включать её" });
+      return;
+    }
     const next = favouriteDub === title ? null : title;
     setFavouriteDub(next);
     try {
@@ -2353,8 +2399,12 @@ function Player({
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
                 onFailed={() => handleFailed(id)}
-                resumeFrom={episodeRecord?.positionSeconds ?? 0}
+                resumeFrom={authed ? (episodeRecord?.positionSeconds ?? 0) : 0}
                 onEnded={handleEnded}
+                onTime={(time, length) => {
+                  lastTime.current = time;
+                  if (length > 0) lastDuration.current = length;
+                }}
                 opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
               />
             );
@@ -2565,6 +2615,7 @@ function Player({
           sourceLabel={(source) => sourceLabel(source, t)}
           footer={
             <PlayerPrefsBar
+              locked={!authed}
               prefs={prefs}
               onToggle={togglePref}
               supported={winnerIsKodik || displaySource.format === "hls"}
@@ -2624,7 +2675,10 @@ function PlayerPrefsBar({
   supported,
   hasTimes,
   hasNext,
+  locked = false,
 }: {
+  /** A guest: every switch shows a lock, and says why. */
+  locked?: boolean;
   prefs: PlayerPrefs;
   onToggle: (key: keyof PlayerPrefs) => void;
   supported: boolean;
@@ -2643,7 +2697,7 @@ function PlayerPrefsBar({
       <div className="grid grid-cols-2 gap-1">
         {items.map(({ key, icon: Icon, label, hint }) => {
           const on = prefs[key];
-          const off = !supported || (key === "autoNext" && !hasNext);
+          const off = locked || !supported || (key === "autoNext" && !hasNext);
           return (
             <Tooltip key={key}>
               <TooltipTrigger asChild>
@@ -2664,16 +2718,32 @@ function PlayerPrefsBar({
                 >
                   <Icon className={cn("size-3.5 shrink-0", on && !off && "text-primary")} />
                   <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-                  <span className={cn("size-1.5 shrink-0 rounded-full", on && !off ? "bg-primary" : "bg-foreground/20")} />
+                  {locked ? (
+                    <LockIcon className="size-3 shrink-0 text-primary/70" />
+                  ) : (
+                    <span className={cn("size-1.5 shrink-0 rounded-full", on && !off ? "bg-primary" : "bg-foreground/20")} />
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-60">
-                {supported ? hint : t("watch.pref.unsupported")}
+                {locked ? "Доступно после входа — бесплатно" : supported ? hint : t("watch.pref.unsupported")}
               </TooltipContent>
             </Tooltip>
           );
         })}
       </div>
+      {locked && (
+        <Link
+          to="/register"
+          className="flex items-center gap-2 rounded-lg border border-primary/35 bg-gradient-to-r from-primary/15 to-fuchsia-500/10 px-2.5 py-1.5 text-[11px] leading-snug transition-colors hover:border-primary/60"
+        >
+          <LockIcon className="size-3.5 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <b className="font-semibold">Войдите</b> — и плеер будет пропускать опенинги, сам включать следующую серию и
+            продолжать с того места, где вы остановились.
+          </span>
+        </Link>
+      )}
       {supported && (prefs.skipOpening || prefs.skipEnding) && !hasTimes && (
         <p className="px-1 text-[10px] leading-snug text-muted-foreground">{t("watch.pref.noTimes")}</p>
       )}

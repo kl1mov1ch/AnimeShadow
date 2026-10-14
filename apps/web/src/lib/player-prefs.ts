@@ -28,9 +28,18 @@ function read(): PlayerPrefs {
   }
 }
 
-export function usePlayerPrefs() {
-  const [prefs, setPrefs] = useState<PlayerPrefs>(read);
+/** What a guest's player does: nothing on its own — these are for members. */
+const LOCKED: PlayerPrefs = { skipOpening: false, skipEnding: false, autoNext: false, resume: false };
+
+/**
+ * The prefs, and a way to flip one. `enabled` false (a guest): all off,
+ * nothing can be switched on, nothing is written to the browser.
+ */
+export function usePlayerPrefs(enabled = true) {
+  const [stored, setPrefs] = useState<PlayerPrefs>(read);
+  const prefs = enabled ? stored : LOCKED;
   const toggle = useCallback((key: keyof PlayerPrefs) => {
+    if (!enabled) return;
     setPrefs((current) => {
       const next = { ...current, [key]: !current[key] };
       try {
@@ -40,6 +49,6 @@ export function usePlayerPrefs() {
       }
       return next;
     });
-  }, []);
+  }, [enabled]);
   return { prefs, toggle };
 }

@@ -46,10 +46,16 @@ function subscribe(listener: () => void) {
   };
 }
 
+/** Off for a guest: their changes last for the page, never written to the browser. */
+let persist = false;
+export function persistPlayerSettings(on: boolean) {
+  persist = on;
+}
+
 export function setPlayerSetting(patch: Partial<PlayerSettings>) {
   current = { ...current, ...patch };
   try {
-    localStorage.setItem(KEY, JSON.stringify(current));
+    if (persist) localStorage.setItem(KEY, JSON.stringify(current));
   } catch {
     // Private browsing, blocked storage — kept for this page load only.
   }
