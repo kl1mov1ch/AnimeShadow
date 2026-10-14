@@ -289,3 +289,31 @@ function RouteList({ title, rows }: { title: string; rows: Array<[string, string
     </div>
   );
 }
+
+/** The secret achievements: their rules (shown only here) and how many have each. */
+export function SecretAchievementsPanel() {
+  const { data } = useQuery({
+    queryKey: ["admin", "secret-achievements"],
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: Array<{ id: string; condition: string; earnedBy: number }> }>("/admin/achievements/secret", { signal }).then((r) => r.items),
+  });
+  if (!data) return null;
+  return (
+    <Panel title="Секретные достижения" description="Условия видны только админам — пользователи знают лишь, что такие есть" icon={<ScrollTextIcon />}>
+      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {data.map((r) => (
+          <li key={r.id} className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/30 px-3 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-mono text-[11px] text-violet-300">{r.id}</span>
+              <span className="block text-xs leading-snug text-foreground/85">{r.condition}</span>
+            </span>
+            <span className="shrink-0 text-right text-[11px] text-muted-foreground">
+              <b className="block text-sm tabular-nums text-foreground">{r.earnedBy}</b>
+              получили
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}

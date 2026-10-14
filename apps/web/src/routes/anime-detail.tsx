@@ -4,7 +4,10 @@ import { memo, useEffect, useMemo, useState } from "react";
 import {
   BookOpenIcon,
   CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ClockIcon,
+  ImageIcon,
   LayersIcon,
   ListVideoIcon,
   type LucideIcon,
@@ -43,7 +46,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, apiRequest } from "@/lib/api";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useSlowConnection } from "@/lib/connection";
 import { glideTo } from "@/lib/glide";
 import { fullSizeCover, imageSrc } from "@/lib/format";
@@ -62,7 +66,7 @@ import { cn } from "@/lib/utils";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { WhenNear } from "@/components/common/when-near";
 import { useAuth } from "@/hooks/use-auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function Component() {
   const t = useT();
@@ -665,26 +669,31 @@ const AUDIENCE_KEYS = [
 function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: string; oneLiner: string }) {
   const { data: stats } = useAnimeStats(anime.id);
   const audience = stats != null && AUDIENCE_KEYS.some(({ key }) => stats[key] != null);
+  const frames = useAnimeFrames(anime.id);
+  const hasFrames = (frames.data?.length ?? 0) > 0;
   const watchTime = hasWatchTime(anime);
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
-      <div
-        className={cn(
-          "order-2 grid min-w-0 gap-4 lg:order-1",
-          audience ? "xl:grid-cols-[minmax(0,1fr)_19rem] xl:grid-rows-[auto_1fr]" : "md:grid-cols-2",
-        )}
-      >
-        <div className="min-w-0 [&>*]:h-full">
+      {/* Two columns on a wide screen: the description beside the frames,
+          the facts beside the viewers' marks. Whatever is missing, its
+          neighbour takes the whole row — no empty cells. */}
+      <div className="order-2 grid min-w-0 gap-4 lg:order-1 xl:grid-cols-2">
+        <div className={cn("min-w-0 [&>*]:h-full", !hasFrames && "xl:col-span-2")}>
           <AboutBlockM anime={anime} oneLiner={oneLiner} />
         </div>
+        {hasFrames && (
+          <div className="min-w-0 [&>*]:h-full">
+            <FramesPanel frames={frames.data!} title={title} />
+          </div>
+        )}
+        <div className={cn("min-w-0 [&>*]:h-full", !audience && "xl:col-span-2")}>
+          <InfoSidebarM anime={anime} className="justify-between" />
+        </div>
         {audience && (
-          <div className="min-w-0 xl:row-span-2 [&>*]:h-full">
+          <div className="min-w-0 [&>*]:h-full">
             <AudiencePanel animeId={anime.id} />
           </div>
         )}
-        <div className="min-w-0 [&>*]:h-full">
-          <InfoSidebarM anime={anime} className="justify-between" />
-        </div>
       </div>
       {/* Without the watch-time card the list card alone can't fill a tall
           column, so between lg and xl it rides along as you scroll instead. */}
@@ -698,6 +707,64 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
         {watchTime && <WatchTimeCard anime={anime} className="flex-1" />}
       </aside>
     </div>
+  );
+}
+
+/** The title's screenshots (the catalogue's, cached on the server for an hour). */
+function useAnimeFrames(animeId: number) {
+  return useQuery({
+    queryKey: ["hero-frames", animeId],
+    staleTime: Infinity,
+    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${animeId}/frames?v=2`, { signal }).then((r) => r.frames),
+  });
+}
+
+/**
+ * Frames from the anime, beside the description: six small stills, lazy
+ * loaded; a click opens one large, arrows step through them.
+ */
+function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
+  const shown = frames.slice(0, 6);
+  const [open, setOpen] = useState<number | null>(null);
+  const step = (d: number) => setOpen((i) => (i == null ? i : (i + d + shown.length) % shown.length));
+  return (
+    <Panel icon={ImageIcon} title="Кадры">
+      <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
+        {shown.map((src, i) => (
+          <button
+            key={src}
+            type="button"
+            onClick={() => setOpen(i)}
+            className="aspect-video overflow-hidden rounded-lg border border-[var(--accent-line-soft)] bg-muted transition-colors hover:border-primary/60"
+          >
+            <img src={imageSrc(src)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+          </button>
+        ))}
+      </div>
+      <Dialog open={open != null} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent className="overflow-hidden p-0 sm:max-w-4xl">
+          <DialogTitle className="sr-only">Кадр из «{title}»</DialogTitle>
+          {open != null && (
+            <div className="relative bg-black">
+              <img src={imageSrc(shown[open]!)} alt="" className="max-h-[80dvh] w-full object-contain" />
+              {shown.length > 1 && (
+                <>
+                  <button type="button" aria-label="Предыдущий" onClick={() => step(-1)} className="absolute left-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary">
+                    <ChevronLeftIcon className="size-5" />
+                  </button>
+                  <button type="button" aria-label="Следующий" onClick={() => step(1)} className="absolute right-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary">
+                    <ChevronRightIcon className="size-5" />
+                  </button>
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 text-xs tabular-nums text-white">
+                    {open + 1} / {shown.length}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Panel>
   );
 }
 
@@ -974,7 +1041,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}
           </div>
-          <CharacterModal character={selected} animeId={animeId} onOpenChange={(open) => !open && setSelected(null)} />
+          <CharacterModal character={selected} onOpenChange={(open) => !open && setSelected(null)} />
           {!searching && hidden > 0 && (
             <button
               type="button"

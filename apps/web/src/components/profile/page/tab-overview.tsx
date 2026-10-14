@@ -165,36 +165,17 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
   const labels = useLabels();
   const [picking, setPicking] = useState(false);
   const favorites = profile.favorites;
-  // Five titles, or five moments — scenes with their episode, second and dub.
+  // Under the five titles: five moments — scenes with episode, second and dub.
   const { data: moments = [] } = useMoments(profile.hidden.favorites ? undefined : profile.id);
-  const [view, setView] = useState<"anime" | "moments">("anime");
-  const showing = view === "moments" || (favorites.length === 0 && moments.length > 0 && !own) ? "moments" : "anime";
   if (favorites.length === 0 && moments.length === 0 && !own) return null;
 
-  const switcher = (
-    <div className="flex items-center gap-1.5">
-      <div className="flex rounded-lg border border-[var(--accent-line-soft)] bg-background/40 p-0.5 text-[11px] font-semibold">
-        {(["anime", "moments"] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setView(v)}
-            className={cn("rounded-md px-2.5 py-1 transition-colors", showing === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-          >
-            {v === "anime" ? "Аниме" : `Моменты${moments.length ? ` · ${moments.length}` : ""}`}
-          </button>
-        ))}
-      </div>
-      {own && showing === "anime" && <PanelAction icon={PencilIcon} onClick={() => setPicking(true)}>Изменить</PanelAction>}
-    </div>
-  );
-
   return (
-    <Panel className="h-full" title="Моя пятёрка" icon={CrownIcon} action={switcher}>
-      {showing === "moments" ? (
-        <MomentsStrip items={moments} own={own} />
-      ) : (
-      <>
+    <Panel
+      className="h-full"
+      title="Моя пятёрка"
+      icon={CrownIcon}
+      action={own ? <PanelAction icon={PencilIcon} onClick={() => setPicking(true)}>Изменить</PanelAction> : undefined}
+    >
       {favorites.length === 0 && (
         <div className="mb-4">
           <QuickFavorites profile={profile} onPick={() => setPicking(true)} />
@@ -250,7 +231,15 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
             ))}
         </ol>
       )}
-      </>
+      {(moments.length > 0 || own) && (
+        <div className="mt-5 flex flex-col gap-3 border-t border-[var(--accent-line-soft)] pt-4">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <PlayIcon className="size-4 text-primary" />
+            Любимые моменты
+            <span className="text-xs font-normal text-muted-foreground">{moments.length} / 5</span>
+          </p>
+          <MomentsStrip items={moments} own={own} />
+        </div>
       )}
       {own && <ShowcasePicker open={picking} onOpenChange={setPicking} current={favorites.map((a) => a.id)} />}
     </Panel>

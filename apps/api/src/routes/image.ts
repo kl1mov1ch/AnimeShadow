@@ -182,6 +182,9 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
   };
   await mkdir(CACHE_DIR, { recursive: true }).catch(() => undefined);
   const upstream = limiter(MAX_UPSTREAM);
+  // Decorative gifs (nekos.best) are big and their host can be slow: they
+  // get a lane of their own, so a stalled gif never holds up a poster.
+  const gifLane = limiter(3);
   const inflight = new Map<string, Promise<Fetched>>();
   const missing = new Map<string, number>();
 
@@ -244,7 +247,7 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
   };
 
   const fetchOnce = (target: URL, key: string): Promise<Fetched> =>
-    upstream(async () => {
+    (target.hostname.endsWith("nekos.best") ? gifLane : upstream)(async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           let url = target;

@@ -1,4 +1,5 @@
 import type { AdminProAction, AdminProQuery, AdminProRow, AdminProStats, Paginated, ProStatus } from "@animeshadow/shared";
+import { SecretAchievementsPanel } from "./admin-daily";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BadgePercentIcon, CalendarPlusIcon, CircleOffIcon, CrownIcon, FilterIcon, GiftIcon, MoreHorizontalIcon, RotateCcwIcon, TimerOffIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
@@ -117,6 +118,7 @@ export function AdminPro() {
       </div>
 
       <ReferralPanel />
+      <SecretAchievementsPanel />
 
       <TableShell
         toolbar={

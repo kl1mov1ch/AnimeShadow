@@ -57,3 +57,47 @@ export async function fetchReactionGif(
     return null;
   }
 }
+
+/**
+ * A pool of gif URLs per category, kept in memory: one request to
+ * nekos.best fills it with 20 at once, and every page after is answered
+ * from here in no time. Refilled after six hours; while a refill is under
+ * way (or nekos.best is down) the old pool keeps answering. Before, every
+ * gif on every page was a live request with a five-second timeout — on a
+ * slow or blocked connection that held the whole page up.
+ */
+const POOL_TTL_MS = 6 * 60 * 60_000;
+const pools = new Map<ReactionCategory, { urls: string[]; at: number }>();
+const filling = new Map<ReactionCategory, Promise<void>>();
+
+function fill(category: ReactionCategory): Promise<void> {
+  const running = filling.get(category);
+  if (running) return running;
+  const job = (async () => {
+    try {
+      const res = await fetch(`https://nekos.best/api/v2/${category}?amount=20`, {
+        headers: { "user-agent": NEKOS_UA, accept: "application/json" },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as { results?: Array<{ url?: string }> };
+      const urls = (json.results ?? []).map((r) => r.url).filter((u): u is string => Boolean(u));
+      if (urls.length > 0) pools.set(category, { urls, at: Date.now() });
+    } catch {
+      // Keep whatever pool there was.
+    } finally {
+      filling.delete(category);
+    }
+  })();
+  filling.set(category, job);
+  return job;
+}
+
+/** A gif from the pool — waits for nekos.best only the very first time. */
+export async function pooledReactionGif(category: ReactionCategory): Promise<string | null> {
+  const pool = pools.get(category);
+  if (pool && Date.now() - pool.at > POOL_TTL_MS) void fill(category);
+  if (!pool) await fill(category);
+  const urls = pools.get(category)?.urls;
+  return urls && urls.length > 0 ? urls[Math.floor(Math.random() * urls.length)]! : null;
+}

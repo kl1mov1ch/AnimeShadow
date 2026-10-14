@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
-  fetchReactionGif,
+  pooledReactionGif,
   isReactionCategory,
   randomReactionCategory,
 } from "../lib/reaction-gif.js";
@@ -19,7 +19,7 @@ export const funRoutes: FastifyPluginAsync = async (fastify) => {
       ? q.category
       : randomReactionCategory();
 
-    const url = await fetchReactionGif(category);
+    const url = await pooledReactionGif(category);
     if (!url) {
       request.log.warn({ category }, "reaction gif fetch failed");
       reply.code(502);
@@ -28,7 +28,8 @@ export const funRoutes: FastifyPluginAsync = async (fastify) => {
       };
     }
 
-    reply.header("cache-control", "no-store");
+    // A different gif now and then, but not a request per page view.
+    reply.header("cache-control", "public, max-age=300");
     return { url, category };
   });
 

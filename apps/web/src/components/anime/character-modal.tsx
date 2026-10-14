@@ -9,7 +9,6 @@ import {
   EyeIcon,
   FilmIcon,
   HeartIcon,
-  ImageIcon,
   type LucideIcon,
   MicIcon,
   ShirtIcon,
@@ -17,9 +16,7 @@ import {
   UserIcon,
   ZapIcon,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { apiRequest } from "@/lib/api";
 import { Link } from "react-router-dom";
 import {
   Dialog,
@@ -53,12 +50,9 @@ type Tab = "about" | "voices" | "anime" | "manga";
 export function CharacterModal({
   character,
   onOpenChange,
-  animeId,
 }: {
   character: Character | null;
   onOpenChange: (open: boolean) => void;
-  /** The title it was opened from — its frames are shown under the bio. */
-  animeId?: number;
 }) {
   const { data, isPending, isError } = useCharacterDetail(character?.id ?? null);
 
@@ -76,7 +70,6 @@ export function CharacterModal({
 
             <CharacterInfo
               key={`i-${character.id}`}
-              animeId={animeId}
               character={character}
               data={data}
               isPending={isPending}
@@ -301,9 +294,7 @@ function CharacterInfo({
   data,
   isPending,
   isError,
-  animeId,
 }: {
-  animeId?: number;
   character: Character;
   data: CharacterDetail | undefined;
   isPending: boolean;
@@ -444,7 +435,6 @@ function CharacterInfo({
         {tab === "voices" && <VoiceGrid actors={voiceActors} />}
         {tab === "anime" && <AppearanceGrid kind="anime" items={data?.animes ?? []} />}
         {tab === "manga" && <AppearanceGrid kind="manga" items={data?.mangas ?? []} />}
-        {tab === "about" && animeId != null && <AnimeFrames animeId={animeId} />}
         {tab === "about" &&
           (isPending ? (
             <div className="flex flex-col gap-2">
@@ -529,45 +519,3 @@ function CharacterInfo({
     </div>
   );
 }
-
-/**
- * Frames from the anime the character was opened from — the catalogue's
- * screenshots and episode stills. Small and lazy; a click opens one big.
- * No source says which frame a character is in, so these are the title's.
- */
-function AnimeFrames({ animeId }: { animeId: number }) {
-  const { data } = useQuery({
-    queryKey: ["hero-frames", animeId],
-    staleTime: Infinity,
-    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${animeId}/frames?v=2`, { signal }).then((r) => r.frames),
-  });
-  const [open, setOpen] = useState<string | null>(null);
-  const frames = (data ?? []).slice(0, 8);
-  if (frames.length === 0) return null;
-  return (
-    <section className="flex flex-col gap-2">
-      <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <ImageIcon className="size-3.5" />
-        Кадры из аниме
-      </h3>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        {frames.map((src) => (
-          <button
-            key={src}
-            type="button"
-            onClick={() => setOpen(open === src ? null : src)}
-            className={cn("aspect-video overflow-hidden rounded-lg border bg-card", open === src ? "border-primary" : "border-[var(--accent-line-soft)]")}
-          >
-            <img src={imageSrc(src)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          </button>
-        ))}
-      </div>
-      {open && (
-        <button type="button" onClick={() => setOpen(null)} className="overflow-hidden rounded-xl border border-primary/40">
-          <img src={imageSrc(open)} alt="" className="w-full object-contain" />
-        </button>
-      )}
-    </section>
-  );
-}
-
