@@ -6,6 +6,8 @@ import {
   setUsernameInputSchema,
   updateProfileInputSchema,
 } from "@animeshadow/shared";
+import { createMomentInputSchema, updateMomentInputSchema } from "@animeshadow/shared";
+import { addMoment, listMoments, removeMoment, updateMoment } from "../lib/moments.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { parse } from "../lib/validation.js";
@@ -143,6 +145,25 @@ export const profileRoutes: FastifyPluginAsync = async (fastify) => {
   const sweep = setInterval(() => void profile.sweepVisits().catch(() => 0), 24 * 60 * 60_000);
   sweep.unref();
   fastify.addHook("onClose", async () => clearInterval(sweep));
+
+  // Favourite moments: an episode at a second, beside the favourite five.
+  fastify.get("/users/:id/moments", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { id } = parse(userIdParams, request.params);
+    return { items: await listMoments(fastify.prisma, id, request.userId ?? null) };
+  });
+  fastify.post(
+    "/me/moments",
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request) => ({ items: await addMoment(fastify.prisma, request.userId!, parse(createMomentInputSchema, request.body)) }),
+  );
+  fastify.patch("/me/moments/:momentId", { preHandler: fastify.authenticate }, async (request) => {
+    const { momentId } = parse(z.object({ momentId: z.string().min(1) }), request.params);
+    return { items: await updateMoment(fastify.prisma, request.userId!, momentId, parse(updateMomentInputSchema, request.body)) };
+  });
+  fastify.delete("/me/moments/:momentId", { preHandler: fastify.authenticate }, async (request) => {
+    const { momentId } = parse(z.object({ momentId: z.string().min(1) }), request.params);
+    return { items: await removeMoment(fastify.prisma, request.userId!, momentId) };
+  });
 
   // Same thing by id — for a comment author who hasn't claimed a username.
   fastify.get("/users/:id/public-profile", { preHandler: fastify.optionalAuth }, async (request) => {

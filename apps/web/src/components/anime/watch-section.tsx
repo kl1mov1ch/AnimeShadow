@@ -1,5 +1,7 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
+import { useAddMoment } from "@/lib/moments";
 import {
+  BookmarkPlusIcon,
   FastForwardIcon,
   HistoryIcon,
   ListEndIcon,
@@ -74,6 +76,8 @@ interface WatchSectionProps {
    * panel it lives on can be tabbed away from while an episode plays.
    */
   onActivate?: () => void;
+  /** Opened from a moment's link: this episode, from this second. */
+  startAt?: { episode: number; seconds: number } | null;
 }
 
 /** Our own HLS player (AniLibria streams). Off: Kodik only. */
@@ -86,6 +90,7 @@ export function WatchSection({
   episode,
   onEpisodeChange,
   onActivate,
+  startAt = null,
 }: WatchSectionProps) {
   const t = useT();
   // The embeds are not mounted until someone asks for them. Mounting them on
@@ -144,7 +149,9 @@ export function WatchSection({
   const { data: progress } = useAnimeProgress(anime.id, authStatus === "authenticated");
   const chosenRef = useRef(false);
   useEffect(() => {
-    chosenRef.current = false;
+    // A moment's link already chose the episode — saved progress doesn't override it.
+    chosenRef.current = startAt != null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anime.id]);
   useEffect(() => {
     if (chosenRef.current) return;
@@ -238,6 +245,7 @@ export function WatchSection({
         runtime={anime.duration}
         episode={episode}
         onEpisodeChange={chooseEpisode}
+        startAt={startAt}
         useOwn={useOwn}
         canUseOwn={canUseOwn && ownHasEpisode}
         canUseProvider={providerSources.length > 0}
@@ -1928,7 +1936,10 @@ function Player({
   canUseProvider,
   onUseOwnChange,
   onAllFailed,
+  startAt = null,
 }: {
+  /** Opened from a moment: seek here once, on that episode. */
+  startAt?: { episode: number; seconds: number } | null;
   data: WatchResponse;
   title: string;
   animeId: number;
@@ -2124,6 +2135,36 @@ function Player({
   const lastTime = useRef(0);
   const lastDuration = useRef(0);
   const resumeAt = useRef<number | null>(null);
+
+  // A moment's link: Kodik is sent there once its player reports time.
+  const startUsed = useRef(false);
+  useEffect(() => {
+    if (!startUsed.current && startAt && startAt.episode === episode) {
+      startUsed.current = true;
+      resumeAt.current = startAt.seconds;
+    }
+  }, [startAt, episode]);
+  const momentStart = startAt && startAt.episode === episode ? startAt.seconds : null;
+
+  // Pin where the picture is now as a favourite moment (five at most).
+  const addMoment = useAddMoment();
+  const pinMoment = () => {
+    if (!authed) {
+      toast.info("Любимые моменты — для участников", {
+        description: "Войдите и сохраняйте сцены с таймкодом прямо в профиль",
+        action: { label: "Войти", onClick: () => window.location.assign("/register") },
+      });
+      return;
+    }
+    const seconds = Math.floor(lastTime.current);
+    addMoment.mutate(
+      { animeId, episode, seconds, dub: (winner ?? displaySource)?.title?.slice(0, 80) || undefined },
+      {
+        onSuccess: () => toast.success(`Момент сохранён: серия ${episode}, ${formatClock(seconds)}`, { description: "Он в профиле, в блоке «Моя пятёрка»" }),
+        onError: (e) => toast.error("Не получилось сохранить", { description: e instanceof Error ? e.message : undefined }),
+      },
+    );
+  };
 
   // A guest's speed and quality last for the page; a member's are remembered.
   useEffect(() => persistPlayerSettings(authed), [authed]);
@@ -2399,7 +2440,7 @@ function Player({
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
                 onFailed={() => handleFailed(id)}
-                resumeFrom={authed ? (episodeRecord?.positionSeconds ?? 0) : 0}
+                resumeFrom={momentStart ?? (authed ? (episodeRecord?.positionSeconds ?? 0) : 0)}
                 onEnded={handleEnded}
                 onTime={(time, length) => {
                   lastTime.current = time;
@@ -2515,6 +2556,24 @@ function Player({
             pulse — the one moment it's fair to draw the eye — and its own
             popover opens right here instead of a screen-center dialog. */}
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {winnerId != null && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={pinMoment}
+                  disabled={addMoment.isPending}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-primary/35 bg-primary/10 px-2.5 text-xs font-semibold transition-colors hover:bg-primary/20 disabled:opacity-60"
+                >
+                  {authed ? <BookmarkPlusIcon className="size-3.5 text-primary" /> : <LockIcon className="size-3.5 text-primary" />}
+                  <span className="hidden sm:inline">Любимый момент</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-60">
+                {authed ? "Сохранить эту сцену с таймкодом и озвучкой в профиль — до пяти моментов" : "Доступно после входа — бесплатно"}
+              </TooltipContent>
+            </Tooltip>
+          )}
           {/* Both of these only mean anything for our own player: a
               cross-origin embed brings its own everything and never tells us
               an episode ended. Rather than show dead controls, they appear

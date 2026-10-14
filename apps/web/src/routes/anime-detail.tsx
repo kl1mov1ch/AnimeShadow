@@ -1,6 +1,6 @@
 import { genreHref } from "@/lib/format";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   BookOpenIcon,
   CalendarIcon,
@@ -18,7 +18,7 @@ import {
   TvIcon,
   UsersIcon,
 } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ShareQrButton } from "@/components/anime/share-qr";
 import { AnimeRail } from "@/components/anime/anime-rail";
 import { CharacterCard } from "@/components/anime/character-card";
@@ -90,8 +90,16 @@ function AnimeDetailView({ param }: { param: string }) {
   // The route component isn't remounted when navigating from one anime page
   // to another (same route, different :id) — reset explicitly, or the new
   // title would open on whatever episode number the last one left behind.
+  // A moment's link (?ep=3&t=754): that episode, from that second.
+  const [query] = useSearchParams();
+  const startAt = useMemo(() => {
+    const ep = Number(query.get("ep"));
+    const at = Number(query.get("t"));
+    return Number.isInteger(ep) && ep > 0 ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 } : null;
+  }, [query]);
   useEffect(() => {
-    setEpisode(1);
+    setEpisode(startAt?.episode ?? 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id]);
 
   const seoTitle = data ? labels.title(data) : "AnimeShadow";
@@ -364,6 +372,7 @@ function AnimeDetailView({ param }: { param: string }) {
           active
           episode={episode}
           onEpisodeChange={setEpisode}
+          startAt={startAt}
         />
       </Panel>
 

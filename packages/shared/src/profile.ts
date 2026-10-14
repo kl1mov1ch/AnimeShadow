@@ -469,3 +469,41 @@ export const libraryImportInputSchema = z.object({
   content: z.string().min(1).max(5_000_000),
 });
 export type LibraryImportInput = z.infer<typeof libraryImportInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Favourite moments: an episode at a second, with its dub and a few words.
+// ---------------------------------------------------------------------------
+
+export const MAX_MOMENTS = 5;
+
+export const favoriteMomentSchema = z.object({
+  id: z.string(),
+  anime: z.object({
+    id: z.number().int(),
+    slug: z.string(),
+    title: z.string(),
+    titleLocalized: z.string().nullable(),
+    imageUrl: z.string().nullable(),
+  }),
+  episode: z.number().int(),
+  seconds: z.number().int(),
+  dub: z.string().nullable(),
+  note: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type FavoriteMoment = z.infer<typeof favoriteMomentSchema>;
+
+export const createMomentInputSchema = z.object({
+  animeId: z.number().int().positive(),
+  episode: z.number().int().min(1).max(5000),
+  seconds: z.number().int().min(0).max(24 * 3600),
+  dub: z.string().trim().max(80).optional(),
+  note: z.string().trim().max(80).optional(),
+});
+export type CreateMomentInput = z.infer<typeof createMomentInputSchema>;
+
+export const updateMomentInputSchema = z.object({
+  note: z.string().trim().max(80).nullable().optional(),
+  /** Move to this place in the five (0 first). */
+  position: z.number().int().min(0).max(MAX_MOMENTS - 1).optional(),
+});

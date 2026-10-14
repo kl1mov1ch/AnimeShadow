@@ -123,6 +123,7 @@ model User {
   library       LibraryEntry[]
   reviews       Review[]
   progress      WatchProgress[]
+  moments       FavoriteMoment[]
   comments      Comment[]
   commentVotes  CommentVote[]
   sessions      WatchSession[]
@@ -917,4 +918,23 @@ model ProfileVisit {
 
   @@id([profileId, viewerKey])
   @@index([lastAt])
+}
+
+/// A favourite moment: an episode at a second, with the dub it was watched
+/// in and a few words — up to five per account, shown on the profile beside
+/// the favourite five.
+model FavoriteMoment {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  animeId   Int
+  episode   Int
+  seconds   Int
+  dub       String?
+  note      String?
+  /// Order on the profile, 0 first.
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, position])
 }
