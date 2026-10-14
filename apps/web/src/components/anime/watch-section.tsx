@@ -18,6 +18,7 @@ import {
   Settings2Icon,
   SkipForwardIcon,
   SparklesIcon,
+  SignalIcon,
   VolumeXIcon,
   WifiOffIcon,
   XIcon,
@@ -48,6 +49,7 @@ import { attachEngine, type EngineHandle, type EngineStatus, loadHls, warmHls } 
 import { FramePreview } from "@/components/player/frame-preview";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
+import { NEEDED_MBPS, NetStats } from "@/components/player/net-stats";
 import { fitSegments, SEGMENT_LABEL, segmentAt, type SkipSegment } from "@/lib/skip-times";
 import type { SkipSegmentRaw } from "@animeshadow/shared";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -1176,6 +1178,47 @@ function CustomHlsPlayer({
   const previewRef = useRef(preview);
   previewRef.current = preview;
 
+  // The connection card: the line's speed every two seconds (the last half
+  // minute kept), seconds loaded ahead. Closed by the viewer, it stays closed.
+  const [netHidden, setNetHidden] = useState(() => {
+    try {
+      return localStorage.getItem("as:net-stats") === "hidden";
+    } catch {
+      return false;
+    }
+  });
+  const toggleNet = (hide: boolean) => {
+    setNetHidden(hide);
+    try {
+      localStorage.setItem("as:net-stats", hide ? "hidden" : "shown");
+    } catch {
+      // Fine — just for this visit.
+    }
+  };
+  const [netHistory, setNetHistory] = useState<number[]>([]);
+  const [bufferAhead, setBufferAhead] = useState(0);
+  useEffect(() => {
+    if (!isWinner) return;
+    setNetHistory([]);
+    const sample = () => {
+      const video = videoRef.current;
+      if (video) {
+        let ahead = 0;
+        for (let i = 0; i < video.buffered.length; i++) {
+          if (video.buffered.start(i) <= video.currentTime + 0.5 && video.buffered.end(i) > video.currentTime) {
+            ahead = video.buffered.end(i) - video.currentTime;
+          }
+        }
+        setBufferAhead(ahead);
+      }
+      const bw = engineRef.current?.bandwidth() ?? 0;
+      if (bw > 0) setNetHistory((h) => [...h.slice(-14), bw / 1_000_000]);
+    };
+    sample();
+    const id = setInterval(sample, 2000);
+    return () => clearInterval(id);
+  }, [isWinner, src, reloadKey]);
+
   const reload = () => {
     const video = videoRef.current;
     if (video && video.currentTime > 0) {
@@ -1612,6 +1655,23 @@ function CustomHlsPlayer({
           : t("watch.ctl.qualityAuto")
       : null;
   const centerVisible = controlsVisible || !playing;
+  // The quality on screen, snapped to the ones we know the need of.
+  const shownHeight = (() => {
+    // Before the first switch: where the stream starts (the lowest, or the viewer's pick).
+    const start = settings.quality !== "auto" && levels.includes(Number(settings.quality)) ? Number(settings.quality) : levels.length ? Math.min(...levels) : null;
+    const hgt = activeHeight ?? (videoHeight || null) ?? start;
+    if (!hgt) return null;
+    return Object.keys(NEEDED_MBPS)
+      .map(Number)
+      .reduce((a, b) => (Math.abs(b - hgt) < Math.abs(a - hgt) ? b : a));
+  })();
+  const lowerQuality = (() => {
+    if (levels.length < 2 || !shownHeight) return null;
+    const below = [...levels].sort((a, b) => a - b).filter((x) => x < shownHeight);
+    return below.length ? below[below.length - 1]! : null;
+  })();
+  const netSpeed = netHistory.length ? netHistory[netHistory.length - 1]! : null;
+  const showNet = isWinner && !netHidden && duration > 0 && (controlsVisible || buffering || status.kind === "retrying");
   const fitted = useMemo(() => fitSegments(segments, duration, opening), [segments, duration, opening]);
   const activeSegment = segmentAt(fitted, currentTime);
   const bandwidth = engineRef.current?.bandwidth() ?? 0;
@@ -1676,6 +1736,23 @@ function CustomHlsPlayer({
             </div>
           )}
 
+          <div
+            className={cn(
+              "pointer-events-none absolute right-2 top-2 z-20 transition-[opacity,transform] duration-300 @md/player:right-3 @md/player:top-3",
+              showNet ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
+            )}
+          >
+            <NetStats
+              speed={netSpeed}
+              history={netHistory}
+              height={shownHeight}
+              bufferAhead={bufferAhead}
+              lowerQuality={lowerQuality}
+              onLower={() => lowerQuality && pickQuality(String(lowerQuality))}
+              onClose={() => toggleNet(true)}
+              className={cn(showNet && "pointer-events-auto")}
+            />
+          </div>
           {autoMuted && muted && (
             <button
               type="button"
@@ -1684,7 +1761,7 @@ function CustomHlsPlayer({
                 if (video) video.muted = false;
                 setAutoMuted(false);
               }}
-              className="absolute left-1/2 top-3 z-30 inline-flex -translate-x-1/2 animate-in items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-black shadow-lg fade-in-0 slide-in-from-top-2 active:scale-95"
+              className="absolute bottom-16 left-1/2 z-30 inline-flex -translate-x-1/2 animate-in items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-black shadow-lg fade-in-0 active:scale-95 @md/player:bottom-auto @md/player:top-3 @md/player:gap-2 @md/player:px-3.5 @md/player:py-2 @md/player:text-sm"
             >
               <VolumeXIcon className="size-4" />
               Включить звук
@@ -1896,6 +1973,16 @@ function CustomHlsPlayer({
                     </span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => toggleNet(!netHidden)}
+                  aria-pressed={!netHidden}
+                  aria-label={netHidden ? "Показать скорость интернета" : "Скрыть скорость интернета"}
+                  title={netHidden ? "Показать скорость интернета" : "Скрыть скорость интернета"}
+                  className={cn(CONTROL_BUTTON, tone.button, !netHidden && "text-emerald-300")}
+                >
+                  <SignalIcon className="size-4" />
+                </button>
                 <button
                   type="button"
                   onClick={() => openMenu("main")}
