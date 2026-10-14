@@ -60,7 +60,19 @@ export function TitleTracker({ anime, title, className }: { anime: AnimeSummary;
           {t("library.tracker.myList")}
         </h3>
         <p className="text-sm leading-relaxed text-muted-foreground">{t("library.tracker.signInBody")}</p>
-        <Button asChild className="w-full sm:w-fit">
+        {/* What the list would hold — fills the card when it has room. */}
+        <ul className="flex flex-1 flex-col justify-evenly gap-1.5">
+          {STATUSES.map((s) => {
+            const meta = STATUS_META[s];
+            return (
+              <li key={s} className="flex items-center gap-2 rounded-lg bg-foreground/[0.03] px-2.5 py-2 text-xs text-foreground/80">
+                <meta.Icon className={cn("size-3.5", meta.text)} />
+                {t(`status.${s}` as "status.WATCHING")}
+              </li>
+            );
+          })}
+        </ul>
+        <Button asChild className="mt-auto w-full sm:w-fit">
           <Link to="/login" state={{ from: window.location.pathname }}>
             {t("common.signIn")}
           </Link>

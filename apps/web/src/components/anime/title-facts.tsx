@@ -34,6 +34,11 @@ function minutesPerEpisode(duration: string | null): number | null {
   return total > 0 ? total : null;
 }
 
+/** Whether the title's running time is known — the watch-time card has something to say. */
+export function hasWatchTime(anime: AnimeDetail): boolean {
+  return minutesPerEpisode(anime.duration) != null && (anime.episodes ?? 0) > 0;
+}
+
 interface Fact {
   key: string;
   icon: ReactNode;

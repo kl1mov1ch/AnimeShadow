@@ -28,7 +28,7 @@ import { PosterFallback } from "@/components/anime/poster-fallback";
 import { CommentsSection } from "@/components/comments/comments-section";
 import { InfoSidebar } from "@/components/anime/episodes-panel";
 import { TitleTracker } from "@/components/library/title-tracker";
-import { WatchTimeCard } from "@/components/anime/title-facts";
+import { hasWatchTime, WatchTimeCard } from "@/components/anime/title-facts";
 import { NextEpisodeBadge } from "@/components/anime/next-episode-badge";
 // Overall score is hidden for now (not deleted) — uncomment to bring it back.
 // import { ScoreBadge } from "@/components/anime/score-badge";
@@ -374,23 +374,7 @@ function AnimeDetailView({ param }: { param: string }) {
           all one column: the list first, then the rest. */}
       {/* Every card stretches to its neighbours, so the block is one solid
           rectangle with no holes: the columns end on the same line. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
-        <div className="order-2 grid min-w-0 gap-4 lg:order-1 xl:grid-cols-[minmax(0,1fr)_19rem] xl:grid-rows-[auto_1fr]">
-          <div className="min-w-0 [&>*]:h-full">
-            <AboutBlockM anime={data} oneLiner={oneLiner} />
-          </div>
-          <div className="min-w-0 xl:row-span-2 [&>*]:h-full">
-            <AudiencePanel animeId={data.id} />
-          </div>
-          <div className="min-w-0 [&>*]:h-full">
-            <InfoSidebarM anime={data} className="justify-between" />
-          </div>
-        </div>
-        <aside className="order-1 flex min-w-0 flex-col gap-4 lg:order-2">
-          <TitleTracker anime={data} title={title} />
-          <WatchTimeCard anime={data} className="flex-1" />
-        </aside>
-      </div>
+      <DetailsGrid anime={data} title={title} oneLiner={oneLiner} />
 
       {/* Everything below the player loads when it's about to be seen —
           its requests included — not all at once when the page opens. */}
@@ -663,6 +647,51 @@ const AUDIENCE_KEYS = [
  * list lights it in the bar and shows its share big; the viewer's own list,
  * if the title is in it, is marked "вы".
  */
+/**
+ * Under the player: what the title is, its facts, what viewers did with it,
+ * and the viewer's own list and watch time — laid out by what there is.
+ * No viewers' marks yet: description and facts share the width. No running
+ * time: the list card takes the whole column. Never an empty cell.
+ */
+function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: string; oneLiner: string }) {
+  const { data: stats } = useAnimeStats(anime.id);
+  const audience = stats != null && AUDIENCE_KEYS.some(({ key }) => stats[key] != null);
+  const watchTime = hasWatchTime(anime);
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
+      <div
+        className={cn(
+          "order-2 grid min-w-0 gap-4 lg:order-1",
+          audience ? "xl:grid-cols-[minmax(0,1fr)_19rem] xl:grid-rows-[auto_1fr]" : "md:grid-cols-2",
+        )}
+      >
+        <div className="min-w-0 [&>*]:h-full">
+          <AboutBlockM anime={anime} oneLiner={oneLiner} />
+        </div>
+        {audience && (
+          <div className="min-w-0 xl:row-span-2 [&>*]:h-full">
+            <AudiencePanel animeId={anime.id} />
+          </div>
+        )}
+        <div className="min-w-0 [&>*]:h-full">
+          <InfoSidebarM anime={anime} className="justify-between" />
+        </div>
+      </div>
+      {/* Without the watch-time card the list card alone can't fill a tall
+          column, so between lg and xl it rides along as you scroll instead. */}
+      <aside
+        className={cn(
+          "order-1 flex min-w-0 flex-col gap-4 lg:order-2",
+          !watchTime && "lg:sticky lg:top-20 lg:self-start xl:static xl:self-stretch",
+        )}
+      >
+        <TitleTracker anime={anime} title={title} className={watchTime ? undefined : "xl:flex-1"} />
+        {watchTime && <WatchTimeCard anime={anime} className="flex-1" />}
+      </aside>
+    </div>
+  );
+}
+
 function AudiencePanel({ animeId }: { animeId: number }) {
   const t = useT();
   const labels = useLabels();
