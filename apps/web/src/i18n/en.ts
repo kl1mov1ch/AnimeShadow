@@ -1157,6 +1157,7 @@ export const en = {
       searchPlaceholder: "Search comment text…",
       statusAll: "All comments",
       statusActive: "Published",
+      statusReported: "Reported",
       statusDeleted: "Deleted",
       sortNewest: "Newest first",
       sortOldest: "Oldest first",

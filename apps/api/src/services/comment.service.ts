@@ -5,8 +5,9 @@ import type {
   CommentAuthor,
   CommentQuery,
   CreateCommentInput,
+  CreateCommentReportInput,
 } from "@animeshadow/shared";
-import { ForbiddenError, NotFoundError, UnauthorizedError } from "../lib/errors.js";
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "../lib/errors.js";
 import type { AchievementService } from "./achievement.service.js";
 
 export interface CommentServiceDeps {
@@ -119,11 +120,19 @@ export class CommentService {
       }
     }
 
+    // One level of replies: answering a reply joins its thread.
+    let parentId = input.parentId ?? null;
+    if (parentId) {
+      const parent = await this.prisma.comment.findUnique({ where: { id: parentId }, select: { parentId: true, animeId: true } });
+      if (!parent || parent.animeId !== input.animeId) throw new NotFoundError("Комментарий не найден.");
+      parentId = parent.parentId ?? parentId;
+    }
+
     const row = await this.prisma.comment.create({
       data: {
         animeId: input.animeId,
         userId,
-        parentId: input.parentId ?? null,
+        parentId,
         body: input.body,
         mode: input.mode,
         anonSeq,
@@ -163,10 +172,34 @@ export class CommentService {
   async adminRemove(id: string): Promise<void> {
     const owned = await this.prisma.comment.findUnique({ where: { id } });
     if (!owned) throw new NotFoundError("Комментарий не найден.");
-    await this.prisma.comment.update({
-      where: { id },
-      data: { deletedAt: new Date(), body: "" },
+    await this.prisma.$transaction([
+      this.prisma.comment.update({ where: { id }, data: { deletedAt: new Date(), body: "" } }),
+      this.prisma.commentReport.updateMany({ where: { commentId: id, status: "OPEN" }, data: { status: "RESOLVED" } }),
+    ]);
+  }
+
+  /**
+   * A complaint about someone else's comment. One per person per comment:
+   * a second one replaces the reason instead of piling up.
+   */
+  async report(userId: string, id: string, input: CreateCommentReportInput): Promise<{ already: boolean }> {
+    const target = await this.prisma.comment.findUnique({ where: { id }, select: { userId: true, deletedAt: true } });
+    if (!target || target.deletedAt) throw new NotFoundError("Комментарий не найден.");
+    if (target.userId === userId) throw new BadRequestError("Нельзя пожаловаться на свой комментарий.");
+    const existing = await this.prisma.commentReport.findUnique({
+      where: { commentId_reporterId: { commentId: id, reporterId: userId } },
+      select: { id: true },
     });
+    const data = { reason: input.reason, note: input.note || null, status: "OPEN" };
+    if (existing) await this.prisma.commentReport.update({ where: { id: existing.id }, data });
+    else await this.prisma.commentReport.create({ data: { ...data, commentId: id, reporterId: userId } });
+    return { already: existing != null };
+  }
+
+  /** Moderation found nothing wrong: the open complaints are closed, the comment stays. */
+  async dismissReports(id: string): Promise<{ dismissed: number }> {
+    const r = await this.prisma.commentReport.updateMany({ where: { commentId: id, status: "OPEN" }, data: { status: "DISMISSED" } });
+    return { dismissed: r.count };
   }
 
   async vote(userId: string, id: string, value: -1 | 0 | 1): Promise<Comment> {

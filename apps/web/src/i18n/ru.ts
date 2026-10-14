@@ -1158,6 +1158,7 @@ export const ru: Dict = {
       searchPlaceholder: "Поиск по тексту комментария…",
       statusAll: "Все комментарии",
       statusActive: "Опубликованные",
+      statusReported: "С жалобами",
       statusDeleted: "Удалённые",
       sortNewest: "Сначала новые",
       sortOldest: "Сначала старые",

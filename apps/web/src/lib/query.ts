@@ -738,6 +738,13 @@ export function useDeleteComment(animeId: number) {
   });
 }
 
+export function useReportComment() {
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string; reason: string; note?: string }) =>
+      apiRequest<{ already: boolean }>(`/comments/${id}/report`, { method: "POST", body: input }),
+  });
+}
+
 export function useVoteComment(animeId: number) {
   const client = useQueryClient();
   return useMutation({
@@ -1113,6 +1120,15 @@ export function useAdminComments(params: AdminListParams<AdminCommentQuery>, ena
     queryFn: ({ signal }) =>
       apiRequest<Paginated<AdminCommentSummary>>("/admin/comments", { signal, query: params }),
     placeholderData: (prev) => prev,
+  });
+}
+
+export function useAdminDismissCommentReports() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<{ dismissed: number }>(`/admin/comments/${id}/dismiss-reports`, { method: "POST" }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["admin", "comments"] }),
   });
 }
 

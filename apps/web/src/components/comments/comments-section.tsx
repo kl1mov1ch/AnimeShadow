@@ -1,6 +1,10 @@
 import type { Comment, CommentMode, CommentQuery } from "@animeshadow/shared";
 import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  FlagIcon,
   MessageSquareIcon,
+  MoreVerticalIcon,
   PencilIcon,
   QuoteIcon,
   ThumbsDownIcon,
@@ -9,7 +13,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AchievementBadge } from "@/components/achievement-badge";
 import { UserTitleBadge } from "@/components/user-title-badge";
@@ -19,6 +23,14 @@ import {
   UserProfileModal,
 } from "@/components/user-profile-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ReportCommentDialog } from "./report-comment";
+import { plural } from "@/components/profile/page/format";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -106,6 +118,7 @@ function QuotePreview({
 export function CommentsSection({ animeId }: { animeId: number }) {
   const t = useT();
   const { status } = useAuth();
+  const { locale } = useLocale();
   const authed = status === "authenticated";
 
   const [query, setQuery] = useState<CommentQuery>({ sort: "new" });
@@ -114,24 +127,8 @@ export function CommentsSection({ animeId }: { animeId: number }) {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-display text-lg tracking-tight sm:text-xl">
-        {t("comments.heading")}
-        {data && (
-          <span className="ml-2 text-sm font-normal text-muted-foreground">
-            {t("comments.count", { count: data.count })}
-          </span>
-        )}
-      </h2>
-
-      {authed ? (
-        <Composer animeId={animeId} />
-      ) : (
-        <p className="rounded-2xl border border-border/60 bg-card/40 p-3 text-sm text-muted-foreground transition-colors duration-300 hover:border-primary/25">
-          <Link to="/login" className="text-primary hover:underline">
-            {t("comments.signInToComment")}
-          </Link>
-        </p>
-      )}
+      {/* As on YouTube: how many, then how they're sorted, then the box to write in.
+          The panel around this already carries the "Комментарии" title. */}
 
       {/* Nothing to sort or filter yet — skip the toolbar rather than show
           controls over an empty list. Keep it, though, if a filter is the
@@ -142,6 +139,11 @@ export function CommentsSection({ animeId }: { animeId: number }) {
         query.onlyAnon ||
         query.sort !== "new") && (
         <div className="flex flex-wrap items-center gap-2">
+          {data && (
+            <span className="mr-1 text-sm font-semibold tabular-nums">{locale === "ru"
+                ? `${data.count} ${plural(data.count, "комментарий", "комментария", "комментариев")}`
+                : t("comments.count", { count: data.count })}</span>
+          )}
           <Select
             value={query.sort}
             onValueChange={(v) =>
@@ -172,6 +174,16 @@ export function CommentsSection({ animeId }: { animeId: number }) {
             }
           />
         </div>
+      )}
+
+      {authed ? (
+        <Composer animeId={animeId} />
+      ) : (
+        <p className="rounded-2xl border border-border/60 bg-card/40 p-3 text-sm text-muted-foreground transition-colors duration-300 hover:border-primary/25">
+          <Link to="/login" className="text-primary hover:underline">
+            {t("comments.signInToComment")}
+          </Link>
+        </p>
       )}
 
       {isPending ? (
@@ -332,17 +344,21 @@ function CommentItem({
   animeId,
   comment,
   depth,
+  threadId,
   onOpenProfile,
 }: {
   animeId: number;
   comment: Comment;
   depth: number;
+  /** The top-level comment a reply belongs to: replying to a reply joins that thread. */
+  threadId?: string;
   /** Undefined for a deleted/anon author — there's no one to open a profile for. */
   onOpenProfile: (author: { id: string; username: string | null }) => void;
 }) {
   const t = useT();
   const { locale } = useLocale();
-  const { user } = useAuth();
+  const { user, status } = useAuth();
+  const navigate = useNavigate();
   const vote = useVoteComment(animeId);
   const edit = useEditComment(animeId);
   const del = useDeleteComment(animeId);
@@ -357,6 +373,9 @@ function CommentItem({
   const [draft, setDraft] = useState(quoted?.text ?? comment.body);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // YouTube-like: a thread's replies wait behind "N ответов" until asked for.
+  const [showReplies, setShowReplies] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const displayBody = quoted?.text ?? comment.body;
   // Long walls of text stay clamped so a thread is skimmable.
@@ -365,7 +384,9 @@ function CommentItem({
   const isMine =
     comment.author.kind === "user" &&
     user != null &&
-    comment.author.displayName === user.displayName;
+    (comment.author.id ? comment.author.id === user.id : comment.author.displayName === user.displayName);
+  const canReport = !isMine && comment.author.kind !== "deleted";
+  const small = depth > 0;
   const when = new Date(comment.createdAt).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
@@ -377,20 +398,15 @@ function CommentItem({
     vote.mutate({ id: comment.id, value: comment.myVote === v ? 0 : v });
 
   return (
-    <div
-      className={cn(
-        "flex gap-3",
-        depth > 0 && "ml-4 border-l border-border/50 pl-3 sm:ml-6 sm:pl-4",
-      )}
-    >
+    <div className={cn("group/comment flex", small ? "gap-2.5" : "gap-3")}>
       {comment.author.kind === "user" && comment.author.id ? (
         <button
           type="button"
           onClick={() => onOpenProfile({ id: comment.author.id!, username: comment.author.username })}
           aria-label={t("comments.viewProfile")}
-          className="shrink-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Avatar className="size-8 ring-2 ring-border/60 transition-all duration-200 hover:ring-primary/40">
+          <Avatar className={cn("ring-2 ring-border/60 transition-all duration-200 hover:ring-primary/40", small ? "size-6" : "size-9")}>
             {comment.author.avatarUrl && (
               <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
             )}
@@ -400,7 +416,7 @@ function CommentItem({
           </Avatar>
         </button>
       ) : (
-        <Avatar className="size-8 shrink-0">
+        <Avatar className={cn("shrink-0 self-start", small ? "size-6" : "size-9")}>
           {comment.author.avatarUrl && (
             <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
           )}
@@ -411,7 +427,8 @@ function CommentItem({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+        <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
           {comment.author.kind === "user" && comment.author.id ? (
             <button
               type="button"
@@ -447,6 +464,48 @@ function CommentItem({
           <span className="text-muted-foreground">{when}</span>
           {comment.editedAt && (
             <span className="text-muted-foreground/70">· {t("comments.edited")}</span>
+          )}
+        </div>
+          {/* Edit, delete and report live behind "⋮", as on YouTube — the row
+              under the text keeps only what's used all the time. */}
+          {(isMine || canReport) && !editing && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="Ещё"
+                className="-mr-1 -mt-1 grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground opacity-100 transition-opacity hover:bg-secondary/60 hover:text-foreground data-[state=open]:opacity-100 sm:opacity-0 sm:group-hover/comment:opacity-100 sm:focus-visible:opacity-100"
+              >
+                <MoreVerticalIcon className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                {isMine ? (
+                  <>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setDraft(quoted?.text ?? comment.body);
+                        setEditing(true);
+                      }}
+                    >
+                      <PencilIcon className="size-4" /> {t("comments.actions.edit")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-destructive focus:text-destructive">
+                      <Trash2Icon className="size-4" /> {t("comments.actions.delete")}
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      if (status !== "authenticated") {
+                        navigate("/login", { state: { from: window.location.pathname } });
+                        return;
+                      }
+                      setReporting(true);
+                    }}
+                  >
+                    <FlagIcon className="size-4" /> Пожаловаться
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
@@ -536,47 +595,25 @@ function CommentItem({
           >
             <ThumbsDownIcon className="size-3.5" /> {comment.dislikeCount || ""}
           </button>
-          {depth === 0 && (
-            <button
-              type="button"
-              onClick={() => setReplyMode((m) => (m === "reply" ? null : "reply"))}
-              className={cn(COMMENT_ACTION_CLASS, replyMode === "reply" && COMMENT_ACTION_ACTIVE)}
-            >
-              <MessageSquareIcon className="size-3.5" /> {t("comments.actions.reply")}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setReplyMode((m) => (m === "reply" ? null : "reply"))}
+            className={cn(COMMENT_ACTION_CLASS, replyMode === "reply" && COMMENT_ACTION_ACTIVE)}
+          >
+            <MessageSquareIcon className="size-3.5" /> {t("comments.actions.reply")}
+          </button>
           <button
             type="button"
             onClick={() => setReplyMode((m) => (m === "quote" ? null : "quote"))}
+            aria-label={t("comments.actions.quote")}
             className={cn(COMMENT_ACTION_CLASS, replyMode === "quote" && COMMENT_ACTION_ACTIVE)}
           >
-            <QuoteIcon className="size-3.5" /> {t("comments.actions.quote")}
+            <QuoteIcon className="size-3.5" /> <span className="hidden sm:inline">{t("comments.actions.quote")}</span>
           </button>
-          {isMine && comment.author.kind !== "deleted" && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setDraft(comment.body);
-                  setEditing(true);
-                }}
-                className={COMMENT_ACTION_CLASS}
-              >
-                <PencilIcon className="size-3.5" /> {t("comments.actions.edit")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className={cn(
-                  COMMENT_ACTION_CLASS,
-                  "hover:bg-destructive/10 hover:text-destructive",
-                )}
-              >
-                <Trash2Icon className="size-3.5" /> {t("comments.actions.delete")}
-              </button>
-            </>
-          )}
         </div>
+        {reporting && (
+          <ReportCommentDialog commentId={comment.id} author={comment.author.displayName} onClose={() => setReporting(false)} />
+        )}
 
         <ConfirmDialog
           open={confirmDelete}
@@ -595,33 +632,68 @@ function CommentItem({
           <div className="mt-1">
             <Composer
               animeId={animeId}
-              parentId={comment.id}
+              parentId={threadId ?? comment.id}
               quote={
                 replyMode === "quote"
                   ? { author: comment.author.displayName, snippet: displayBody.slice(0, 200) }
                   : undefined
               }
-              onDone={() => setReplyMode(null)}
+              onDone={() => {
+                setReplyMode(null);
+                setShowReplies(true);
+              }}
             />
           </div>
         )}
 
         {comment.replies.length > 0 && (
-          <ul className="mt-2 flex flex-col gap-3">
-            {comment.replies.map((r) => (
-              <li key={r.id}>
-                <CommentItem
-                  animeId={animeId}
-                  comment={r}
-                  depth={depth + 1}
-                  onOpenProfile={onOpenProfile}
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowReplies((v) => !v)}
+              aria-expanded={showReplies}
+              className="-ml-2 inline-flex w-fit items-center gap-2 rounded-full px-2.5 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              {showReplies ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+              {!showReplies && <ReplyFaces replies={comment.replies} />}
+              {showReplies
+                ? "Скрыть ответы"
+                : `${comment.replies.length} ${plural(comment.replies.length, "ответ", "ответа", "ответов")}`}
+            </button>
+            {showReplies && (
+              <ul className="flex flex-col gap-3.5">
+                {comment.replies.map((r) => (
+                  <li key={r.id}>
+                    <CommentItem
+                      animeId={animeId}
+                      comment={r}
+                      depth={depth + 1}
+                      threadId={comment.id}
+                      onOpenProfile={onOpenProfile}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+/** Up to three faces of who replied, in front of "N ответов". */
+function ReplyFaces({ replies }: { replies: Comment[] }) {
+  const faces = replies.slice(0, 3);
+  return (
+    <span className="flex -space-x-1.5">
+      {faces.map((r) => (
+        <Avatar key={r.id} className="size-5 ring-2 ring-background">
+          {r.author.avatarUrl && <AvatarImage src={imageSrc(r.author.avatarUrl)} alt="" />}
+          <AvatarFallback className="text-[9px]">{r.author.displayName.charAt(0).toUpperCase()}</AvatarFallback>
+        </Avatar>
+      ))}
+    </span>
   );
 }
 

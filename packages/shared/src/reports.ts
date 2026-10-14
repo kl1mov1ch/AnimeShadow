@@ -16,6 +16,17 @@ export interface ProfileReportResult {
   already: boolean;
 }
 
+/** Why a comment is reported. */
+export const COMMENT_REPORT_REASONS = ["spam", "abuse", "spoiler", "offtopic", "other"] as const;
+export const commentReportReasonSchema = z.enum(COMMENT_REPORT_REASONS);
+export type CommentReportReason = z.infer<typeof commentReportReasonSchema>;
+
+export const createCommentReportInputSchema = z.object({
+  reason: commentReportReasonSchema,
+  note: z.string().trim().max(500).optional(),
+});
+export type CreateCommentReportInput = z.infer<typeof createCommentReportInputSchema>;
+
 /** What an admin can do about a reported profile, besides dismissing. */
 export const REPORT_MEASURES = ["avatar", "banner", "bio", "wall", "ban"] as const;
 export const reportMeasureSchema = z.enum(REPORT_MEASURES);

@@ -965,7 +965,9 @@ export class AdminService {
         ? { deletedAt: null }
         : query.status === "deleted"
           ? { deletedAt: { not: null } }
-          : {}),
+          : query.status === "reported"
+            ? { deletedAt: null, reports: { some: { status: "OPEN" } } }
+            : {}),
     };
     const orderBy: Prisma.CommentOrderByWithRelationInput[] =
       query.sort === "oldest"
@@ -981,10 +983,19 @@ export class AdminService {
         orderBy,
         skip,
         take: query.perPage,
-        include: { user: { select: CONTENT_AUTHOR_SELECT }, anime: { select: CONTENT_ANIME_SELECT } },
+        include: {
+          user: { select: CONTENT_AUTHOR_SELECT },
+          anime: { select: CONTENT_ANIME_SELECT },
+          reports: { where: { status: "OPEN" }, select: { reason: true } },
+        },
       }),
       this.prisma.comment.count({ where }),
     ]);
+    const reasons = (list: { reason: string }[]) => {
+      const n = new Map<string, number>();
+      for (const r of list) n.set(r.reason, (n.get(r.reason) ?? 0) + 1);
+      return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([r]) => r);
+    };
 
     const items: AdminCommentSummary[] = rows.map((c) => ({
       id: c.id,
@@ -1001,6 +1012,8 @@ export class AdminService {
       dislikeCount: c.dislikeCount,
       deleted: c.deletedAt != null,
       createdAt: c.createdAt.toISOString(),
+      reports: c.reports.length,
+      reportReasons: reasons(c.reports),
     }));
 
     return paginated(items, {

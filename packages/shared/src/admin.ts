@@ -160,7 +160,7 @@ export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserInputSchema>;
 export const adminCommentQuerySchema = z.object({
   query: z.string().trim().max(200).optional(),
   animeId: z.coerce.number().int().positive().optional(),
-  status: z.enum(["all", "active", "deleted"]).default("all"),
+  status: z.enum(["all", "active", "deleted", "reported"]).default("all"),
   sort: z.enum(["newest", "oldest", "top"]).default("newest"),
   page,
   perPage,
@@ -182,6 +182,9 @@ export const adminCommentSummarySchema = z.object({
   dislikeCount: count,
   deleted: z.boolean(),
   createdAt: z.string(),
+  /** Open complaints and their reasons, most frequent first. */
+  reports: count,
+  reportReasons: z.array(z.string()),
 });
 export type AdminCommentSummary = z.infer<typeof adminCommentSummarySchema>;
 

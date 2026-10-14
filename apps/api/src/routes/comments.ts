@@ -1,6 +1,7 @@
 import {
   commentQuerySchema,
   createCommentInputSchema,
+  createCommentReportInputSchema,
   editCommentInputSchema,
   voteCommentInputSchema,
 } from "@animeshadow/shared";
@@ -56,6 +57,16 @@ export const commentRoutes: FastifyPluginAsync = async (fastify) => {
       await comments.remove(request.userId!, id);
       reply.code(204);
       return null;
+    },
+  );
+
+  fastify.post(
+    "/comments/:id/report",
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request) => {
+      const { id } = parse(commentIdParams, request.params);
+      const input = parse(createCommentReportInputSchema, request.body);
+      return comments.report(request.userId!, id, input);
     },
   );
 

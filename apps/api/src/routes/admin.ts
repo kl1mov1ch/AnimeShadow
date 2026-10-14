@@ -162,6 +162,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     return admin.resolveReports(request.userId!, id, input);
   });
 
+  fastify.post("/admin/comments/:id/dismiss-reports", guard, async (request) => {
+    const { id } = parse(idParams, request.params);
+    return comments.dismissReports(id);
+  });
+
   fastify.delete("/admin/comments/:id", guard, async (request, reply) => {
     const { id } = parse(idParams, request.params);
     await comments.adminRemove(id);

@@ -1,7 +1,9 @@
 import type { AdminCommentQuery, AdminCommentSummary } from "@animeshadow/shared";
 import {
   ArrowUpDownIcon,
+  CheckIcon,
   FilterIcon,
+  FlagIcon,
   Loader2Icon,
   ThumbsDownIcon,
   ThumbsUpIcon,
@@ -23,7 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useLocale, useT } from "@/i18n";
 import { animeHref } from "@/lib/format";
-import { useAdminComments, useAdminDeleteComment } from "@/lib/query";
+import { useAdminComments, useAdminDeleteComment, useAdminDismissCommentReports } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import {
   AnimeThumb,
@@ -55,6 +57,7 @@ export function AdminComments() {
     page,
   });
   const remove = useAdminDeleteComment();
+  const dismiss = useAdminDismissCommentReports();
   const fullDate = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
 
   const resettingPage =
@@ -84,6 +87,7 @@ export function AdminComments() {
               options={[
                 { value: "all", label: t("admin.comments.statusAll") },
                 { value: "active", label: t("admin.comments.statusActive") },
+                { value: "reported", label: t("admin.comments.statusReported") },
                 { value: "deleted", label: t("admin.comments.statusDeleted") },
               ]}
             />
@@ -163,6 +167,7 @@ export function AdminComments() {
                         ) : (
                           <p className="line-clamp-4 whitespace-normal text-sm leading-relaxed">{row.body}</p>
                         )}
+                        <ReportsLine row={row} pending={dismiss.isPending} onDismiss={() => dismiss.mutate(row.id, { onSuccess: () => toast.success("Жалобы отклонены") })} />
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -183,6 +188,7 @@ export function AdminComments() {
                           {row.body}
                         </p>
                       )}
+                      <ReportsLine row={row} pending={dismiss.isPending} onDismiss={() => dismiss.mutate(row.id, { onSuccess: () => toast.success("Жалобы отклонены") })} />
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <div className="flex items-center gap-2.5 text-xs tabular-nums">
@@ -241,5 +247,35 @@ export function AdminComments() {
         }}
       />
     </>
+  );
+}
+
+const REPORT_REASON: Record<string, string> = {
+  spam: "спам",
+  abuse: "оскорбления",
+  spoiler: "спойлер",
+  offtopic: "не по теме",
+  other: "другое",
+};
+
+/** Open complaints about a comment: how many, why, and "nothing wrong" to close them (deleting closes them too). */
+function ReportsLine({ row, pending, onDismiss }: { row: AdminCommentSummary; pending: boolean; onDismiss: () => void }) {
+  if (row.reports === 0 || row.deleted) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 font-semibold text-rose-500 dark:text-rose-300">
+        <FlagIcon className="size-3" />
+        {row.reports}
+      </span>
+      <span className="text-muted-foreground">{row.reportReasons.map((r) => REPORT_REASON[r] ?? r).join(", ")}</span>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={onDismiss}
+        className="inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-muted-foreground transition-colors hover:border-emerald-500/50 hover:text-emerald-500 disabled:opacity-50"
+      >
+        <CheckIcon className="size-3" /> Всё в порядке
+      </button>
+    </div>
   );
 }

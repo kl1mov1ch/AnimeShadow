@@ -127,6 +127,7 @@ model User {
   notifications Notification[]
   comments      Comment[]
   commentVotes  CommentVote[]
+  commentReports CommentReport[]
   sessions      WatchSession[]
   achievements  UserAchievement[]
   genrePrefs    UserGenrePreference[]
@@ -312,10 +313,27 @@ model Comment {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   votes        CommentVote[]
+  reports      CommentReport[]
 
   @@index([animeId, createdAt])
   @@index([userId])
   @@index([parentId])
+}
+
+/// A complaint about one comment; one per person per comment (a second one updates it).
+model CommentReport {
+  id         String   @id @default(cuid())
+  comment    Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId  String
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId String
+  reason     String // spam | abuse | spoiler | offtopic | other
+  note       String?
+  status     String   @default("OPEN") // OPEN | RESOLVED | DISMISSED
+  createdAt  DateTime @default(now())
+
+  @@unique([commentId, reporterId])
+  @@index([status, createdAt])
 }
 
 model CommentVote {
