@@ -9,7 +9,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const { q, lang, limit, fast, scope } = parse(searchQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       return fastify.services.search.search(q, lang, limit, fast, allowAdult, scope);
     },
   );
@@ -21,7 +21,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request, reply) => {
       const { lang } = parse(localeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       const discover = await fastify.services.catalog.getDiscover(lang, allowAdult);
       const pool = [...discover.trendingNow, ...discover.topAiring];
       const seen = new Set<number>();
@@ -61,7 +61,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request, reply): Promise<SearchPulse> => {
       const { lang } = parse(localeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       const [pulse, discover] = await Promise.all([
         fastify.services.search.pulse(allowAdult),
         fastify.services.catalog.getDiscover(lang, allowAdult),
@@ -94,7 +94,7 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request) => {
       const { dataUrl } = parse(frameSearchInputSchema, request.body);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       return fastify.services.frames.searchByFrame(dataUrl, allowAdult);
     },
   );

@@ -31,7 +31,7 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/collections/:id", { preHandler: fastify.optionalAuth }, async (request) => {
     const { id } = parse(idParams, request.params);
-    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
     return collections.detail(id, request.userId, await isAdmin(request), allowAdult);
   });
 
@@ -125,13 +125,13 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // The site's own themed lists (see CuratedService) — above the viewers' ones.
   fastify.get("/collections/curated", { preHandler: fastify.optionalAuth }, async (request, reply) => {
-    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
     if (!request.userId) reply.header("cache-control", "public, max-age=600");
     return fastify.services.curated.list(allowAdult);
   });
   fastify.get("/collections/curated/:slug", { preHandler: fastify.optionalAuth }, async (request, reply) => {
     const { slug } = parse(z.object({ slug: z.string().regex(/^[a-z0-9-]{2,40}$/) }), request.params);
-    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
     if (!request.userId) reply.header("cache-control", "public, max-age=600");
     return fastify.services.curated.detail(slug, allowAdult);
   });

@@ -28,7 +28,7 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
     "/recommendations/home",
     { preHandler: fastify.optionalAuth },
     async (request) => {
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       return recommendations.homeRail(request.userId ?? null, undefined, allowAdult);
     },
   );
@@ -38,7 +38,7 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const { id } = parse(idParams, request.params);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       // Only the genres are needed. Read them straight from the catalogue;
       // the full detail (with its upstream enrichment) only for a title we
       // haven't stored yet.

@@ -111,7 +111,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   ];
   app.addHook("onSend", async (request, reply, payload) => {
     if (request.method !== "GET") return payload;
-    if (request.userId) {
+    // A guest who confirmed their age gets a different answer: never shared.
+    reply.header("vary", "x-adult-dob");
+    if (request.userId || request.headers["x-adult-dob"]) {
       reply.header("cache-control", "private, no-store");
       return payload;
     }

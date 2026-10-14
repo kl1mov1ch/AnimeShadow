@@ -212,7 +212,7 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/games/guess/round", { preHandler: fastify.authenticate }, async (request) => {
     const userId = request.userId!;
-    const allowAdult = await resolveAllowAdult(fastify.prisma, userId);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, userId, request.headers["x-adult-dob"]);
     // Walking away from an open round is giving it up.
     const previous = openRound.get(userId);
     if (previous && rounds.has(previous)) {
@@ -238,7 +238,7 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
     }
     replacements.set(userId, [...used, Date.now()]);
     rounds.delete(roundId);
-    const allowAdult = await resolveAllowAdult(fastify.prisma, userId);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, userId, request.headers["x-adult-dob"]);
     return deal(userId, allowAdult);
   });
 

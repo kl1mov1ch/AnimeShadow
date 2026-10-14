@@ -35,6 +35,24 @@ export interface RequestOptions {
   keepalive?: boolean;
 }
 
+/** A guest's own birth date (YYYY-MM-DD), typed on an 18+ title's page — sent so the server can open R+. */
+const GUEST_DOB_KEY = "as:guest-dob";
+export function guestDob(): string | null {
+  try {
+    return localStorage.getItem(GUEST_DOB_KEY);
+  } catch {
+    return null;
+  }
+}
+export function setGuestDob(value: string | null): void {
+  try {
+    if (value) localStorage.setItem(GUEST_DOB_KEY, value);
+    else localStorage.removeItem(GUEST_DOB_KEY);
+  } catch {
+    // No storage: asked again next page.
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
@@ -48,6 +66,10 @@ export async function apiRequest<T>(
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["content-type"] = "application/json";
   if (authToken) headers.authorization = `Bearer ${authToken}`;
+  else {
+    const dob = guestDob();
+    if (dob) headers["x-adult-dob"] = dob;
+  }
 
   let response: Response;
   try {

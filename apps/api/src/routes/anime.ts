@@ -53,7 +53,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const query = parse(animeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       return catalog.browse(query, allowAdult, request.userId);
     },
   );
@@ -64,7 +64,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const query = parse(animeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       const pick = await catalog.randomFrom(query, allowAdult, request.userId);
       if (!pick) throw new NotFoundError("По этим фильтрам ничего нет.");
       return pick;
@@ -81,7 +81,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     "/anime/random",
     { preHandler: fastify.optionalAuth },
     async (request) => {
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       // Only what can actually be watched here: a random title that then
       // says "no player" is a dead end, not a surprise.
       const pool = await fastify.prisma.anime.findMany({
@@ -109,7 +109,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const { count } = parse(rollQuery, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       const pool = await rollPool.wrap(allowAdult ? "adult" : "safe", async () => {
         const rows = await fastify.prisma.anime.findMany({
           where: {
@@ -150,7 +150,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const { id } = parse(idParams, request.params);
       const { lang } = parse(localeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       // Views are counted from page visits (AnalyticsService), not here: this
       // also answers the hover prefetch of a card.
       return catalog.getAnimeById(id, lang, allowAdult);
@@ -170,7 +170,7 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: { members: "desc" },
       });
       if (!row) throw new NotFoundError("Аниме не найдено.");
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       return catalog.getAnimeById(row.id, lang, allowAdult);
     },
   );

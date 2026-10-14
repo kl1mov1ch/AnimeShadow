@@ -1,6 +1,6 @@
 import { genreHref } from "@/lib/format";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpenIcon,
   CalendarIcon,
@@ -46,7 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
-import { ApiRequestError, apiRequest } from "@/lib/api";
+import { ApiRequestError, apiRequest, setGuestDob } from "@/lib/api";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useSlowConnection } from "@/lib/connection";
 import { glideTo } from "@/lib/glide";
@@ -1170,9 +1170,11 @@ function AdultContentGate() {
       <span className="rounded-md bg-rose-600 px-2.5 py-1 text-sm font-bold text-white">18+</span>
       <h1 className="font-display text-xl">{t("detail.adultGate.title")}</h1>
       <p className="text-sm text-muted-foreground">
-        {status === "authenticated" ? t("detail.adultGate.body") : t("detail.adultGate.signInBody")}
+        {status === "authenticated" ? t("detail.adultGate.body") : "Этот тайтл с рейтингом 18+. Укажите дату рождения — и он откроется."}
       </p>
-      {status === "authenticated" ? (
+      {status !== "authenticated" ? (
+        <GuestAgeForm />
+      ) : (
         <form
           className="flex w-full flex-col gap-2"
           onSubmit={(event) => {
@@ -1196,22 +1198,109 @@ function AdultContentGate() {
           </Button>
           <p className="text-[11px] leading-snug text-muted-foreground/80">{t("detail.adultGate.note")}</p>
         </form>
-      ) : (
-        <div className="flex w-full flex-col gap-2 sm:flex-row">
-          <Button asChild className="h-11 flex-1">
-            <Link to="/login" state={{ from: window.location.pathname }}>
-              {t("common.signIn")}
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="h-11 flex-1">
-            <Link to="/register">{t("common.createAccount")}</Link>
-          </Button>
-        </div>
       )}
       <Link to="/" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
         {t("detail.adultGate.leave")}
       </Link>
     </div>
+  );
+}
+
+/**
+ * A guest's way past the 18+ gate: day, month and year typed in plain
+ * fields — no calendar to fight with. Kept in this browser only and sent
+ * with each request; the server decides, as it does for an account.
+ */
+function GuestAgeForm() {
+  const client = useQueryClient();
+  const [day, setDay] = useState("");
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const monthRef = useRef<HTMLInputElement>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
+
+  const submit = () => {
+    const d = Number(day);
+    const m = Number(month);
+    const y = Number(year);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    if (!d || !m || year.length !== 4 || date.getUTCDate() !== d || date.getUTCMonth() !== m - 1 || y < 1900 || date > new Date()) {
+      setError("Проверьте дату — день, месяц и год (четыре цифры).");
+      return;
+    }
+    const now = new Date();
+    let age = now.getUTCFullYear() - y;
+    if (now.getUTCMonth() + 1 < m || (now.getUTCMonth() + 1 === m && now.getUTCDate() < d)) age -= 1;
+    if (age < 18) {
+      setError("Этот тайтл доступен только с 18 лет.");
+      return;
+    }
+    setGuestDob(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+    // Lists and the title itself now include R+ — everything refetches.
+    void client.invalidateQueries();
+  };
+
+  const field =
+    "h-12 w-full min-w-0 rounded-xl border border-border/70 bg-card/60 text-center font-mono text-lg tabular-nums text-foreground outline-none focus:border-primary/60";
+  const digits = (v: string, n: number) => v.replace(/\D/g, "").slice(0, n);
+
+  return (
+    <form
+      className="flex w-full flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <span className="text-left text-xs text-muted-foreground">Ваша дата рождения</span>
+      <div className="grid grid-cols-[1fr_1fr_1.6fr] gap-2">
+        <input
+          inputMode="numeric"
+          autoComplete="bday-day"
+          placeholder="ДД"
+          aria-label="День"
+          value={day}
+          onChange={(e) => {
+            const v = digits(e.target.value, 2);
+            setDay(v);
+            if (v.length === 2) monthRef.current?.focus();
+          }}
+          className={field}
+        />
+        <input
+          ref={monthRef}
+          inputMode="numeric"
+          autoComplete="bday-month"
+          placeholder="ММ"
+          aria-label="Месяц"
+          value={month}
+          onChange={(e) => {
+            const v = digits(e.target.value, 2);
+            setMonth(v);
+            if (v.length === 2) yearRef.current?.focus();
+          }}
+          className={field}
+        />
+        <input
+          ref={yearRef}
+          inputMode="numeric"
+          autoComplete="bday-year"
+          placeholder="ГГГГ"
+          aria-label="Год"
+          value={year}
+          onChange={(e) => setYear(digits(e.target.value, 4))}
+          className={field}
+        />
+      </div>
+      {error && <p className="text-left text-xs text-rose-400">{error}</p>}
+      <Button type="submit" className="h-11" disabled={!day || !month || year.length !== 4}>
+        Мне есть 18 — открыть
+      </Button>
+      <p className="text-[11px] leading-snug text-muted-foreground/80">
+        Дата хранится только в вашем браузере. С аккаунтом её не придётся вводить снова на другом устройстве.
+      </p>
+    </form>
   );
 }
 

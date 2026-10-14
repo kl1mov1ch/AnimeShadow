@@ -32,13 +32,26 @@ export function computeIsAdult(birthDate: Date | null | undefined): boolean {
   return age >= 18;
 }
 
-/** Resolves whether the current request may see R+ content — false for a
- * signed-out visitor, otherwise based on their saved birth date. */
+/**
+ * A guest's own birth date, typed on the page and sent as the
+ * `x-adult-dob` header (YYYY-MM-DD) — self-reported, exactly as an
+ * account's is. Null when absent or malformed.
+ */
+export function guestBirthDate(header: string | string[] | undefined): Date | null {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.getUTCFullYear() < 1900 || d > new Date() ? null : d;
+}
+
+/** Resolves whether the current request may see R+ content — for an
+ * account, its saved birth date; for a guest, the date they typed in. */
 export async function resolveAllowAdult(
   prisma: PrismaClient,
   userId: string | undefined,
+  guestDob?: string | string[] | undefined,
 ): Promise<boolean> {
-  if (!userId) return false;
+  if (!userId) return computeIsAdult(guestBirthDate(guestDob));
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { birthDate: true },

@@ -9,7 +9,7 @@ export const discoverRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const { lang } = parse(localeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId);
+      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
       return fastify.services.catalog.getDiscover(lang, allowAdult);
     },
   );
