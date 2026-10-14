@@ -151,22 +151,26 @@ export function SiteHeader() {
               aria-label={label}
               className={({ isActive }) =>
                 cn(
-                  "hnav-item group relative flex h-8 items-center rounded-full px-2.5 text-sm font-medium transition-[background-color,color] duration-300",
+                  "hnav-item group relative flex h-8 items-center rounded-full px-2.5 text-sm font-medium transition-[background-color,color] duration-150",
                   isActive ? "hnav-active text-foreground" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
                 )
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon className={cn("size-[17px] shrink-0 transition-transform duration-300 group-hover:scale-110", isActive && "text-primary")} />
-                  <span
-                    className={cn(
-                      "hnav-label overflow-hidden whitespace-nowrap",
-                      isActive ? "max-w-32 pl-1.5 opacity-100" : "max-w-0 opacity-0 group-hover:max-w-32 group-hover:pl-1.5 group-hover:opacity-100 group-focus-visible:max-w-32 group-focus-visible:pl-1.5 group-focus-visible:opacity-100",
-                    )}
-                  >
-                    {label}
-                  </span>
+                  <Icon className={cn("size-[17px] shrink-0", isActive && "text-primary")} />
+                  {isActive ? (
+                    <span className="whitespace-nowrap pl-1.5">{label}</span>
+                  ) : (
+                    // The others' names as a hint under the icon, over the
+                    // page: nothing in the bar moves when the pointer passes.
+                    <span
+                      role="tooltip"
+                      className="hnav-tip pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border/60 bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground opacity-0 shadow-lg group-hover:opacity-100 group-focus-visible:opacity-100"
+                    >
+                      {label}
+                    </span>
+                  )}
                 </>
               )}
             </NavLink>
