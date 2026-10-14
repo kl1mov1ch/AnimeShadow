@@ -753,9 +753,9 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
 }
 
 /** A frame with the site's mark burned in (made once on the server, see lib/watermark). */
-function framed(src: string): string {
+function framed(src: string, width?: number): string {
   const url = imageSrc(src) ?? src;
-  return url.includes("/api/img?") ? `${url}&wm=1` : url;
+  return url.includes("/api/img?") ? `${url}&wm=1${width ? `&w=${width}` : ""}` : url;
 }
 
 /** The title's screenshots (the catalogue's, cached on the server for an hour). */
@@ -785,7 +785,7 @@ function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
             onClick={() => setOpen(i)}
             className="aspect-video overflow-hidden rounded-lg border border-[var(--accent-line-soft)] bg-muted transition-colors hover:border-primary/60"
           >
-            <img src={framed(src)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+            <img src={framed(src, 360)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
           </button>
         ))}
       </div>

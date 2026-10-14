@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import sharp from "sharp";
 import { watermark } from "../lib/watermark.js";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -362,15 +363,19 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const key = createHash("sha1").update(target.toString()).digest("hex");
-    // ?wm=1: the frame with the site's mark burned in (see lib/watermark),
-    // made once and kept beside the original.
-    const wm = (request.query as { wm?: string }).wm === "1";
-    const wmFile = join(CACHE_DIR, `${key}-wm`);
-    if (wm) {
-      const done = await readFile(wmFile).catch(() => null);
+    // ?w=480: a smaller copy (WebP), for thumbnails; ?wm=1: the site's mark
+    // burned in (see lib/watermark). Each made once and kept on disk beside
+    // the original — a 350 KB frame shown at 240 px wide becomes ~20 KB.
+    const q = request.query as { wm?: string; w?: string };
+    const wm = q.wm === "1";
+    const width = [240, 360, 480, 640, 960, 1280].find((n) => String(n) === q.w) ?? null;
+    const derived = wm || width != null;
+    const derivedFile = join(CACHE_DIR, `${key}${width ? `-w${width}` : ""}${wm ? "-wm" : ""}`);
+    if (derived) {
+      const done = await readFile(derivedFile).catch(() => null);
       if (done && done.length > 0) {
         return reply
-          .header("content-type", "image/jpeg")
+          .header("content-type", sniff(done))
           .header("cache-control", "public, max-age=2592000, immutable")
           .header("cross-origin-resource-policy", "cross-origin")
           .header("x-cache", "HIT")
@@ -379,9 +384,21 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const send = async (raw: Buffer, hit: boolean) => {
       let buf = raw;
-      if (wm) {
-        buf = await watermark(raw).catch(() => raw);
-        if (buf !== raw) await writeFile(wmFile, buf).catch(() => undefined);
+      if (derived) {
+        try {
+          let out = raw;
+          if (wm) out = await watermark(out);
+          if (width) {
+            out = await sharp(out, { failOn: "none" })
+              .resize({ width, withoutEnlargement: true })
+              .webp({ quality: 72 })
+              .toBuffer();
+          }
+          buf = out;
+          await writeFile(derivedFile, buf).catch(() => undefined);
+        } catch {
+          buf = raw;
+        }
       }
       return reply
         .header("content-type", sniff(buf))

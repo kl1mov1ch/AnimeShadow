@@ -1077,7 +1077,16 @@ function CustomHlsPlayer({
           if (Hls.isSupported()) {
             // A fair first guess at the connection, so the opening seconds
             // aren't spent at 480p on a line that carries 1080p easily.
-            const instance = new Hls({ enableWorker: true, abrEwmaDefaultEstimate: 2_500_000 });
+            // Starts low and climbs: the first picture comes fast even on a
+            // slow line; never fetches more pixels than the player shows.
+            const instance = new Hls({
+              enableWorker: true,
+              abrEwmaDefaultEstimate: 900_000,
+              capLevelToPlayerSize: true,
+              startFragPrefetch: true,
+              maxBufferLength: 30,
+              backBufferLength: 30,
+            });
             if (variants && heights.length > 1) {
               master = URL.createObjectURL(
                 new Blob([masterPlaylist(variants, heights)], { type: "application/vnd.apple.mpegurl" }),

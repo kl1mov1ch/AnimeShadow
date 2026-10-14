@@ -281,7 +281,13 @@ function SlideFrames({
     queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${anime.id}/frames?v=2`, { signal }).then((r) => r.frames),
   });
   const frames = useMemo(() => {
-    const own = (data ?? []).map((u) => imageSrc(u)).filter((u): u is string => Boolean(u));
+    // A smaller copy of each frame (the proxy makes and keeps it): a phone
+    // gets 640 px, a computer 1280 — not the 350 KB originals.
+    const width = typeof window !== "undefined" && window.innerWidth <= 768 ? 640 : 1280;
+    const own = (data ?? [])
+      .map((u) => imageSrc(u))
+      .filter((u): u is string => Boolean(u))
+      .map((u) => (u.includes("/api/img?") ? `${u}&w=${width}` : u));
     // In the order they come — the newest episodes first.
     return own.length > 0 ? own.slice(0, 8) : framesOf(anime);
   }, [data, anime]);
