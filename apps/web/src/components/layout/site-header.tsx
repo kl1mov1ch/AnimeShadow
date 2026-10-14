@@ -185,7 +185,7 @@ export function SiteHeader() {
           <SearchBox />
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5 md:ml-0">
           {/* A guest's phone header has the invite in this spot instead. */}
           <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
             <span className="hdr-dice contents">
