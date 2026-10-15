@@ -5,7 +5,7 @@ import type { PrismaClient } from "@animeshadow/db";
 import type { NotifySettings, ScheduleItem } from "@animeshadow/shared";
 import type { FastifyBaseLogger } from "fastify";
 import webpush from "web-push";
-import { type BotAnswer, BOT_COMMANDS, MENU, TelegramCommands } from "./telegram-commands.js";
+import { type BotAnswer, BOT_COMMANDS, commandOf, REPLY_KEYBOARD, TelegramCommands } from "./telegram-commands.js";
 
 /** A new-episode line just written for someone (see NotificationService.observe). */
 export interface EpisodeNews {
@@ -433,7 +433,10 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
     const signal = this.stopPolling.signal;
     void (async () => {
       let offset = 0;
+      // A webhook left from an earlier setup makes every getUpdates fail (409): drop it.
+      await this.call("deleteWebhook", { drop_pending_updates: false });
       await this.call("setMyCommands", { commands: BOT_COMMANDS });
+      this.log.info({ bot: await this.botUsername() }, "telegram bot polling");
       while (!signal.aborted) {
         const res = await this.call("getUpdates", { offset, timeout: 50, allowed_updates: ["message", "my_chat_member", "callback_query"] }, AbortSignal.any([signal, AbortSignal.timeout(65_000)]));
         if (!res.ok) {
@@ -455,13 +458,15 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
   }
 
   private async onUpdate(update: TgUpdate): Promise<void> {
-    // A button under a message (📊 Статистика, 🎲 Другое…): the same as typing the command.
+    // A button under a message (a settings switch, «🎲 Другое»): the message changes in place.
     const press = update.callback_query;
     if (press) {
-      void this.call("answerCallbackQuery", { callback_query_id: press.id });
       const chat = press.message?.chat;
-      if (!chat || chat.type !== "private" || !press.data) return;
-      await this.answer(String(chat.id), press.data);
+      if (!chat || chat.type !== "private" || !press.data) {
+        void this.call("answerCallbackQuery", { callback_query_id: press.id });
+        return;
+      }
+      await this.pressed(String(chat.id), press.message!.message_id, press.id, press.data);
       return;
     }
     const member = update.my_chat_member;
@@ -498,8 +503,7 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
       ]);
       const user = await this.prisma.user.findUnique({ where: { id: link.userId }, select: { displayName: true } });
       await this.send(chat, {
-        text: `✅ Готово, <b>${escapeHtml(user?.displayName ?? "")}</b>! Сюда будут приходить новые серии аниме из «Смотрю», «В планах» и «Отложено».\n\nА ещё я покажу вашу статистику, избранное, что вы смотрите и когда выйдут серии — кнопки ниже или /help.\n\nОтключить уведомления: /stop или в настройках на сайте.`,
-        keyboard: [[{ text: "Мой список", url: `${this.config.appUrl}/library` }], ...MENU],
+        text: `✅ Готово, <b>${escapeHtml(user?.displayName ?? "")}</b>!\n\nСюда будут приходить новые серии аниме из «Смотрю», «В планах» и «Отложено».\n\nА ещё я покажу вашу статистику, избранное, где вы остановились и когда выйдут серии — кнопки внизу или просто напишите словами, например «что посмотреть».\n\nУведомления включаются и выключаются в «⚙️ Настройках».`,
       });
       return;
     }
@@ -507,7 +511,8 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
       const user = await owner();
       if (user) {
         await this.prisma.user.update({ where: { id: user.id }, data: { telegramBlockedAt: null, notifyTelegram: true } });
-        await this.send(chat, { text: `🔔 Уведомления о новых сериях включены, <b>${escapeHtml(user.displayName)}</b>.\nОтключить: /stop`, keyboard: MENU });
+        const help = await this.commands.help(user.id);
+        await this.send(chat, help);
       } else {
         await this.reply(chat, "Привет! Я присылаю новые серии аниме из вашего списка на AnimeShadow.\n\nЧтобы подключиться, откройте настройки уведомлений на сайте и нажмите «Подключить Telegram».", [
           { text: "Подключить на сайте", url: settingsUrl },
@@ -518,21 +523,70 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
     if (command === "/stop") {
       const user = await owner();
       if (user) await this.prisma.user.update({ where: { id: user.id }, data: { notifyTelegram: false } });
-      await this.reply(chat, "🔕 Больше не пишу о новых сериях. Включить снова: /start или в настройках на сайте.", [{ text: "Настройки", url: settingsUrl }]);
+      await this.send(chat, { text: "🔕 Больше не пишу о новых сериях. Включить снова — в «⚙️ Настройках»." });
       return;
     }
-    if (command === "/status") {
-      const user = await owner();
-      await this.reply(
-        chat,
-        user
-          ? `Аккаунт: <b>${escapeHtml(user.displayName)}</b>\nНовые серии в Telegram: ${user.notifyTelegram ? "включены ✅" : "выключены 🔕"}`
-          : "Этот чат не подключён к аккаунту AnimeShadow.",
-        [{ text: "Настройки", url: settingsUrl }],
-      );
+    // Everything else by words: the keyboard's buttons, "статистика", "что посмотреть"… (and the hidden /stats).
+    await this.answer(chat, commandOf(msg.text) ?? "unknown");
+  }
+
+  /** A button under a message: settings switches, «🎲 Другое» — the answer replaces the message. */
+  private async pressed(chat: string, messageId: number, pressId: string, data: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({ where: { OR: [{ telegramChatId: chat }, { telegramId: chat }] }, select: { id: true } });
+    if (!user) {
+      void this.call("answerCallbackQuery", { callback_query_id: pressId, text: "Этот чат не подключён к аккаунту", show_alert: true });
       return;
     }
-    if (command?.startsWith("/")) await this.answer(chat, command.slice(1));
+    let toast: string | undefined;
+    let answer: BotAnswer | null = null;
+    switch (data) {
+      case "set:tg": {
+        const me = await this.prisma.user.findUnique({ where: { id: user.id }, select: { notifyTelegram: true } });
+        await this.update(user.id, { telegram: !me?.notifyTelegram });
+        if (!me?.notifyTelegram) await this.prisma.user.update({ where: { id: user.id }, data: { telegramBlockedAt: null } });
+        toast = me?.notifyTelegram ? "Новые серии сюда больше не приходят" : "Новые серии будут приходить сюда";
+        answer = await this.commands.settings(user.id);
+        break;
+      }
+      case "set:push":
+        await this.update(user.id, { push: false });
+        toast = "Пуш в браузере выключен";
+        answer = await this.commands.settings(user.id);
+        break;
+      case "set:test": {
+        const sent = await this.test(user.id);
+        toast = sent.telegram || sent.push ? "Отправил проверку" : "Нечего проверять: уведомления выключены";
+        answer = await this.commands.settings(
+          user.id,
+          `🧪 Проверка: Telegram — ${sent.telegram ? "✅" : "выключен"}, пуш — ${sent.push ? `✅ (${sent.push})` : "нет устройств"}`,
+        );
+        break;
+      }
+      case "set:unlink":
+        answer = this.commands.unlinkAsk();
+        break;
+      case "set:unlink!":
+        await this.telegramUnlink(user.id);
+        answer = { text: "👋 Telegram отвязан. Подключить снова — в настройках уведомлений на сайте." };
+        break;
+      case "set:back":
+        answer = await this.commands.settings(user.id);
+        break;
+      default:
+        answer = await this.commands.run(data, user.id);
+    }
+    void this.call("answerCallbackQuery", { callback_query_id: pressId, ...(toast ? { text: toast } : {}) });
+    if (!answer) return;
+    const edited = await this.call("editMessageText", {
+      chat_id: chat,
+      message_id: messageId,
+      text: answer.text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_markup: { inline_keyboard: answer.keyboard ?? [] },
+    });
+    // Not editable (too old) — say it anew; "not modified" needs nothing.
+    if (!edited.ok && !/not modified/i.test(edited.description ?? "")) await this.send(chat, answer);
   }
 
   /** /stats, /favorites, /watching, /new, /schedule, /random, /menu — for the account tied to this chat. */
@@ -545,16 +599,20 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
       return;
     }
     const answer = await this.commands.run(command, user.id);
-    await this.send(chat, answer ?? { text: "Не знаю такой команды. Вот что я умею:", keyboard: MENU });
+    await this.send(
+      chat,
+      answer ?? { text: "🤔 Не понял. Нажмите кнопку внизу или напишите, например, «статистика», «что посмотреть» или «настройки»." },
+    );
   }
 
+  /** An answer: its own buttons when it has them, otherwise the keyboard of words comes along. */
   private send(chat: string, answer: BotAnswer) {
     return this.call("sendMessage", {
       chat_id: chat,
       text: answer.text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
-      ...(answer.keyboard?.length ? { reply_markup: { inline_keyboard: answer.keyboard } } : {}),
+      reply_markup: answer.keyboard?.length ? { inline_keyboard: answer.keyboard } : REPLY_KEYBOARD,
     });
   }
 
@@ -584,6 +642,6 @@ interface TgResult {
 interface TgUpdate {
   update_id: number;
   message?: { text?: string; chat: { id: number; type: string } };
-  callback_query?: { id: string; data?: string; message?: { chat: { id: number; type: string } } };
+  callback_query?: { id: string; data?: string; message?: { message_id: number; chat: { id: number; type: string } } };
   my_chat_member?: { chat: { id: number; type: string }; new_chat_member: { status: string } };
 }

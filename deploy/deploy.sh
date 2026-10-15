@@ -186,8 +186,10 @@ PRE_ENV="$APP_DIR/.env.preflight"
 PRE_LOG="/tmp/animeshadow-preflight.log"
 # A copy of .env with only the port changed, readable by the app user alone.
 install -m 600 -o "$APP_USER" /dev/null "$PRE_ENV"
-grep -v -E '^[[:space:]]*API_PORT=' "$APP_DIR/.env" > "$PRE_ENV"
+grep -v -E '^[[:space:]]*(API_PORT|TELEGRAM_BOT_POLLING)=' "$APP_DIR/.env" > "$PRE_ENV"
 echo "API_PORT=$PRE_PORT" >> "$PRE_ENV"
+# Telegram lets one copy read the bot's chats: the trial run leaves them to the live API.
+echo "TELEGRAM_BOT_POLLING=false" >> "$PRE_ENV"
 install -m 644 -o "$APP_USER" /dev/null "$PRE_LOG"
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && exec env NODE_ENV=production /usr/bin/node --env-file='$PRE_ENV' dist/server.js >> '$PRE_LOG' 2>&1" &
 PRE_PID=$!

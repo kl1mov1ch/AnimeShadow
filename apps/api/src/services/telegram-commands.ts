@@ -25,36 +25,53 @@ function hours(seconds: number): string {
   return h ? `${h} ч ${m} мин` : `${m} мин`;
 }
 
-/** The commands' menu, shown under most answers. */
-export const MENU: TgButton[][] = [
-  [
-    { text: "📊 Статистика", callback_data: "stats" },
-    { text: "⭐ Избранное", callback_data: "favorites" },
+/** The keyboard under the message box: the bot's commands as words, always at hand. */
+export const REPLY_KEYBOARD = {
+  keyboard: [
+    [{ text: "📊 Статистика" }, { text: "⭐ Избранное" }],
+    [{ text: "▶️ Смотрю" }, { text: "🆕 Новые серии" }],
+    [{ text: "📅 Расписание" }, { text: "🎲 Что посмотреть" }],
+    [{ text: "⚙️ Настройки" }],
   ],
-  [
-    { text: "▶️ Смотрю", callback_data: "watching" },
-    { text: "🆕 Новые серии", callback_data: "new" },
-  ],
-  [
-    { text: "📅 Расписание", callback_data: "schedule" },
-    { text: "🎲 Что посмотреть", callback_data: "random" },
-  ],
+  resize_keyboard: true,
+  is_persistent: true,
+  input_field_placeholder: "Нажмите кнопку или напишите, что показать",
+};
+
+/** Telegram's "/" menu: just the way back to the keyboard — the rest goes by words. */
+export const BOT_COMMANDS = [{ command: "menu", description: "Открыть меню" }];
+
+/** Words people type (or the keyboard sends), and what each one asks for. */
+const WORDS: Array<[string, RegExp]> = [
+  ["stats", /^(статистик|стат|профил|сколько|мо[яи] стат)/],
+  ["favorites", /^(избранн|любим|лучш|топ)/],
+  ["watching", /^(смотрю|продолж|где останов|что смотрю)/],
+  ["new", /^(нов|вышл|свеж)/],
+  ["schedule", /^(расписан|когда|календар|выход)/],
+  ["random", /^(что посмотреть|рандом|случайн|посовет|предлож|друго)/],
+  ["settings", /^(настрой|уведомлен|оповещен|опции)/],
+  ["help", /^(меню|помощ|помоги|что умееш|команд|привет|начать|старт|help|menu)/],
 ];
 
-/** What the bot lists in Telegram's "/" menu. */
-export const BOT_COMMANDS = [
-  { command: "menu", description: "Меню" },
-  { command: "stats", description: "Моя статистика просмотра" },
-  { command: "favorites", description: "Избранное и лучшие оценки" },
-  { command: "watching", description: "Что я смотрю — и где остановился" },
-  { command: "new", description: "Новые серии из моего списка" },
-  { command: "schedule", description: "Когда выйдут серии из моего списка" },
-  { command: "random", description: "Что посмотреть из «В планах»" },
-  { command: "status", description: "Какие уведомления включены" },
-  { command: "start", description: "Включить уведомления о новых сериях" },
-  { command: "stop", description: "Не присылать новые серии" },
-  { command: "help", description: "Что умеет бот" },
-];
+/**
+ * What a message asks for: a hidden command (/stats still works) or words —
+ * the keyboard's buttons ("📊 Статистика") and their everyday kin
+ * ("статистика", "что посмотреть", "новые"), emoji and case aside.
+ */
+export function commandOf(text: string): string | null {
+  const t = text.trim();
+  if (t.startsWith("/")) {
+    const c = t.slice(1).split(/[\s@]/)[0]!.toLowerCase();
+    return ({ stats: "stats", favorites: "favorites", watching: "watching", new: "new", schedule: "schedule", random: "random", settings: "settings", status: "settings", menu: "help", help: "help" } as Record<string, string>)[c] ?? null;
+  }
+  const words = t
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .trim();
+  for (const [command, re] of WORDS) if (re.test(words)) return command;
+  return null;
+}
 
 /**
  * The bot's answers about one person's account: their numbers, favourites,
@@ -93,6 +110,8 @@ export class TelegramCommands {
         return this.schedule(userId);
       case "random":
         return this.random(userId);
+      case "settings":
+        return this.settings(userId);
       case "menu":
       case "help":
         return this.help(userId);
@@ -105,18 +124,20 @@ export class TelegramCommands {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true, notifyTelegram: true } });
     return {
       text: [
-        `👋 <b>${escapeHtml(user?.displayName ?? "")}</b>, вот что я умею:`,
+        `👋 <b>${escapeHtml(user?.displayName ?? "")}</b>, я бот AnimeShadow.`,
         "",
-        "📊 /stats — сколько вы посмотрели",
-        "⭐ /favorites — избранное и лучшие оценки",
-        "▶️ /watching — что смотрите и где остановились",
-        "🆕 /new — новые серии из вашего списка",
-        "📅 /schedule — когда выйдут серии на этой неделе",
-        "🎲 /random — что посмотреть из «В планах»",
+        "Нажимайте кнопки внизу — или просто напишите словами:",
         "",
-        `🔔 Уведомления о новых сериях: ${user?.notifyTelegram ? "включены (/stop — выключить)" : "выключены (/start — включить)"}`,
+        "📊 <b>Статистика</b> — сколько вы посмотрели",
+        "⭐ <b>Избранное</b> — любимые аниме и лучшие оценки",
+        "▶️ <b>Смотрю</b> — где вы остановились, сразу к следующей серии",
+        "🆕 <b>Новые серии</b> — что вышло из вашего списка",
+        "📅 <b>Расписание</b> — когда выйдут серии на этой неделе",
+        "🎲 <b>Что посмотреть</b> — случайное из «В планах»",
+        "⚙️ <b>Настройки</b> — уведомления и аккаунт",
+        "",
+        `🔔 Новые серии сюда: ${user?.notifyTelegram ? "<b>включены</b>" : "<b>выключены</b> — включить можно в «Настройках»"}`,
       ].join("\n"),
-      keyboard: MENU,
     };
   }
 
@@ -152,7 +173,7 @@ export class TelegramCommands {
       ]
         .filter(Boolean)
         .join("\n"),
-      keyboard: [[{ text: "Открыть профиль", url: `${this.appUrl}/profile${user?.username ? `/${user.username}` : ""}` }], ...MENU],
+      keyboard: [[{ text: "Открыть профиль", url: `${this.appUrl}/profile${user?.username ? `/${user.username}` : ""}` }]],
     };
   }
 
@@ -178,7 +199,7 @@ export class TelegramCommands {
       lines.push("", "🏆 <b>Ваши лучшие оценки</b>");
       for (const t of top) lines.push(`${t.score}/10 — <a href="${this.href(t.anime)}">${this.name(t.anime)}</a>`);
     }
-    return { text: lines.join("\n"), keyboard: MENU };
+    return { text: lines.join("\n") };
   }
 
   async watching(userId: string): Promise<BotAnswer> {
@@ -189,7 +210,7 @@ export class TelegramCommands {
       select: { progress: true, anime: { select: { id: true, slug: true, title: true, titleLocalized: true, episodes: true } } },
     });
     if (rows.length === 0) {
-      return { text: "▶️ В «Смотрю» пока ничего нет.\nДобавьте аниме в список на сайте — и я напомню о новых сериях.", keyboard: [[{ text: "Каталог", url: `${this.appUrl}/browse` }], ...MENU] };
+      return { text: "▶️ В «Смотрю» пока ничего нет.\nДобавьте аниме в список на сайте — и я напомню о новых сериях.", keyboard: [[{ text: "Каталог", url: `${this.appUrl}/browse` }]] };
     }
     // Where each was left: the latest episode they opened.
     const progress = await this.prisma.watchProgress.findMany({
@@ -208,7 +229,7 @@ export class TelegramCommands {
       lines.push(`• <b>${this.name(r.anime)}</b> — ${r.anime.episodes ? `${r.progress}/${r.anime.episodes}` : `${r.progress} сер.`}${done ? " ✅" : ` · дальше ${next}-я`}`);
       if (!done && keyboard.length < 4) keyboard.push([{ text: `▶ ${(r.anime.titleLocalized || r.anime.title).slice(0, 26)} · ${next} серия`, url: this.href(r.anime, next) }]);
     }
-    return { text: lines.join("\n"), keyboard: [...keyboard, ...MENU] };
+    return { text: lines.join("\n"), keyboard: keyboard.length ? keyboard : undefined };
   }
 
   async news(userId: string): Promise<BotAnswer> {
@@ -217,7 +238,7 @@ export class TelegramCommands {
       orderBy: { createdAt: "desc" },
       take: 10,
     });
-    if (rows.length === 0) return { text: "🆕 Новых серий нет — всё просмотрено. Я напишу, как только выйдет новая.", keyboard: MENU };
+    if (rows.length === 0) return { text: "🆕 Новых серий нет — всё просмотрено. Я напишу, как только выйдет новая." };
     const anime = await this.prisma.anime.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.animeId))] } },
       select: { id: true, slug: true, title: true, titleLocalized: true },
@@ -232,7 +253,7 @@ export class TelegramCommands {
       lines.push(`• <a href="${this.href(a, ep)}">${this.name(a)}</a> — ${r.fromEpisode != null ? `серии ${r.fromEpisode}–${r.episode}` : `${r.episode} серия`}`);
       if (keyboard.length < 3) keyboard.push([{ text: `▶ ${(a.titleLocalized || a.title).slice(0, 26)} · ${ep}`, url: this.href(a, ep) }]);
     }
-    return { text: lines.join("\n"), keyboard: [...keyboard, ...MENU] };
+    return { text: lines.join("\n"), keyboard: keyboard.length ? keyboard : undefined };
   }
 
   async schedule(userId: string): Promise<BotAnswer> {
@@ -247,7 +268,7 @@ export class TelegramCommands {
       .sort((a, b) => a.airingAt.localeCompare(b.airingAt))
       .slice(0, 12);
     if (soon.length === 0) {
-      return { text: "📅 На этой и следующей неделе серий из вашего списка не ожидается.", keyboard: [[{ text: "Всё расписание", url: `${this.appUrl}/schedule` }], ...MENU] };
+      return { text: "📅 На этой и следующей неделе серий из вашего списка не ожидается.", keyboard: [[{ text: "Всё расписание", url: `${this.appUrl}/schedule` }]] };
     }
     const when = (iso: string) =>
       new Date(iso).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -257,7 +278,7 @@ export class TelegramCommands {
         "",
         ...soon.map((i) => `• ${when(i.airingAt)} — <b>${this.name(i.anime)}</b>, ${i.episode}${i.episodes ? `/${i.episodes}` : ""} серия`),
       ].join("\n"),
-      keyboard: [[{ text: "Всё расписание", url: `${this.appUrl}/schedule` }], ...MENU],
+      keyboard: [[{ text: "Всё расписание", url: `${this.appUrl}/schedule` }]],
     };
   }
 
@@ -268,7 +289,7 @@ export class TelegramCommands {
       take: 200,
     });
     if (planned.length === 0) {
-      return { text: "🎲 В «В планах» пусто. Загляните в каталог — там есть подборки на любой вкус.", keyboard: [[{ text: "Каталог", url: `${this.appUrl}/browse` }], ...MENU] };
+      return { text: "🎲 В «В планах» пусто. Загляните в каталог — там есть подборки на любой вкус.", keyboard: [[{ text: "Каталог", url: `${this.appUrl}/browse` }]] };
     }
     const a = planned[Math.floor(Math.random() * planned.length)]!.anime;
     const about = a.synopsis ? escapeHtml(a.synopsis.length > 300 ? `${a.synopsis.slice(0, 300).replace(/\s+\S*$/, "")}…` : a.synopsis) : "";
@@ -283,8 +304,64 @@ export class TelegramCommands {
       keyboard: [
         [{ text: "▶ Смотреть", url: this.href(a, 1) }],
         [{ text: "🎲 Другое", callback_data: "random" }],
-        ...MENU,
       ],
     };
   }
+
+  /**
+   * ⚙️ Настройки: what reaches this person and where, as switches that
+   * change in place — new episodes here, push in the browser, a test
+   * message, the site's own settings, unlinking the chat.
+   */
+  async settings(userId: string, note?: string): Promise<BotAnswer> {
+    const [user, devices] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { displayName: true, notifyTelegram: true, notifyPush: true, telegramId: true },
+      }),
+      this.prisma.pushSubscription.count({ where: { userId } }),
+    ]);
+    const tg = user?.notifyTelegram ?? false;
+    const push = (user?.notifyPush ?? false) && devices > 0;
+    const site = `${this.appUrl}/profile?studio=notify`;
+    return {
+      text: [
+        "⚙️ <b>Настройки</b>",
+        "",
+        `👤 Аккаунт: <b>${escapeHtml(user?.displayName ?? "")}</b>`,
+        "",
+        `🔔 Новые серии в Telegram — ${tg ? "<b>включены</b> ✅" : "<b>выключены</b> 🔕"}`,
+        "<i>Пишу, когда выходит серия аниме из «Смотрю», «В планах» и «Отложено».</i>",
+        "",
+        `📲 Пуш в браузере — ${push ? `<b>включены</b> на ${plural(devices, "устройстве", "устройствах", "устройствах")}` : "<b>выключены</b>"}`,
+        push ? "" : "<i>Включаются на сайте: браузер сам спросит разрешение.</i>",
+        note ? `\n${note}` : "",
+      ]
+        .filter((l, i, all) => l !== "" || all[i - 1] !== "")
+        .join("\n"),
+      keyboard: [
+        [{ text: tg ? "🔔 Новые серии: вкл — выключить" : "🔕 Новые серии: выкл — включить", callback_data: "set:tg" }],
+        [push ? { text: "📲 Выключить пуш в браузере", callback_data: "set:push" } : { text: "📲 Включить пуш на сайте", url: site }],
+        [
+          { text: "🧪 Проверка", callback_data: "set:test" },
+          { text: "🌐 На сайте", url: site },
+        ],
+        [{ text: "🚪 Отвязать Telegram", callback_data: "set:unlink" }],
+      ],
+    };
+  }
+
+  /** Before unlinking: are you sure. */
+  unlinkAsk(): BotAnswer {
+    return {
+      text: "🚪 <b>Отвязать Telegram?</b>\n\nЯ перестану присылать новые серии и показывать вашу статистику. Вход на сайт через Telegram останется. Подключить снова можно в настройках на сайте.",
+      keyboard: [
+        [
+          { text: "Да, отвязать", callback_data: "set:unlink!" },
+          { text: "Отмена", callback_data: "set:back" },
+        ],
+      ],
+    };
+  }
+
 }
