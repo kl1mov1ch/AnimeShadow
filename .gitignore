@@ -43,6 +43,7 @@ skills-lock.json
 deploy/prometheus/metrics-token
 apps/web/dist-next/
 apps/web/dist-prev/
+apps/api/dist-prev/
 
 # Hourly log digests (apps/api/logs)
 logs/
