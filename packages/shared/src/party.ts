@@ -105,8 +105,43 @@ export type PartyEvent =
   | { type: "closed"; reason: string }
   | { type: "queue"; queue: PartyQueueItem[] }
   | { type: "chat"; message: PartyChatMessage }
+  /** A message taken down by the site's moderators. */
+  | { type: "unchat"; id: string }
   | { type: "reaction"; emoji: string; by: string; name: string }
   | { type: "ping"; now: number };
+
+/** A live room as the site's admin sees it: everything, with the levers. */
+export interface AdminPartyRoom {
+  code: string;
+  anime: PartySnapshot["anime"];
+  episode: number;
+  playing: boolean;
+  position: number;
+  settings: PartySettings;
+  host: { id: string; name: string; avatarUrl: string | null; online: boolean };
+  members: PartyMember[];
+  /** Open tabs (a person may have several). */
+  streams: number;
+  createdAt: number;
+  emptySince: number | null;
+  messages: number;
+  reactions: number;
+  queue: number;
+  /** Most people in the room at once. */
+  peak: number;
+  banned: number;
+  waitingFor: string | null;
+  chat: PartyChatMessage[];
+}
+
+export const adminPartyActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("close"), reason: z.string().trim().max(200).optional() }),
+  z.object({ action: z.literal("kick"), userId: z.string().min(1).max(40) }),
+  z.object({ action: z.literal("say"), text: z.string().trim().min(1).max(300) }),
+  z.object({ action: z.literal("unchat"), messageId: z.string().min(1).max(40) }),
+  z.object({ action: z.literal("pause") }),
+]);
+export type AdminPartyAction = z.infer<typeof adminPartyActionSchema>;
 
 export const createPartyInputSchema = z.object({
   animeId: z.number().int().positive(),

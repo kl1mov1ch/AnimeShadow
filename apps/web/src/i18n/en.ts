@@ -918,6 +918,7 @@ export const en = {
       analytics: "Analytics",
       overview: "Overview",
       monitoring: "Monitoring",
+      parties: "Rooms",
       dashboard: "Dashboard",
       users: "Users",
       pro: "PRO",

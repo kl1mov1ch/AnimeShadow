@@ -9,6 +9,7 @@ import {
   MessageSquareIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
+  TvIcon,
   UsersIcon,
 } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
@@ -16,6 +17,7 @@ import { AdminAnalyticsTab } from "@/components/admin/admin-analytics";
 import { AdminComments } from "@/components/admin/admin-comments";
 import { AdminMonitoringTab } from "@/components/admin/admin-monitoring";
 import { AdminOverviewTab } from "@/components/admin/admin-overview";
+import { AdminPartiesTab } from "@/components/admin/admin-parties";
 import { AdminPro } from "@/components/admin/admin-pro";
 import { AdminReports } from "@/components/admin/admin-reports";
 import { LiveDot } from "@/components/admin/admin-ui";
@@ -27,13 +29,14 @@ import { useLocale, useT } from "@/i18n";
 import { useAdminSummary } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
-const TABS = ["overview", "analytics", "monitoring", "users", "pro", "comments", "reports"] as const;
+const TABS = ["overview", "analytics", "monitoring", "parties", "users", "pro", "comments", "reports"] as const;
 type AdminTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<AdminTab, LucideIcon> = {
   overview: LayoutDashboardIcon,
   analytics: ChartLineIcon,
   monitoring: GaugeIcon,
+  parties: TvIcon,
   users: UsersIcon,
   pro: CrownIcon,
   comments: MessageSquareIcon,
@@ -165,6 +168,7 @@ function AdminPanel() {
         {tab === "overview" && <AdminOverviewTab />}
         {tab === "analytics" && <AdminAnalyticsTab />}
         {tab === "monitoring" && <AdminMonitoringTab />}
+        {tab === "parties" && <AdminPartiesTab />}
         {tab === "users" && <AdminUsers />}
         {tab === "pro" && <AdminPro />}
         {tab === "comments" && <AdminComments />}

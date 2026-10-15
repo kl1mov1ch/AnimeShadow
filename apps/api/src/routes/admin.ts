@@ -12,6 +12,8 @@ import {
   adminUpdateUserInputSchema,
   adminUserQuerySchema,
   adminVisitorsQuerySchema,
+  adminPartyActionSchema,
+  partySettingsInputSchema,
 } from "@animeshadow/shared";
 import { logDigest } from "../lib/log-digest-instance.js";
 import { env } from "../config/env.js";
@@ -146,7 +148,25 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Watching together: sessions of the last month, summed from the session logs.
-  fastify.get("/admin/party-stats", guard, async () => fastify.services.party.stats(30));
+  fastify.get("/admin/party-stats", guard, async (request) => {
+    const days = Number((request.query as { days?: string }).days);
+    return fastify.services.party.stats([7, 30, 90].includes(days) ? days : 30);
+  });
+
+  // Rooms open now, and what the admin can do in them.
+  fastify.get("/admin/parties", guard, async () => ({ rooms: fastify.services.party.adminRooms(), now: Date.now() }));
+
+  fastify.post("/admin/parties/:code/action", guard, async (request) => {
+    const { code } = parse(z.object({ code: z.string().min(4).max(16) }), request.params);
+    const action = parse(adminPartyActionSchema, request.body);
+    request.log.info({ code, action: action.action, admin: request.userId }, "admin room action");
+    return fastify.services.party.adminAction(code, action);
+  });
+
+  fastify.patch("/admin/parties/:code/settings", guard, async (request) => {
+    const { code } = parse(z.object({ code: z.string().min(4).max(16) }), request.params);
+    return fastify.services.party.adminSettings(code, parse(partySettingsInputSchema, request.body));
+  });
 
   fastify.get("/admin/comments", guard, async (request) => {
     const query = parse(adminCommentQuerySchema, request.query);

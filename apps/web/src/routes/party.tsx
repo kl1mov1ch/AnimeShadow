@@ -126,6 +126,9 @@ function PartyRoom({ code }: { code: string }) {
       case "chat":
         setChat((c) => [...c.slice(-150), e.message]);
         break;
+      case "unchat":
+        setChat((c) => c.filter((m) => m.id !== e.id));
+        break;
       case "reaction": {
         const id = Math.random();
         setFloating((f) => [...f.slice(-20), { id, emoji: e.emoji, x: 10 + Math.random() * 80 }]);
