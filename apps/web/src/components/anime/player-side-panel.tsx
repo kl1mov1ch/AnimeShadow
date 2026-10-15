@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useT } from "@/i18n";
 import { useDragScroll } from "@/lib/drag-scroll";
 import { type EpisodeCatalog, type EpisodeInfo, formatClock } from "@/lib/episodes";
+import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type EpisodeState = { completed: boolean; position: number };
@@ -377,7 +378,7 @@ const EpisodeRow = memo(function EpisodeRow({
 }) {
   const t = useT();
   const [broken, setBroken] = useState(false);
-  const art = info?.thumb && !broken ? info.thumb : null;
+  const art = info?.thumb && !broken ? imageSrc(info.thumb, 240) : null;
   const done = state?.completed ?? false;
   const numberLabel = t("detail.episodeNumber", { n });
   const length =

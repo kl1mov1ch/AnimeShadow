@@ -34,6 +34,24 @@ export class GifLibrary {
     return readFile(join(this.dir, name)).catch(() => null);
   }
 
+  private stills = new Map<string, Buffer>();
+
+  /**
+   * The gif's first frame, still and a few KB: a picker of forty shows at
+   * once on a slow phone, the moving picture fading in over it after.
+   */
+  async still(name: string): Promise<Buffer | null> {
+    const hit = this.stills.get(name);
+    if (hit) return hit;
+    const buf = await this.file(name);
+    if (!buf) return null;
+    const out = await sharp(buf).webp({ quality: 50 }).toBuffer().catch(() => null);
+    if (!out) return null;
+    if (this.stills.size >= 800) this.stills.delete(this.stills.keys().next().value!);
+    this.stills.set(name, out);
+    return out;
+  }
+
   /** What is on disk already — answers right after a restart. */
   async load(): Promise<void> {
     const names = await readdir(this.dir).catch(() => [] as string[]);

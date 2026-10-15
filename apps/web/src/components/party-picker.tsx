@@ -100,7 +100,7 @@ export function PartyPicker({
                     className="group flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-foreground/[0.06] disabled:opacity-60"
                   >
                     <span className="aspect-[2/3] w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
-                      {p.anime.imageUrl && <img src={imageSrc(p.anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+                      {p.anime.imageUrl && <img src={imageSrc(p.anime.imageUrl, 240)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="line-clamp-2 text-sm font-semibold leading-snug">{p.anime.titleLocalized || p.anime.title}</span>

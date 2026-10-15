@@ -196,6 +196,11 @@ export function stickerUrl(code: string): string {
   return `https://fonts.gstatic.com/s/e/notoemoji/latest/${code}/512.webp`;
 }
 
+/** The same sticker standing still — an SVG of a few KB instead of ~600 KB of animation. */
+export function stickerStill(code: string): string {
+  return `https://fonts.gstatic.com/s/e/notoemoji/latest/${code}/emoji.svg`;
+}
+
 /** Emoji anyone can send — the plain ones, no PRO needed. */
 export const PARTY_EMOJI = [
   "😂", "🤣", "😭", "🥹", "😍", "🥰", "😘", "😎", "🤩", "😏",

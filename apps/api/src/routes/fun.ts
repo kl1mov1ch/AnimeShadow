@@ -56,7 +56,8 @@ export const funRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/gifs/:name", async (request, reply) => {
     const { name } = request.params as { name: string };
-    const buf = await gifs.file(name);
+    const still = (request.query as { still?: string }).still === "1";
+    const buf = await (still ? gifs.still(name) : gifs.file(name));
     if (!buf) {
       reply.code(404);
       return { error: { code: "NOT_FOUND", message: "No such gif" } };

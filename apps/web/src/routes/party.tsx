@@ -422,11 +422,12 @@ function PartyRoom({ code }: { code: string }) {
   const title = party.anime.titleLocalized || party.anime.title;
   const meIsPro = members.find((m) => m.id === user?.id)?.pro ?? false;
   return (
-    <div className="mx-auto grid w-full max-w-[1400px] gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section className="flex min-w-0 flex-col gap-3">
+    <div className="mx-auto grid w-full max-w-[1400px] items-start gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      {/* A phone: the picture, the chat right under it, then what's next. A computer: the chat as a column beside both. */}
+      <section className="flex min-w-0 flex-col gap-2.5 sm:gap-3 lg:col-start-1 lg:row-start-1">
         {/* The room: what, which episode, the invite. */}
         <header className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-3">
-          {party.anime.imageUrl && <img src={imageSrc(party.anime.imageUrl)} alt="" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
+          {party.anime.imageUrl && <img src={imageSrc(party.anime.imageUrl, 240)} alt="" decoding="async" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
               <UsersIcon className="size-3.5" />
@@ -484,7 +485,7 @@ function PartyRoom({ code }: { code: string }) {
         {/* The picture. */}
         <div className="@container/player relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
           {party.anime.imageUrl && !joined && (
-            <img src={imageSrc(party.anime.imageUrl)} alt="" aria-hidden className="absolute inset-0 size-full scale-110 object-cover opacity-30 blur-2xl" />
+            <img src={imageSrc(party.anime.imageUrl, 240)} alt="" aria-hidden decoding="async" className="absolute inset-0 size-full scale-110 object-cover opacity-30 blur-2xl" />
           )}
           {ownUrl && own ? (
             <CustomHlsPlayer
@@ -567,7 +568,7 @@ function PartyRoom({ code }: { code: string }) {
               key={emoji}
               type="button"
               onClick={() => void apiRequest(`/party/${code}/react`, { method: "POST", body: { emoji } }).catch(() => undefined)}
-              className="grid size-10 place-items-center rounded-xl border border-[var(--accent-line-soft)] bg-card/50 text-xl transition-transform hover:-translate-y-0.5 active:scale-90"
+              className="grid size-9 place-items-center rounded-xl border border-[var(--accent-line-soft)] bg-card/50 text-lg transition-transform hover:-translate-y-0.5 active:scale-90 sm:size-10 sm:text-xl"
               aria-label={`Реакция ${emoji}`}
             >
               {emoji}
@@ -577,14 +578,19 @@ function PartyRoom({ code }: { code: string }) {
             type="button"
             onClick={() => align(true)}
             title="Встать на общий момент, если картинка разошлась"
-            className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Синхронизироваться"
+            className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:px-3"
           >
             <RefreshCwIcon className="size-3.5" />
-            Синхронизироваться
+            <span className="hidden sm:inline">Синхронизироваться</span>
           </button>
         </div>
 
+      </section>
+
+      <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro} capHeight={capHeight} settings={party.settings} />
         <NextUp
+          className="lg:col-start-1 lg:row-start-2"
           code={code}
           queue={queue}
           myId={user?.id ?? null}
@@ -597,9 +603,6 @@ function PartyRoom({ code }: { code: string }) {
           onNextEpisode={() => sendPlayback({ episode: episode + 1, playing: true, position: 0 })}
           onPropose={() => setProposing(true)}
         />
-      </section>
-
-      <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro} capHeight={capHeight} settings={party.settings} />
       <PartyPicker
         open={proposing}
         onOpenChange={setProposing}
@@ -811,6 +814,7 @@ function InviteDialog({ code, party, members, onClose }: { code: string; party: 
  * "Включить" to put one on for everyone.
  */
 function NextUp({
+  className,
   code,
   queue,
   myId,
@@ -823,6 +827,7 @@ function NextUp({
   onNextEpisode,
   onPropose,
 }: {
+  className?: string;
   code: string;
   queue: PartyQueueItem[];
   myId: string | null;
@@ -843,7 +848,7 @@ function NextUp({
     );
   const hasNext = episode < total;
   return (
-    <section className="flex flex-col gap-2.5 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-3">
+    <section className={cn("flex min-w-0 flex-col gap-2.5 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-3", className)}>
       <div className="flex items-center gap-2">
         <ListVideoIcon className="size-4 text-primary" />
         <p className="text-sm font-semibold">Что смотрим дальше</p>
@@ -852,10 +857,10 @@ function NextUp({
           Предложить аниме
         </button>
       </div>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+      <div className="-mx-1 flex snap-x gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:thin]">
         {hasNext && (
-          <div className="flex w-56 shrink-0 items-center gap-2.5 rounded-xl bg-primary/[0.07] p-2 ring-1 ring-primary/25">
-            {anime.imageUrl && <img src={imageSrc(anime.imageUrl)} alt="" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
+          <div className="flex w-[80%] snap-start sm:w-56 shrink-0 items-center gap-2.5 rounded-xl bg-primary/[0.07] p-2 ring-1 ring-primary/25">
+            {anime.imageUrl && <img src={imageSrc(anime.imageUrl, 240)} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Следующая серия</p>
               <p className="truncate text-sm font-medium">Серия {episode + 1}</p>
@@ -871,8 +876,8 @@ function NextUp({
         {queue.map((q) => {
           const mine = myId != null && q.votes.includes(myId);
           return (
-            <div key={q.anime.id} className="flex w-56 shrink-0 items-center gap-2.5 rounded-xl bg-foreground/[0.04] p-2">
-              {q.anime.imageUrl && <img src={imageSrc(q.anime.imageUrl)} alt="" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
+            <div key={q.anime.id} className="flex w-[80%] snap-start sm:w-56 shrink-0 items-center gap-2.5 rounded-xl bg-foreground/[0.04] p-2">
+              {q.anime.imageUrl && <img src={imageSrc(q.anime.imageUrl, 240)} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-10 rounded-lg object-cover" />}
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-2 text-sm font-medium leading-tight">{q.anime.titleLocalized || q.anime.title}</p>
                 <p className="truncate text-[11px] text-muted-foreground">предложил(а) {q.by}</p>

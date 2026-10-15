@@ -199,11 +199,11 @@ function RoomCard({ room, drift }: { room: PartyListing; drift: number }) {
   return (
     <article className="group relative isolate flex flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-card/60 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40">
       {room.anime.imageUrl && (
-        <img src={imageSrc(room.anime.imageUrl)} alt="" aria-hidden className="absolute inset-0 -z-10 size-full scale-125 object-cover opacity-20 blur-2xl" />
+        <img src={imageSrc(room.anime.imageUrl, 240)} alt="" aria-hidden loading="lazy" decoding="async" className="absolute inset-0 -z-10 size-full scale-125 object-cover opacity-20 blur-2xl" />
       )}
       <div className="flex gap-3 p-3">
         <span className="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-white/10">
-          {room.anime.imageUrl && <img src={imageSrc(room.anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+          {room.anime.imageUrl && <img src={imageSrc(room.anime.imageUrl, 240)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
           <span className={cn("absolute left-1 top-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold", room.playing ? "bg-rose-500 text-white" : "bg-black/70 text-white/80")}>
             {room.playing ? <span className="size-1.5 animate-pulse rounded-full bg-white" /> : <PauseIcon className="size-2.5" />}
             {room.playing ? "LIVE" : "пауза"}

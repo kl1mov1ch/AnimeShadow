@@ -321,6 +321,9 @@ function facadeFrames(
 /** How long each frame holds before the next one dissolves in. */
 const FACADE_FRAME_MS = 3_800;
 
+/** The frames behind the play button: a phone gets a 640-px copy, not the full shot. */
+const FRAME_WIDTH = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches ? 640 : 1280;
+
 /**
  * The player before it runs, in exactly the player's shape: the picture on
  * the left at 16:9, the episode column on the right, a bar above both. So
@@ -385,7 +388,7 @@ function PlayerShell({
           {usable.map((frame, i) => (
             <img
               key={frame}
-              src={imageSrc(frame)}
+              src={imageSrc(frame, FRAME_WIDTH)}
               alt=""
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
@@ -486,9 +489,10 @@ function PlayerShell({
                       <span className="relative aspect-video w-16 shrink-0 overflow-hidden rounded-md bg-secondary/60">
                         {info?.thumb ? (
                           <img
-                            src={imageSrc(info.thumb)}
+                            src={imageSrc(info.thumb, 240)}
                             alt=""
                             loading="lazy"
+                            decoding="async"
                             className="size-full object-cover transition-transform duration-500 group-hover/ep:scale-110"
                           />
                         ) : (

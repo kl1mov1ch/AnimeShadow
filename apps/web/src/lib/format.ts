@@ -29,6 +29,9 @@ const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PROXY_HOSTS =
   /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best|anilist\.co|myanimelist\.net|kitsu\.(app|io))$/i;
 
+/** Widths the proxy can shrink a picture to (made once, kept on disk). */
+export type ProxyWidth = 240 | 360 | 480 | 640 | 960 | 1280;
+
 /**
  * Pictures from the catalogues we draw on come through our own `/api/img`,
  * which fetches each one once and keeps it on disk. Shikimori, Kinopoisk and
@@ -36,13 +39,15 @@ const PROXY_HOSTS =
  * Kitsu's CDNs are slow or patchy from Russia, which left posters and
  * banners blank for a lot of visitors. From our own origin they arrive
  * quickly and the same way for everyone. Anything else passes untouched.
+ * `width` asks for a smaller copy — a 64-px thumbnail needn't cost a 600-px
+ * download on a phone.
  */
-export function imageSrc(url: string | null | undefined): string | undefined {
+export function imageSrc(url: string | null | undefined, width?: ProxyWidth): string | undefined {
   if (!url) return undefined;
   try {
     const parsed = new URL(url, window.location.origin);
     if (PROXY_HOSTS.test(parsed.hostname)) {
-      return `${API_BASE}/api/img?u=${encodeURIComponent(parsed.toString())}`;
+      return `${API_BASE}/api/img?u=${encodeURIComponent(parsed.toString())}${width ? `&w=${width}` : ""}`;
     }
     return url;
   } catch {

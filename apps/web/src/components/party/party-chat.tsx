@@ -1,7 +1,7 @@
-import { PARTY_EMOJI, PARTY_MAX, PARTY_STICKERS, type PartyChatMessage, type PartyMember, type PartySettings, stickerUrl } from "@animeshadow/shared";
+import { PARTY_EMOJI, PARTY_MAX, PARTY_STICKERS, type PartyChatMessage, type PartyMember, type PartySettings, stickerStill, stickerUrl } from "@animeshadow/shared";
 import { SignalBars } from "./host-panel";
 import { Loader2Icon, CrownIcon, ImageIcon, LockIcon, MessageSquareIcon, SendIcon, SmileIcon, StickerIcon, WifiIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ProMark } from "@/components/common/pro-mark";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const gifUrl = (name: string) => `${API_BASE}/api/gifs/${name}`;
+const gifStill = (name: string) => `${API_BASE}/api/gifs/${name}?still=1`;
 const time = (at: number) => new Date(at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
 const GIF_LABELS: Record<string, string> = {
@@ -66,13 +67,7 @@ export function PartyChat({
   const [tab, setTab] = useState<Tab>(pro ? "text" : "emoji");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
   const { data: gifs } = useGifLibrary();
-
-  useEffect(() => {
-    const el = listRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [chat.length]);
 
   const send = async (body: { text?: string; sticker?: string; gif?: string }) => {
     if (sending) return;
@@ -90,7 +85,7 @@ export function PartyChat({
   const slowest = members.filter((m) => m.mbps != null).sort((a, b) => (a.mbps ?? 0) - (b.mbps ?? 0))[0];
 
   return (
-    <aside className="flex h-[70vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[linear-gradient(180deg,var(--accent-surface),transparent_60%)] lg:sticky lg:top-20 lg:h-[calc(100dvh-6.5rem)]">
+    <aside className="flex h-[min(70dvh,34rem)] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[linear-gradient(180deg,var(--accent-surface),transparent_60%)] lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-[calc(100dvh-6.5rem)]">
       {/* Who's here. */}
       <div className="flex flex-col gap-2 border-b border-[var(--accent-line-soft)] p-3">
         <div className="flex items-center gap-2">
@@ -130,52 +125,7 @@ export function PartyChat({
       </div>
 
       {/* The talk. */}
-      <div ref={listRef} className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
-        {chat.map((m, i) => {
-          if (!m.author || m.kind === "system") {
-            return (
-              <p key={m.id} className="mx-auto my-1 max-w-[90%] rounded-full bg-foreground/[0.05] px-3 py-1 text-center text-[11px] text-muted-foreground">
-                {m.text}
-              </p>
-            );
-          }
-          const mine = m.author.id === myId;
-          const prev = chat[i - 1];
-          const first = !prev || prev.author?.id !== m.author.id || m.at - prev.at > 120_000;
-          return (
-            <div key={m.id} className={cn("flex items-end gap-2", mine && "flex-row-reverse", first && "mt-2")}>
-              <span className={cn("grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-[11px] font-semibold", !first && "invisible")}>
-                {m.author.avatarUrl ? <img src={imageSrc(m.author.avatarUrl)} alt="" className="size-full object-cover" /> : m.author.name.charAt(0)}
-              </span>
-              <div className={cn("flex min-w-0 max-w-[80%] flex-col", mine ? "items-end" : "items-start")}>
-                {first && !mine && (
-                  <span className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-muted-foreground">
-                    {m.author.name}
-                    {m.author.pro && <ProMark className="text-[10px]" />}
-                  </span>
-                )}
-                {m.kind === "sticker" && m.media ? (
-                  <img src={stickerUrl(m.media)} alt="" loading="lazy" className="party-pop size-24 object-contain" />
-                ) : m.kind === "gif" && m.media ? (
-                  <img src={gifUrl(m.media)} alt="" loading="lazy" className="party-pop max-h-40 max-w-[12rem] rounded-2xl object-cover" />
-                ) : m.kind === "emoji" ? (
-                  <span className="party-pop text-4xl leading-tight">{m.text}</span>
-                ) : (
-                  <span
-                    className={cn(
-                      "whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-sm [overflow-wrap:anywhere]",
-                      mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-foreground/[0.08]",
-                    )}
-                  >
-                    {m.text}
-                  </span>
-                )}
-                <span className="px-1 text-[10px] text-muted-foreground/70">{time(m.at)}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <ChatLog chat={chat} myId={myId} />
 
       {/* The box: words, emoji, stickers, GIFs. */}
       <div className="border-t border-[var(--accent-line-soft)]">
@@ -234,14 +184,14 @@ export function PartyChat({
             ))}
 
           {tab === "emoji" && (
-            <div className="grid max-h-36 grid-cols-9 gap-0.5 overflow-y-auto">
+            <div className="grid max-h-36 auto-rows-[2.25rem] grid-cols-8 gap-0.5 overflow-y-auto overscroll-contain sm:grid-cols-9">
               {PARTY_EMOJI.map((e) => (
                 <button
                   key={e}
                   type="button"
                   disabled={sending}
                   onClick={() => void send({ text: e })}
-                  className="grid aspect-square place-items-center rounded-lg text-xl transition-transform hover:scale-125 hover:bg-foreground/[0.06] active:scale-90"
+                  className="grid size-full place-items-center rounded-lg text-xl transition-transform hover:scale-125 hover:bg-foreground/[0.06] active:scale-90"
                 >
                   {e}
                 </button>
@@ -252,18 +202,9 @@ export function PartyChat({
           {tab === "stickers" && !settings.stickers && <Off text="Стикеры выключены создателем комнаты" />}
           {tab === "stickers" && settings.stickers &&
             (pro ? (
-              <div className="grid max-h-44 grid-cols-6 gap-1 overflow-y-auto">
+              <div className="grid max-h-44 auto-rows-[3.25rem] grid-cols-5 gap-1 overflow-y-auto overscroll-contain sm:auto-rows-[3.5rem] sm:grid-cols-6">
                 {PARTY_STICKERS.map((s) => (
-                  <button
-                    key={s.code}
-                    type="button"
-                    title={s.label}
-                    disabled={sending}
-                    onClick={() => void send({ sticker: s.code })}
-                    className="grid aspect-square place-items-center rounded-xl p-0.5 transition-transform hover:scale-110 hover:bg-foreground/[0.06] active:scale-90"
-                  >
-                    <img src={stickerUrl(s.code)} alt={s.label} loading="lazy" className="size-full object-contain" />
-                  </button>
+                  <StickerTile key={s.code} code={s.code} label={s.label} disabled={sending} onPick={() => void send({ sticker: s.code })} />
                 ))}
               </div>
             ) : (
@@ -273,7 +214,7 @@ export function PartyChat({
           {tab === "gif" && !settings.gifs && <Off text="Гифки выключены создателем комнаты" />}
           {tab === "gif" && settings.gifs &&
             (pro ? (
-              <div className="grid max-h-44 grid-cols-3 gap-1 overflow-y-auto">
+              <div className="grid max-h-48 auto-rows-[4.25rem] grid-cols-3 gap-1.5 overflow-y-auto overscroll-contain">
                 {Object.entries(gifs ?? {})
                   .filter(([, files]) => files.length > 0)
                   .flatMap(([cat, files]) => files.slice(0, 2).map((f) => ({ cat, f })))
@@ -283,10 +224,10 @@ export function PartyChat({
                       type="button"
                       disabled={sending}
                       onClick={() => void send({ gif: f })}
-                      className="group relative aspect-video overflow-hidden rounded-lg bg-muted"
+                      className="group relative size-full overflow-hidden rounded-lg bg-muted"
                       title={GIF_LABELS[cat] ?? cat}
                     >
-                      <img src={gifUrl(f)} alt="" loading="lazy" className="size-full object-cover transition-transform group-hover:scale-105" />
+                      <LiveImg still={gifStill(f)} live={gifUrl(f)} className="size-full transition-transform group-hover:scale-105" fit="object-cover" />
                       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-0.5 text-[9px] text-white">{GIF_LABELS[cat] ?? cat}</span>
                     </button>
                   ))}
@@ -299,6 +240,128 @@ export function PartyChat({
         </div>
       </div>
     </aside>
+  );
+}
+
+/**
+ * The talk, drawn again only when it changes — not every time the room
+ * ticks. Follows new lines only while you're at the bottom, so reading
+ * back isn't yanked away.
+ */
+const ChatLog = memo(function ChatLog({ chat, myId }: { chat: PartyChatMessage[]; myId: string | null }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
+  useEffect(() => {
+    const el = listRef.current;
+    if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [chat.length]);
+  return (
+    <div
+      ref={listRef}
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      }}
+      className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-3 py-2"
+    >
+      {chat.map((m, i) => {
+        if (!m.author || m.kind === "system") {
+          return (
+            <p key={m.id} className="mx-auto my-1 max-w-[90%] rounded-full bg-foreground/[0.05] px-3 py-1 text-center text-[11px] text-muted-foreground">
+              {m.text}
+            </p>
+          );
+        }
+        const mine = m.author.id === myId;
+        const prev = chat[i - 1];
+        const first = !prev || prev.author?.id !== m.author.id || m.at - prev.at > 120_000;
+        return (
+          <div key={m.id} className={cn("flex items-end gap-2", mine && "flex-row-reverse", first && "mt-2")}>
+            <span className={cn("grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-[11px] font-semibold", !first && "invisible")}>
+              {m.author.avatarUrl ? <img src={imageSrc(m.author.avatarUrl)} alt="" className="size-full object-cover" /> : m.author.name.charAt(0)}
+            </span>
+            <div className={cn("flex min-w-0 max-w-[80%] flex-col", mine ? "items-end" : "items-start")}>
+              {first && !mine && (
+                <span className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-muted-foreground">
+                  {m.author.name}
+                  {m.author.pro && <ProMark className="text-[10px]" />}
+                </span>
+              )}
+              {m.kind === "sticker" && m.media ? (
+                <LiveImg still={stickerStill(m.media)} live={stickerUrl(m.media)} className="party-pop size-24" fit="object-contain" />
+              ) : m.kind === "gif" && m.media ? (
+                <LiveImg still={gifStill(m.media)} live={gifUrl(m.media)} className="party-pop overflow-hidden rounded-2xl" imgClassName="max-h-40 max-w-[12rem]" fit="object-cover" />
+              ) : m.kind === "emoji" ? (
+                <span className="party-pop text-4xl leading-tight">{m.text}</span>
+              ) : (
+                <span
+                  className={cn(
+                    "whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-sm [overflow-wrap:anywhere]",
+                    mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-foreground/[0.08]",
+                  )}
+                >
+                  {m.text}
+                </span>
+              )}
+              <span className="px-1 text-[10px] text-muted-foreground/70">{time(m.at)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+/**
+ * A still picture at once, the moving one fading in over it when it has
+ * come — a slow phone sees the chat straight away, not empty boxes.
+ */
+function LiveImg({
+  still,
+  live,
+  className,
+  imgClassName,
+  fit,
+}: {
+  still: string;
+  live: string | null;
+  className?: string;
+  imgClassName?: string;
+  fit: "object-contain" | "object-cover";
+}) {
+  const [ready, setReady] = useState(false);
+  return (
+    <span className={cn("relative block", className)}>
+      <img src={still} alt="" decoding="async" className={cn("block", imgClassName ?? "size-full", fit)} />
+      {live && (
+        <img
+          src={live}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setReady(true)}
+          className={cn("absolute inset-0 size-full transition-opacity duration-300", fit, ready ? "opacity-100" : "opacity-0")}
+        />
+      )}
+    </span>
+  );
+}
+
+/** A sticker in the picker: still (a few KB), moving while the mouse is on it. */
+function StickerTile({ code, label, disabled, onPick }: { code: string; label: string; disabled: boolean; onPick: () => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      title={label}
+      disabled={disabled}
+      onClick={onPick}
+      onPointerEnter={(e) => e.pointerType === "mouse" && setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      className="grid size-full place-items-center rounded-xl p-1 transition-transform hover:scale-110 hover:bg-foreground/[0.06] active:scale-90"
+    >
+      <LiveImg still={stickerStill(code)} live={hover ? stickerUrl(code) : null} className="size-full" fit="object-contain" />
+    </button>
   );
 }
 
