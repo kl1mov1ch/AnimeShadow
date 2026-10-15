@@ -23,7 +23,8 @@ export default {
     return fetch(target, {
       method: request.method,
       headers: { "content-type": request.headers.get("content-type") ?? "application/json" },
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+      // The bot's calls are small JSON: read whole, not streamed (a stream needs `duplex` set).
+      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
     });
   },
 };
