@@ -186,7 +186,7 @@ export function Component() {
               ? undefined
               : friendCode && friend.data && !friend.data.valid
                 ? undefined
-                : "Необязательно. Другу за тебя — награды, тебе — месяц PRO в любом случае."
+                : "Необязательно. Другу за тебя — награды, тебе — 15 дней PRO в любом случае."
           }
         >
           {(p) => (

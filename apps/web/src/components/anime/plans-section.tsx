@@ -29,7 +29,7 @@ interface Plan {
  * gets everything. Free, $4.99 and $9.99.
  */
 const PLANS: Plan[] = [
-  { key: "shadow", icon: MoonIcon, scene: NightScene, price: "$0", period: "forever", perkCount: 3 },
+  { key: "shadow", icon: MoonIcon, scene: NightScene, price: "$0", period: "forever", perkCount: 4 },
   {
     key: "ronin",
     icon: SwordIcon,
@@ -37,7 +37,7 @@ const PLANS: Plan[] = [
     price: "$2.99",
     period: "month",
     featured: true,
-    perkCount: 4,
+    perkCount: 5,
   },
   { key: "shogun", icon: CrownIcon, scene: CrownScene, price: "$5.99", period: "month", perkCount: 4 },
 ];

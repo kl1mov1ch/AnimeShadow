@@ -62,6 +62,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useIsPro } from "@/components/promo/promo-offer";
 
 interface WatchSectionProps {
   anime: Pick<
@@ -320,6 +321,11 @@ function facadeFrames(
 
 /** How long each frame holds before the next one dissolves in. */
 const FACADE_FRAME_MS = 3_800;
+
+/** Without PRO the own player goes up to 720p; 1080p is a PRO thing. */
+const FREE_MAX_HEIGHT = 720;
+const PROMO_HINT = "Новым аккаунтам — 15 дней PRO бесплатно.";
+const minCap = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
 
 /** The frames behind the play button: a phone gets a 640-px copy, not the full shot. */
 const FRAME_WIDTH = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches ? 640 : 1280;
@@ -1104,6 +1110,13 @@ export function CustomHlsPlayer({
   // "auto", hls.js moves between them as the connection allows).
   const engineRef = useRef<EngineHandle | null>(null);
   const [levels, setLevels] = useState<number[]>([]);
+  const pro = useIsPro();
+  const limitRef = useRef<number | null>(null);
+  limitRef.current = pro ? null : FREE_MAX_HEIGHT;
+  // PRO started (or ran out) while the player was open.
+  useEffect(() => {
+    engineRef.current?.capHeight(pro ? null : FREE_MAX_HEIGHT);
+  }, [pro]);
   const [activeHeight, setActiveHeight] = useState<number | null>(null);
   // The picture's own height, for a stream that comes in one quality only.
   const [videoHeight, setVideoHeight] = useState(0);
@@ -1131,7 +1144,10 @@ export function CustomHlsPlayer({
       .map(Number)
       .filter((h) => Number.isFinite(h) && h > 0)
       .sort((a, b) => a - b);
-    const wanted = settingsRef.current.quality;
+    // A saved 1080p falls back to "auto" (capped) without PRO.
+    const saved = settingsRef.current.quality;
+    const wanted = saved !== "auto" && limitRef.current && Number(saved) > limitRef.current ? "auto" : saved;
+    const freeTop = limitRef.current ? [...heights].reverse().find((h) => h <= limitRef.current!) : undefined;
 
     // Apple's browsers play HLS themselves (and iPhones before iOS 17 can
     // play it no other way): one quality at a time, switched by swapping
@@ -1139,7 +1155,7 @@ export function CustomHlsPlayer({
     const appleNative =
       video.canPlayType("application/vnd.apple.mpegurl") !== "" && /Apple/.test(navigator.vendor);
     if (appleNative) {
-      video.src = (wanted !== "auto" && variants?.[wanted]) || src;
+      video.src = (wanted !== "auto" && variants?.[wanted]) || (freeTop != null ? variants?.[String(freeTop)] : undefined) || src;
       if (heights.length > 1) {
         setLevels(heights);
         setActiveHeight(wanted !== "auto" && variants?.[wanted] ? Number(wanted) : heights[heights.length - 1]!);
@@ -1169,6 +1185,7 @@ export function CustomHlsPlayer({
             startLevel: (parsed) => (parsed.length > 1 && wanted !== "auto" ? parsed.indexOf(Number(wanted)) : -1),
             onLevels: (parsed) => {
               if (parsed.length > 1) setLevels(parsed);
+              if (limitRef.current) engineRef.current?.capHeight(limitRef.current);
             },
             onLevelSwitched: setActiveHeight,
             // "Ready" for the race: the manifest is parsed, so this source
@@ -1319,7 +1336,7 @@ export function CustomHlsPlayer({
     if (!video) return;
     const onCmd = (e: Event) => {
       const d = (e as CustomEvent<{ seconds?: number; play?: boolean; maxHeight?: number | null; rate?: number }>).detail;
-      if (d.maxHeight !== undefined) engineRef.current?.capHeight(d.maxHeight);
+      if (d.maxHeight !== undefined) engineRef.current?.capHeight(minCap(d.maxHeight, limitRef.current));
       // A gentle catch-up: a little faster or slower for a few seconds instead of a jump.
       if (d.rate != null && Math.abs(video.playbackRate - d.rate) > 0.001) video.playbackRate = d.rate;
       const seek = d.seconds != null && Math.abs(video.currentTime - d.seconds) > 0.5;
@@ -1656,6 +1673,13 @@ export function CustomHlsPlayer({
   };
 
   const pickQuality = (value: string) => {
+    if (value !== "auto" && limitRef.current && Number(value) > limitRef.current) {
+      toast(`${value}p — в PRO`, {
+        description: `Без PRO плеер показывает до ${FREE_MAX_HEIGHT}p. ${PROMO_HINT}`,
+        action: { label: "PRO", onClick: () => window.location.assign("/support") },
+      });
+      return;
+    }
     setPlayerSetting({ quality: value });
     const engine = engineRef.current;
     if (engine) {
@@ -1694,7 +1718,10 @@ export function CustomHlsPlayer({
                   ? `${t("watch.ctl.qualityAuto")} · ${activeHeight}p`
                   : t("watch.ctl.qualityAuto"),
             },
-            ...[...levels].reverse().map((height) => ({ value: String(height), label: `${height}p` })),
+            ...[...levels].reverse().map((height) => ({
+              value: String(height),
+              label: !pro && height > FREE_MAX_HEIGHT ? `${height}p · PRO` : `${height}p`,
+            })),
           ],
         }
       : { note: t("watch.ctl.qualitySingle"), current: videoHeight > 0 ? `${videoHeight}p` : undefined };
@@ -1875,7 +1902,7 @@ export function CustomHlsPlayer({
         onLoadedMetadata={applyResume}
         onCanPlay={applyResume}
         onEnded={() => onEndedRef.current?.()}
-        style={{ filter: pictureFilter(settings.picture) }}
+        style={{ filter: pro ? pictureFilter(settings.picture) : undefined }}
         className="absolute inset-0 size-full"
         tabIndex={-1}
       />
@@ -2313,6 +2340,8 @@ function Player({
   const navigate = useNavigate();
   const [partyBusy, setPartyBusy] = useState(false);
   const { picture } = usePlayerSettings();
+  // Picture filters are PRO: without it the saved look isn't applied.
+  const pro = useIsPro();
   const t = useT();
   // Sources arrive ranked best-first (verified-reachable ones lead). Rather
   // than load one and wait to find out it's dead, load the top few at once,
@@ -2889,7 +2918,7 @@ function Player({
               }
               referrerPolicy="no-referrer"
               onLoad={() => handleLoad(id)}
-              style={{ filter: pictureFilter(picture) }}
+              style={{ filter: pro ? pictureFilter(picture) : undefined }}
               className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
               tabIndex={isWinner ? undefined : -1}
               aria-hidden={isWinner ? undefined : true}
@@ -2944,7 +2973,7 @@ function Player({
           instead of floating on its own row above the player. One card
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 py-2 text-sm">
+      <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/60 px-2 py-1.5 text-sm sm:flex-wrap sm:gap-2 sm:px-3 sm:py-2">
         {canUseOwn && (
           <PlayerSwitch
             useOwn={useOwn}
@@ -3013,7 +3042,7 @@ function Player({
                   title="Картинка"
                   className={cn(
                     "grid size-8 place-items-center rounded-full border border-[var(--accent-line-soft)] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground",
-                    pictureFilter(picture) && "border-primary/40 text-primary",
+                    pro && pictureFilter(picture) && "border-primary/40 text-primary",
                   )}
                 >
                   <PaletteIcon className="size-4" />
@@ -3039,11 +3068,11 @@ function Player({
                   type="button"
                   onClick={pinMoment}
                   disabled={addMoment.isPending}
-                  className="moment-btn relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full bg-primary px-3.5 text-xs font-bold text-white shadow-lg shadow-primary/30 transition-transform hover:-translate-y-px active:scale-95 disabled:opacity-60"
+                  aria-label="Любимый момент"
+                  className="moment-btn relative inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full bg-primary px-2 text-xs font-bold sm:px-3.5 text-white shadow-lg shadow-primary/30 transition-transform hover:-translate-y-px active:scale-95 disabled:opacity-60"
                 >
                   {authed ? <BookmarkPlusIcon className="moment-btn-icon size-4" /> : <LockIcon className="size-3.5" />}
                   <span className="hidden sm:inline">Любимый момент</span>
-                  <span className="sm:hidden">Момент</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="w-64 border border-[var(--accent-line-soft)] bg-popover p-3 text-popover-foreground shadow-xl">
@@ -3436,7 +3465,7 @@ function PlayerSwitch({
                   aria-pressed={active}
                   aria-disabled={!option.enabled}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all duration-200",
+                    "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all duration-200 sm:gap-1.5 sm:px-2.5",
                     !option.enabled
                       ? "pointer-events-none opacity-40"
                       : active
@@ -3454,7 +3483,7 @@ function PlayerSwitch({
                   )}
                   {option.label}
                   {active && option.enabled && (
-                    <DrawnCheck key={String(useOwn)} className="size-3" />
+                    <DrawnCheck key={String(useOwn)} className="hidden size-3 sm:block" />
                   )}
                 </button>
               </span>

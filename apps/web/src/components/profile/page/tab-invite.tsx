@@ -75,7 +75,7 @@ function InviteHero({ state }: { state: ReferralState }) {
       toast.error("Не получилось скопировать", { description: link });
     }
   };
-  const text = "Смотрю аниме на AnimeShadow — без рекламы на своём плеере, со списком и прогрессом. Залетай, первый месяц PRO в подарок:";
+  const text = "Смотрю аниме на AnimeShadow — без рекламы на своём плеере, со списком и прогрессом. Залетай, 15 дней PRO в подарок:";
   const share = async () => {
     if (navigator.share) {
       await navigator.share({ title: "AnimeShadow", text, url: link }).catch(() => undefined);
@@ -93,7 +93,7 @@ function InviteHero({ state }: { state: ReferralState }) {
             <h2 className="font-display text-2xl leading-tight sm:text-3xl">Чем больше друзей, тем больше наград</h2>
             <p className="max-w-2xl text-sm leading-relaxed text-foreground/75">
               Отправь ссылку или код. За каждого друга и за каждый час, что вы вместе смотрите, растут две шкалы — на них месяцы PRO,
-              редкие значки и своя приписка к нику. Другу — первый месяц PRO в подарок.
+              редкие значки и своя приписка к нику. Другу — 15 дней PRO в подарок.
             </p>
           </div>
 
@@ -229,7 +229,7 @@ function ProTile({ state }: { state: ReferralState }) {
           <>
             <span className="text-sm font-semibold leading-none">PRO до {fmtDate(until)}</span>
             <PromoTimer until={new Date(until)} className="text-[10.5px]" />
-            {state.pro.trialUntil && !state.pro.until && <span className="text-[10.5px] text-muted-foreground">подарочный месяц</span>}
+            {state.pro.trialUntil && !state.pro.until && <span className="text-[10.5px] text-muted-foreground">подарочный PRO</span>}
           </>
         ) : (
           <>
@@ -471,7 +471,7 @@ function Leaders() {
 function HowItWorks() {
   const steps = [
     { icon: Share2Icon, title: "Отправь ссылку", text: "Или просто код — друг введёт его при регистрации." },
-    { icon: UserPlusIcon, title: "Друг регистрируется", text: "И сразу получает месяц PRO в подарок." },
+    { icon: UserPlusIcon, title: "Друг регистрируется", text: "И сразу получает 15 дней PRO в подарок." },
     { icon: ClockIcon, title: "Смотрите аниме", text: "Друг засчитывается после первого часа, а часы всех друзей копятся на второй шкале." },
     { icon: GiftIcon, title: "Забирай награды", text: "PRO добавляется к текущему и сам выключится, когда время выйдет." },
   ];

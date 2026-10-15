@@ -41,7 +41,7 @@ export const promoRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: request.userId!, trialUntil: null, OR: [{ proSince: null }, { proUntil: { lte: new Date() } }] },
       data: { trialUntil: trialEnd() },
     });
-    if (count === 0) throw new BadRequestError("Подарочный месяц уже был использован.");
+    if (count === 0) throw new BadRequestError("Подарочный PRO уже был использован.");
     const user = await fastify.prisma.user.findUniqueOrThrow({
       where: { id: request.userId! },
       select: { proSince: true, proUntil: true, trialUntil: true },

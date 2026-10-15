@@ -1,3 +1,4 @@
+import { PROMO } from "@animeshadow/shared";
 import type { PrismaClient } from "@animeshadow/db";
 import type { FastifyBaseLogger } from "fastify";
 
@@ -18,11 +19,10 @@ export function proActive(
   return paid || trial;
 }
 
-/** The free month: thirty days from now. */
-export const TRIAL_DAYS = 30;
-/** After the free month, the second one at half price — for this long. */
-export const DISCOUNT_DAYS = 30;
-export const DISCOUNT_PERCENT = 50;
+/** The free PRO a new account gets, and the half-price window after it (see PROMO). */
+export const TRIAL_DAYS = PROMO.trialDays;
+export const DISCOUNT_DAYS = PROMO.discountDays;
+export const DISCOUNT_PERCENT = PROMO.discountPercent;
 
 const DAY = 86_400_000;
 

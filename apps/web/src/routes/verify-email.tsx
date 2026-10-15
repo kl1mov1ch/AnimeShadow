@@ -84,7 +84,7 @@ export function Component() {
         await confirmRegistration(email, value, needPassword ? password : undefined);
         writePendingEmail(null);
         forgetReferral();
-        toast.success("Аккаунт создан!", { description: "И месяц PRO в подарок — он уже включён" });
+        toast.success("Аккаунт создан!", { description: "И 15 дней PRO в подарок — уже включены" });
         navigate("/library", { replace: true });
       } catch (err) {
         if (err instanceof ApiRequestError && err.code === "PASSWORD_REQUIRED") {

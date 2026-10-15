@@ -1,5 +1,7 @@
 import { ChevronLeftIcon, ChevronRightIcon, ContrastIcon, DropletIcon, EyeIcon, GaugeIcon, PaletteIcon, RotateCcwIcon, RotateCwIcon, SunIcon } from "lucide-react";
 import { forwardRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useIsPro } from "@/components/promo/promo-offer";
 import { useT } from "@/i18n";
 import {
   PICTURE_DEFAULT,
@@ -200,8 +202,10 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
  * you move — what you see is the result.
  */
 export function PicturePanel({ picture }: { picture: PictureSettings }) {
+  const pro = useIsPro();
   const active = presetOf(picture);
   const [held, setHeld] = useState<PictureSettings | null>(null);
+  if (!pro) return <PictureLocked />;
   const set = (patch: Partial<PictureSettings>) => setPlayerSetting({ picture: { ...picture, ...patch } });
   const touched = active !== "normal";
   // Hold to compare: the original while pressed, yours back on release.
@@ -315,6 +319,31 @@ export function PicturePanel({ picture }: { picture: PictureSettings }) {
       ) : (
         <p className="px-1 text-center text-[10.5px] leading-snug text-white/40">Двойной клик по ползунку — вернуть как было</p>
       )}
+    </div>
+  );
+}
+
+/** Without PRO: what the filters do, shown on the swatches, and the way to PRO. */
+function PictureLocked() {
+  return (
+    <div className="flex flex-col gap-3 p-0.5">
+      <div className="grid grid-cols-3 gap-1.5 opacity-60">
+        {PICTURE_PRESETS.slice(1, 4).map((p) => (
+          <span key={p.id} className="flex flex-col gap-1 rounded-lg bg-white/[0.06] p-1">
+            <span aria-hidden className="pic-swatch h-5 w-full rounded-[5px]" style={{ filter: pictureFilter(p.value) }} />
+            <span className="truncate px-0.5 text-[11px] text-white/70">{p.label}</span>
+          </span>
+        ))}
+      </div>
+      <p className="px-1 text-xs leading-relaxed text-white/75">
+        Яркость, контраст, цвет и готовые стили картинки — в <b className="text-amber-300">PRO</b>. Новым аккаунтам 15 дней PRO — бесплатно.
+      </p>
+      <Link
+        to="/support"
+        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-orange-500 text-xs font-bold text-black transition-transform active:scale-95"
+      >
+        Открыть PRO
+      </Link>
     </div>
   );
 }

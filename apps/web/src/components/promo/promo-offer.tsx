@@ -82,7 +82,7 @@ export function PromoStrip({ className }: { className?: string }) {
       <span className="flex min-w-0 items-center gap-2 text-[12.5px] leading-tight">
         <GiftIcon className="size-4 shrink-0 text-amber-300" />
         <span>
-          <b className="font-semibold text-amber-200">Месяц PRO бесплатно</b>
+          <b className="font-semibold text-amber-200">{PROMO.trialDays} дней PRO бесплатно</b>
           <span className="text-foreground/75"> · второй −{PROMO.discountPercent}%</span>
         </span>
       </span>
@@ -145,9 +145,9 @@ export function PromoCard({ className }: { className?: string }) {
       <section className={wrap}>
         {icon}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="font-display text-lg leading-tight">Месяц PRO — в подарок</p>
+          <p className="font-display text-lg leading-tight">{PROMO.trialDays} дней PRO — в подарок</p>
           <p className="text-sm text-foreground/75">
-            Забери бесплатный месяц: безлимитный список, значок 影, свои подписи и всё PRO. Второй месяц потом — за {formatUsd(promoSecondMonthUsd())} вместо {formatUsd(PROMO.proMonthlyUsd)}. Акция одна на аккаунт.
+            Забери {PROMO.trialDays} дней бесплатно: 1080p, фильтры картинки, свои комнаты, безлимитный список, значок 影 и всё PRO. Потом ещё {PROMO.discountDays} дней PRO можно взять со скидкой {PROMO.discountPercent}% — {formatUsd(promoSecondMonthUsd())} вместо {formatUsd(PROMO.proMonthlyUsd)} за месяц. Акция одна на аккаунт.
           </p>
         </div>
         <button
@@ -155,14 +155,14 @@ export function PromoCard({ className }: { className?: string }) {
           disabled={claim.isPending}
           onClick={() =>
             claim.mutate(undefined, {
-              onSuccess: () => toast.success("PRO включён на 30 дней!", { description: "Подарочный месяц уже действует" }),
+              onSuccess: () => toast.success(`PRO включён на ${PROMO.trialDays} дней!`, { description: "Подарок уже действует" }),
               onError: (e) => toast.error("Не получилось", { description: e instanceof ApiRequestError ? e.message : "Попробуйте ещё раз" }),
             })
           }
           className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-primary to-fuchsia-500 px-5 text-sm font-bold text-white shadow-lg shadow-primary/30 transition-transform active:scale-95 disabled:opacity-60"
         >
           <SparklesIcon className="size-4" />
-          Забрать месяц
+          Забрать {PROMO.trialDays} дней
         </button>
       </section>
     );
@@ -175,7 +175,7 @@ export function PromoCard({ className }: { className?: string }) {
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <p className="font-display text-lg leading-tight">Подарочный PRO активен</p>
           <p className="text-sm text-foreground/75">
-            Потом второй месяц — за {formatUsd(promoSecondMonthUsd())} вместо {formatUsd(PROMO.proMonthlyUsd)}, скидка {PROMO.discountPercent}% держится 30 дней.
+            Потом {PROMO.discountDays} дней действует скидка {PROMO.discountPercent}%: месяц PRO — {formatUsd(promoSecondMonthUsd())} вместо {formatUsd(PROMO.proMonthlyUsd)}. Дальше — полная цена.
           </p>
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             Осталось <PromoTimer until={new Date(data.trialUntil)} />
@@ -191,10 +191,10 @@ export function PromoCard({ className }: { className?: string }) {
         {icon}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <p className="font-display text-lg leading-tight">
-            Второй месяц PRO — <span className="text-amber-200">{formatUsd(promoSecondMonthUsd())}</span>{" "}
+            Месяц PRO — <span className="text-amber-200">{formatUsd(promoSecondMonthUsd())}</span>{" "}
             <s className="text-sm text-muted-foreground">{formatUsd(PROMO.proMonthlyUsd)}</s>
           </p>
-          <p className="text-sm text-foreground/75">Подарочный месяц закончился — продли PRO со скидкой {PROMO.discountPercent}%, пока идёт таймер.</p>
+          <p className="text-sm text-foreground/75">Подарочные {PROMO.trialDays} дней закончились — продли PRO со скидкой {PROMO.discountPercent}%, пока идёт таймер. Потом — полная цена.</p>
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             Скидка сгорит через <PromoTimer until={new Date(data.discountUntil)} />
           </span>

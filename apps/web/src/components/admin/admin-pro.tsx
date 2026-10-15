@@ -24,7 +24,7 @@ type ProList = Paginated<AdminProRow> & { stats: AdminProStats };
 
 const STATUS: Record<ProStatus, { label: string; className: string }> = {
   pro: { label: "PRO", className: "border-amber-300/40 bg-amber-400/15 text-amber-200" },
-  trial: { label: "Подарочный месяц", className: "border-emerald-300/40 bg-emerald-400/15 text-emerald-200" },
+  trial: { label: "Подарочный PRO", className: "border-emerald-300/40 bg-emerald-400/15 text-emerald-200" },
   discount: { label: "Скидка −50%", className: "border-sky-300/40 bg-sky-400/15 text-sky-200" },
   used: { label: "Акция использована", className: "border-border bg-foreground/5 text-muted-foreground" },
   free: { label: "Без PRO", className: "border-border bg-foreground/5 text-muted-foreground" },
@@ -33,7 +33,7 @@ const STATUS: Record<ProStatus, { label: string; className: string }> = {
 const FILTERS: ReadonlyArray<{ value: AdminProQuery["filter"]; label: string }> = [
   { value: "active", label: "С PRO сейчас" },
   { value: "pro", label: "С PRO (без подарка)" },
-  { value: "trial", label: "Подарочный месяц" },
+  { value: "trial", label: "Подарочный PRO" },
   { value: "discount", label: "На скидке" },
   { value: "used", label: "Акция использована" },
   { value: "free", label: "Без PRO" },
@@ -44,8 +44,8 @@ const ACTION_DONE: Record<AdminProAction["action"], string> = {
   grant: "PRO выдан навсегда",
   grantDays: "PRO продлён",
   revoke: "PRO снят",
-  trial: "Подарочный месяц продлён",
-  endTrial: "Подарочный месяц завершён",
+  trial: "Подарочный PRO продлён",
+  endTrial: "Подарочный PRO завершён",
   resetPromo: "Акция сброшена — можно забрать снова",
   bonusReferrals: "Бонусные рефералы обновлены",
 };
@@ -91,7 +91,7 @@ export function AdminPro() {
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           { key: "pro" as const, icon: CrownIcon, label: "С PRO", value: stats?.pro, tone: "text-amber-300 bg-amber-400/15" },
-          { key: "trial" as const, icon: GiftIcon, label: "В подарочном месяце", value: stats?.trial, tone: "text-emerald-300 bg-emerald-400/15" },
+          { key: "trial" as const, icon: GiftIcon, label: "В подарочном PRO", value: stats?.trial, tone: "text-emerald-300 bg-emerald-400/15" },
           { key: "discount" as const, icon: BadgePercentIcon, label: "На скидке −50%", value: stats?.discount, tone: "text-sky-300 bg-sky-400/15" },
         ].map(({ key, icon: Icon, label, value, tone }) => (
           <button
@@ -190,7 +190,7 @@ export function AdminPro() {
                           до {date(u.trialUntil)} · <b className="text-foreground">{daysLeft(u.trialUntil)} дн.</b>
                         </>
                       ) : u.trialUntil ? (
-                        <>месяц кончился {date(u.trialUntil)}</>
+                        <>подарок кончился {date(u.trialUntil)}</>
                       ) : (
                         <>с нами с {date(u.createdAt)}</>
                       )}
@@ -230,7 +230,7 @@ export function AdminPro() {
                         {u.status === "trial" && (
                           <DropdownMenuItem onSelect={() => act({ action: "endTrial" })}>
                             <TimerOffIcon />
-                            Завершить подарочный месяц
+                            Завершить подарочный PRO
                           </DropdownMenuItem>
                         )}
                         {u.trialUntil && (

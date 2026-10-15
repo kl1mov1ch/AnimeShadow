@@ -1,14 +1,15 @@
 import { z } from "zod";
 
 /**
- * The welcome offer: the first month of PRO free, the second at half price.
+ * The welcome offer: 15 days of PRO free, then 15 days to take PRO at half
+ * price, then the full price.
  * New accounts get the free month at sign-up; accounts made before the offer
  * can take it once. For guests it is shown as an offer ending this week, with a timer —
  * the rounds run back to back, so a new visitor always has one ahead.
  */
 export const PROMO = {
-  trialDays: 30,
-  discountDays: 30,
+  trialDays: 15,
+  discountDays: 15,
   discountPercent: 50,
   /** PRO's monthly price (the "Ронин" tier on the support page), in dollars. */
   proMonthlyUsd: 2.99,
