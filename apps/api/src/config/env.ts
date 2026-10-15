@@ -39,10 +39,12 @@ const envSchema = z.object({
   ANIME_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
 
   // TEMPORARY: unlock every PRO feature for all users during open testing.
-  // Set PRO_FOR_ALL=false once payments are wired up.
+  // Every account treated as PRO — for trying things out on a developer's
+  // copy only: in production it is ignored (see plugins/services.ts). On the
+  // live site PRO comes from the welcome gift or a purchase, nothing else.
   PRO_FOR_ALL: z
     .string()
-    .default("true")
+    .default("false")
     .transform((v) => v === "true" || v === "1"),
 
   // Machine translation of synopses (MyMemory — free, no key; email lifts quota)

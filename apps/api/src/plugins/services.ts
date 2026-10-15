@@ -14,7 +14,7 @@ export default fp(
       prisma: fastify.prisma,
       logger: fastify.log,
       cacheTtlSeconds: env.ANIME_CACHE_TTL_SECONDS,
-      proForAll: env.PRO_FOR_ALL,
+      proForAll: env.PRO_FOR_ALL && env.NODE_ENV !== "production",
       translate: {
         enabled: env.TRANSLATE_ENABLED,
         email: env.MYMEMORY_EMAIL,

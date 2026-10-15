@@ -92,7 +92,7 @@ function InviteHero({ state }: { state: ReferralState }) {
             </span>
             <h2 className="font-display text-2xl leading-tight sm:text-3xl">Чем больше друзей, тем больше наград</h2>
             <p className="max-w-2xl text-sm leading-relaxed text-foreground/75">
-              Отправь ссылку или код. За каждого друга и за каждый час, что вы вместе смотрите, растут две шкалы — на них месяцы PRO,
+              Отправь ссылку или код. За каждого друга и за каждый час, что вы вместе смотрите, растут две шкалы — на них
               редкие значки и своя приписка к нику. Другу — 15 дней PRO в подарок.
             </p>
           </div>
@@ -223,7 +223,7 @@ function ProTile({ state }: { state: ReferralState }) {
         {state.pro.active && !until ? (
           <>
             <span className="font-display text-lg leading-none">PRO навсегда</span>
-            <span className="text-xs text-muted-foreground">месяцы с наград не нужны — но значки твои</span>
+            <span className="text-xs text-muted-foreground">значки за друзей — твои</span>
           </>
         ) : state.pro.active && until ? (
           <>
@@ -234,7 +234,7 @@ function ProTile({ state }: { state: ReferralState }) {
         ) : (
           <>
             <span className="text-sm font-semibold leading-none">Без PRO</span>
-            <span className="text-xs text-muted-foreground">награды за друзей включат его</span>
+            <span className="text-xs text-muted-foreground">PRO — на странице поддержки</span>
           </>
         )}
       </span>

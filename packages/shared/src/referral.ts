@@ -30,17 +30,17 @@ export interface ReferralRewardDef {
   label: string;
 }
 
+/**
+ * What inviting friends earns: badges and the title — never PRO. PRO comes
+ * only from the welcome gift and a purchase.
+ */
 export const REFERRAL_REWARDS: readonly ReferralRewardDef[] = [
   { id: "f1", track: "friends", at: 1, badge: "referral-guide", label: "Значок «Проводник»" },
-  { id: "f3", track: "friends", at: 3, proDays: 7, label: "7 дней PRO" },
-  { id: "f5", track: "friends", at: 5, proDays: 30, label: "Месяц PRO" },
-  { id: "f10", track: "friends", at: 10, proDays: 60, badge: "referral-ambassador", label: "2 месяца PRO и значок «Посол»" },
-  { id: "f25", track: "friends", at: 25, proDays: 180, badge: "referral-legend", label: "Полгода PRO и значок «Легенда»" },
-  { id: "h20", track: "hours", at: 20, proDays: 30, badge: "referral-spark", label: "Месяц PRO и значок «Искра»" },
-  { id: "h70", track: "hours", at: 70, proDays: 30, label: "Ещё месяц PRO" },
+  { id: "f10", track: "friends", at: 10, badge: "referral-ambassador", label: "Значок «Посол»" },
+  { id: "f25", track: "friends", at: 25, badge: "referral-legend", label: "Значок «Легенда»" },
+  { id: "h20", track: "hours", at: 20, badge: "referral-spark", label: "Значок «Искра»" },
   { id: "h100", track: "hours", at: 100, title: true, label: "Своя приписка к нику — навсегда" },
-  { id: "h250", track: "hours", at: 250, proDays: 90, label: "3 месяца PRO" },
-  { id: "h500", track: "hours", at: 500, proDays: 365, badge: "referral-star", label: "Год PRO и значок «Звезда»" },
+  { id: "h500", track: "hours", at: 500, badge: "referral-star", label: "Значок «Звезда»" },
 ] as const;
 
 /** Codes are 8 characters from an alphabet without look-alikes. */

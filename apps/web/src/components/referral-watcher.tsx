@@ -72,7 +72,7 @@ export function ReferralWatcher() {
     write(key, day);
     const days = Math.max(1, Math.ceil(left / 86_400_000));
     toast.warning(`PRO закончится через ${days} ${days === 1 ? "день" : "дня"}`, {
-      description: "Продли его или пригласи друзей — за них дают месяцы PRO",
+      description: "Продлить можно на странице поддержки — на 1, 3 или 12 месяцев",
       action: { label: "Друзья", onClick: () => navigate("/profile?tab=invite") },
     });
   }, [uid, promo, navigate]);
