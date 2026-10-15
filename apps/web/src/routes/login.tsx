@@ -12,6 +12,7 @@ import {
   TextInput,
 } from "@/components/auth/auth-card";
 import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
+import { ConsentNote } from "@/components/legal/consent";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { ApiRequestError } from "@/lib/api";
@@ -146,6 +147,7 @@ export function Component() {
         <>
           <AuthDivider label={t("auth.orDivider")} />
           <TelegramLoginButton onAuth={onTelegramAuth} />
+          <ConsentNote className="-mt-1" />
         </>
       )}
     </AuthCard>

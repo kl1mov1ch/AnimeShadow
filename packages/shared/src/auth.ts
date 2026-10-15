@@ -18,6 +18,9 @@ export const registerInputSchema = z.object({
   referrer: z.string().trim().max(500).optional(),
   /// A friend's invite code (see referral.ts) — typed in or from the link.
   referralCode: z.string().trim().max(20).optional(),
+  /// The consent box: the user agreement, the privacy policy and consent to
+  /// data processing. No account without it.
+  acceptTerms: z.literal(true, { errorMap: () => ({ message: "Примите соглашение и политику конфиденциальности" }) }),
 });
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 

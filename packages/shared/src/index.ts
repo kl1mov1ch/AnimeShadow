@@ -25,6 +25,7 @@ export * from "./promo.js";
 export * from "./referral.js";
 export * from "./schedule.js";
 export * from "./party.js";
+export * from "./legal.js";
 
 const DIACRITICS = /[̀-ͯ]/g;
 const NON_SLUG = /[^a-z0-9]+/g;

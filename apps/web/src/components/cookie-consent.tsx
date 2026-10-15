@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LegalLink } from "@/components/legal/legal-doc";
 import { useT } from "@/i18n";
 
 const STORAGE_KEY = "animeshadow.cookie-consent.v1";
@@ -71,7 +72,9 @@ export function CookieConsent() {
       className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-50 flex animate-in flex-wrap items-center justify-end gap-x-2 gap-y-1.5 rounded-xl border border-border/60 bg-card/95 py-2 pl-3 pr-2 shadow-lg shadow-black/30 duration-300 fade-in-0 slide-in-from-bottom-2 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-w-md"
     >
       {/* Beside the buttons where there is room; above them on the narrowest phones. */}
-      <p className="min-w-[10rem] flex-1 text-xs leading-snug text-muted-foreground">{t("cookies.text")}</p>
+      <p className="min-w-[10rem] flex-1 text-xs leading-snug text-muted-foreground">
+        {t("cookies.text")} <LegalLink id="privacy">Подробнее</LegalLink>
+      </p>
       {/* Two visible answers — declining is as easy to find as accepting. */}
       <div className="flex shrink-0 gap-2">
         <button

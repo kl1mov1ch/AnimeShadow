@@ -346,6 +346,10 @@ export class TelegramCommands {
           { text: "🧪 Проверка", callback_data: "set:test" },
           { text: "🌐 На сайте", url: site },
         ],
+        [
+          { text: "📄 Соглашение", url: `${this.appUrl}/legal?doc=terms` },
+          { text: "🔒 Конфиденциальность", url: `${this.appUrl}/legal?doc=privacy` },
+        ],
         [{ text: "🚪 Отвязать Telegram", callback_data: "set:unlink" }],
       ],
     };

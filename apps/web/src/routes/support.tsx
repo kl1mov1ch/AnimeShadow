@@ -1,4 +1,5 @@
 import { CoffeeIcon, ExternalLinkIcon, HeartHandshakeIcon, HeartIcon, type LucideIcon, MessageCircleIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
+import { ConsentCheck, usePayConsent } from "@/components/legal/consent";
 import { type CSSProperties, useState } from "react";
 import { ReactionGif } from "@/components/common/reaction-gif";
 import { PlansSection } from "@/components/anime/plans-section";
@@ -30,6 +31,8 @@ export function Component() {
   const cheer = { onMouseEnter: () => setHappy(true), onMouseLeave: () => setHappy(false), onFocus: () => setHappy(true), onBlur: () => setHappy(false) };
 
 
+  const pay = usePayConsent();
+
   const steps: Array<{ icon: LucideIcon; title: string; body: string }> = [
     { icon: HeartIcon, title: t("support.steps.pickTitle"), body: t("support.steps.pickBody") },
     { icon: MessageCircleIcon, title: t("support.steps.tellTitle"), body: t("support.boosty.proNote") },
@@ -37,7 +40,10 @@ export function Component() {
   ];
 
   return (
-    <div className="reveal-group mx-auto flex max-w-5xl flex-col gap-8 py-4 sm:gap-12 sm:py-6">
+    // Every payment link on the page (Boosty, the tip jar, the plans) asks for
+    // the consent first, once per browser and edition of the documents.
+    <div onClickCapture={pay.onClickCapture} className="reveal-group mx-auto flex max-w-5xl flex-col gap-8 py-4 sm:gap-12 sm:py-6">
+      {pay.dialog}
       <PromoCard className="reveal" />
       <div className="reveal" style={reveal(0)}>
         <PageHero
@@ -74,6 +80,7 @@ export function Component() {
               {t("support.safeNote")}
             </span>
           </div>
+          <ConsentCheck kind="pay" checked={pay.accepted} onChange={pay.accept} className="mt-1 max-w-xl" />
         </PageHero>
       </div>
 

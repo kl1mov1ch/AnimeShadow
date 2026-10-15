@@ -1,4 +1,4 @@
-import { createBrowserRouter, type LoaderFunctionArgs } from "react-router-dom";
+import { createBrowserRouter, type LoaderFunctionArgs, redirect } from "react-router-dom";
 import { prefetchAnime } from "@/lib/prefetch";
 
 function animeLoader({ params }: LoaderFunctionArgs) {
@@ -69,6 +69,10 @@ export const router = createBrowserRouter([
           { path: "profile/:username", lazy: () => import("@/routes/profile") },
           { path: "admin", lazy: () => import("@/routes/admin") },
           { path: "about", lazy: () => import("@/routes/about") },
+          { path: "legal", lazy: () => import("@/routes/legal") },
+          { path: "privacy", loader: () => redirect("/legal?doc=privacy") },
+          { path: "terms", loader: () => redirect("/legal?doc=terms") },
+          { path: "offer", loader: () => redirect("/legal?doc=terms") },
           { path: "support", lazy: () => import("@/routes/support") },
           { path: "login", lazy: () => import("@/routes/login") },
           { path: "register", lazy: () => import("@/routes/register") },

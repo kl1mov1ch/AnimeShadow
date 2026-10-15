@@ -1,5 +1,6 @@
 import { GuestNudge } from "@/components/auth/guest-nudge";
 import { PushOffer } from "@/components/push-offer";
+import { CookieConsent } from "@/components/cookie-consent";
 import { NavProgress } from "@/components/layout/nav-progress";
 import { useEffect, useRef } from "react";
 import { Outlet, ScrollRestoration, useLocation } from "react-router-dom";
@@ -53,6 +54,7 @@ export function AppShell() {
       <AchievementWatcher />
       <GuestNudge />
       <PushOffer />
+      <CookieConsent />
       <NavProgress />
       <ReferralWatcher />
       {/* Every plain `title` hint on the site, drawn as the site's tooltip. */}

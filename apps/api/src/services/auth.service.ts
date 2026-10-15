@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { LEGAL_VERSION } from "@animeshadow/shared";
 import { newReferralCode, referrerFor } from "../lib/referral.js";
 import { trialEnd } from "../lib/pro.js";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -248,6 +249,9 @@ export class AuthService {
             // They just proved they own the inbox — that's exactly what
             // "verified" means; nothing left to confirm after this.
             emailVerifiedAt: new Date(),
+            // The consent box was required to get here (registerInputSchema).
+            termsAcceptedAt: new Date(),
+            termsVersion: LEGAL_VERSION,
             ...(this.proForAll ? { proSince: new Date() } : {}),
             // The free first month of PRO — every new account gets it.
             trialUntil: trialEnd(),
@@ -526,6 +530,9 @@ export class AuthService {
           passwordHash,
           avatarUrl,
           telegramId,
+          // A first Telegram sign-in says it under the button: continuing accepts the documents.
+          termsAcceptedAt: new Date(),
+          termsVersion: LEGAL_VERSION,
           // There's no inbox to send a code to and nothing to confirm —
           // "unverified" would just be a permanent, unactionable nag.
           emailVerifiedAt: new Date(),

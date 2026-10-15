@@ -89,6 +89,20 @@ export function SiteFooter() {
           <div className="flex flex-col gap-1">
             <span>{t("footer.rights", { year })}</span>
             <span className="max-w-3xl leading-relaxed text-muted-foreground/60">{t("footer.disclaimer")}</span>
+            <span className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+              <Link to="/legal?doc=terms" className="transition-colors hover:text-foreground">
+                Пользовательское соглашение
+              </Link>
+              <Link to="/legal?doc=privacy" className="transition-colors hover:text-foreground">
+                Политика конфиденциальности
+              </Link>
+              <Link to="/legal?doc=consent" className="transition-colors hover:text-foreground">
+                Согласие на обработку данных
+              </Link>
+              <Link to="/legal?doc=contacts" className="transition-colors hover:text-foreground">
+                Контакты
+              </Link>
+            </span>
           </div>
           <BackToTop label={t("footer.toTop")} />
         </div>

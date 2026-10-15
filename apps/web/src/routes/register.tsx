@@ -13,6 +13,7 @@ import {
   TextInput,
 } from "@/components/auth/auth-card";
 import { PasswordStrength } from "@/components/auth/password-strength";
+import { ConsentCheck } from "@/components/legal/consent";
 import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
@@ -31,6 +32,13 @@ export function Component() {
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
   const [password, setPassword] = useState("");
+  // The consent box — required for both ways in (form and Telegram).
+  const [accepted, setAccepted] = useState(false);
+  const [consentMissing, setConsentMissing] = useState(false);
+  const needConsent = () => {
+    setConsentMissing(true);
+    toast.error("Отметьте согласие", { description: "Без него аккаунт не создать — документы открываются по ссылкам." });
+  };
   // A friend's code: from the invite link (kept since it was opened), or typed.
   const [friendCode, setFriendCode] = useState(() => readReferral());
   const friend = useReferralCheck(friendCode);
@@ -57,7 +65,12 @@ export function Component() {
       password: String(form.get("password") ?? ""),
       referrer: getFirstTouchReferrer() || undefined,
       referralCode: friendCode.trim() || undefined,
+      acceptTerms: accepted,
     };
+    if (!accepted) {
+      needConsent();
+      return;
+    }
 
     const parsed = registerInputSchema.safeParse(input);
     if (!parsed.success) {
@@ -200,13 +213,35 @@ export function Component() {
           )}
         </AuthField>
 
+        <ConsentCheck
+          kind="register"
+          checked={accepted}
+          invalid={consentMissing && !accepted}
+          onChange={(v) => {
+            setAccepted(v);
+            setConsentMissing(false);
+          }}
+        />
+
         <SubmitButton pending={pending}>{t("auth.registerCta")}</SubmitButton>
       </form>
 
       {isTelegramLoginSupported() && (
         <>
           <AuthDivider label={t("auth.orDivider")} />
-          <TelegramLoginButton onAuth={onTelegramAuth} />
+          {/* The widget is Telegram's own frame: until the box is ticked, a
+              cover over it asks for the consent first. */}
+          <div className="relative">
+            <TelegramLoginButton onAuth={onTelegramAuth} />
+            {!accepted && (
+              <button
+                type="button"
+                aria-label="Сначала отметьте согласие"
+                onClick={needConsent}
+                className="absolute inset-0 z-10 cursor-pointer rounded-xl"
+              />
+            )}
+          </div>
         </>
       )}
     </AuthCard>
