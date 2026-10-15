@@ -13,7 +13,6 @@ import {
   MoonStarIcon,
   SunIcon,
   PaletteIcon,
-  ShieldCheckIcon,
   SearchIcon,
   Trash2Icon,
   XIcon,
@@ -334,21 +333,9 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
           </div>
         </SettingsRow>
         )}
-        <SettingsRow
-          icon={ShieldCheckIcon}
-          label={t("profile.settings.age.title")}
-          value={
-            profile.birthDate
-              ? profile.isAdult
-                ? t("profile.settings.age.verifiedAdult")
-                : t("profile.settings.age.verifiedMinor")
-              : t("profile.settings.age.notSet")
-          }
-          expanded={openRow === "age"}
-          onToggle={profile.birthDate ? undefined : () => toggle("age")}
-        >
-          <AgeVerificationContent profile={profile} update={update} />
-        </SettingsRow>
+        {/* Age: hidden for now — the site doesn't ask anyone's age (R+ just
+            carries an "18+" mark). The saved date stays in the account for
+            later settings; AgeVerificationContent below is kept for then. */}
         <EmailVerificationRow
           expanded={openRow === "email"}
           onToggle={() => toggle("email")}
@@ -643,6 +630,7 @@ function DeleteAccountSection({ profile }: { profile: MyProfile }) {
 /** Bare content for the age-verification row — only ever shown expanded
  * while unset (see the row's onToggle above: once verified, there's a
  * status to show but nothing left to do, so it collapses for good). */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for when age settings come back
 function AgeVerificationContent({
   profile,
   update,

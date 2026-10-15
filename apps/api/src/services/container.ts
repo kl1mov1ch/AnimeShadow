@@ -269,7 +269,7 @@ export function createServices(deps: ContainerDeps): Services {
   });
   // The bot's /schedule: this week's and next week's broadcasts.
   delivery.useSchedule(async () => {
-    const [now, next] = await Promise.all([schedule.week(0, undefined, false), schedule.week(1, undefined, false)]);
+    const [now, next] = await Promise.all([schedule.week(0, undefined, true), schedule.week(1, undefined, true)]);
     return [...now.items, ...next.items];
   });
   const notifications = new NotificationService(

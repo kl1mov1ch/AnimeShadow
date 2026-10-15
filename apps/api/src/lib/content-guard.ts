@@ -44,13 +44,21 @@ export function guestBirthDate(header: string | string[] | undefined): Date | nu
   return Number.isNaN(d.getTime()) || d.getUTCFullYear() < 1900 || d > new Date() ? null : d;
 }
 
-/** Resolves whether the current request may see R+ content — for an
- * account, its saved birth date; for a guest, the date they typed in. */
+/**
+ * Whether the current request may see R+ content. For now: everyone — the
+ * age check is switched off across the site, R+ titles carry an "18+" mark
+ * instead. Hentai stays out regardless (isHentaiRating / contentGuardWhere).
+ * The birth date an account may have saved is kept for later settings; to
+ * bring the check back, set AGE_CHECK below to true.
+ */
+const AGE_CHECK = false;
+
 export async function resolveAllowAdult(
   prisma: PrismaClient,
   userId: string | undefined,
   guestDob?: string | string[] | undefined,
 ): Promise<boolean> {
+  if (!AGE_CHECK) return true;
   if (!userId) return computeIsAdult(guestBirthDate(guestDob));
   const user = await prisma.user.findUnique({
     where: { id: userId },

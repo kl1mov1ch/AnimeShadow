@@ -66,10 +66,6 @@ export async function apiRequest<T>(
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["content-type"] = "application/json";
   if (authToken) headers.authorization = `Bearer ${authToken}`;
-  else {
-    const dob = guestDob();
-    if (dob) headers["x-adult-dob"] = dob;
-  }
 
   let response: Response;
   try {
