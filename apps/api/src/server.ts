@@ -127,6 +127,9 @@ try {
   // pruned. Five minutes after start, then every six hours (see
   // StatsRollupService).
   setTimeout(() => void inBackground(() => app.services.statsRollup.run()), 5 * 60_000).unref();
+  // The catalogue's "popular new" order, recomputed: a minute after start, then every six hours.
+  setTimeout(() => void inBackground(() => app.services.catalog.refreshFreshness()), 60_000).unref();
+  setInterval(() => void inBackground(() => app.services.catalog.refreshFreshness()), 6 * 60 * 60_000).unref();
   // Old log digests deleted: at start, then every six hours.
   void logDigest.prune();
   setInterval(() => void logDigest.prune(), 6 * 60 * 60_000).unref();

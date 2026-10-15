@@ -20,7 +20,8 @@ function latestEpisode(g: KodikGroup): number {
 const PAGE = 100;
 /** A "recent" pass reads this many pages of the most recently updated rows. */
 const RECENT_PAGES = 15;
-const FULL_KEY = "kodik-full";
+// "-v2": the first full pass after ecchi stopped being skipped runs at once.
+const FULL_KEY = "kodik-full-v2";
 const RECENT_KEY = "kodik-recent";
 
 /** Kodik's MPAA-style rating → the rating strings the rest of the catalogue uses
@@ -36,7 +37,9 @@ const RATING: Record<string, string> = {
   rx: "Rx - Hentai",
 };
 
-const NEVER = /^(хентай|hentai|эротика|erotica)$/i;
+// Hentai only. «Эротика» (from Kinopoisk) sits on plenty of ecchi — R+, shown
+// with an 18+ mark — so it no longer keeps a title out; Rx and «хентай» do.
+const NEVER = /^(хентай|hentai)$/i;
 
 /**
  * The catalogue, filled from Kodik's own catalogue API (/list, with the

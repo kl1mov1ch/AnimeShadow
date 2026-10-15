@@ -1,6 +1,7 @@
 import type { BrowseParams } from "@/lib/query";
 
 export const SORT_VALUES = [
+  "fresh",
   "popularity",
   "score",
   "rank",
@@ -42,7 +43,8 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     type: search.get("type") || undefined,
     airing: search.get("airing") || undefined,
     season: search.get("season") || undefined,
-    orderBy: search.get("orderBy") || "popularity",
+    // Browsing opens on popular new titles; a search keeps its relevance order.
+    orderBy: search.get("orderBy") || (search.get("q")?.trim() ? "popularity" : "fresh"),
     sort: (search.get("sort") as "asc" | "desc") || "desc",
     minScore: num("minScore"),
     year: num("year"),
@@ -58,6 +60,7 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     episodesMin: num("episodesMin"),
     episodesMax: num("episodesMax"),
     hideListed: search.get("hideListed") === "1" ? true : undefined,
+    allTitles: search.get("all") === "1" ? true : undefined,
   };
 }
 

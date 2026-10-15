@@ -340,6 +340,7 @@ export const en = {
     noResults: "No anime fit these filters. Loosen them and try again.",
   },
   sort: {
+    fresh: "Popular new",
     popularity: "Most popular",
     score: "Highest rated",
     rank: "Top ranked",

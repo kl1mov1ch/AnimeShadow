@@ -259,9 +259,9 @@ export function BrowseFilters({
         />
         <Switch
           icon={PlayCircleIcon}
-          label={t("browse.withPlayerShort")}
-          on={params.hasPlayer === true}
-          onClick={() => onChange({ hasPlayer: params.hasPlayer ? null : "1" })}
+          label="Показать и без плеера"
+          on={params.allTitles === true}
+          onClick={() => onChange({ all: params.allTitles ? null : "1", hasPlayer: null })}
         />
         {authed && (
           <Switch

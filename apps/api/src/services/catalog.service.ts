@@ -94,6 +94,7 @@ const CURRENT_SEASON = (() => {
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
 const ORDER_BY_COLUMN: Record<AnimeOrderBy, keyof Prisma.AnimeOrderByWithRelationInput> = {
+  fresh: "freshness",
   score: "score",
   // How many rated it: every row has it, where the list count (`members`)
   // is missing for most of the best-known titles.
@@ -1794,6 +1795,20 @@ export class CatalogService {
       };
     }
     return withContentGuard(where, allowAdult);
+  }
+
+  /**
+   * "Popular new": how many rated or listed a title, divided by its age in
+   * years (this year = 1) to the power 1.6, doubled while it's still airing —
+   * this season's hits first, then last year's, the classics further down.
+   * Stored, so the catalogue's default order is a plain indexed sort.
+   */
+  async refreshFreshness(): Promise<number> {
+    return this.prisma.$executeRaw`
+      UPDATE "Anime" SET "freshness" =
+        (COALESCE("scoredBy", 0) + COALESCE("members", 0) / 10.0)
+        / power(GREATEST(1, EXTRACT(YEAR FROM now())::int - COALESCE("year", 1990) + 1), 1.6)
+        * CASE WHEN "airing" = 'AIRING' THEN 2 ELSE 1 END`;
   }
 
   private buildOrderBy(

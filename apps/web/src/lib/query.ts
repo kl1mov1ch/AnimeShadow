@@ -122,6 +122,8 @@ export type BrowseParams = {
   episodesMin?: number;
   episodesMax?: number;
   hideListed?: boolean;
+  /** Titles with no player too — off by default: the catalogue shows what can be watched. */
+  allTitles?: boolean;
 };
 
 export function useDiscover() {
@@ -216,6 +218,8 @@ export function useBrowse(params: BrowseParams, enabled = true) {
         signal,
         query: {
           ...params,
+          allTitles: undefined,
+          hasPlayer: params.hasPlayer || !params.allTitles ? true : undefined,
           genres: params.genres?.length ? params.genres.join(",") : undefined,
           excludeGenres: params.excludeGenres?.length ? params.excludeGenres.join(",") : undefined,
         },

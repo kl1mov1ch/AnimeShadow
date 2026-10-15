@@ -44,6 +44,8 @@ export type AnimeSeason = z.infer<typeof animeSeasonSchema>;
 
 /** Sort options exposed by the browse endpoint. */
 export const animeOrderBySchema = z.enum([
+  /** Popular new titles first: popularity weighed by age (see CatalogService.refreshFreshness). */
+  "fresh",
   "score",
   "popularity",
   "rank",

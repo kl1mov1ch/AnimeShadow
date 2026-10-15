@@ -630,6 +630,9 @@ model Anime {
   /// When those names were last read from Shikimori; null until the first time.
   namesSyncedAt   DateTime?
   synopsis        String?
+  /// Popularity weighed by age (higher = popular and new) — the catalogue's
+  /// default order, recomputed every six hours (CatalogService.refreshFreshness).
+  freshness       Float?
   background      String?
   imageUrl        String?
   imageLargeUrl   String?
@@ -686,6 +689,7 @@ model Anime {
   updatedAt      DateTime @updatedAt
 
   @@index([score(sort: Desc)])
+  @@index([freshness(sort: Desc)])
   @@index([popularity])
   @@index([rank])
   @@index([members])
