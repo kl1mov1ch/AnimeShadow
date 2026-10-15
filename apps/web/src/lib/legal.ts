@@ -1,4 +1,6 @@
-import { LEGAL_VERSION } from "@animeshadow/shared";
+import { LEGAL_OPERATOR_DEFAULT, LEGAL_VERSION, type LegalOperator } from "@animeshadow/shared";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api";
 
 /**
  * The site's legal documents — the user agreement (a public offer), the
@@ -6,7 +8,7 @@ import { LEGAL_VERSION } from "@animeshadow/shared";
  * the operator's details — as data, so one text serves the /legal page, the
  * modals behind every consent checkbox, and the links in the footer and bot.
  *
- * ⚠ Fill in OPERATOR before taking payments: a payment provider (MulenPay)
+ * ⚠ Fill in the operator's details (on /legal, as admin) before taking payments: a payment provider (MulenPay)
  * and Roskomnadzor both expect a real person or company behind the site —
  * full name, status (самозанятый / ИП / ООО) and ИНН. Until then the
  * documents name "администрация сервиса AnimeShadow".
@@ -26,30 +28,26 @@ export const SITE = {
   bot: "Telegram-бот AnimeShadow",
 };
 
-export const OPERATOR = {
-  /** Full name (ФИО) or company name. */
-  name: "",
-  /** "самозанятый (плательщик налога на профессиональный доход)", "индивидуальный предприниматель", "ООО"… */
-  status: "",
-  inn: "",
-  /** ОГРНИП / ОГРН, if any. */
-  ogrn: "",
-  /** For claims by post, if you want one listed. */
-  address: "",
-  email: "admin@animeshadow.online",
-  telegram: "https://t.me/shadowani",
-};
+/**
+ * The operator's details now live on the server (GET /api/legal), edited by
+ * the admin right on /legal; these are only the defaults until it answers.
+ */
+let cur: LegalOperator = LEGAL_OPERATOR_DEFAULT;
 
-/** The payment provider behind the "pay" buttons. */
-export const PAYMENTS = {
-  name: "MulenPay",
-  url: "https://mulenpay.com",
-};
+/** The operator's details, kept fresh from the server. */
+export function useLegalOperator(): LegalOperator {
+  const { data } = useQuery({
+    queryKey: ["legal-operator"],
+    queryFn: ({ signal }) => apiRequest<LegalOperator>("/legal", { signal }),
+    staleTime: 5 * 60_000,
+  });
+  return data ?? LEGAL_OPERATOR_DEFAULT;
+}
 
 /** How the operator is named in the texts. */
 export function operatorTitle(): string {
-  if (!OPERATOR.name) return "администрация сервиса AnimeShadow";
-  return [OPERATOR.status, OPERATOR.name].filter(Boolean).join(" ") + (OPERATOR.inn ? `, ИНН ${OPERATOR.inn}` : "");
+  if (!cur.name) return "администрация сервиса AnimeShadow";
+  return [cur.status, cur.name].filter(Boolean).join(" ") + (cur.inn ? `, ИНН ${cur.inn}` : "");
 }
 
 export type LegalDocId = "terms" | "privacy" | "consent" | "contacts";
@@ -70,9 +68,10 @@ export interface LegalDoc {
 }
 
 const op = () => operatorTitle();
-const email = () => OPERATOR.email;
+const email = () => cur.email;
 
-export function legalDocs(): Record<LegalDocId, LegalDoc> {
+export function legalDocs(operator: LegalOperator = LEGAL_OPERATOR_DEFAULT): Record<LegalDocId, LegalDoc> {
+  cur = operator;
   return {
     terms: {
       id: "terms",
@@ -97,7 +96,7 @@ export function legalDocs(): Record<LegalDocId, LegalDoc> {
             "Каталог — сведения об аниме (названия, описания, постеры, рейтинги, расписание), собранные из открытых источников.",
             "Пользовательский контент — комментарии, оценки, списки, подборки, сообщения в чатах совместного просмотра, аватары и иные материалы, размещённые Пользователем.",
             "PRO — платный набор дополнительных функций Сервиса, предоставляемый на оплаченный срок.",
-            `Платёжный сервис — ${PAYMENTS.name} и его партнёры (банки и платёжные организации), принимающие оплату от имени Администрации.`,
+            `Платёжный сервис — ${cur.paymentsName} и его партнёры (банки и платёжные организации), принимающие оплату от имени Администрации.`,
           ],
         },
         {
@@ -145,7 +144,7 @@ export function legalDocs(): Record<LegalDocId, LegalDoc> {
           title: "PRO и оплата",
           items: [
             "Состав функций PRO, тарифы, стоимость и срок действия указаны на странице «Поддержать проект» (" + SITE.url + "/support) в момент оплаты. Стоимость фиксируется на момент оплаты.",
-            `Оплата производится через Платёжный сервис (${PAYMENTS.name}) способами, доступными на странице оплаты (банковские карты, СБП и др.). Данные платёжных карт вводятся на стороне Платёжного сервиса и Администрации не передаются.`,
+            `Оплата производится через Платёжный сервис (${cur.paymentsName}) способами, доступными на странице оплаты (банковские карты, СБП и др.). Данные платёжных карт вводятся на стороне Платёжного сервиса и Администрации не передаются.`,
             "Обязательство по оплате считается исполненным с момента поступления подтверждения платежа от Платёжного сервиса. PRO активируется автоматически после подтверждения, как правило сразу, но не позднее 24 часов. Если PRO не активирован в этот срок, Пользователь сообщает об этом на " + email() + ".",
             "PRO предоставляется на оплаченный срок без автоматического продления, если иное прямо не указано на странице оплаты. При продлении действуют условия, опубликованные на момент новой оплаты.",
             "Чек о расчёте направляется Пользователю в соответствии с законодательством РФ (на адрес электронной почты, указанный при оплате).",
@@ -259,7 +258,7 @@ export function legalDocs(): Record<LegalDocId, LegalDoc> {
           items: [
             "Оператор не продаёт персональные данные и передаёт их только в объёме, необходимом для работы Сервиса:",
             "— хостинг-провайдеру, на серверах которого в РФ размещён Сервис;",
-            `— Платёжному сервису ${PAYMENTS.name} и его партнёрам — для проведения оплаты и возвратов;`,
+            `— Платёжному сервису ${cur.paymentsName} и его партнёрам — для проведения оплаты и возвратов;`,
             "— сервису отправки электронной почты — для доставки кодов подтверждения и писем Сервиса;",
             "— Telegram — при входе через Telegram и для сообщений бота, если пользователь их подключил;",
             "— службам push-уведомлений браузеров (Google, Mozilla, Apple, Microsoft) — для доставки уведомлений, если пользователь их включил;",
@@ -370,13 +369,13 @@ export function legalDocs(): Record<LegalDocId, LegalDoc> {
             `Поддержка, оплата и возвраты — ${email()}. Ответ — в течение 10 рабочих дней, обычно быстрее.`,
             `Персональные данные (запросы, отзыв согласия) — ${email()}, тема письма «Персональные данные».`,
             `Правообладателям — ${email()}, тема письма «Правообладатель»: ссылка на материал, подтверждение прав, контакты.`,
-            `Новости проекта — Telegram-канал ${OPERATOR.telegram}.`,
+            ...(cur.telegram ? [`Новости проекта — Telegram-канал ${cur.telegram}.`] : []),
           ],
         },
         {
           title: "Оплата",
           items: [
-            `Платежи принимает Платёжный сервис ${PAYMENTS.name} (${PAYMENTS.url}) и его партнёры. Данные карт вводятся на защищённой странице Платёжного сервиса и Администрации не передаются.`,
+            `Платежи принимает Платёжный сервис ${cur.paymentsName || "оператора оплаты"}${cur.paymentsUrl ? ` (${cur.paymentsUrl})` : ""} и его партнёры. Данные карт вводятся на защищённой странице Платёжного сервиса и Администрации не передаются.`,
             "Условия оплаты и возврата — в разделах 8 и 9 Пользовательского соглашения.",
           ],
         },
@@ -387,11 +386,11 @@ export function legalDocs(): Record<LegalDocId, LegalDoc> {
 
 function contactLines(): string[] {
   return [
-    OPERATOR.name ? `${OPERATOR.status ? `${capital(OPERATOR.status)}: ` : ""}${OPERATOR.name}` : `Администрация сервиса ${SITE.name}`,
-    ...(OPERATOR.inn ? [`ИНН: ${OPERATOR.inn}`] : []),
-    ...(OPERATOR.ogrn ? [`ОГРН/ОГРНИП: ${OPERATOR.ogrn}`] : []),
-    ...(OPERATOR.address ? [`Адрес для корреспонденции: ${OPERATOR.address}`] : []),
-    `Электронная почта: ${OPERATOR.email}`,
+    cur.name ? `${cur.status ? `${capital(cur.status)}: ` : ""}${cur.name}` : `Администрация сервиса ${SITE.name}`,
+    ...(cur.inn ? [`ИНН: ${cur.inn}`] : []),
+    ...(cur.ogrn ? [`ОГРН/ОГРНИП: ${cur.ogrn}`] : []),
+    ...(cur.address ? [`Адрес для корреспонденции: ${cur.address}`] : []),
+    `Электронная почта: ${cur.email}`,
     `Сайт: ${SITE.url}`,
   ];
 }

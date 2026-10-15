@@ -1,7 +1,7 @@
 import { CheckIcon, ExternalLinkIcon, ShieldCheckIcon } from "lucide-react";
 import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { givePayConsent, PAYMENTS, payConsentGiven } from "@/lib/legal";
+import { givePayConsent, payConsentGiven, useLegalOperator } from "@/lib/legal";
 import { cn } from "@/lib/utils";
 import { LegalLink } from "./legal-doc";
 
@@ -107,6 +107,7 @@ export function usePayConsent() {
 }
 
 function PayConsentDialog({ href, onClose, onAccept }: { href: string | null; onClose: () => void; onAccept: () => void }) {
+  const operator = useLegalOperator();
   const [checked, setChecked] = useState(false);
   const [invalid, setInvalid] = useState(false);
   return (
@@ -119,7 +120,7 @@ function PayConsentDialog({ href, onClose, onAccept }: { href: string | null; on
           <div>
             <DialogTitle className="font-display text-lg leading-tight">Перед оплатой</DialogTitle>
             <DialogDescription className="mt-1 text-xs leading-relaxed">
-              Оплату принимает защищённая страница платёжного сервиса ({PAYMENTS.name}) — данные карты сайт не видит. Деньги за PRO можно вернуть: полностью до активации и за неиспользованные дни — после.
+              Оплату принимает защищённая страница платёжного сервиса{operator.paymentsName ? ` (${operator.paymentsName})` : ""} — данные карты сайт не видит. Деньги за PRO можно вернуть: полностью до активации и за неиспользованные дни — после.
             </DialogDescription>
           </div>
         </div>

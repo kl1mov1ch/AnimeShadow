@@ -2,7 +2,9 @@ import { FileTextIcon, LockIcon, MailIcon, ScaleIcon, ShieldCheckIcon } from "lu
 import { useSearchParams } from "react-router-dom";
 import { PageHero } from "@/components/common/page-hero";
 import { LegalDocView } from "@/components/legal/legal-doc";
-import { LEGAL_UPDATED, type LegalDocId, legalDocs } from "@/lib/legal";
+import { OperatorEditor } from "@/components/legal/operator-editor";
+import { useAuth } from "@/hooks/use-auth";
+import { LEGAL_UPDATED, type LegalDocId, legalDocs, useLegalOperator } from "@/lib/legal";
 import { useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +26,8 @@ const isDoc = (v: string | null): v is LegalDocId => TABS.some((t) => t.id === v
 export function Component() {
   const [params, setParams] = useSearchParams();
   const id: LegalDocId = isDoc(params.get("doc")) ? (params.get("doc") as LegalDocId) : "terms";
-  const docs = legalDocs();
+  const { user } = useAuth();
+  const docs = legalDocs(useLegalOperator());
   const doc = docs[id];
 
   useDocumentHead({
@@ -36,6 +39,8 @@ export function Component() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <PageHero icon={FileTextIcon} eyebrow="Правовая информация" title="Документы" lead={`Условия сервиса, обработка персональных данных и контакты. Редакция от ${LEGAL_UPDATED}`} />
+
+      {user?.role === "ADMIN" && <OperatorEditor />}
 
       <nav aria-label="Документы" className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-[var(--accent-line-soft)] bg-background/95 p-1 [scrollbar-width:none]">
         {TABS.map(({ id: tab, icon: Icon }) => (

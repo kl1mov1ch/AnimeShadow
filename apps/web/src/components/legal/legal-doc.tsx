@@ -2,12 +2,12 @@ import { ExternalLinkIcon, FileTextIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { LEGAL_UPDATED, type LegalDocId, legalDocs } from "@/lib/legal";
+import { LEGAL_UPDATED, type LegalDocId, legalDocs, useLegalOperator } from "@/lib/legal";
 import { cn } from "@/lib/utils";
 
 /** One document: its lead, then numbered sections (1, 1.1, 1.2…). */
 export function LegalDocView({ id, className }: { id: LegalDocId; className?: string }) {
-  const doc = legalDocs()[id];
+  const doc = legalDocs(useLegalOperator())[id];
   return (
     <article className={cn("flex flex-col gap-5 text-sm leading-relaxed", className)}>
       <p className="text-muted-foreground">{doc.lead}</p>
@@ -41,7 +41,7 @@ export function LegalDocView({ id, className }: { id: LegalDocId; className?: st
 
 /** A document in a modal — read it without leaving the form. */
 export function LegalDialog({ id, open, onOpenChange }: { id: LegalDocId; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const doc = legalDocs()[id];
+  const doc = legalDocs(useLegalOperator())[id];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[88dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">

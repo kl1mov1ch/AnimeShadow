@@ -48,6 +48,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ShareButtons } from "@/components/seo/share-buttons";
 import { useT } from "@/i18n";
+import { AgeConfirm, adultConfirmed } from "@/components/anime/age-confirm";
 import { isAdultRating } from "@/hooks/use-adult-content";
 import { ApiRequestError, apiRequest } from "@/lib/api";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -92,6 +93,8 @@ function AnimeDetailView({ param }: { param: string }) {
   // player can jump it to any episode without threading a ref through. Must
   // sit above every early return below — hooks can't be conditional.
   const [episode, setEpisode] = useState(1);
+  // An 18+ title asks "are you 18?" once per browser — above the early returns too.
+  const [adultOk, setAdultOk] = useState(adultConfirmed);
   // Above every early return below — hooks can't be conditional.
   const slow = useSlowConnection();
   // The route component isn't remounted when navigating from one anime page
@@ -206,6 +209,9 @@ function AnimeDetailView({ param }: { param: string }) {
 
   const title = labels.title(data);
   const cardCover = data.imageLargeUrl ?? data.imageUrl;
+  if (isAdultRating(data.rating) && !adultOk) {
+    return <AgeConfirm poster={cardCover} title={title} onYes={() => setAdultOk(true)} />;
+  }
   // One poster, shown large: worth the full-size file on a decent connection,
   // not on a slow one.
   const poster = imageSrc(slow ? cardCover : fullSizeCover(cardCover));

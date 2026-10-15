@@ -1,5 +1,6 @@
 import compress from "@fastify/compress";
 import { partyRoutes } from "./routes/party.js";
+import { legalRoutes } from "./routes/legal.js";
 import { scheduleRoutes } from "./routes/schedule.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { logDigest } from "./lib/log-digest-instance.js";
@@ -218,6 +219,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(promoRoutes);
       await api.register(referralRoutes);
       await api.register(notificationRoutes);
+      await api.register(legalRoutes);
     },
     { prefix: "/api" },
   );
