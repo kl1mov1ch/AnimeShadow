@@ -26,8 +26,8 @@ export const PICTURE_DEFAULT: PictureSettings = { brightness: 100, contrast: 100
 export const PICTURE_PRESETS: Array<{ id: string; label: string; value: PictureSettings }> = [
   { id: "normal", label: "Обычная", value: PICTURE_DEFAULT },
   { id: "bright", label: "Ярче", value: { brightness: 110, contrast: 104, saturation: 112 } },
-  { id: "vivid", label: "Сочные цвета", value: { brightness: 102, contrast: 108, saturation: 135 } },
-  { id: "retro", label: "Старое аниме", value: { brightness: 106, contrast: 114, saturation: 122 } },
+  { id: "vivid", label: "Сочная", value: { brightness: 102, contrast: 108, saturation: 135 } },
+  { id: "retro", label: "Ретро", value: { brightness: 106, contrast: 114, saturation: 122 } },
   { id: "soft", label: "Мягкая", value: { brightness: 103, contrast: 94, saturation: 92 } },
   { id: "night", label: "Ночная", value: { brightness: 86, contrast: 96, saturation: 90 } },
 ];

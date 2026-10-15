@@ -1,10 +1,11 @@
-import { ChevronLeftIcon, ChevronRightIcon, GaugeIcon, PaletteIcon, RotateCwIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ContrastIcon, DropletIcon, EyeIcon, GaugeIcon, PaletteIcon, RotateCcwIcon, RotateCwIcon, SunIcon } from "lucide-react";
 import { forwardRef, useState } from "react";
 import { useT } from "@/i18n";
 import {
   PICTURE_DEFAULT,
   PICTURE_PRESETS,
   type PictureSettings,
+  pictureFilter,
   presetOf,
   SKIP_STEPS,
   setPlayerSetting,
@@ -192,51 +193,127 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 }
 
 /**
- * The picture's look: ready-made ones (brighter, richer colours, for old
- * shows, softer, for the night) and three sliders for one's own. It applies
- * as you move — what you see is the result.
+ * The picture's look: ready-made ones — each tile shows a strip of colour
+ * through that very filter — and three sliders for one's own, centred on
+ * "as is" (a mark in the middle, the value as + or −, a double tap puts one
+ * back). Hold "Сравнить" to see the original for a moment. It applies as
+ * you move — what you see is the result.
  */
 export function PicturePanel({ picture }: { picture: PictureSettings }) {
   const active = presetOf(picture);
+  const [held, setHeld] = useState<PictureSettings | null>(null);
   const set = (patch: Partial<PictureSettings>) => setPlayerSetting({ picture: { ...picture, ...patch } });
+  const touched = active !== "normal";
+  // Hold to compare: the original while pressed, yours back on release.
+  const peek = () => {
+    if (held || !touched) return;
+    setHeld(picture);
+    setPlayerSetting({ picture: PICTURE_DEFAULT });
+  };
+  const unpeek = () => {
+    if (!held) return;
+    setPlayerSetting({ picture: held });
+    setHeld(null);
+  };
+  const shown = held ?? picture;
+  const shownPreset = held ? presetOf(held) : active;
+
   return (
-    <div className="flex flex-col gap-2.5 p-0.5">
-      <div className="grid grid-cols-3 gap-1">
-        {PICTURE_PRESETS.map((p) => (
-          <Chip key={p.id} active={p.id === active} onClick={() => setPlayerSetting({ picture: p.value })}>
-            {p.label}
-          </Chip>
-        ))}
+    <div className="flex flex-col gap-3 p-0.5">
+      <div className="grid grid-cols-3 gap-1.5">
+        {PICTURE_PRESETS.map((p) => {
+          const on = p.id === shownPreset;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setPlayerSetting({ picture: p.value })}
+              className={cn(
+                "group flex flex-col gap-1 rounded-lg p-1 text-left transition-colors duration-150",
+                on ? "bg-primary/20 ring-1 ring-primary" : "bg-white/[0.06] hover:bg-white/[0.11]",
+              )}
+            >
+              <span
+                aria-hidden
+                className="pic-swatch h-5 w-full rounded-[5px]"
+                style={{ filter: pictureFilter(p.value) }}
+              />
+              <span className={cn("truncate px-0.5 text-[11px] leading-tight", on ? "font-semibold text-white" : "text-white/80")}>{p.label}</span>
+            </button>
+          );
+        })}
       </div>
-      {(
-        [
-          ["brightness", "Яркость"],
-          ["contrast", "Контраст"],
-          ["saturation", "Цвет"],
-        ] as const
-      ).map(([key, label]) => (
-        <label key={key} className="flex items-center gap-2 px-1 text-xs">
-          <span className="w-16 shrink-0 text-white/70">{label}</span>
-          <input
-            type="range"
-            min={50}
-            max={150}
-            step={2}
-            value={picture[key]}
-            onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<PictureSettings>)}
-            className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--primary)]"
-          />
-          <span className="w-9 shrink-0 text-right tabular-nums text-white/60">{picture[key]}%</span>
-        </label>
-      ))}
-      {active !== "normal" && (
-        <button
-          type="button"
-          onClick={() => setPlayerSetting({ picture: PICTURE_DEFAULT })}
-          className="mx-1 rounded-lg py-1.5 text-xs text-white/60 transition-colors hover:bg-white/[0.07] hover:text-white"
-        >
-          Сбросить
-        </button>
+
+      <div className="flex flex-col gap-3 rounded-xl bg-white/[0.04] px-2.5 py-2.5">
+        {(
+          [
+            ["brightness", "Яркость", SunIcon],
+            ["contrast", "Контраст", ContrastIcon],
+            ["saturation", "Цвет", DropletIcon],
+          ] as const
+        ).map(([key, label, Icon]) => {
+          const v = shown[key];
+          const delta = v - 100;
+          return (
+            <label key={key} className="flex flex-col gap-1.5" onDoubleClick={() => set({ [key]: 100 } as Partial<PictureSettings>)}>
+              <span className="flex items-center gap-1.5 text-xs">
+                <Icon className="size-3.5 text-white/55" />
+                <span className="text-white/80">{label}</span>
+                <span className={cn("ml-auto tabular-nums", delta ? "font-semibold text-white" : "text-white/45")}>
+                  {delta > 0 ? `+${delta}` : delta}%
+                </span>
+              </span>
+              <input
+                type="range"
+                min={50}
+                max={150}
+                step={2}
+                value={v}
+                aria-label={label}
+                disabled={held != null}
+                onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<PictureSettings>)}
+                className="pic-range"
+                style={{ "--from": `${Math.min(v, 100) - 50}%`, "--to": `${Math.max(v, 100) - 50}%` } as React.CSSProperties}
+              />
+            </label>
+          );
+        })}
+      </div>
+
+      {touched || held ? (
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onPointerDown={peek}
+            onPointerUp={unpeek}
+            onPointerLeave={unpeek}
+            onPointerCancel={unpeek}
+            onKeyDown={(e) => (e.key === " " || e.key === "Enter") && peek()}
+            onKeyUp={unpeek}
+            onContextMenu={(e) => e.preventDefault()}
+            className={cn(
+              "inline-flex h-8 select-none items-center justify-center gap-1.5 rounded-lg text-xs transition-colors [touch-action:none]",
+              held ? "bg-white text-black" : "bg-white/[0.07] text-white/80 hover:bg-white/[0.12]",
+            )}
+          >
+            <EyeIcon className="size-3.5" />
+            {held ? "Оригинал" : "Сравнить"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setHeld(null);
+              setPlayerSetting({ picture: PICTURE_DEFAULT });
+            }}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-white/[0.07] text-xs text-white/80 transition-colors hover:bg-white/[0.12]"
+          >
+            <RotateCcwIcon className="size-3.5" />
+            Сбросить
+          </button>
+        </div>
+      ) : (
+        <p className="px-1 text-center text-[10.5px] leading-snug text-white/40">Двойной клик по ползунку — вернуть как было</p>
       )}
     </div>
   );

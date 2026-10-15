@@ -3019,8 +3019,15 @@ function Player({
                   <PaletteIcon className="size-4" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 border-white/10 bg-neutral-950/95 p-2 text-white">
-                <p className="px-1 pb-2 text-xs font-semibold">Картинка</p>
+              <PopoverContent
+                align="end"
+                collisionPadding={12}
+                className="w-[min(18.5rem,calc(100vw-1.5rem))] rounded-2xl border-white/10 bg-neutral-950/95 p-2.5 text-white shadow-2xl backdrop-blur-md"
+              >
+                <p className="flex items-center gap-1.5 px-1 pb-2.5 text-sm font-semibold">
+                  <PaletteIcon className="size-4 text-primary" />
+                  Картинка
+                </p>
                 <PicturePanel picture={picture} />
               </PopoverContent>
             </Popover>
