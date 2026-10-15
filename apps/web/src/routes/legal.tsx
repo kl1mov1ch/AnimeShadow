@@ -47,7 +47,7 @@ export function Component() {
           <button
             key={tab}
             type="button"
-            onClick={() => setParams({ doc: tab }, { replace: true })}
+            onClick={() => setParams({ doc: tab }, { replace: true, preventScrollReset: true })}
             aria-current={tab === id ? "page" : undefined}
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors",
@@ -60,7 +60,10 @@ export function Component() {
         ))}
       </nav>
 
-      <section className="rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5 sm:p-8">
+      <section
+        key={id}
+        className="animate-in rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5 duration-300 fade-in-0 slide-in-from-bottom-1 sm:p-8"
+      >
         <h2 className="mb-4 font-display text-xl leading-tight sm:text-2xl">{doc.title}</h2>
         <LegalDocView id={id} />
       </section>

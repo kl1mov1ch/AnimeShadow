@@ -89,7 +89,7 @@ function AdminPanel() {
     ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(overview.dataUpdatedAt)
     : null;
 
-  const select = (next: AdminTab) => setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true });
+  const select = (next: AdminTab) => setSearchParams(next === "overview" ? {} : { tab: next }, { replace: true, preventScrollReset: true });
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">

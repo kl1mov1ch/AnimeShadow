@@ -105,7 +105,8 @@ export function Component() {
         else next.set(key, value);
       }
       if (opts.resetPage !== false) next.delete("page");
-      setSearchParams(next, { replace: true });
+      // A filter changes the list in place; turning a page still starts at the top.
+      setSearchParams(next, { replace: true, preventScrollReset: !("page" in changes) });
     },
     [searchParams, setSearchParams],
   );
@@ -117,7 +118,7 @@ export function Component() {
       const value = searchParams.get(key);
       if (value) next.set(key, value);
     }
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, preventScrollReset: true });
   }, [searchParams, setSearchParams]);
 
   const goToPage = useCallback(

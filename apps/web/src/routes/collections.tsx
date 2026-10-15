@@ -83,7 +83,8 @@ export function Component() {
       else next.set(k, v);
     }
     if (!("page" in patch)) next.delete("page");
-    setParams(next, { replace: true });
+    // A filter changes the list in place; turning a page still starts at the top.
+    setParams(next, { replace: true, preventScrollReset: !("page" in patch) });
   };
 
   const tagLabel = (tg: CollectionTag) => t(`collections.tags.${tg}` as "collections.tags.cozy");

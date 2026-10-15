@@ -86,7 +86,7 @@ export function Component() {
                   {data.collections.map((c) => (
                     <tr
                       key={c.id}
-                      onClick={() => setParams({ open: c.id }, { replace: true })}
+                      onClick={() => setParams({ open: c.id }, { replace: true, preventScrollReset: true })}
                       className={cn(
                         "cursor-pointer transition-colors",
                         selected === c.id ? "bg-primary/15" : "bg-card/50 hover:bg-primary/[0.06]",

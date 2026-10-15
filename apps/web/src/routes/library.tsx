@@ -238,7 +238,7 @@ export function Component() {
     if (searchParams.has("page")) {
       const next = new URLSearchParams(searchParams);
       next.delete("page");
-      setSearchParams(next, { replace: true });
+      setSearchParams(next, { replace: true, preventScrollReset: true });
     }
   }, [signature, searchParams, setSearchParams]);
 
@@ -282,7 +282,7 @@ export function Component() {
     const params = new URLSearchParams(searchParams);
     if (!next) params.delete("status");
     else params.set("status", next);
-    setSearchParams(params, { replace: true });
+    setSearchParams(params, { replace: true, preventScrollReset: true });
   };
 
   const narrowed = Boolean(genre !== ALL_GENRES || type || airingOnly || withNotes || scoredOnly);

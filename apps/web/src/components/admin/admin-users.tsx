@@ -78,7 +78,7 @@ export function AdminUsers() {
     const next = new URLSearchParams(searchParams);
     if (id) next.set("user", id);
     else next.delete("user");
-    setSearchParams(next, { replace: !id });
+    setSearchParams(next, { replace: !id, preventScrollReset: true });
   };
 
   const resettingPage =
