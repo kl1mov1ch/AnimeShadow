@@ -15,6 +15,24 @@ export const PROMO = {
   proMonthlyUsd: 2.99,
 } as const;
 
+/**
+ * PRO, one subscription in three lengths — the longer, the cheaper a month.
+ * Prices in dollars; `save` is against paying month by month.
+ */
+export const PRO_PLANS = [
+  { months: 1, usd: 2.99 },
+  { months: 3, usd: 7.49 },
+  { months: 12, usd: 23.99 },
+] as const;
+export type ProPlan = (typeof PRO_PLANS)[number];
+
+/** A plan's price per month, and how much it saves against monthly (whole percent). */
+export function proPlanMath(plan: ProPlan): { perMonth: number; save: number } {
+  const perMonth = Math.round((plan.usd / plan.months) * 100) / 100;
+  const full = PROMO.proMonthlyUsd * plan.months;
+  return { perMonth, save: Math.round((1 - plan.usd / full) * 100) };
+}
+
 /** When the first round started; every round after follows on. */
 const PROMO_EPOCH = Date.UTC(2026, 9, 1);
 /** The guests' timer runs a week at a time — a near deadline, not a far one. */
