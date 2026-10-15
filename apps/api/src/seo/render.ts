@@ -286,7 +286,9 @@ export class SeoRenderer {
     if (path !== canonical) return { redirect: canonical };
 
     const name = row.titleLocalized ?? row.title;
-    const adult = /^(r\+|rx)/i.test(row.rating ?? "");
+    // Hentai has no page at all; R+ (ecchi) is a normal page with an 18+ mark.
+    const adult = /^rx/i.test(row.rating ?? "");
+    const r18 = /^r\+/i.test(row.rating ?? "");
     const genres = row.genres.map((g) => g.genre.name);
     const altNames = [...new Set([row.title, row.titleEnglish, row.titleJapanese].filter((t): t is string => !!t && t !== name))];
     const kind = row.type === "MOVIE" ? "аниме-фильм" : row.type === "TV" ? "аниме-сериал" : "аниме";
@@ -298,9 +300,9 @@ export class SeoRenderer {
       // Behind the age check on the site itself, so not for search results.
       return {
         title: `${name}${yearPart} | ${BRAND}`,
-        description: `${name} — ${typeRu.toLowerCase()}${yearPart}. Страница доступна после подтверждения возраста.`,
+        description: `${name} — ${typeRu.toLowerCase()}${yearPart}.`,
         robots: "noindex",
-        body: layout(`<h1>${esc(name)}</h1><p>Страница доступна после подтверждения возраста.</p>`),
+        body: layout(`<h1>${esc(name)}</h1>`),
       };
     }
 
@@ -384,7 +386,7 @@ export class SeoRenderer {
 
     return {
       title: `${name}${yearPart} — смотреть ${kind} онлайн бесплатно${row.type === "TV" ? (episodes ? `, все ${plural(episodes, "серия", "серии", "серий")}` : ", все серии") : ""} в хорошем качестве | ${BRAND}`,
-      description: clip(`${row.score != null && row.score > 0 ? `★ ${row.score.toFixed(1)}/10 · ` : ""}${description}`, 200),
+      description: clip(`${r18 ? "18+ · " : ""}${row.score != null && row.score > 0 ? `★ ${row.score.toFixed(1)}/10 · ` : ""}${description}`, 200),
       canonical,
       image: lead,
       moreImages: poster && lead !== poster ? [poster] : [],
@@ -585,7 +587,7 @@ export class SeoRenderer {
     });
     if (!row) return this.notFound();
     const anime = await this.prisma.anime.findMany({
-      where: { AND: [{ id: { in: row.animeIds } }, contentGuardWhere(false)] },
+      where: { AND: [{ id: { in: row.animeIds } }, contentGuardWhere(true)] },
       select: { id: true, slug: true, title: true, titleLocalized: true, year: true, imageUrl: true },
     });
     const byId = new Map(anime.map((a) => [a.id, a]));
@@ -700,7 +702,7 @@ export class SeoRenderer {
       SELECT g."animeId"
       FROM "GenreOnAnime" g JOIN "Anime" a ON a.id = g."animeId"
       WHERE g."genreId" = ANY(${genreIds}) AND g."animeId" <> ${animeId}
-        AND (a.rating IS NULL OR (a.rating NOT ILIKE 'rx%' AND a.rating NOT ILIKE 'r+%'))
+        AND (a.rating IS NULL OR (a.rating NOT ILIKE 'rx%'))
       GROUP BY g."animeId", a.members
       ORDER BY COUNT(*) DESC, a.members DESC NULLS LAST
       LIMIT 12

@@ -108,7 +108,7 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/seo-files/sitemap.xml", async (_request, reply) => {
     xml(reply);
     return files.wrap("index", async () => {
-      const count = await fastify.prisma.anime.count({ where: contentGuardWhere(false) });
+      const count = await fastify.prisma.anime.count({ where: contentGuardWhere(true) });
       const parts = ["sitemap-pages.xml", "sitemap-collections.xml"];
       for (let i = 1; i <= Math.max(1, Math.ceil(count / ANIME_PER_SITEMAP)); i++) parts.push(`sitemap-anime-${i}.xml`);
       const now = new Date().toISOString();
@@ -124,7 +124,7 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
       const genres = await landing.genres();
       const years = await fastify.prisma.$queryRaw<Array<{ year: number; count: number }>>`
         SELECT year, COUNT(*)::int AS count FROM "Anime"
-        WHERE year IS NOT NULL AND (rating IS NULL OR (rating NOT ILIKE 'rx%' AND rating NOT ILIKE 'r+%'))
+        WHERE year IS NOT NULL AND (rating IS NULL OR (rating NOT ILIKE 'rx%'))
         GROUP BY year HAVING COUNT(*) >= 10 ORDER BY year DESC
       `;
       const now = seasonOf(new Date());
@@ -162,7 +162,7 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
     xml(reply);
     return files.wrap(`anime-${n}`, async () => {
       const rows = await fastify.prisma.anime.findMany({
-        where: contentGuardWhere(false),
+        where: contentGuardWhere(true),
         // Stable order, so a title stays in the same file.
         orderBy: { id: "asc" },
         skip: (n - 1) * ANIME_PER_SITEMAP,

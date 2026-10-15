@@ -26,7 +26,7 @@ export function startIndexNow(prisma: PrismaClient, log: FastifyBaseLogger): voi
     const startedAt = new Date();
     try {
       const anime = await prisma.anime.findMany({
-        where: { AND: [{ updatedAt: { gte: since } }, contentGuardWhere(false)] },
+        where: { AND: [{ updatedAt: { gte: since } }, contentGuardWhere(true)] },
         orderBy: { members: { sort: "desc", nulls: "last" } },
         select: { slug: true },
         take: 40_000,

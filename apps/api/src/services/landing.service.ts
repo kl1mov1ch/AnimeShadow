@@ -89,7 +89,7 @@ export class LandingService {
         where = { genres: { some: { genreId: genre!.id } } };
         break;
     }
-    const filter: Prisma.AnimeWhereInput = { AND: [where, contentGuardWhere(false)] };
+    const filter: Prisma.AnimeWhereInput = { AND: [where, contentGuardWhere(true)] };
     const [rows, total] = await Promise.all([
       this.prisma.anime.findMany({
         where: filter,
