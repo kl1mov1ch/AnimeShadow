@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { setDefaultResultOrder } from "node:dns";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { PrismaClient } from "@animeshadow/db";
@@ -55,6 +56,8 @@ function vapidKeys(config: DeliveryConfig, log: FastifyBaseLogger): { publicKey:
 export interface DeliveryConfig {
   telegramToken?: string | undefined;
   telegramPolling: boolean;
+  /** The Bot API's address (default https://api.telegram.org). */
+  telegramApiUrl?: string | undefined;
   vapidPublicKey?: string | undefined;
   vapidPrivateKey?: string | undefined;
   vapidSubject: string;
@@ -85,6 +88,7 @@ function episodeLine(n: { episode: number; fromEpisode: number | null }): string
  */
 export class DeliveryService {
   private botName: string | null = null;
+  private lastNetWarn = 0;
   private polling = false;
   private stopPolling: AbortController | null = null;
   private readonly vapid: { publicKey: string; privateKey: string } | null;
@@ -96,6 +100,9 @@ export class DeliveryService {
     private readonly log: FastifyBaseLogger,
     private readonly config: DeliveryConfig,
   ) {
+    // Servers with an IPv6 address but no IPv6 route reach nothing that answers on v6 first —
+    // Telegram among them ("fetch failed"): IPv4 is tried first.
+    setDefaultResultOrder("ipv4first");
     this.vapid = vapidKeys(config, log);
     if (this.vapid) webpush.setVapidDetails(config.vapidSubject, this.vapid.publicKey, this.vapid.privateKey);
     this.commands = new TelegramCommands(prisma, config.appUrl, () => this.upcoming());
@@ -400,7 +407,7 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
 
   private async call(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<TgResult> {
     try {
-      const res = await fetch(`https://api.telegram.org/bot${this.config.telegramToken}/${method}`, {
+      const res = await fetch(`${this.config.telegramApiUrl ?? "https://api.telegram.org"}/bot${this.config.telegramToken}/${method}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -413,7 +420,16 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
       }
       return json;
     } catch (error) {
-      if ((error as Error).name !== "AbortError") this.log.warn({ method, err: (error as Error).message }, "telegram call failed");
+      if ((error as Error).name !== "AbortError") {
+        // "fetch failed" alone says nothing: the cause (ENOTFOUND, ETIMEDOUT, ECONNREFUSED…) does.
+        const cause = (error as { cause?: { code?: string; message?: string } }).cause;
+        const now = Date.now();
+        // Once a minute is enough while the line is down — not every five seconds.
+        if (now - this.lastNetWarn > 60_000) {
+          this.lastNetWarn = now;
+          this.log.warn({ method, err: (error as Error).message, cause: cause?.code ?? cause?.message }, "telegram call failed");
+        }
+      }
       return { ok: false };
     }
   }

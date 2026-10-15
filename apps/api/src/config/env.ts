@@ -122,6 +122,13 @@ const envSchema = z.object({
     .preprocess((value) => (value === "" ? undefined : value), z.enum(["true", "false"]).optional())
     .transform((value) => (value == null ? undefined : value === "true")),
 
+  // Where the Bot API lives. Only for a server that can't reach
+  // api.telegram.org directly: a reverse proxy of your own (it sees the
+  // token — use one you run yourself).
+  TELEGRAM_API_URL: z
+    .preprocess((value) => (value === "" ? undefined : value), z.string().url().default("https://api.telegram.org"))
+    .transform((value) => value.replace(/\/+$/, "")),
+
   // ---- Browser push notifications (Web Push). Generate the pair once with
   // `npx web-push generate-vapid-keys`; without it push is simply not offered.
   VAPID_PUBLIC_KEY: z.preprocess((value) => (value === "" ? undefined : value), z.string().optional()),

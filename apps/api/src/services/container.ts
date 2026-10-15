@@ -65,6 +65,7 @@ export interface ContainerDeps {
   };
   telegramBotToken?: string | undefined;
   telegramPolling?: boolean;
+  telegramApiUrl?: string;
   vapid?: { publicKey?: string | undefined; privateKey?: string | undefined; subject: string };
   traceMoeApiKey?: string | undefined;
   adminEmails: string[];
@@ -260,6 +261,7 @@ export function createServices(deps: ContainerDeps): Services {
   const delivery = new DeliveryService(deps.prisma, deps.logger, {
     telegramToken: deps.telegramBotToken,
     telegramPolling: deps.telegramPolling ?? true,
+    telegramApiUrl: deps.telegramApiUrl,
     vapidPublicKey: deps.vapid?.publicKey,
     vapidPrivateKey: deps.vapid?.privateKey,
     vapidSubject: deps.vapid?.subject ?? "mailto:admin@animeshadow.online",
