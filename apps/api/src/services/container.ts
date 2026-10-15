@@ -256,6 +256,7 @@ export function createServices(deps: ContainerDeps): Services {
   setGaugeSource(() => admin.gaugeSnapshot());
 
   const landing = new LandingService({ prisma: deps.prisma });
+  const schedule = new ScheduleService(deps.prisma, anilist, deps.logger);
   const delivery = new DeliveryService(deps.prisma, deps.logger, {
     telegramToken: deps.telegramBotToken,
     telegramPolling: deps.telegramPolling ?? true,
@@ -263,6 +264,11 @@ export function createServices(deps: ContainerDeps): Services {
     vapidPrivateKey: deps.vapid?.privateKey,
     vapidSubject: deps.vapid?.subject ?? "mailto:admin@animeshadow.online",
     appUrl: deps.email.appUrl.replace(/\/$/, ""),
+  });
+  // The bot's /schedule: this week's and next week's broadcasts.
+  delivery.useSchedule(async () => {
+    const [now, next] = await Promise.all([schedule.week(0, undefined, false), schedule.week(1, undefined, false)]);
+    return [...now.items, ...next.items];
   });
   const notifications = new NotificationService(
     deps.prisma,
@@ -298,7 +304,7 @@ export function createServices(deps: ContainerDeps): Services {
     landing,
     notifications,
     delivery,
-    schedule: new ScheduleService(deps.prisma, anilist, deps.logger),
+    schedule,
     party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs")),
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),

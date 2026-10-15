@@ -2,9 +2,10 @@ import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { PrismaClient } from "@animeshadow/db";
-import type { NotifySettings } from "@animeshadow/shared";
+import type { NotifySettings, ScheduleItem } from "@animeshadow/shared";
 import type { FastifyBaseLogger } from "fastify";
 import webpush from "web-push";
+import { type BotAnswer, BOT_COMMANDS, MENU, TelegramCommands } from "./telegram-commands.js";
 
 /** A new-episode line just written for someone (see NotificationService.observe). */
 export interface EpisodeNews {
@@ -87,6 +88,8 @@ export class DeliveryService {
   private polling = false;
   private stopPolling: AbortController | null = null;
   private readonly vapid: { publicKey: string; privateKey: string } | null;
+  private upcoming: () => Promise<ScheduleItem[]> = async () => [];
+  private readonly commands: TelegramCommands;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -95,6 +98,12 @@ export class DeliveryService {
   ) {
     this.vapid = vapidKeys(config, log);
     if (this.vapid) webpush.setVapidDetails(config.vapidSubject, this.vapid.publicKey, this.vapid.privateKey);
+    this.commands = new TelegramCommands(prisma, config.appUrl, () => this.upcoming());
+  }
+
+  /** The broadcasts of this week and the next, for the bot's /schedule. */
+  useSchedule(upcoming: () => Promise<ScheduleItem[]>): void {
+    this.upcoming = upcoming;
   }
 
   /** For a guest's browser: the key to subscribe with. */
@@ -424,15 +433,9 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
     const signal = this.stopPolling.signal;
     void (async () => {
       let offset = 0;
-      await this.call("setMyCommands", {
-        commands: [
-          { command: "start", description: "Подключить уведомления о новых сериях" },
-          { command: "status", description: "Что сейчас включено" },
-          { command: "stop", description: "Не присылать новые серии" },
-        ],
-      });
+      await this.call("setMyCommands", { commands: BOT_COMMANDS });
       while (!signal.aborted) {
-        const res = await this.call("getUpdates", { offset, timeout: 50, allowed_updates: ["message", "my_chat_member"] }, AbortSignal.any([signal, AbortSignal.timeout(65_000)]));
+        const res = await this.call("getUpdates", { offset, timeout: 50, allowed_updates: ["message", "my_chat_member", "callback_query"] }, AbortSignal.any([signal, AbortSignal.timeout(65_000)]));
         if (!res.ok) {
           // 409: another copy is reading (a deploy's trial run) — wait it out.
           await sleep(res.error_code === 409 ? 30_000 : 5_000);
@@ -452,6 +455,15 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
   }
 
   private async onUpdate(update: TgUpdate): Promise<void> {
+    // A button under a message (📊 Статистика, 🎲 Другое…): the same as typing the command.
+    const press = update.callback_query;
+    if (press) {
+      void this.call("answerCallbackQuery", { callback_query_id: press.id });
+      const chat = press.message?.chat;
+      if (!chat || chat.type !== "private" || !press.data) return;
+      await this.answer(String(chat.id), press.data);
+      return;
+    }
     const member = update.my_chat_member;
     if (member && member.chat.type === "private") {
       const chat = String(member.chat.id);
@@ -465,7 +477,9 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
     const msg = update.message;
     if (!msg?.text || msg.chat.type !== "private") return;
     const chat = String(msg.chat.id);
-    const [command, arg] = msg.text.trim().split(/\s+/, 2);
+    const [raw, arg] = msg.text.trim().split(/\s+/, 2);
+    // "/stats@AnimeShadowBot" is "/stats".
+    const command = raw?.replace(/@\w+$/, "").toLowerCase();
     const settingsUrl = `${this.config.appUrl}/profile?studio=notify`;
     const owner = () =>
       this.prisma.user.findFirst({ where: { OR: [{ telegramChatId: chat }, { telegramId: chat }] }, select: { id: true, displayName: true, notifyTelegram: true } });
@@ -483,18 +497,17 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
         this.prisma.telegramLinkCode.delete({ where: { code: arg } }),
       ]);
       const user = await this.prisma.user.findUnique({ where: { id: link.userId }, select: { displayName: true } });
-      await this.reply(
-        chat,
-        `✅ Готово, <b>${escapeHtml(user?.displayName ?? "")}</b>! Сюда будут приходить новые серии аниме из «Смотрю», «В планах» и «Отложено».\n\nОтключить: /stop или в настройках на сайте.`,
-        [{ text: "Мой список", url: `${this.config.appUrl}/library` }],
-      );
+      await this.send(chat, {
+        text: `✅ Готово, <b>${escapeHtml(user?.displayName ?? "")}</b>! Сюда будут приходить новые серии аниме из «Смотрю», «В планах» и «Отложено».\n\nА ещё я покажу вашу статистику, избранное, что вы смотрите и когда выйдут серии — кнопки ниже или /help.\n\nОтключить уведомления: /stop или в настройках на сайте.`,
+        keyboard: [[{ text: "Мой список", url: `${this.config.appUrl}/library` }], ...MENU],
+      });
       return;
     }
     if (command === "/start") {
       const user = await owner();
       if (user) {
         await this.prisma.user.update({ where: { id: user.id }, data: { telegramBlockedAt: null, notifyTelegram: true } });
-        await this.reply(chat, `🔔 Уведомления о новых сериях включены, <b>${escapeHtml(user.displayName)}</b>.\nОтключить: /stop`);
+        await this.send(chat, { text: `🔔 Уведомления о новых сериях включены, <b>${escapeHtml(user.displayName)}</b>.\nОтключить: /stop`, keyboard: MENU });
       } else {
         await this.reply(chat, "Привет! Я присылаю новые серии аниме из вашего списка на AnimeShadow.\n\nЧтобы подключиться, откройте настройки уведомлений на сайте и нажмите «Подключить Telegram».", [
           { text: "Подключить на сайте", url: settingsUrl },
@@ -517,7 +530,32 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
           : "Этот чат не подключён к аккаунту AnimeShadow.",
         [{ text: "Настройки", url: settingsUrl }],
       );
+      return;
     }
+    if (command?.startsWith("/")) await this.answer(chat, command.slice(1));
+  }
+
+  /** /stats, /favorites, /watching, /new, /schedule, /random, /menu — for the account tied to this chat. */
+  private async answer(chat: string, command: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({ where: { OR: [{ telegramChatId: chat }, { telegramId: chat }] }, select: { id: true } });
+    if (!user) {
+      await this.reply(chat, "Этот чат пока не подключён к аккаунту AnimeShadow. Откройте настройки уведомлений на сайте и нажмите «Подключить Telegram» — после этого я покажу вашу статистику, избранное и новые серии.", [
+        { text: "Подключить на сайте", url: `${this.config.appUrl}/profile?studio=notify` },
+      ]);
+      return;
+    }
+    const answer = await this.commands.run(command, user.id);
+    await this.send(chat, answer ?? { text: "Не знаю такой команды. Вот что я умею:", keyboard: MENU });
+  }
+
+  private send(chat: string, answer: BotAnswer) {
+    return this.call("sendMessage", {
+      chat_id: chat,
+      text: answer.text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      ...(answer.keyboard?.length ? { reply_markup: { inline_keyboard: answer.keyboard } } : {}),
+    });
   }
 
   private reply(chat: string, text: string, buttons: Array<{ text: string; url: string }> = []) {
@@ -546,5 +584,6 @@ interface TgResult {
 interface TgUpdate {
   update_id: number;
   message?: { text?: string; chat: { id: number; type: string } };
+  callback_query?: { id: string; data?: string; message?: { chat: { id: number; type: string } } };
   my_chat_member?: { chat: { id: number; type: string }; new_chat_member: { status: string } };
 }
