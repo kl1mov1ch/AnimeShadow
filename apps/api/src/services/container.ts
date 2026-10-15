@@ -310,6 +310,6 @@ export function createServices(deps: ContainerDeps): Services {
     party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs")),
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
-    seo: new SeoRenderer({ prisma: deps.prisma, landing }),
+    seo: new SeoRenderer({ prisma: deps.prisma, landing, catalog }),
   };
 }

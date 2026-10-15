@@ -59,7 +59,13 @@ function useOnScreen(ref: React.RefObject<Element | null>): boolean {
 /** A title's frames: shots from its episodes first, then the wide banner,
  *  then the poster — up to one per two seconds of the slide. */
 function framesOf(anime: AnimeDetail): string[] {
-  const shots = anime.screenshots.slice(0, MAX_FRAMES).map((u) => imageSrc(u)).filter((u): u is string => Boolean(u));
+  // A phone gets 640 px, a computer 1280 — the same copies the server's head preloads.
+  const width = typeof window !== "undefined" && window.innerWidth <= 768 ? 640 : 1280;
+  const shots = anime.screenshots
+    .slice(0, MAX_FRAMES)
+    .map((u) => imageSrc(u))
+    .filter((u): u is string => Boolean(u))
+    .map((u) => (u.includes("/api/img?") ? `${u}&w=${width}` : u));
   if (shots.length > 0) return shots;
   const one = imageSrc(anime.bannerImage ?? fullSizeCover(anime.imageLargeUrl ?? anime.imageUrl));
   return one ? [one] : [];

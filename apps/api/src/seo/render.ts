@@ -63,12 +63,31 @@ interface PageModel {
   imageSize?: { width: number; height: number };
   ogType?: "website" | "video.tv_show" | "video.movie" | "article" | "profile";
   jsonLd?: unknown[];
+  /** Fetched before the app's script asks for them: the page's data, its first big picture. */
+  preloads?: Array<{ href: string; as: "fetch" | "image"; media?: string; high?: boolean }>;
   body: string;
 }
 
 export interface SeoRendererDeps {
   prisma: PrismaClient;
   landing: LandingService;
+  /** For the home page's hero: its data and first frame are preloaded. */
+  catalog?: { getDiscover: (lang: "ru", allowAdult: boolean) => Promise<{ spotlights?: Array<{ screenshots: string[] }> | null; spotlight?: { screenshots: string[] } | null }> };
+}
+
+/** The hosts the app's imageSrc sends through /api/img (keep in step with web/src/lib/format.ts). */
+const PROXY_HOSTS =
+  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best|anilist\.co|myanimelist\.net|kitsu\.(app|io))$/i;
+
+/** The exact address the app's hero asks for its first frame at this width. */
+function heroFrame(url: string, width: 640 | 1280): string | null {
+  try {
+    const parsed = new URL(url);
+    if (!PROXY_HOSTS.test(parsed.hostname)) return null;
+    return `/api/img?u=${encodeURIComponent(parsed.toString())}&w=${width}`;
+  } catch {
+    return null;
+  }
 }
 
 const DEFAULT_IMAGE = "/icons/icon-512.png";
@@ -93,11 +112,13 @@ const PRIVATE = [
 export class SeoRenderer {
   private readonly prisma: PrismaClient;
   private readonly landing: LandingService;
+  private readonly catalog: SeoRendererDeps["catalog"];
   private readonly cache = new TtlCache<PagePart>(5 * 60_000, 2000);
 
   constructor(deps: SeoRendererDeps) {
     this.prisma = deps.prisma;
     this.landing = deps.landing;
+    this.catalog = deps.catalog;
   }
 
   async render(url: string): Promise<RenderedPage> {
@@ -180,12 +201,22 @@ export class SeoRenderer {
   // -- pages ---------------------------------------------------------------
 
   private async home(): Promise<PageModel> {
-    const [ongoing, top, popular, genres] = await Promise.all([
+    const [ongoing, top, popular, genres, discover] = await Promise.all([
       this.landing.page({ kind: "ongoing" }),
       this.landing.page({ kind: "top" }),
       this.landing.page({ kind: "popular" }),
       this.landing.genres(),
+      this.catalog?.getDiscover("ru", true).catch(() => null) ?? Promise.resolve(null),
     ]);
+    // The hero waits on its data and then its first frame: both start with the HTML instead.
+    const shot = (discover?.spotlights?.[0] ?? discover?.spotlight)?.screenshots?.[0];
+    const phone = shot ? heroFrame(shot, 640) : null;
+    const wide = shot ? heroFrame(shot, 1280) : null;
+    const preloads: NonNullable<PageModel["preloads"]> = [
+      { href: "/api/discover?lang=ru", as: "fetch" },
+      ...(phone ? [{ href: phone, as: "image" as const, media: "(max-width: 768px)", high: true }] : []),
+      ...(wide ? [{ href: wide, as: "image" as const, media: "(min-width: 769px)", high: true }] : []),
+    ];
     const now = seasonOf(new Date());
     const seasons = [0, -1, -2, -3].map((d) => shiftSeason(now, d));
     return {
@@ -208,6 +239,7 @@ export class SeoRenderer {
         "Смотрите аниме онлайн бесплатно: онгоинги и новые серии каждую неделю, топ аниме, фильмы и сериалы с русской озвучкой и субтитрами. Каталог с удобным поиском и своим списком просмотра.",
       canonical: "/",
       ogType: "website",
+      preloads,
       jsonLd: [
         {
           "@context": "https://schema.org",
@@ -716,6 +748,10 @@ export class SeoRenderer {
       page.description ? `<meta name="twitter:description" content="${esc(page.description)}" />` : "",
       image ? `<meta name="twitter:image" content="${esc(image)}" />` : "",
       ...verificationTags(),
+      ...(page.preloads ?? []).map(
+        (p) =>
+          `<link rel="preload" href="${esc(p.href)}" as="${p.as}"${p.as === "fetch" ? " crossorigin" : ""}${p.media ? ` media="${esc(p.media)}"` : ""}${p.high ? ' fetchpriority="high"' : ""} />`,
+      ),
       // Which address this head was made for: the app leaves it alone there.
       `<meta name="seo-path" content="${esc(address)}" />`,
       ...(page.jsonLd ?? []).map((d) => `<script type="application/ld+json" data-seo-ssr="1">${jsonLd(d)}</script>`),
