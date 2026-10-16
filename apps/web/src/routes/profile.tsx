@@ -336,10 +336,10 @@ function SettingsTab({ profile }: { profile: MyProfile }) {
         {/* Age: hidden for now — the site doesn't ask anyone's age (R+ just
             carries an "18+" mark). The saved date stays in the account for
             later settings; AgeVerificationContent below is kept for then. */}
-        <EmailVerificationRow
+        {import.meta.env.VITE_EMAIL_VERIFICATION_REQUIRED === "true" && <EmailVerificationRow
           expanded={openRow === "email"}
           onToggle={() => toggle("email")}
-        />
+        />}
       </SettingsList>
 
       <DeleteAccountSection profile={profile} />

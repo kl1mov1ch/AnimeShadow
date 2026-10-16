@@ -7,11 +7,18 @@ import {
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { parse } from "../lib/validation.js";
+import { z } from "zod";
 
 /** One's notifications: the list, the unread count (for the bell), marking read. */
 export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   const { notifications, delivery } = fastify.services;
   const auth = { preHandler: fastify.authenticate };
+
+  fastify.delete("/me/notifications/:id", auth, async (request) => {
+    const { id } = parse(z.object({ id: z.string().min(1).max(100) }), request.params);
+    return { deleted: await notifications.remove(request.userId!, id) };
+  });
+  fastify.delete("/me/notifications", auth, async (request) => ({ deleted: await notifications.remove(request.userId!) }));
 
   fastify.get("/me/notifications", { preHandler: fastify.authenticate }, async (request) => notifications.list(request.userId!));
 

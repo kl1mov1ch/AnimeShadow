@@ -15,7 +15,9 @@ export const watchSourceSchema = z.object({
    * unused and `hlsEpisodes` maps episode number → a direct HLS manifest URL
    * we actually control — the episode stepper really does switch playback.
    */
-  format: z.enum(["iframe", "hls"]).default("iframe"),
+  format: z.enum(["iframe", "hls", "mp4"]).default("iframe"),
+  /** Direct progressive video from a provider API, played by the same controls. */
+  mediaEpisodes: z.record(z.string(), z.string()).optional(),
   /** Fully-qualified iframe src (format "iframe"). */
   embedUrl: z.string(),
   /** format "hls" only: episode number (as a string key) → HLS manifest URL. */
@@ -71,6 +73,8 @@ export const watchSourceSchema = z.object({
 export type WatchSource = z.infer<typeof watchSourceSchema>;
 
 export const watchResponseSchema = z.object({
+  /** Optional providers are still resolving; the client can refresh briefly. */
+  sourcesPending: z.boolean().optional(),
   available: z.boolean(),
   /** Why nothing is playable: not configured, nothing found, provider error. */
   reason: z.enum(["ok", "not_configured", "not_found", "provider_error"]),

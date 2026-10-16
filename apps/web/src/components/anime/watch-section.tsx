@@ -40,6 +40,7 @@ import { ApiRequestError, apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
+import { dubName, hasEpisode, nativeVariantsFromMaster, resumePosition, sourcesForEpisode } from "@/lib/playback-sources";
 import { persistPlayerSettings, pictureFilter, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
 import { Link, useNavigate } from "react-router-dom";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
@@ -49,7 +50,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
 import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
-import { attachEngine, type EngineHandle, type EngineStatus, loadHls, slowLine, warmHls } from "@/components/player/hls-engine";
+import { attachEngine, type EngineHandle, type EngineStatus, type EngineTracks, loadHls, slowLine, warmHls } from "@/components/player/hls-engine";
+import { EMPTY_TRACKS, observeNativeTracks, pickNativeTrack, readNativeTracks } from "@/components/player/native-tracks";
+import { useMediaSession } from "@/components/player/use-media-session";
 import { FramePreview } from "@/components/player/frame-preview";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
@@ -62,6 +65,8 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { VideoUpscaler } from "@/components/player/video-upscaler";
+import { effectiveQuality, qualityHeights, qualityLevel, qualityName, qualityOutputHeight } from "@/lib/player-quality";
 import { useIsPro } from "@/components/promo/promo-offer";
 
 interface WatchSectionProps {
@@ -94,7 +99,7 @@ interface WatchSectionProps {
   startAt?: { episode: number; seconds: number } | null;
 }
 
-/** Our own HLS player (AniLibria streams). Off: Kodik only. */
+/** Direct HLS playback for Kodik, AniLibria and configured providers. */
 const OWN_PLAYER_ENABLED = true;
 
 export function WatchSection({
@@ -107,14 +112,9 @@ export function WatchSection({
   startAt = null,
 }: WatchSectionProps) {
   const t = useT();
-  // The embeds are not mounted until someone asks for them. Mounting them on
-  // page open meant two full third-party players — their own scripts, ads and
-  // trackers, easily megabytes — racing each other for bandwidth before the
-  // visitor had scrolled anywhere near the player, which on a weak connection
-  // was most of what made a title page slow. The source list itself (a few
-  // KB from our own API) still loads up front, so the facade knows whether
-  // there is anything to play.
+  // Prepare our video on entry; sound and playback require one user action.
   const [activated, setActivated] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Same route, different title: the component is reused, so the choice to
   // load a player on one page must not carry over to the next.
   useEffect(() => {
@@ -126,37 +126,17 @@ export function WatchSection({
     releaseDate != null &&
     releaseDate.getTime() > Date.now();
 
-  const { data: rawData, isPending } = useWatchSources(anime.id, active && !notYetOut);
+  const { data: rawData, isPending, isError, refreshSources } = useWatchSources(anime.id, active && !notYetOut);
 
-  // Two players, and the viewer can always see which one they are on.
-  //
-  // Our own player (`CustomHlsPlayer`) needs a direct stream, which only a
-  // source of format "hls" has — in practice an AniLibria release. The
-  // rest is the provider's own page inside an iframe, with its interface
-  // in it. They can't share one race: a race shows whichever answered
-  // first, which would make "whose player am I looking at" a coin toss.
-  // So the sources are split and only one side is ever handed to `Player`.
-  //
-  // Ours is preselected wherever it can play at all, and the switch stays
-  // on screen either way — including on the titles where our side is
-  // empty, where it shows as unavailable with the reason rather than
-  // vanishing. A control that appears on some titles and not others is
-  // harder to trust than one that is always there and sometimes greyed.
-  //
-  // Ours is the one where the site draws everything — the picture comes
-  // from the provider, every control, the quality menu included, is ours —
-  // so it leads wherever it can play the episode. Kodik stays one click
-  // away on the switch, with all of its dubs.
-  const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls") ?? []) : [];
+  // The API exposes direct sources only; every dub uses the same controls.
+  const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls" || s.format === "mp4") ?? []) : [];
   // Our player's streaming code, fetched while the visitor reads the page —
   // not after "play" is pressed.
   const hasOwn = ownSources.length > 0;
   useEffect(() => {
     if (hasOwn) warmHls();
   }, [hasOwn]);
-  const providerSources = rawData?.sources.filter((s) => s.format !== "hls") ?? [];
   const canUseOwn = ownSources.length > 0;
-  const [preferOwn, setPreferOwn] = useState(true);
 
   // Where this viewer left off, applied once per visit — and only if they
   // haven't picked an episode themselves in the meantime. It used to live
@@ -205,8 +185,8 @@ export function WatchSection({
   // Our player only for episodes our stream actually has. AniLibria can be
   // a few episodes behind Kodik on a show that is airing; asking it for one
   // it doesn't carry would quietly play its first episode instead.
-  const ownHasEpisode = ownSources.some((s) => s.hlsEpisodes?.[String(episode)] != null);
-  const useOwn = canUseOwn && preferOwn && ownHasEpisode;
+  const ownHasEpisode = ownSources.some((s) => hasEpisode(s, episode));
+  const useOwn = canUseOwn && ownHasEpisode;
 
   // A direct stream can be reachable from our server and not from the
   // viewer — AniLibria's CDN is blocked or throttled in some countries, and
@@ -215,9 +195,8 @@ export function WatchSection({
   // the difference between "this title doesn't play" and a two-second
   // hiccup nobody notices. Their own click always wins afterwards: this
   // only fires while the preference is still the one we chose for them.
-  const handleOwnFailed = () => setPreferOwn(false);
   const data = rawData
-    ? { ...rawData, sources: useOwn ? ownSources : providerSources }
+    ? { ...rawData, sources: sourcesForEpisode(ownSources, episode) }
     : rawData;
   // Warm the TCP/TLS handshake for the top few candidate embeds the moment
   // we know them — that connection setup is otherwise dead time that only
@@ -228,36 +207,22 @@ export function WatchSection({
     return <Countdown target={releaseDate} />;
   }
 
-  if (isPending && active) {
+  if ((isPending || (rawData?.sourcesPending && !rawData.available)) && active) {
     // The title's own pictures while the sources are found — never a black box.
     return <PlayerShell frames={facadeFrames(anime, catalog, episode)} loading />;
   }
 
   if (data?.available && data.sources.length > 0) {
-    if (!activated) {
-      return (
-        <PlayerShell
-          frames={facadeFrames(anime, catalog, episode)}
-          label={t("watch.loadPlayer")}
-          catalog={catalog}
-          total={total}
-          episode={episode}
-          fallbackDuration={anime.duration}
-          onActivate={(picked) => {
-            if (picked != null) chooseEpisode(picked);
-            setActivated(true);
-            onActivate?.();
-          }}
-        />
-      );
-    }
     return (
       <Player
+        autoStart={activated}
+        onStarted={() => { setActivated(true); onActivate?.(); }}
+        poster={facadeFrames(anime, catalog, episode)[0]}
         // Remounting on the switch is the point: the race, the winner and
         // every player-local bit of state belong to one side or the other,
         // and carrying them across would mean showing the old picture while
         // the new one loads.
-        key={useOwn ? "own" : "provider"}
+        key={`${anime.id}:${useOwn ? "own" : "provider"}`}
         data={data}
         title={title}
         animeId={anime.id}
@@ -266,29 +231,32 @@ export function WatchSection({
         runtime={anime.duration}
         episode={episode}
         onEpisodeChange={chooseEpisode}
+        onRefreshSources={refreshSources}
         startAt={startAt}
         useOwn={useOwn}
         canUseOwn={canUseOwn && ownHasEpisode}
-        canUseProvider={providerSources.length > 0}
-        onUseOwnChange={setPreferOwn}
-        onAllFailed={
-          useOwn && providerSources.length > 0 ? handleOwnFailed : undefined
-        }
+        canUseProvider={false}
+        onUseOwnChange={() => {}}
       />
     );
   }
 
   const notice =
-    data?.reason === "not_configured"
+    isError ? t("watch.providerError") : data?.reason === "not_configured"
       ? t("watch.notConfigured")
       : data?.reason === "provider_error"
         ? t("watch.providerError")
         : t("watch.notFound");
 
   return (
-    <Alert>
-      <AlertDescription>{notice}</AlertDescription>
-    </Alert>
+    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-4">
+      <Alert><AlertDescription>{notice}</AlertDescription></Alert>
+      <p className="text-xs leading-relaxed text-muted-foreground">Проверяем доступные серии у нескольких источников. У анонсов и редких выпусков видео может ещё не быть.</p>
+      <Button variant="secondary" className="w-fit" disabled={refreshing} onClick={() => {
+        setRefreshing(true);
+        void refreshSources().catch(() => toast.error("Источники временно недоступны. Попробуйте позже.")).finally(() => setRefreshing(false));
+      }}><RefreshCwIcon className={cn("size-4", refreshing && "animate-spin")} />Проверить источники</Button>
+    </div>
   );
 }
 
@@ -782,7 +750,8 @@ function dedupeSources(sources: WatchSource[]): WatchSource[] {
   const seen = new Set<string>();
   const deduped: WatchSource[] = [];
   for (const source of sources) {
-    const key = `${source.kind}:${source.title.trim().toLowerCase()}`;
+    // The same studio on two hosts is still two useful fallback sources.
+    const key = source.id;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(source);
@@ -830,16 +799,13 @@ function initialRacePool(sources: WatchSource[], favourite?: string | null): str
  * player instead of the provider's controls inside the frame, entirely
  * through URLs the provider hands out for that purpose.
  *
- * Either way, an episode we have no URL for falls back to one we do rather
- * than showing nothing.
+ * A missing direct episode never falls back to a different episode.
  */
 function sourceUrlFor(source: WatchSource, episode: number): string | null {
-  if (source.format === "hls") {
-    return (
-      source.hlsEpisodes?.[String(episode)] ??
-      Object.values(source.hlsEpisodes ?? {})[0] ??
-      null
-    );
+  if (source.format === "hls" || source.format === "mp4") {
+    const url = (source.hlsEpisodes ?? source.mediaEpisodes)?.[String(episode)] ?? null;
+    const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+    return url?.startsWith("/api/") && apiBase ? `${apiBase}${url}` : url;
   }
   return withEmbedOptions(source.iframeEpisodes?.[String(episode)]?.url ?? source.embedUrl);
 }
@@ -872,7 +838,6 @@ function withEmbedOptions(url: string): string {
 /** Below this, "where you left off" is just the opening credits again. */
 const RESUME_MIN_SECONDS = 30;
 /** And this close to the end, the viewer wants the next episode, not a seek. */
-const RESUME_TAIL_SECONDS = 60;
 
 /**
  * The shape of every square button in the control bar. Only what all three
@@ -933,12 +898,16 @@ function masterPlaylist(variants: Record<string, string>, heights: number[]): st
  */
 export function CustomHlsPlayer({
   src,
+  format = "hls",
+  mediaTitle = "AnimeShadow",
+  onRefreshSource,
   variants = null,
   skin,
   isWinner,
   onReady,
   onFailed,
   resumeFrom = 0,
+  resumeExact = false,
   onEnded,
   opening = null,
   segments = [],
@@ -950,8 +919,21 @@ export function CustomHlsPlayer({
   onNet,
   onAhead,
   onTime,
+  autoStart = true,
+  onStarted,
+  onPlaybackChange,
+  poster,
 }: {
   src: string;
+  format?: "hls" | "mp4";
+  autoStart?: boolean;
+  onStarted?: () => void;
+  onPlaybackChange?: (playing: boolean) => void;
+  poster?: string | undefined;
+  mediaTitle?: string;
+  onRefreshSource?: () => Promise<unknown>;
+  /** Preserve a position selected during this visit, including the first/last minute. */
+  resumeExact?: boolean;
   /** This episode in every quality the provider publishes ("480" → manifest, …). */
   variants?: Record<string, string> | null;
   /** Which of the site's three looks the control bar wears. */
@@ -1005,6 +987,12 @@ export function CustomHlsPlayer({
   const onTimeRef = useRef(onTime);
   onTimeRef.current = onTime;
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playRequestedRef = useRef(autoStart);
+  const onStartedRef = useRef(onStarted);
+  const onPlaybackChangeRef = useRef(onPlaybackChange);
+  onPlaybackChangeRef.current = onPlaybackChange;
+  onStartedRef.current = onStarted;
+  useEffect(() => { playRequestedRef.current = autoStart; }, [autoStart]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Read from the src-loading effect below without re-running it on every
@@ -1032,9 +1020,11 @@ export function CustomHlsPlayer({
   // viewer back to where they *were* an hour ago would be worse than never
   // restoring anything.
   const resumeRef = useRef(resumeFrom);
+  const exactResumeRef = useRef(resumeExact);
   useEffect(() => {
     resumeRef.current = resumeFrom;
-  }, [resumeFrom]);
+    exactResumeRef.current = resumeExact;
+  }, [resumeFrom, resumeExact]);
   const resumedSrcRef = useRef<string | null>(null);
   useEffect(() => {
     resumedSrcRef.current = null;
@@ -1048,8 +1038,9 @@ export function CustomHlsPlayer({
     const duration = video.duration;
     if (!Number.isFinite(duration) || duration <= 0) return;
     resumedSrcRef.current = src;
-    if (at >= RESUME_MIN_SECONDS && at <= duration - RESUME_TAIL_SECONDS) {
-      if (Math.abs(video.currentTime - at) > 2) video.currentTime = at;
+    const position = resumePosition(at, duration, exactResumeRef.current);
+    if (position != null) {
+      if (Math.abs(video.currentTime - position) > 0.5) video.currentTime = position;
     } else if (video.currentTime > 1) {
       video.currentTime = 0;
     }
@@ -1065,6 +1056,8 @@ export function CustomHlsPlayer({
   // Until when the player's own play/pause/seek events are the page's doing, not the viewer's.
   const suppressUntilRef = useRef(0);
   const startPlayback = (video: HTMLVideoElement) => {
+    playRequestedRef.current = true;
+    engineRef.current?.setPreloadOnly(false);
     // Started by the page, not the viewer: not reported to a watch-together room.
     suppressUntilRef.current = performance.now() + 2000;
     video.muted = false;
@@ -1101,14 +1094,34 @@ export function CustomHlsPlayer({
   // Read from effects and key handlers without re-running them.
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const nativeVariantsRef = useRef<Record<string, string> | null>(null);
   const variantsRef = useRef(variants);
-  variantsRef.current = variants;
+  variantsRef.current = variants ?? nativeVariantsRef.current;
   const menuOpenRef = useRef(menuOpen);
   menuOpenRef.current = menuOpen;
 
   // Quality: the heights on offer, and the one actually on screen (with
   // "auto", hls.js moves between them as the connection allows).
   const engineRef = useRef<EngineHandle | null>(null);
+  const [tracks, setTracks] = useState<EngineTracks>(EMPTY_TRACKS);
+  useMediaSession(videoRef, isWinner, mediaTitle);
+  const pickTrack = (kind: "audio" | "subtitles", id: number) => {
+    const engine = engineRef.current;
+    if (engine) {
+      if (kind === "audio") engine.setAudioTrack(id);
+      else engine.setSubtitleTrack(id);
+    } else if (videoRef.current) {
+      pickNativeTrack(videoRef.current, kind, id);
+      setTracks(readNativeTracks(videoRef.current));
+    }
+  };
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    return observeNativeTracks(video, () => {
+      if (!engineRef.current) setTracks(readNativeTracks(video));
+    });
+  }, []);
   const [levels, setLevels] = useState<number[]>([]);
   const pro = useIsPro();
   const limitRef = useRef<number | null>(null);
@@ -1131,12 +1144,15 @@ export function CustomHlsPlayer({
     let hls: { destroy: () => void } | null = null;
     let master: string | null = null;
     let cancelled = false;
+    const nativeRequest = new AbortController();
     setLevels([]);
+    setTracks(EMPTY_TRACKS);
     setActiveHeight(null);
     setStatus({ kind: "loading" });
+    playedRef.current = false;
 
     const resumeIfWinner = () => {
-      if (isWinnerRef.current) startPlayback(video);
+      if (isWinnerRef.current && playRequestedRef.current) startPlayback(video);
     };
 
     const variants = variantsRef.current;
@@ -1146,24 +1162,47 @@ export function CustomHlsPlayer({
       .sort((a, b) => a - b);
     // A saved 1080p falls back to "auto" (capped) without PRO.
     const saved = settingsRef.current.quality;
-    const wanted = saved !== "auto" && limitRef.current && Number(saved) > limitRef.current ? "auto" : saved;
-    const freeTop = limitRef.current ? [...heights].reverse().find((h) => h <= limitRef.current!) : undefined;
+    const wanted = effectiveQuality(saved, limitRef.current == null);
 
     // Apple's browsers play HLS themselves (and iPhones before iOS 17 can
     // play it no other way): one quality at a time, switched by swapping
     // the stream. Everyone else gets hls.js, which switches by itself.
     const appleNative =
       video.canPlayType("application/vnd.apple.mpegurl") !== "" && /Apple/.test(navigator.vendor);
-    if (appleNative) {
-      video.src = (wanted !== "auto" && variants?.[wanted]) || (freeTop != null ? variants?.[String(freeTop)] : undefined) || src;
-      if (heights.length > 1) {
-        setLevels(heights);
-        setActiveHeight(wanted !== "auto" && variants?.[wanted] ? Number(wanted) : heights[heights.length - 1]!);
-      }
+    if (format === "mp4") {
+      video.preload = playRequestedRef.current ? "auto" : "metadata";
+      video.src = src;
+      video.load();
       resumeIfWinner();
+    } else if (appleNative) {
+      // Native Safari controls its own segment fetching. Metadata mode
+      // avoids an unbounded background download before the user presses play.
+      video.preload = playRequestedRef.current ? "auto" : "metadata";
+      const startNative = (choices: Record<string, string> | null) => {
+        if (cancelled) return;
+        nativeVariantsRef.current = choices;
+        variantsRef.current = choices;
+        const available = Object.keys(choices ?? {}).map(Number).filter((height) => height > 0).sort((a, b) => a - b);
+        const capped = limitRef.current ? available.filter((height) => height <= limitRef.current!) : available;
+        const top = capped[capped.length - 1];
+        const picked = wanted === "auto" ? top : available[qualityLevel(available, wanted)];
+        video.src = (picked != null ? choices?.[String(picked)] : undefined) || src;
+        if (available.length > 1) setLevels(available);
+        setActiveHeight(picked ?? null);
+        resumeIfWinner();
+      };
+      if (new URL(src, location.href).pathname.includes("/streams/kodik/")) {
+        void fetch(src, { signal: nativeRequest.signal })
+          .then(async (response) => {
+            if (!response.ok) throw new Error("Manifest unavailable");
+            return nativeVariantsFromMaster(await response.text(), response.url);
+          })
+          .then(startNative)
+          .catch(() => { if (!cancelled) startNative(null); });
+      } else startNative(variants);
     } else {
-      // hls.js (the light build — no DRM, subtitles or alternate audio
-      // these streams never use), usually already fetched by warmHls().
+      // The full build supports alternate audio and subtitles published
+      // in a provider's master playlist; it is still loaded lazily.
       void loadHls()
         .then((Hls) => {
           if (cancelled) return;
@@ -1181,8 +1220,9 @@ export function CustomHlsPlayer({
           }
           const resumeAt = resumeRef.current;
           const engine = attachEngine(Hls, video, master ?? src, {
-            startPosition: resumeAt >= RESUME_MIN_SECONDS ? resumeAt : -1,
-            startLevel: (parsed) => (parsed.length > 1 && wanted !== "auto" ? parsed.indexOf(Number(wanted)) : -1),
+            preloadOnly: !playRequestedRef.current,
+            startPosition: exactResumeRef.current || resumeAt >= RESUME_MIN_SECONDS ? resumeAt : -1,
+            startLevel: (parsed) => qualityLevel(parsed, wanted),
             onLevels: (parsed) => {
               if (parsed.length > 1) setLevels(parsed);
               if (limitRef.current) engineRef.current?.capHeight(limitRef.current);
@@ -1195,6 +1235,7 @@ export function CustomHlsPlayer({
               resumeIfWinner();
             },
             onStatus: setStatus,
+            onTracks: setTracks,
             onFatal: () => {
               if (!playedRef.current) onFailedRef.current();
             },
@@ -1214,12 +1255,20 @@ export function CustomHlsPlayer({
 
     return () => {
       cancelled = true;
+      nativeRequest.abort();
+      if (playedRef.current && Number.isFinite(video.currentTime)) {
+        resumeRef.current = video.currentTime;
+        exactResumeRef.current = true;
+      }
       hls?.destroy();
       engineRef.current = null;
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
       if (master) URL.revokeObjectURL(master);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, reloadKey]);
+  }, [src, reloadKey, format]);
 
   // Frames for the seek bar's preview: the lowest quality is plenty for a
   // picture the size of a stamp, and the cheapest to fetch.
@@ -1391,13 +1440,15 @@ export function CustomHlsPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Math.floor(currentTime), momentsOn, isWinner, playing]);
 
-  const reload = () => {
+  const reload = async () => {
     const video = videoRef.current;
-    if (video && video.currentTime > 0) {
+    if (video && Number.isFinite(video.currentTime)) {
       resumeRef.current = video.currentTime;
+      exactResumeRef.current = true;
       resumedSrcRef.current = null;
     }
     setStatus({ kind: "loading" });
+    await onRefreshSource?.().catch(() => undefined);
     setReloadKey((k) => k + 1);
   };
 
@@ -1415,13 +1466,13 @@ export function CustomHlsPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isWinner) {
+    if (isWinner && playRequestedRef.current) {
       startPlayback(video);
     } else {
       video.muted = true;
       video.pause();
     }
-  }, [isWinner]);
+  }, [isWinner, autoStart]);
 
   // Native media events -> our own state, so the bar below is drawn from
   // the element's real state instead of guessed at.
@@ -1442,8 +1493,14 @@ export function CustomHlsPlayer({
       for (let i = 0; i < ranges.length; i++) out.push([ranges.start(i), ranges.end(i)]);
       setBuffered(out);
     };
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
+    const onPlay = () => {
+      playRequestedRef.current = true;
+      engineRef.current?.setPreloadOnly(false);
+      onStartedRef.current?.();
+      onPlaybackChangeRef.current?.(true);
+      setPlaying(true);
+    };
+    const onPause = () => { setPlaying(false); onPlaybackChangeRef.current?.(false); };
     const onWaiting = () => {
       bufferingRef.current = true;
       setBuffering(true);
@@ -1452,6 +1509,14 @@ export function CustomHlsPlayer({
       bufferingRef.current = false;
       playedRef.current = true;
       setBuffering(false);
+      setStatus({ kind: "ok" });
+    };
+    const onError = () => {
+      // hls.js owns its retries; Safari's native HLS needs an explicit error path.
+      if (engineRef.current || !video.error) return;
+      console.warn("[AnimeShadow] Native video failed", format, video.error.code, video.error.message);
+      setStatus({ kind: "failed", reason: `media:${video.error.code}` });
+      if (!playedRef.current) onFailedRef.current();
     };
     const onVolumeChange = () => {
       setVolume(video.volume);
@@ -1470,6 +1535,7 @@ export function CustomHlsPlayer({
     video.addEventListener("volumechange", onVolumeChange);
     video.addEventListener("ratechange", onRateChange);
     video.addEventListener("resize", onResize);
+    video.addEventListener("error", onError);
     return () => {
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("durationchange", onDurationChange);
@@ -1481,8 +1547,9 @@ export function CustomHlsPlayer({
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("ratechange", onRateChange);
       video.removeEventListener("resize", onResize);
+      video.removeEventListener("error", onError);
     };
-  }, [isWinner]);
+  }, [isWinner, format]);
 
   useEffect(() => {
     const onFsChange = () => {
@@ -1541,7 +1608,13 @@ export function CustomHlsPlayer({
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) void video.play().catch(() => undefined);
+    if (video.paused) {
+      video.preload = "auto";
+      playRequestedRef.current = true;
+      engineRef.current?.setPreloadOnly(false);
+      if (!playedRef.current) video.muted = false;
+      void video.play().catch(() => undefined);
+    }
     else video.pause();
     wake();
   };
@@ -1674,57 +1747,63 @@ export function CustomHlsPlayer({
 
   const pickQuality = (value: string) => {
     if (value !== "auto" && limitRef.current && Number(value) > limitRef.current) {
-      toast(`${value}p — в PRO`, {
+      toast(`${qualityName(Number(value))} — в PRO`, {
         description: `Без PRO плеер показывает до ${FREE_MAX_HEIGHT}p. ${PROMO_HINT}`,
         action: { label: "PRO", onClick: () => window.location.assign("/support") },
       });
       return;
     }
     setPlayerSetting({ quality: value });
+  };
+
+  const selectedQuality = effectiveQuality(settings.quality, Boolean(pro));
+  const outputHeight = qualityOutputHeight(selectedQuality, Boolean(pro));
+  // Apply the setting to both engines, including a subscription ending
+  // during playback. The output canvas never controls encoded bitrate.
+  useEffect(() => {
     const engine = engineRef.current;
     if (engine) {
-      // -1 is hls.js's "auto"; a level switch keeps the place by itself.
-      engine.setLevel(value === "auto" ? -1 : engine.levels().findIndex((l) => l.height === Number(value)));
+      engine.setLevel(qualityLevel(engine.levels().map((level) => level.height), selectedQuality));
       return;
     }
-    // Native playback: swap the stream and pick up where it was.
     const video = videoRef.current;
-    const url = value === "auto" ? src : variants?.[value];
+    const available = variantsRef.current;
+    if (!video || !available || !/Apple/.test(navigator.vendor) || !video.canPlayType("application/vnd.apple.mpegurl")) return;
+    const cappedHeights = Object.keys(available).map(Number).filter((height) => height > 0 && (limitRef.current == null || height <= limitRef.current)).sort((a, b) => a - b);
+    const top = cappedHeights[cappedHeights.length - 1];
+    const picked = selectedQuality === "auto" ? top : cappedHeights[qualityLevel(cappedHeights, selectedQuality)];
+    const url = picked != null ? available[String(picked)] : src;
     if (!video || !url || video.currentSrc === url) return;
     const at = video.currentTime;
     const wasPlaying = !video.paused;
     video.src = url;
-    video.addEventListener(
-      "loadedmetadata",
-      () => {
-        video.currentTime = at;
-        if (wasPlaying) void video.play().catch(() => undefined);
-      },
-      { once: true },
-    );
-    setActiveHeight(value === "auto" ? (levels[levels.length - 1] ?? null) : Number(value));
-  };
+    const restore = () => {
+      video.currentTime = at;
+      if (wasPlaying) void video.play().catch(() => undefined);
+    };
+    video.addEventListener("loadedmetadata", restore, { once: true });
+    setActiveHeight(picked ?? null);
+    return () => video.removeEventListener("loadedmetadata", restore);
+  }, [selectedQuality, pro, levels, src]);
 
-  const quality: QualityChoice =
-    levels.length > 1
-      ? {
-          value: levels.includes(Number(settings.quality)) ? settings.quality : "auto",
-          onPick: pickQuality,
-          options: [
-            {
-              value: "auto",
-              label:
-                settings.quality === "auto" && activeHeight
-                  ? `${t("watch.ctl.qualityAuto")} · ${activeHeight}p`
-                  : t("watch.ctl.qualityAuto"),
-            },
-            ...[...levels].reverse().map((height) => ({
-              value: String(height),
-              label: !pro && height > FREE_MAX_HEIGHT ? `${height}p · PRO` : `${height}p`,
-            })),
-          ],
-        }
-      : { note: t("watch.ctl.qualitySingle"), current: videoHeight > 0 ? `${videoHeight}p` : undefined };
+  const quality: QualityChoice = {
+    value: selectedQuality,
+    onPick: pickQuality,
+    description: outputHeight != null && (activeHeight ?? videoHeight) > 0 && outputHeight > (activeHeight ?? videoHeight)
+      ? `Вывод ${qualityName(outputHeight)} с масштабированием исходного потока ${activeHeight ?? videoHeight}p.` : undefined,
+    options: [
+      {
+        value: "auto",
+        label: selectedQuality === "auto" && activeHeight
+          ? `${t("watch.ctl.qualityAuto")} · ${activeHeight}p`
+          : t("watch.ctl.qualityAuto"),
+      },
+      ...qualityHeights(levels.length > 0 ? levels : videoHeight > 0 ? [videoHeight] : []).map((height) => ({
+        value: String(height),
+        label: height > FREE_MAX_HEIGHT ? `${qualityName(height)} · PRO` : qualityName(height),
+      })),
+    ],
+  };
 
   /** iOS Safari has no arbitrary-element fullscreen at all — only the
    * `<video>` itself can go fullscreen there. Everywhere else, the whole
@@ -1777,7 +1856,8 @@ export function CustomHlsPlayer({
     if (!isWinner) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && /^(input|textarea)$/i.test(target.tagName)) return;
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (target?.closest("input, textarea, select, button, a, [role=slider], [role=dialog], [contenteditable]:not([contenteditable=false])")) return;
       const video = videoRef.current;
       if (!video) return;
       switch ((e.key ?? "").toLowerCase()) {
@@ -1788,10 +1868,12 @@ export function CustomHlsPlayer({
           break;
         case "arrowleft":
         case "j":
+          e.preventDefault();
           skip(-settingsRef.current.step);
           break;
         case "arrowright":
         case "l":
+          e.preventDefault();
           skip(settingsRef.current.step);
           break;
         case "arrowup":
@@ -1841,13 +1923,11 @@ export function CustomHlsPlayer({
     document.pictureInPictureEnabled;
 
   const qualityLabel =
-    levels.length > 1
-      ? settings.quality !== "auto" && levels.includes(Number(settings.quality))
-        ? `${settings.quality}p`
-        : activeHeight
-          ? `${activeHeight}p`
-          : t("watch.ctl.qualityAuto")
-      : null;
+    selectedQuality !== "auto"
+      ? qualityName(Number(selectedQuality))
+      : activeHeight
+        ? `${activeHeight}p`
+        : t("watch.ctl.qualityAuto");
   const centerVisible = controlsVisible || !playing;
   // The quality on screen, snapped to the ones we know the need of.
   const shownHeight = (() => {
@@ -1892,7 +1972,10 @@ export function CustomHlsPlayer({
     >
       <video
         ref={videoRef}
+        crossOrigin="anonymous"
         playsInline
+        preload="auto"
+        poster={poster ? imageSrc(poster) ?? undefined : undefined}
         muted
         // Both, deliberately: `loadedmetadata` is the earliest honest "this
         // stream answered" (and the only one the native-Safari path gets,
@@ -1906,6 +1989,13 @@ export function CustomHlsPlayer({
         className="absolute inset-0 size-full"
         tabIndex={-1}
       />
+      {isWinner && outputHeight != null && videoHeight > 0 && videoHeight < outputHeight && (
+        <VideoUpscaler videoRef={videoRef} source={src} height={outputHeight} filter={pro ? pictureFilter(settings.picture) : undefined}
+          onUnavailable={() => {
+            setPlayerSetting({ quality: "auto" });
+            toast.info("Устройство не поддерживает выбранное разрешение", { description: "Плеер вернулся к автоматическому качеству." });
+          }} />
+      )}
 
       {isWinner && (
         <>
@@ -2007,7 +2097,7 @@ export function CustomHlsPlayer({
                 </span>
                 <p className="text-sm font-semibold text-white">Поток не отвечает</p>
                 <p className="text-xs leading-relaxed text-white/70">
-                  Сервер с видео сейчас не отдаёт эту серию. Попробуйте ещё раз — продолжим с того же места — или выберите Kodik над плеером.
+                  Сервер с видео сейчас не отдаёт эту серию. Попробуйте ещё раз — продолжим с того же места — или выберите другой источник.
                 </p>
                 <button
                   type="button"
@@ -2281,6 +2371,8 @@ export function CustomHlsPlayer({
                 step={settings.step}
                 onStep={(n) => setPlayerSetting({ step: n })}
                 quality={quality}
+                audio={{ value: tracks.audioId, options: tracks.audio.map((track) => ({ value: track.id, label: track.label })), onPick: (id) => pickTrack("audio", id) }}
+                subtitles={{ value: tracks.subtitleId, options: [{ value: -1, label: "Выключены" }, ...tracks.subtitles.map((track) => ({ value: track.id, label: track.label }))], onPick: (id) => pickTrack("subtitles", id) }}
                 onClose={closeMenu}
               />
             </div>
@@ -2301,6 +2393,9 @@ function orientation():
 }
 
 function Player({
+  autoStart,
+  onStarted,
+  poster,
   data,
   title,
   animeId,
@@ -2309,6 +2404,7 @@ function Player({
   runtime,
   episode,
   onEpisodeChange,
+  onRefreshSources,
   useOwn,
   canUseOwn,
   canUseProvider,
@@ -2316,6 +2412,9 @@ function Player({
   onAllFailed,
   startAt = null,
 }: {
+  autoStart: boolean;
+  onStarted: () => void;
+  poster?: string | undefined;
   /** Opened from a moment: seek here once, on that episode. */
   startAt?: { episode: number; seconds: number } | null;
   data: WatchResponse;
@@ -2328,6 +2427,7 @@ function Player({
   runtime: string | null;
   episode: number;
   onEpisodeChange: (episode: number) => void;
+  onRefreshSources: () => Promise<unknown>;
   /** Which of the two players is on screen — see WatchSection for the split. */
   useOwn: boolean;
   /** Is there a direct stream at all? Without one our side has nothing to play. */
@@ -2339,6 +2439,7 @@ function Player({
 }) {
   const navigate = useNavigate();
   const [partyBusy, setPartyBusy] = useState(false);
+  const [actuallyPlaying, setActuallyPlaying] = useState(false);
   const { picture } = usePlayerSettings();
   // Picture filters are PRO: without it the saved look isn't applied.
   const pro = useIsPro();
@@ -2356,11 +2457,14 @@ function Player({
     initialRacePool(data.sources, readFavouriteDub(animeId)),
   );
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const racePoolRef = useRef(racePool);
+  racePoolRef.current = racePool;
   // Every source this session has already raced and lost — so a handful of
   // dead mirrors don't leave the user staring at a spinner for minutes: we
   // keep pulling in fresh batches automatically and only ask them to pick
   // once nothing is left to try.
   const [triedIds, setTriedIds] = useState<string[]>([]);
+  const [attempt, setAttempt] = useState(0);
   // How our own player is dressed. A real preference — someone who wants
   // the glass bar wants it on every episode — so unlike the old theatre
   // toggle this one is remembered.
@@ -2416,7 +2520,7 @@ function Player({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const watching = winnerId != null && inView;
+  const watching = winnerId != null && inView && actuallyPlaying;
 
   useEpisodeTracking({
     animeId,
@@ -2442,7 +2546,7 @@ function Player({
   useEffect(() => {
     if (winnerId != null || racePool.length === 0) return;
     const poolHasHls = racePool.some(
-      (id) => data.sources.find((s) => s.id === id)?.format === "hls",
+      (id) => { const format = data.sources.find((s) => s.id === id)?.format; return format === "hls" || format === "mp4"; },
     );
     const timeout = poolHasHls
       ? hlsStallMs
@@ -2490,7 +2594,7 @@ function Player({
   // Where the opening and ending are: the provider's own data first, then
   // AniSkip through our API.
   const known = catalog.info.get(episode)?.opening ?? null;
-  const wantTimes = winnerIsKodik && (prefs.skipOpening || prefs.skipEnding);
+  const wantTimes = (winnerIsKodik || winnerSource?.format === "hls" || winnerSource?.format === "mp4") && (prefs.skipOpening || prefs.skipEnding);
   const { data: skipTimes } = useQuery({
     queryKey: ["skip-times", animeId, episode],
     staleTime: Infinity,
@@ -2522,6 +2626,7 @@ function Player({
   // embed, which then picks up from here.
   const lastTime = useRef(0);
   const lastDuration = useRef(0);
+  const handoff = useRef<{ episode: number; seconds: number } | null>(null);
   const resumeAt = useRef<number | null>(null);
 
   // A comment's moment, chosen on the page: same episode — seek; another — switch and start there.
@@ -2737,8 +2842,14 @@ function Player({
   // carry it. If none here does, the list dims it and the parent's clamp
   // and side switch are what catch it.
   useEffect(() => {
+    setTriedIds([]);
+    reportedFailureRef.current = false;
     const current = data.sources.find((s) => s.id === (winnerId ?? racePool[0]));
-    if (!current) return;
+    if (!current) {
+      setWinnerId(null);
+      setRacePool(initialRacePool(data.sources, favouriteDub));
+      return;
+    }
     const has = episodesOf(current);
     if (has == null || has.has(episode)) return;
     const better = viableSources(data.sources).find((s) => episodesOf(s)?.has(episode));
@@ -2770,6 +2881,11 @@ function Player({
   const pickable = dedupeSources(viableSources(data.sources));
 
   const pick = (id: string) => {
+    if (id === winnerId) return;
+    racePoolRef.current = [id];
+    handoff.current = { episode, seconds: lastTime.current };
+    setTriedIds([]);
+    reportedFailureRef.current = false;
     setWinnerId(null);
     setRacePool([id]);
   };
@@ -2801,6 +2917,7 @@ function Player({
   };
 
   const handleLoad = (id: string) => {
+    if (!racePoolRef.current.includes(id)) return;
     setWinnerId((current) => {
       if (current != null) return current;
       // Keep the winner's own iframe mounted (same DOM node, same key) —
@@ -2815,7 +2932,10 @@ function Player({
    *  next candidate straight away — the same move the stall timer makes, just
    *  without waiting out a timeout for an answer we have already been given. */
   const handleFailed = (id: string) => {
-    if (winnerId != null) return;
+    if (!racePoolRef.current.includes(id)) return;
+    if (winnerId != null && winnerId !== id) return;
+    handoff.current = { episode, seconds: lastTime.current };
+    setWinnerId(null);
     setTriedIds((tried) => {
       if (tried.includes(id)) return tried;
       const nextTried = [...tried, id];
@@ -2829,6 +2949,9 @@ function Player({
 
   /** Retries from the very top, as if the page had just been opened. */
   const retryAll = () => {
+    handoff.current = { episode, seconds: lastTime.current };
+    reportedFailureRef.current = false;
+    setAttempt((value) => value + 1);
     setTriedIds([]);
     setWinnerId(null);
     setRacePool(initialRacePool(data.sources, favouriteDub));
@@ -2852,7 +2975,7 @@ function Player({
           if (!source) return null;
           const isWinner = id === winnerId;
 
-          if (source.format === "hls") {
+          if (source.format === "hls" || source.format === "mp4") {
             const url = sourceUrlFor(source, episode);
             if (!url) return null;
             // The next episode, loading out of sight once this one is almost
@@ -2862,16 +2985,24 @@ function Player({
             const nextUrl =
               isWinner && preloadFor === episode && nextEpisode != null ? sourceUrlFor(source, nextEpisode) : null;
             return (
-              <Fragment key={source.id}>
+              <Fragment key={`${source.id}:${attempt}`}>
               <CustomHlsPlayer
-                key={url}
+                format={source.format}
+                autoStart={autoStart}
+                onStarted={onStarted}
+                onPlaybackChange={setActuallyPlaying}
+                poster={poster}
+                key={episode}
                 src={url}
+                mediaTitle={`${title} · Серия ${episode}`}
+                onRefreshSource={onRefreshSources}
                 variants={source.hlsVariants?.[String(episode)] ?? null}
                 skin={skin}
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
                 onFailed={() => handleFailed(id)}
-                resumeFrom={momentStart ?? (authed ? (episodeRecord?.positionSeconds ?? 0) : 0)}
+                resumeFrom={handoff.current?.episode === episode ? handoff.current.seconds : momentStart ?? (authed ? (episodeRecord?.positionSeconds ?? 0) : 0)}
+                resumeExact={handoff.current?.episode === episode || momentStart != null}
                 onEnded={handleEnded}
                 onTime={(time, length) => {
                   lastTime.current = time;
@@ -2886,7 +3017,8 @@ function Player({
               />
               {nextUrl && nextUrl !== url && (
                 <CustomHlsPlayer
-                  key={nextUrl}
+                  format={source.format}
+                  key={nextEpisode}
                   src={nextUrl}
                   variants={source.hlsVariants?.[String(nextEpisode)] ?? null}
                   skin={skin}
@@ -2899,31 +3031,7 @@ function Player({
             );
           }
 
-          return (
-            <iframe
-              key={source.id}
-              ref={(el) => {
-                if (el) frames.current.set(source.id, el);
-                else frames.current.delete(source.id);
-              }}
-              src={sourceUrlFor(source, episode) ?? source.embedUrl}
-              title={`${title} — ${source.title}`}
-              // Autoplay permission only ever goes to the confirmed winner —
-              // a racer that's still invisible has no business making sound
-              // even if its own page tries to.
-              allow={
-                isWinner
-                  ? "autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  : "encrypted-media; picture-in-picture"
-              }
-              referrerPolicy="no-referrer"
-              onLoad={() => handleLoad(id)}
-              style={{ filter: pro ? pictureFilter(picture) : undefined }}
-              className={cn("absolute inset-0 size-full", !isWinner && "opacity-0")}
-              tabIndex={isWinner ? undefined : -1}
-              aria-hidden={isWinner ? undefined : true}
-            />
-          );
+          return null;
         })}
         {notice && (
           <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 animate-in rounded-lg bg-black/75 px-2.5 py-1 text-xs font-medium text-white fade-in-0 slide-in-from-top-1">
@@ -3103,7 +3211,7 @@ function Player({
           {/* Kodik refuses some countries outright and says so inside its
               own frame, where we can't see it — so the explanation sits
               here, one hover away, for whoever gets that message. */}
-          {displaySource.format !== "hls" && (
+          {displaySource.format === "iframe" && (
             <InfoTooltip side="bottom" className="size-4 opacity-70 hover:opacity-100">
               {t("watch.geoHint")}
             </InfoTooltip>
@@ -3138,7 +3246,7 @@ function Player({
         className={cn(
           "player-box relative aspect-video overflow-hidden border bg-black",
           // Edge to edge on a phone: every pixel of width is picture.
-          "-mx-4 border-x-0 sm:mx-0 sm:rounded-xl sm:border-x",
+          "w-full min-w-0 rounded-xl",
         )}
       >
         {/* Folded away — into a window outside the browser, or a small one
@@ -3193,13 +3301,13 @@ function Player({
           favouriteDub={favouriteDub}
           onPickSource={pick}
           onToggleFavourite={toggleFavourite}
-          sourceLabel={(source) => sourceLabel(source, t)}
+          sourceLabel={sourceLabel}
           footer={
             <PlayerPrefsBar
               locked={!authed}
               prefs={prefs}
               onToggle={togglePref}
-              supported={winnerIsKodik || displaySource.format === "hls"}
+              supported={winnerIsKodik || displaySource.format === "hls" || displaySource.format === "mp4"}
               hasTimes={hasSkipTimes || !wantTimes}
               hasNext={nextEpisode != null}
             />
@@ -3449,7 +3557,7 @@ function PlayerSwitch({
   ];
   return (
     <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
-      {options.map((option) => {
+      {options.filter((option) => option.enabled).map((option) => {
         const active = useOwn === option.own;
         return (
           <Tooltip key={String(option.own)}>
@@ -3498,11 +3606,6 @@ function PlayerSwitch({
   );
 }
 
-function sourceLabel(source: WatchSource, t: ReturnType<typeof useT>): string {
-  const parts = [source.title];
-  if (source.episodesCount) {
-    parts.push(t("watch.episodesCount", { count: source.episodesCount }));
-  }
-  if (source.quality) parts.push(source.quality);
-  return parts.join(" · ");
+function sourceLabel(source: WatchSource): string {
+  return dubName(source.title);
 }

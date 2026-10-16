@@ -14,7 +14,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { HostPanel } from "@/components/party/host-panel";
-import { NetPanel, useSpeedProbe } from "@/components/party/net-panel";
 import { toast } from "sonner";
 import { CustomHlsPlayer, sourceUrlFor } from "@/components/anime/watch-section";
 import { QrShareCard } from "@/components/common/qr-share";
@@ -24,7 +23,6 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { useAuth } from "@/hooks/use-auth";
 import { ApiRequestError, apiRequest, apiStream } from "@/lib/api";
 import { animeHref, imageSrc } from "@/lib/format";
-import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { usePeople, useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +70,7 @@ function PartyRoom({ code }: { code: string }) {
   const [connected, setConnected] = useState(false);
   const [joined, setJoined] = useState(false);
   const [floating, setFloating] = useState<Array<{ id: number; emoji: string; x: number }>>([]);
-  const [ownFailed, setOwnFailed] = useState(false);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
   const [picking, setPicking] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState(false);
@@ -121,7 +119,7 @@ function PartyRoom({ code }: { code: string }) {
         break;
       case "anime":
         setParty((p) => (p ? { ...p, anime: e.anime } : p));
-        setOwnFailed(false);
+        setFailedSources([]);
         break;
       case "chat":
         setChat((c) => [...c.slice(-150), e.message]);
@@ -221,14 +219,13 @@ function PartyRoom({ code }: { code: string }) {
     [code, expected, user?.id, user?.displayName],
   );
 
-  // ---- the picture: our own player when the episode has a stream of ours, Kodik's otherwise
+  // ---- every provider uses our own player, with another dub on failure
   const animeId = party?.anime.id ?? 0;
-  const { data: watch } = useWatchSources(animeId, animeId > 0);
+  const { data: watch, refreshSources } = useWatchSources(animeId, animeId > 0);
   const episode = playback?.episode ?? 1;
-  const own = !ownFailed ? watch?.sources.find((s) => s.format === "hls" && s.hlsEpisodes?.[String(episode)]) : undefined;
-  const kodikSource = watch?.sources.find((s) => s.format !== "hls" && isKodikUrl(s.embedUrl) && (!s.iframeEpisodes || s.iframeEpisodes[String(episode)]));
+  const own = watch?.sources.find((s) => (s.format === "hls" || s.format === "mp4") && (s.hlsEpisodes ?? s.mediaEpisodes)?.[String(episode)] && !failedSources.includes(s.id));
   const ownUrl = own ? sourceUrlFor(own, episode) : null;
-  const kodikUrl = !ownUrl && kodikSource ? sourceUrlFor(kodikSource, episode) : null;
+  useEffect(() => { setFailedSources([]); }, [animeId, episode]);
 
   const isHost = party != null && user != null && party.hostId === user.id;
   const onEndedRef = useRef<() => void>(() => undefined);
@@ -239,8 +236,6 @@ function PartyRoom({ code }: { code: string }) {
 
   const localTime = useRef(0);
   const localPlaying = useRef(false);
-  const kodikSuppress = useRef(0);
-  const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
   const report = (type: "play" | "pause" | "seek", time: number) => {
     localTime.current = time;
     if (type === "play") localPlaying.current = true;
@@ -255,58 +250,28 @@ function PartyRoom({ code }: { code: string }) {
     }
     sendPlayback({ playing: type === "seek" ? localPlaying.current : type === "play", position: time });
   };
-  const kodik = useKodikBridge(frame, {
-    onTime: (t) => (localTime.current = t),
-    onEnded: () => onEndedRef.current(),
-    onPlay: () => {
-      localPlaying.current = true;
-      if (Date.now() > kodikSuppress.current) report("play", localTime.current);
-    },
-    onPause: () => {
-      localPlaying.current = false;
-      if (Date.now() > kodikSuppress.current) report("pause", localTime.current);
-    },
-    onSeek: (s) => {
-      if (s != null) localTime.current = s;
-      if (Date.now() > kodikSuppress.current && s != null) report("seek", s);
-    },
-  });
 
   /**
    * Bring this screen to the room's moment. Our player: within a third of a
    * second it's left alone, up to two seconds it plays 8 % faster or slower
-   * until it's there (no jump), beyond that it seeks. Kodik's (whole seconds
-   * only): a seek past 2.5 s.
+   * until it's there (no jump), beyond that it seeks.
    */
   const rateRef = useRef(1);
   const align = useCallback((force = false) => {
     const p = playbackRef.current;
-    if (!p || !joined) return;
+    if (!p || !joined || !ownUrl) return;
     const want = expected();
     const diff = localTime.current - want;
     const drift = Math.abs(diff);
     const playChange = p.playing !== localPlaying.current;
-    if (ownUrl) {
-      const seek = force || drift > 2 ? want : undefined;
-      const rate = !p.playing || seek != null || drift < 0.3 ? 1 : diff < 0 ? 1.08 : 0.92;
-      if (seek == null && !playChange && rate === rateRef.current) return;
-      rateRef.current = rate;
-      window.dispatchEvent(new CustomEvent("as:player-cmd", { detail: { seconds: seek, play: p.playing, rate } }));
-      localPlaying.current = p.playing;
-      if (seek != null) localTime.current = seek;
-      return;
-    }
-    const seek = force || drift > 2.5 ? want : undefined;
-    if (seek == null && !playChange) return;
-    if (kodikUrl) {
-      kodikSuppress.current = Date.now() + 1500;
-      if (seek != null) kodik.seek(seek);
-      if (p.playing) kodik.play();
-      else kodik.pause();
-    }
+    const seek = force || drift > 2 ? want : undefined;
+    const rate = !p.playing || seek != null || drift < 0.3 ? 1 : diff < 0 ? 1.08 : 0.92;
+    if (seek == null && !playChange && rate === rateRef.current) return;
+    rateRef.current = rate;
+    window.dispatchEvent(new CustomEvent("as:player-cmd", { detail: { seconds: seek, play: p.playing, rate } }));
     localPlaying.current = p.playing;
     if (seek != null) localTime.current = seek;
-  }, [joined, expected, ownUrl, kodikUrl, kodik]);
+  }, [joined, expected, ownUrl]);
 
   useEffect(() => {
     align();
@@ -362,11 +327,6 @@ function PartyRoom({ code }: { code: string }) {
     if (next) void apiRequest(`/party/${code}/playback`, { method: "POST", body: { animeId: next.anime.id, episode: 1, playing: true, position: 0 } }).catch(() => undefined);
   };
 
-  const kodikNet = useSpeedProbe(Boolean(kodikUrl) && joined);
-  useEffect(() => {
-    if (kodikNet.length) reportNet(kodikNet[kodikNet.length - 1]!);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kodikNet.length]);
 
   // ---- leaving: asked first (the host's leaving closes the room for everyone)
   const blocker = useBlocker(({ currentLocation, nextLocation }) => !closedRef.current && joined && currentLocation.pathname !== nextLocation.pathname);
@@ -390,10 +350,9 @@ function PartyRoom({ code }: { code: string }) {
 
   onEndedRef.current = onEpisodeEnd;
   const total = useMemo(() => {
-    const s = watch?.sources.find((x) => x.format === "hls");
-    const fromOwn = s?.hlsEpisodes ? Math.max(0, ...Object.keys(s.hlsEpisodes).map(Number)) : 0;
-    return Math.max(1, fromOwn, party?.anime.episodes ?? 0, episode);
-  }, [watch, party, episode]);
+    const available = watch?.sources.flatMap((source) => Object.keys(source.hlsEpisodes ?? source.mediaEpisodes ?? {}).map(Number)) ?? [];
+    return available.length ? Math.max(1, ...available) : Math.max(1, episode);
+  }, [watch, episode]);
   total0.current = total;
 
   if (closed) {
@@ -492,13 +451,18 @@ function PartyRoom({ code }: { code: string }) {
           )}
           {ownUrl && own ? (
             <CustomHlsPlayer
+              format={own.format === "mp4" ? "mp4" : "hls"}
               key={ownUrl}
               src={ownUrl}
+              mediaTitle={`${title} · Серия ${episode}`}
+              resumeFrom={expected()}
+              resumeExact
+              onRefreshSource={refreshSources}
               variants={own.hlsVariants?.[String(episode)] ?? null}
               skin="shadow"
               isWinner={joined}
-              onReady={() => undefined}
-              onFailed={() => setOwnFailed(true)}
+              onReady={() => align(true)}
+              onFailed={() => setFailedSources((failed) => [...new Set([...failed, own.id])])}
               onTime={(t) => (localTime.current = t)}
               onUserAction={(a) => report(a.type, a.time)}
               onBuffering={onBuffering}
@@ -506,19 +470,11 @@ function PartyRoom({ code }: { code: string }) {
               onAhead={onAhead}
               onEnded={() => onEndedRef.current()}
             />
-          ) : kodikUrl ? (
-            <iframe
-              key={kodikUrl}
-              ref={setFrame}
-              src={kodikUrl}
-              title={title}
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-              referrerPolicy="no-referrer"
-              className="absolute inset-0 size-full"
-            />
           ) : (
-            <div className="absolute inset-0 grid place-items-center text-sm text-white/70">
-              {watch ? "Для этой серии нет плеера" : <Loader2Icon className="size-6 animate-spin" />}
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-white/70">
+              {watch ? "Для этой серии сейчас нет доступного потока" : <Loader2Icon className="size-6 animate-spin" />}
+              {watch && <button type="button" className="rounded-lg bg-primary px-3 py-2 text-primary-foreground"
+                onClick={() => void refreshSources().then(() => setFailedSources([])).catch(() => toast.error("Не получилось обновить потоки"))}>Повторить загрузку</button>}
             </div>
           )}
 
@@ -546,7 +502,6 @@ function PartyRoom({ code }: { code: string }) {
               onClick={() => {
                 setJoined(true);
                 localPlaying.current = false;
-                kodikSuppress.current = Date.now() + 3000;
               }}
               className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/55 text-white"
             >
@@ -561,7 +516,6 @@ function PartyRoom({ code }: { code: string }) {
           )}
         </div>
 
-        {kodikUrl && joined && <NetPanel history={kodikNet} />}
 
         {/* Reactions. */}
         <div className="flex flex-wrap items-center gap-1.5">

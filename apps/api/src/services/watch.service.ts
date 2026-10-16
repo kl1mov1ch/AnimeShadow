@@ -1,15 +1,17 @@
 import { Prisma, type PrismaClient } from "@animeshadow/db";
 import {
   type KodikClient,
-  resolveDirectSources as kodikDirectSources,
   toWatchSources as kodikToSources,
-  withDirectSources,
 } from "@animeshadow/kodik";
 import type { AllohaClient, AllohaResult } from "@animeshadow/alloha";
 import { type AniLibriaClient, bestEpisodeUrl } from "@animeshadow/anilibria";
 import type { WatchResponse, WatchSource } from "@animeshadow/shared";
 import { TtlCache } from "../lib/cache.js";
 import { withTimeout } from "../lib/timeout.js";
+import type { DirectSources } from "./direct-sources.js";
+import { KodikStreams, kodikCustomSource } from "./kodik-streams.js";
+import { NotFoundError, UpstreamUnavailableError } from "../lib/errors.js";
+import { AnimeVostSources } from "./animevost-sources.js";
 
 interface WatchLogger {
   warn: (obj: unknown, msg?: string) => void;
@@ -22,8 +24,7 @@ export interface WatchServiceDeps {
   alloha: AllohaClient;
   anilibria: AniLibriaClient;
   embedTemplate?: string | undefined;
-  /** Passed straight to the direct-source adapter; absent on every ordinary deployment. */
-  kodikDirectToken?: string | undefined;
+  directSources?: Pick<DirectSources, "getSources" | "invalidate">;
   logger: WatchLogger;
 }
 
@@ -158,8 +159,11 @@ export class WatchService {
   private readonly alloha: AllohaClient;
   private readonly anilibria: AniLibriaClient;
   private readonly embedTemplate?: string;
-  private readonly kodikDirectToken?: string;
+  private readonly kodikStreams = new KodikStreams();
+  private readonly animevost: AnimeVostSources;
   private readonly logger: WatchLogger;
+  private readonly directSources: Pick<DirectSources, "getSources" | "invalidate"> | undefined;
+  private readonly refreshCache = new TtlCache<WatchResponse>(30_000, 512);
   private readonly cache = new TtlCache<WatchResponse>(30 * 60_000, 512);
   // Anime ids currently being refreshed in the background — so a stale
   // cache hit doesn't fire a duplicate full re-resolve on every request that
@@ -168,19 +172,124 @@ export class WatchService {
 
   constructor(deps: WatchServiceDeps) {
     this.prisma = deps.prisma;
+    this.animevost = new AnimeVostSources(deps.prisma, deps.logger);
     this.kodik = deps.kodik;
     this.alloha = deps.alloha;
     this.anilibria = deps.anilibria;
     this.embedTemplate = deps.embedTemplate;
-    this.kodikDirectToken = deps.kodikDirectToken;
     this.logger = deps.logger;
+    this.directSources = deps.directSources;
   }
 
   async getSources(malId: number): Promise<WatchResponse> {
-    return this.cache.wrap(String(malId), async () => {
+    const vostRequest = this.animevost.getSources(malId);
+    let basePending = true;
+    const baseRequest = this.cache.wrap(String(malId), async () => {
       const cached = await this.readCached(malId);
       if (cached) return cached;
       return this.resolveAndPersist(malId);
+    }).finally(() => { basePending = false; });
+    // A cold/slow catalogue provider must not hold a ready alternative hostage.
+    // The shared lookup continues; the client briefly polls sourcesPending.
+    const [base, direct] = await Promise.all([
+      withTimeout<WatchResponse>(baseRequest, 1200, { available: false, reason: "provider_error", provider: null, sources: [] }),
+      this.directSources?.getSources(malId) ?? Promise.resolve([]),
+    ]);
+    const vost = await withTimeout(vostRequest, base.available ? 500 : 5000, []);
+    if (!base.available || base.reason === "provider_error") this.cache.delete(String(malId));
+    // Signed feeds have their own short cache and never enter the 3-day DB cache.
+    const custom = base.sources.flatMap((source) => {
+      if (source.format === "hls") return [source];
+      if (keyOf(source.id).provider !== "kodik") return [];
+      const mapped = kodikCustomSource(malId, source);
+      return mapped ? [mapped] : [];
+    });
+    const vostPublic = vost.map((source) => ({ ...source, mediaEpisodes: Object.fromEntries(
+      Object.keys(source.mediaEpisodes ?? {}).map((episode) => [episode,
+        `/api/anime/${malId}/streams/animevost/${keyOf(source.id).sourceKey}/${episode}/video.mp4`]),
+    ) }));
+    const sources = sortByStability([...direct, ...custom, ...vostPublic]);
+    if (vost.length && custom.length === 0) {
+      await this.prisma.watchAvailability.updateMany({ where: { animeId: malId }, data: { hasPlayer: true, hasCustomPlayer: true } });
+    }
+    return { sourcesPending: basePending || this.animevost.pending(malId), available: sources.length > 0,
+      reason: sources.length > 0 ? "ok" : base.reason === "provider_error" ? "provider_error" : "not_found",
+      provider: sources[0]?.id.split(":")[0] ?? null, sources };
+  }
+
+  /** Refresh the site's source list first, then confirm a newly available playlist. */
+  async getAnimeVostStream(malId: number, releaseId: string, episode: number): Promise<string> {
+    const sources = await this.animevost.getSources(malId);
+    const url = sources.find((source) => source.id === `animevost:${releaseId}`)?.mediaEpisodes?.[String(episode)];
+    if (!url) throw new NotFoundError("Поток этой серии не найден.");
+    return url;
+  }
+
+  async latestPlayableEpisode(malId: number, after: number): Promise<number | null> {
+    const response = await this.refreshSources(malId);
+    const episodes = [...new Set(response.sources.flatMap((source) => Object.keys(source.hlsEpisodes ?? source.mediaEpisodes ?? {}).map(Number)))]
+      .filter((ep) => Number.isInteger(ep) && ep > after && ep > 0).sort((a, b) => b - a);
+    if (!response.available) return after < 0 && response.reason === "not_found" && !response.sourcesPending ? 0 : null;
+    for (const episode of episodes.slice(0, 3)) {
+      for (const source of response.sources) {
+        let url = (source.hlsEpisodes ?? source.mediaEpisodes)?.[String(episode)];
+        if (!url) continue;
+        try {
+          if (keyOf(source.id).provider === "kodik") {
+            const { variants } = await this.getKodikStreams(malId, keyOf(source.id).sourceKey, episode);
+            url = Object.values(variants)[0];
+          } else if (keyOf(source.id).provider === "animevost") {
+            url = await this.getAnimeVostStream(malId, keyOf(source.id).sourceKey, episode);
+          }
+          if (!url || !url.startsWith("https://")) continue;
+          if (source.format === "mp4") {
+            const video = await fetch(url, { headers: { Range: "bytes=0-1023" }, signal: AbortSignal.timeout(6000), redirect: "error" });
+            void video.body?.cancel();
+            if (video.ok && video.headers.get("content-type")?.startsWith("video/")) return episode;
+            continue;
+          }
+          const playlist = await fetch(url, { signal: AbortSignal.timeout(6000) });
+          const body = await playlist.text();
+          if (playlist.ok && body.trimStart().startsWith("#EXTM3U")) return episode;
+        } catch { /* Another studio/provider may already have this episode. */ }
+      }
+    }
+    return null;
+  }
+
+  /** Lookup by stored identity, never by a caller-supplied upstream URL. */
+  async getKodikStreams(malId: number, translationId: string, episode: number) {
+    let row = await this.prisma.playerSource.findUnique({
+      where: { animeId_provider_sourceKey: { animeId: malId, provider: "kodik", sourceKey: translationId } },
+    });
+    if (!row) {
+      await this.getSources(malId);
+      row = await this.prisma.playerSource.findUnique({
+        where: { animeId_provider_sourceKey: { animeId: malId, provider: "kodik", sourceKey: translationId } },
+      });
+    }
+    if (!row) throw new NotFoundError("Озвучка не найдена.");
+    const episodes = row.iframeEpisodes as WatchSource["iframeEpisodes"];
+    const link = episodes?.[String(episode)]?.url ??
+      (episode === 1 && (!episodes || Object.keys(episodes).length === 0) ? row.embedUrl : null);
+    if (!link) throw new NotFoundError("Этой серии нет в выбранной озвучке.");
+    try {
+      return await this.kodikStreams.resolve(link);
+    } catch {
+      this.logger.warn({ malId, translationId, episode }, "kodik stream unavailable");
+      throw new UpstreamUnavailableError("Источник временно не отдаёт поток. Попробуйте другую озвучку или повторите загрузку.");
+    }
+  }
+
+  /** Explicit recovery refresh; coalesced and limited to one per title / 30s. */
+  async refreshSources(malId: number): Promise<WatchResponse> {
+    return this.refreshCache.wrap(String(malId), async () => {
+      this.kodikStreams.invalidate();
+      const base = await this.resolveAndPersist(malId);
+      this.cache.set(String(malId), base);
+      this.directSources?.invalidate(malId);
+      this.animevost.invalidate(malId);
+      return this.getSources(malId);
     });
   }
 
@@ -243,6 +352,9 @@ export class WatchService {
     }
 
     if (!availability.hasPlayer) {
+      // A title can gain its first episode today; a negative lookup must
+      // not hide it for the normal three-day positive-cache lifetime.
+      if (Date.now() - availability.checkedAt.getTime() > 10 * 60_000) return null;
       return { available: false, reason: "not_found", provider: null, sources: [] };
     }
     const rows = await this.prisma.playerSource.findMany({
@@ -374,27 +486,6 @@ export class WatchService {
     await Promise.all(
       Array.from({ length: Math.min(PROBE_CONCURRENCY, sources.length) }, worker),
     );
-  }
-
-  /**
-   * The direct-source adapter, asked politely and never allowed to break a
-   * resolve. Without a licensed credential it answers immediately with
-   * nothing, so this costs one function call per source in the normal case.
-   */
-  private async kodikDirect(
-    kodikId: string,
-    translationId: string,
-    quiet: boolean,
-  ): Promise<Awaited<ReturnType<typeof kodikDirectSources>>> {
-    try {
-      return await kodikDirectSources(
-        { kodikId, translationId, episode: 1 },
-        { accessToken: this.kodikDirectToken },
-      );
-    } catch (error) {
-      if (!quiet) this.logger.warn({ error, kodikId }, "kodik direct source failed");
-      return [];
-    }
   }
 
   /** Alloha's payload turned into our source rows — shared by both call sites below. */
@@ -545,12 +636,9 @@ export class WatchService {
         const kp = Number(group.primary.kinopoisk_id);
         if (Number.isInteger(kp) && kp > 0) kinopoiskId = kp;
         for (const s of kodikToSources(group)) {
-          // Prefer a direct stream over the embed whenever the provider
-          // grants us one; today it never does (see the adapter's own
-          // notes) and the iframe source passes through unchanged, which is
-          // the intended fallback rather than a failure.
-          const direct = await this.kodikDirect(group.primary.id, s.id, quiet);
-          sources.push(withDirectSources(s, direct));
+          // Keep provider episode addresses internally. getSources exposes
+          // stable HLS endpoints; signed links are resolved on demand.
+          sources.push(s);
         }
         if (sources.length > 0) provider = "kodik";
       }
@@ -616,6 +704,7 @@ export class WatchService {
       }
     }
 
+    if (kodikFailed && sources.length === 0) return { available: false, reason: "provider_error", provider: null, sources: [] };
     await this.persist(malId, kinopoiskId, provider, sources);
 
     if (sources.length === 0) {
@@ -667,7 +756,8 @@ export class WatchService {
     // only AniLibria's HLS) — independent of which provider `rankSource`
     // happens to pick as the default, and independent of `provider` above
     // (which only ever records whichever provider resolved *first*).
-    const hasCustomPlayer = sources.some((s) => s.format === "hls");
+    const hasCustomPlayer = sources.some((s) => s.format === "hls" ||
+      (keyOf(s.id).provider === "kodik" && kodikCustomSource(malId, s) != null));
     await Promise.all([
       kinopoiskId != null
         ? this.prisma.anime

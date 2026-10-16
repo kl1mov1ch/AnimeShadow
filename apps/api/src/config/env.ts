@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
+import { directProvidersSchema } from "../services/direct-sources.js";
 
 // The repo-root .env is shared by docker compose, Prisma and this server.
 loadDotenv({ path: resolve(process.cwd(), "../../.env") });
@@ -35,7 +36,7 @@ const envSchema = z.object({
   // Shikimori asks for a descriptive User-Agent identifying your app.
   SHIKIMORI_USER_AGENT: z
     .string()
-    .default("AnimeShadow/1.0 (anime catalogue app)"),
+    .default("AnimeShadow/1.0 (anime catalogue app)"),
   ANIME_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
 
   // TEMPORARY: unlock every PRO feature for all users during open testing.
@@ -63,11 +64,12 @@ const envSchema = z.object({
   KODIK_API_BASE: z.string().url().default("https://kodik-api.com"),
   ALLOHA_TOKEN: z.string().default("45e20a5f584becf7a64dffb7174ddf"),
   WATCH_EMBED_TEMPLATE: z.string().optional(),
-  // A licensed Kodik direct-source credential, if this deployment has been
-  // granted one. Server-only, never forwarded to the browser; unset (the
-  // normal case) means Kodik plays in its own embed, which is the only way
-  // its public API permits. See packages/kodik/src/direct.ts.
-  KODIK_DIRECT_TOKEN: z.string().optional(),
+  WATCH_DIRECT_PROVIDERS: z.string().default("[]").transform((value, context) => {
+    try { return JSON.parse(value) as unknown; } catch {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Expected JSON provider array" });
+      return z.NEVER;
+    }
+  }).pipe(directProvidersSchema),
   // Warm the watch-availability cache for the N most popular cached titles on boot.
   WATCH_WARM_LIMIT: z.coerce.number().int().nonnegative().default(120),
   /** How often the warm pass repeats. 0 disables the repeat (boot pass only),
@@ -153,6 +155,8 @@ const envSchema = z.object({
     z.string().optional(),
   ),
   EMAIL_FROM: z.string().default("AnimeShadow <onboarding@resend.dev>"),
+  // Temporary signup mode: restore the code flow by setting this to true.
+  EMAIL_VERIFICATION_REQUIRED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   // Public origin of the web app, for the one-click links inside emails.
   APP_URL: z
     .string()

@@ -73,9 +73,14 @@ export async function resolveAllowAdult(
 export function contentGuardWhere(allowAdult: boolean): Prisma.AnimeWhereInput {
   const blockedPrefixes = allowAdult ? ["rx"] : ["rx", "r+"];
   return {
-    AND: blockedPrefixes.map((prefix) => ({
-      NOT: { rating: { startsWith: prefix, mode: "insensitive" as const } },
-    })),
+    // SQL NOT ILIKE also excludes NULL. List imports have no rating yet;
+    // match filterAdultSummaries, which accepts those censored upstream rows.
+    OR: [
+      { rating: null },
+      { AND: blockedPrefixes.map((prefix) => ({
+        NOT: { rating: { startsWith: prefix, mode: "insensitive" as const } },
+      })) },
+    ],
   };
 }
 

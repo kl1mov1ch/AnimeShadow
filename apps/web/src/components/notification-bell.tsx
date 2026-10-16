@@ -1,5 +1,5 @@
 import type { AppNotification } from "@animeshadow/shared";
-import { BellIcon, CheckCheckIcon, PlayIcon } from "lucide-react";
+import { BellIcon, CheckCheckIcon, PlayIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import {
   useMarkNotificationsRead,
   useNotifications,
   useUnreadNotifications,
+  useDeleteNotifications,
 } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,9 @@ function ago(iso: string): string {
 /** One line: poster, title, which episodes, when — unread ones marked. */
 export function NotificationRow({ n, onOpen, className }: { n: AppNotification; onOpen?: () => void; className?: string }) {
   const mark = useMarkNotificationsRead();
+  const remove = useDeleteNotifications();
   return (
+    <div className={cn("flex min-w-0 items-center rounded-xl", !n.read && "bg-primary/[0.08]", className)}>
     <Link
       to={notificationHref(n)}
       onClick={() => {
@@ -36,9 +39,7 @@ export function NotificationRow({ n, onOpen, className }: { n: AppNotification; 
         onOpen?.();
       }}
       className={cn(
-        "group flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-foreground/[0.06]",
-        !n.read && "bg-primary/[0.08]",
-        className,
+        "group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-foreground/[0.06]",
       )}
     >
       <span className="relative h-14 w-10 shrink-0 overflow-hidden rounded-lg bg-muted">
@@ -54,6 +55,12 @@ export function NotificationRow({ n, onOpen, className }: { n: AppNotification; 
       </span>
       {!n.read && <span className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" aria-label="Новое" />}
     </Link>
+      <button type="button" aria-label={`Удалить уведомление: ${n.anime.titleLocalized || n.anime.title}`} disabled={remove.isPending}
+        onClick={() => remove.mutate(n.id, { onError: () => toast.error("Не получилось удалить уведомление") })}
+        className="mr-1 grid size-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:opacity-40 sm:size-9">
+        <XIcon className="size-4" />
+      </button>
+    </div>
   );
 }
 
@@ -66,6 +73,7 @@ export function NotificationBell({ className }: { className?: string }) {
   const { status, user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const remove = useDeleteNotifications();
   const { data: unread = 0 } = useUnreadNotifications();
   const { data } = useNotifications(open);
   const mark = useMarkNotificationsRead();
@@ -110,8 +118,8 @@ export function NotificationBell({ className }: { className?: string }) {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
-        <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3.5 py-2.5">
+      <PopoverContent align="end" sideOffset={8} collisionPadding={12} className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(24rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3.5 py-3">
           <p className="text-sm font-semibold">Новые серии</p>
           {unread > 0 && (
             <button
@@ -124,20 +132,25 @@ export function NotificationBell({ className }: { className?: string }) {
             </button>
           )}
         </div>
-        <div className="max-h-[min(26rem,70dvh)] overflow-y-auto p-1.5">
+        <div className="max-h-[min(26rem,60dvh)] min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1.5">
           {items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
               <BellIcon className="size-6 text-muted-foreground" />
               <p className="text-sm font-medium">Пока тихо</p>
               <p className="text-xs text-muted-foreground">
-                Когда выйдет серия аниме из «Смотрю», «В планах» или «Отложено», она появится здесь.
+                Когда новая серия появится для просмотра на сайте, она появится здесь. Следим за аниме из «Смотрю», «В планах» и «Отложено».
               </p>
             </div>
           ) : (
             items.map((n) => <NotificationRow key={n.id} n={n} onOpen={() => setOpen(false)} />)
           )}
         </div>
-        <div className="grid grid-cols-2 border-t border-border/60 text-xs font-medium text-muted-foreground">
+        {items.length > 0 && <button type="button" disabled={remove.isPending}
+          onClick={() => remove.mutate(undefined, { onError: () => toast.error("Не получилось очистить уведомления") })}
+          className="flex w-full shrink-0 items-center justify-center gap-2 border-t border-border/60 px-3 py-2.5 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40">
+          <Trash2Icon className="size-3.5" /> Очистить уведомления
+        </button>}
+        <div className="grid shrink-0 grid-cols-2 border-t border-border/60 text-xs font-medium text-muted-foreground">
           <Link
             to="/library#new-episodes"
             onClick={() => setOpen(false)}

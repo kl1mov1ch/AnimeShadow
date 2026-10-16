@@ -96,11 +96,11 @@ try {
   if (env.KODIK_CATALOG_SYNC) {
     setTimeout(() => void app.services.kodikSync.runScheduled(), 120_000).unref();
     setInterval(() => void app.services.kodikSync.runScheduled(), 6 * 60 * 60_000).unref();
-    // New episodes, every twenty minutes: two requests to Kodik.
-    setTimeout(() => void inBackground(() => app.services.kodikSync.checkNewEpisodes()), 90_000).unref();
-    setInterval(() => void inBackground(() => app.services.kodikSync.checkNewEpisodes()), 20 * 60_000).unref();
     setInterval(() => void app.services.notifications.prune().catch(() => 0), 24 * 60 * 60_000).unref();
   }
+  // A date in a broadcast calendar does not mean the episode can play here.
+  setTimeout(() => void inBackground(() => app.services.episodeAvailability.check()), 90_000).unref();
+  setInterval(() => void inBackground(() => app.services.episodeAvailability.check()), 5 * 60_000).unref();
   // The Telegram bot's chats (/start with a link code, /stop): read by long
   // polling, starting well after a deploy's trial run on the spare port has
   // been stopped — Telegram lets only one copy read.

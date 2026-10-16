@@ -365,13 +365,23 @@ export function useFrameSearch() {
 }
 
 export function useWatchSources(id: number, enabled = true) {
-  return useQuery({
+  const client = useQueryClient();
+  const query = useQuery<WatchResponse>({
     queryKey: queryKeys.watch(id),
+    refetchInterval: (query) => query.state.data?.sourcesPending ? 2000 : false,
     enabled,
     queryFn: ({ signal }) =>
       apiRequest<WatchResponse>(`/anime/${id}/watch`, { signal }),
-    staleTime: 15 * 60_000,
+    staleTime: 30_000,
   });
+  return {
+    ...query,
+    refreshSources: async () => {
+      const fresh = await apiRequest<WatchResponse>(`/anime/${id}/watch?refresh=1`, { signal: AbortSignal.timeout(20_000) });
+      client.setQueryData(queryKeys.watch(id), fresh);
+      return fresh;
+    },
+  };
 }
 
 export function useLibrary(status?: LibraryStatus, enabled = true) {

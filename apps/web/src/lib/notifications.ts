@@ -37,9 +37,17 @@ export function useMarkNotificationsRead() {
   });
 }
 
+export function useDeleteNotifications() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id?: string) => apiRequest<{ deleted: number }>(`/me/notifications${id ? `/${encodeURIComponent(id)}` : ""}`, { method: "DELETE" }),
+    onSuccess: () => { void client.invalidateQueries({ queryKey: ["notifications"] }); },
+  });
+}
+
 /** "Вышла 12 серия" / "Вышли серии 11–12". */
 export function episodeLine(n: Pick<AppNotification, "episode" | "fromEpisode">): string {
-  return n.fromEpisode != null ? `Вышли серии ${n.fromEpisode}–${n.episode}` : `Вышла ${n.episode} серия`;
+  return n.fromEpisode != null ? `Доступны серии ${n.fromEpisode}–${n.episode}` : `Доступна ${n.episode} серия`;
 }
 
 /** Where a notification leads: the title, on the first new episode. */

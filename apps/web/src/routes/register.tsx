@@ -13,6 +13,7 @@ import {
   TextInput,
 } from "@/components/auth/auth-card";
 import { PasswordStrength } from "@/components/auth/password-strength";
+import { CodeInput } from "@/components/auth/code-input";
 import { ConsentCheck } from "@/components/legal/consent";
 import { TelegramLoginButton } from "@/components/auth/telegram-login-button";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,17 +22,37 @@ import { ApiRequestError } from "@/lib/api";
 import { isTelegramLoginSupported, type TelegramAuthData } from "@/lib/telegram-auth";
 import { readReferral, useReferralCheck } from "@/lib/referral";
 import { getFirstTouchReferrer } from "@/lib/visitor";
+import { forgetReferral } from "@/lib/referral";
 
 type FieldName = "displayName" | "email" | "password";
 type Errors = Partial<Record<FieldName | "form", string>>;
 
 export function Component() {
   const t = useT();
-  const { requestRegistration, loginWithTelegram } = useAuth();
+  const { requestRegistration, confirmRegistration, loginWithTelegram } = useAuth();
   const navigate = useNavigate();
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
   const [password, setPassword] = useState("");
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [needsEmailCode, setNeedsEmailCode] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
+  const confirm = async (value: string) => {
+    if (!pendingEmail || confirming) return;
+    setConfirming(true);
+    setCodeError(undefined);
+    try {
+      await confirmRegistration(pendingEmail, value, password || undefined);
+      forgetReferral();
+      toast.success("Аккаунт создан!");
+      navigate("/library", { replace: true });
+    } catch (error) {
+      setCodeError(error instanceof ApiRequestError ? error.message : t("auth.genericError"));
+      setCode("");
+    } finally { setConfirming(false); }
+  };
   // The consent box — required for both ways in (form and Telegram).
   const [accepted, setAccepted] = useState(false);
   const [consentMissing, setConsentMissing] = useState(false);
@@ -86,11 +107,20 @@ export function Component() {
     setErrors({});
     setPending(true);
     try {
-      await requestRegistration(parsed.data);
-      toast.success("Почти готово!", { description: `Код подтверждения отправлен на ${parsed.data.email}` });
-      // No account exists yet and nobody's signed in — the code just
-      // emailed is what actually creates it. See AuthService.confirmRegistration.
-      navigate("/verify-email", { state: { email: parsed.data.email }, replace: true });
+      const signedIn = await requestRegistration(parsed.data);
+      if (signedIn) {
+        setPendingEmail(null);
+        setNeedsEmailCode(false);
+        forgetReferral();
+        toast.success("Аккаунт создан!");
+        navigate("/library", { replace: true });
+        return;
+      }
+      setPendingEmail(parsed.data.email);
+      setNeedsEmailCode(true);
+      setCode("");
+      setCodeError(undefined);
+      toast.success("Письмо отправлено", { description: "Подтверждение доступно здесь, на странице регистрации." });
     } catch (error) {
       if (error instanceof ApiRequestError) {
         setErrors({
@@ -225,6 +255,19 @@ export function Component() {
 
         <SubmitButton pending={pending}>{t("auth.registerCta")}</SubmitButton>
       </form>
+
+      {needsEmailCode && pendingEmail && (
+        <section aria-label="Подтверждение почты" className="mt-5 flex flex-col gap-3 rounded-xl border border-border bg-secondary/30 p-4">
+          <p role="status" className="text-sm text-muted-foreground">Письмо с кодом отправлено на <span className="font-medium text-foreground">{pendingEmail}</span>. Страница регистрации остаётся открытой.</p>
+          <details>
+            <summary className="cursor-pointer text-sm font-medium text-primary">Ввести код подтверждения</summary>
+            <div className="mt-4 flex flex-col gap-3">
+              <CodeInput value={code} onChange={setCode} onComplete={confirm} disabled={confirming} {...(codeError ? { error: codeError } : {})} />
+              <Link to="/verify-email" state={{ email: pendingEmail }} className="text-center text-xs text-muted-foreground underline underline-offset-4">Отправить код повторно или открыть подтверждение отдельно</Link>
+            </div>
+          </details>
+        </section>
+      )}
 
       {isTelegramLoginSupported() && (
         <>

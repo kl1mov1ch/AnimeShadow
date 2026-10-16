@@ -51,3 +51,5 @@ logs/
 # push keys made by the API on first start (see delivery.service.ts)
 apps/api/data/
 data/vapid.json
+packages/db/.catalog-import.json
+packages/db/.catalog-import.json.tmp

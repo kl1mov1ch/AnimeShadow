@@ -267,7 +267,7 @@ function AnimeDetailView({ param }: { param: string }) {
     // The site's own colour, not the cover's. Taking each title's dominant
     // colour made every anime page a different palette — pale cream on one,
     // teal on the next — and none of them looked like the rest of the site.
-    <article className="relative isolate flex flex-col gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10">
+    <article className="relative isolate flex min-w-0 flex-col gap-5 sm:gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10">
       <TitleHeader
         // The widescreen banner is decoration behind the header, and one of
         // the largest images on the page. On a slow link the header keeps its
@@ -280,10 +280,10 @@ function AnimeDetailView({ param }: { param: string }) {
             It sits a little higher than the text column from sm up and
             crosses the panel's top edge, which is what stops it reading as
             a stray thumbnail parked in the bottom-left corner. */}
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
+        <div className="grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-start gap-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
           {/* The poster leads, at a size worth looking at. Everything else
               is a column beside it that wraps under on a phone. */}
-          <div className="group mx-auto w-36 shrink-0 overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 transition-all duration-300 hover:-translate-y-1 hover:ring-[var(--accent-line)] sm:mx-0 sm:w-44 lg:w-48">
+          <div className="group w-full overflow-hidden rounded-xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 sm:rounded-2xl">
             <PosterImage src={poster} title={title} seed={data.id} />
           </div>
 
@@ -297,7 +297,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   18+
                 </span>
               )}
-              <h1 className="line-clamp-3 font-display text-2xl leading-tight text-foreground sm:text-3xl lg:text-4xl">
+              <h1 className="break-words font-display text-xl leading-tight text-foreground sm:text-3xl lg:text-4xl">
                 {title}
               </h1>
               {(japaneseTitle || originalTitle) && (
@@ -314,7 +314,7 @@ function AnimeDetailView({ param }: { param: string }) {
               {heroMeta.map(({ icon: Icon, value, hint }) => (
                 <Tooltip key={hint}>
                   <TooltipTrigger asChild>
-                    <span className="flex cursor-default items-center gap-1.5 transition-colors hover:text-foreground">
+                    <span className="flex min-w-0 cursor-default items-center gap-1.5 transition-colors hover:text-foreground">
                       <Icon className="size-3.5 text-[var(--accent-ink)]" />
                       {value}
                     </span>
@@ -340,7 +340,7 @@ function AnimeDetailView({ param }: { param: string }) {
             )}
 
             {data.synopsis && (
-              <p className="line-clamp-4 max-w-3xl text-sm leading-relaxed text-foreground/80">
+              <p className="hidden max-w-3xl text-sm leading-relaxed text-foreground/80 sm:line-clamp-3">
                 {data.synopsis}
               </p>
             )}
@@ -384,7 +384,7 @@ function AnimeDetailView({ param }: { param: string }) {
                 a second one; the list control itself stays where it always
                 was, on the bar above the player, so there is exactly one of
                 it on the page. */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="-ml-24 flex flex-wrap items-center gap-2 pt-2 sm:ml-0 sm:pt-1">
               <Button asChild size="lg">
                 <a
                   href="#watch"
@@ -410,6 +410,12 @@ function AnimeDetailView({ param }: { param: string }) {
         </div>
       </TitleHeader>
 
+      <nav aria-label="Разделы аниме" className="flex min-w-0 gap-1 overflow-x-auto border-b border-border/60 pb-2 text-sm [scrollbar-width:none]">
+        {[["watch", "Смотреть"], ["about", "Об аниме"], ["characters", "Персонажи"], ["discussion", "Обсуждение"]].map(([id, label]) => (
+          <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">{label}</a>
+        ))}
+      </nav>
+
       {/* Flat sections, not one slab with everything nested inside it.
           Each of these is a thing someone came for, so each gets its own
           card and its own heading rather than being a row inside the
@@ -422,7 +428,7 @@ function AnimeDetailView({ param }: { param: string }) {
         id="watch"
         icon={MonitorPlayIcon}
         title={t("detail.sections.watch")}
-        className="max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0"
+        className="min-w-0 max-sm:p-2.5"
       >
         <WatchSection
           anime={data}
@@ -445,9 +451,9 @@ function AnimeDetailView({ param }: { param: string }) {
 
       {/* Everything below the player loads when it's about to be seen —
           its requests included — not all at once when the page opens. */}
-      <WhenNear>
+      <div id="characters" className="min-w-0 scroll-mt-20"><WhenNear>
         <CharactersPanelM animeId={data.id} />
-      </WhenNear>
+      </WhenNear></div>
 
       <WhenNear minHeight={200}>
         <FranchisePanelM anime={data} />
@@ -457,11 +463,11 @@ function AnimeDetailView({ param }: { param: string }) {
         <RelatedSectionM anime={data} />
       </WhenNear>
 
-      <WhenNear minHeight={400}>
+      <div id="discussion" className="min-w-0 scroll-mt-20"><WhenNear minHeight={400}>
         <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
           <CommentsSectionM animeId={data.id} />
         </Panel>
-      </WhenNear>
+      </WhenNear></div>
 
       <WhenNear minHeight={200}>
         <AnimeFaq anime={data} title={title} />
@@ -531,7 +537,7 @@ function TitleHeader({
       {/* Contained to the same width as everything below it, even though
           the art behind it runs edge to edge — the text column lines up
           with the page, only the picture is wider than it. */}
-      <div className="relative mx-auto flex w-full max-w-[1400px] flex-col gap-3 px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
+      <div className="relative mx-auto flex w-full min-w-0 max-w-[1400px] flex-col gap-3 px-4 py-6 sm:px-6 sm:py-8 lg:py-10">
         {children}
       </div>
     </div>
@@ -557,7 +563,7 @@ function Panel({
     <section
       id={id}
       className={cn(
-        "relative flex scroll-mt-20 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5",
+        "relative flex min-w-0 scroll-mt-20 flex-col gap-3 overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4 sm:p-5",
         // Off-screen panels aren't laid out or painted until scrolled near.
         // Not the player's: skipping it would throttle the embed mid-episode.
         id !== "watch" && "cv-auto",
@@ -731,12 +737,12 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
   const hasFrames = (frames.data?.length ?? 0) > 0;
   const watchTime = hasWatchTime(anime);
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
+    <div id="about" className="grid min-w-0 scroll-mt-20 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       {/* Two columns on a wide screen: the description beside the frames,
           the facts beside the viewers' marks. Whatever is missing, its
           neighbour takes the whole row — no empty cells. */}
-      <div className="order-2 grid min-w-0 gap-4 lg:order-1 xl:grid-cols-2">
-        <div className={cn("min-w-0 [&>*]:h-full", !hasFrames && "xl:col-span-2")}>
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className="min-w-0">
           <AboutBlockM anime={anime} oneLiner={oneLiner} />
         </div>
         {hasFrames && (
@@ -744,25 +750,16 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
             <FramesPanel frames={frames.data!} title={title} />
           </div>
         )}
-        <div className={cn("min-w-0 [&>*]:h-full", !audience && "xl:col-span-2")}>
-          <InfoSidebarM anime={anime} className="justify-between" />
-        </div>
         {audience && (
           <div className="min-w-0 [&>*]:h-full">
             <AudiencePanel animeId={anime.id} />
           </div>
         )}
       </div>
-      {/* Without the watch-time card the list card alone can't fill a tall
-          column, so between lg and xl it rides along as you scroll instead. */}
-      <aside
-        className={cn(
-          "order-1 flex min-w-0 flex-col gap-4 lg:order-2",
-          !watchTime && "lg:sticky lg:top-20 lg:self-start xl:static xl:self-stretch",
-        )}
-      >
-        <TitleTracker anime={anime} title={title} className={watchTime ? undefined : "xl:flex-1"} />
-        {watchTime && <WatchTimeCard anime={anime} className="flex-1" />}
+      <aside className="flex min-w-0 flex-col gap-4">
+        <TitleTracker anime={anime} title={title} />
+        <InfoSidebarM anime={anime} />
+        {watchTime && <WatchTimeCard anime={anime} />}
       </aside>
     </div>
   );

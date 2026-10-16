@@ -7,6 +7,8 @@ import { contentGuardWhere, resolveAllowAdult } from "../lib/content-guard.js";
 import { NotFoundError } from "../lib/errors.js";
 import { fetchSkipTimes } from "../lib/skip-times.js";
 import { parse } from "../lib/validation.js";
+import { kodikMasterPlaylist } from "../services/kodik-streams.js";
+import { sendAnimeVostVideo } from "../lib/video-response.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const slugParams = z.object({ slug: z.string().min(1).max(120) });
@@ -242,8 +244,37 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     return fetchSkipTimes(id, episode);
   });
 
-  fastify.get("/anime/:id/watch", async (request) => {
+  fastify.get("/anime/:id/watch", async (request, reply) => {
+    reply.header("cache-control", "private, no-store");
     const { id } = parse(idParams, request.params);
-    return slimWatch(await watch.getSources(id));
+    const { refresh } = parse(z.object({ refresh: z.literal("1").optional() }), request.query);
+    return slimWatch(await (refresh ? watch.refreshSources(id) : watch.getSources(id)));
+  });
+
+  fastify.get("/anime/:id/streams/kodik/:translationId/:episode/master.m3u8", {
+    config: { rateLimit: { max: 90, timeWindow: "1 minute" } },
+    preHandler: fastify.optionalAuth,
+  }, async (request, reply) => {
+    const { id, translationId, episode } = parse(z.object({
+      id: z.coerce.number().int().positive(), translationId: z.string().regex(/^\d{1,12}$/),
+      episode: z.coerce.number().int().min(1).max(10000),
+    }), request.params);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+    const title = await fastify.prisma.anime.findFirst({ where: { id, ...contentGuardWhere(allowAdult) }, select: { id: true } });
+    if (!title) throw new NotFoundError("Аниме не найдено.");
+    const { variants } = await watch.getKodikStreams(id, translationId, episode);
+    reply.header("cache-control", "private, no-store");
+    return reply.type("application/vnd.apple.mpegurl").send(kodikMasterPlaylist(variants));
+  });
+
+  fastify.get("/anime/:id/streams/animevost/:releaseId/:episode/video.mp4", {
+    config: { rateLimit: { max: 240, timeWindow: "1 minute" } }, preHandler: fastify.optionalAuth,
+  }, async (request, reply) => {
+    const { id, releaseId, episode } = parse(z.object({ id: z.coerce.number().int().positive(),
+      releaseId: z.string().regex(/^\d{1,12}$/), episode: z.coerce.number().int().min(1).max(10000) }), request.params);
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+    const title = await fastify.prisma.anime.findFirst({ where: { id, ...contentGuardWhere(allowAdult) }, select: { id: true } });
+    if (!title) throw new NotFoundError("Аниме не найдено.");
+    return sendAnimeVostVideo(request, reply, await watch.getAnimeVostStream(id, releaseId, episode));
   });
 };

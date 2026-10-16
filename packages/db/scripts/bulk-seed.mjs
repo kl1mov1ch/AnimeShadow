@@ -1,89 +1,110 @@
-// Expand the catalogue far beyond the ~200 titles the initial seed pulls in.
-// Shikimori's list endpoint (unlike detail) carries no genre data, but it
-// does carry title/poster/score/type/year -- enough for browse, search-by-
-// title, and trending. Genre backfill is a separate, slower pass (see
-// heal-genres.mjs) so this stays fast and light on the API.
-//
-// Why this pages the way it does
-// ------------------------------
-// It used to split the target three ways across order=popularity, ranked and
-// id, twenty pages each. Popularity and ranked return very nearly the same
-// titles -- the most popular anime are the highest rated -- so two thirds of
-// every run was spent re-upserting rows the other ordering had already
-// fetched. Asking for 3000 landed somewhere near 2700 unique, and asking for
-// 10000 would not have got much further, because the ceiling was the overlap
-// and not the target.
-//
-// order=id enumerates the whole catalogue with no overlap at all, so that is
-// what the deep paging runs on. Popularity still gets a short pass first, so
-// a run that is interrupted early has the titles anyone would actually look
-// for rather than whatever happens to hold the lowest ids.
+// Resumable additive import: existing detail, art and user collections stay intact.
+import { readFile, writeFile, rename } from "node:fs/promises";
 import { ShikimoriClient, toAnimeSummary } from "@animeshadow/shikimori";
-import { persistAnimeSummaries, prisma } from "../dist/index.js";
+import { prisma, toAnimeListRow } from "../dist/index.js";
 
+const target = Number(process.env.BULK_SEED_TARGET ?? 20000);
+if (!Number.isSafeInteger(target) || target < 1 || target > 100000) throw new Error("BULK_SEED_TARGET must be 1–100000");
+const checkpoint = new URL("../.catalog-import.json", import.meta.url);
+const temporary = new URL("../.catalog-import.json.tmp", import.meta.url);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const shiki = new ShikimoriClient({
   baseUrl: process.env.SHIKIMORI_BASE_URL ?? "https://shikimori.io",
-  userAgent: process.env.SHIKIMORI_USER_AGENT ?? "AnimeShadow/1.0 (bulk seed)",
+  userAgent: process.env.SHIKIMORI_USER_AGENT ?? "AnimeShadow/1.0 (catalogue import)",
+  minIntervalMs: 800,
 });
 
-const TARGET = Number(process.env.BULK_SEED_TARGET ?? 3000);
-const PAGE_SIZE = 50; // Shikimori's max page size
-// Shikimori refuses page numbers past this, whatever the ordering.
-const MAX_PAGE = 100_000 / PAGE_SIZE;
-// Enough popular titles to make the catalogue useful immediately.
-const POPULAR_PAGES = 12;
-
-let touched = 0;
-
-/** True when the catalogue has reached the target. */
-async function reachedTarget() {
-  return (await prisma.anime.count()) >= TARGET;
-}
-
-async function pageThrough(order, maxPages, { stopWhenTargetMet = true } = {}) {
-  console.log(`-- order=${order} --`);
-  for (let page = 1; page <= maxPages; page++) {
-    let list;
-    try {
-      list = await shiki.listAnimes({ order, limit: PAGE_SIZE, page });
-    } catch (error) {
-      console.warn(`  page ${page}: request failed (${error.message}), skipping`);
-      continue;
-    }
-    if (list.length === 0) {
-      console.log(`  page ${page}: empty, end of this order`);
-      return;
-    }
-    await persistAnimeSummaries(list.map(toAnimeSummary));
-    touched += list.length;
-
-    // Counting rows is the only honest progress figure: "seen" counts
-    // duplicates, which is exactly what made the old script look like it had
-    // fetched a thousand more titles than it had.
-    if (page % 10 === 0 || page === 1) {
-      const have = await prisma.anime.count();
-      console.log(`  page ${page}: +${list.length} (catalogue now ${have})`);
-      if (stopWhenTargetMet && have >= TARGET) {
-        console.log(`  target ${TARGET} reached`);
-        return;
-      }
-    }
+async function loadCheckpoint() {
+  try {
+    const saved = JSON.parse(await readFile(checkpoint, "utf8"));
+    if (saved.version !== 1 || ![saved.shikimori, saved.jikan].every((page) => Number.isInteger(page) && page >= 1)) throw new Error("Invalid catalogue checkpoint");
+    return saved;
+  } catch (error) {
+    if (error.code === "ENOENT") return { version: 1, shikimori: 1, jikan: 1 };
+    throw error;
   }
 }
 
-await pageThrough("popularity", POPULAR_PAGES, { stopWhenTargetMet: true });
-
-if (!(await reachedTarget())) {
-  // The deep pass. Pages needed is bounded by the target rather than fixed,
-  // and the run stops the moment the catalogue is big enough.
-  await pageThrough("id", Math.min(MAX_PAGE, Math.ceil(TARGET / PAGE_SIZE) + 40));
+async function jikanPage(page) {
+  const url = new URL("https://api.jikan.moe/v4/anime");
+  url.search = new URLSearchParams({ page: String(page), limit: "25", order_by: "mal_id", sort: "asc", sfw: "true" }).toString();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await sleep(1100);
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+      if (!response.ok) {
+        const retryAfter = Number(response.headers.get("retry-after"));
+        void response.body?.cancel();
+        if (response.status === 429 && attempt < 3) {
+          await sleep(Math.min(60_000, Math.max(5_000, (retryAfter || 10) * 1000)));
+          continue;
+        }
+        throw new Error(`Jikan HTTP ${response.status}`);
+      }
+      const body = await response.json();
+      if (!Array.isArray(body.data)) throw new Error("Jikan returned an invalid page");
+      return {
+        more: body.pagination?.has_next_page === true,
+        items: body.data.filter((item) => Number.isInteger(item.mal_id) && item.mal_id > 0 && !/^rx/i.test(item.rating ?? "")).map((item) => ({
+          ...toAnimeSummary({
+            id: item.mal_id, name: item.title, russian: null,
+            english: item.title_english ? [item.title_english] : [],
+            japanese: item.title_japanese ? [item.title_japanese] : [],
+            image: { original: item.images?.webp?.large_image_url ?? item.images?.jpg?.large_image_url, preview: item.images?.webp?.image_url ?? item.images?.jpg?.image_url },
+            kind: item.type?.toLowerCase(),
+            status: item.airing ? "ongoing" : item.status === "Not yet aired" ? "anons" : "released",
+            episodes: item.episodes, score: String(item.score ?? ""),
+            aired_on: item.aired?.from, description: item.synopsis,
+            genres: [], rates_statuses_stats: [{ value: item.members ?? 0 }],
+          }),
+          rating: item.rating ?? null,
+        })),
+      };
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await sleep(2000 * 2 ** attempt);
+    }
+  }
+  throw new Error("Jikan retry budget exhausted");
 }
 
-const total = await prisma.anime.count();
-const missingImage = await prisma.anime.count({ where: { imageUrl: null } });
-const missingGenres = await prisma.anime.count({ where: { genres: { none: {} } } });
-console.log(
-  `done: ${touched} rows touched, catalogue now has ${total} anime total ` +
-    `(${missingImage} missing posters, ${missingGenres} missing genres -- run heal scripts next)`,
-);
-await prisma.$disconnect();
+async function run() {
+  const state = await loadCheckpoint();
+  const before = await prisma.anime.count();
+  let total = before;
+  console.log(`Catalogue: ${total} unique titles; target: ${target}`);
+  for (const provider of ["shikimori", "jikan"]) {
+    while (total < target) {
+      const page = state[provider];
+      let result;
+      try {
+        result = provider === "shikimori"
+          ? await shiki.listAnimes({ order: "id", limit: 50, page, censored: true }).then((items) => ({ items: items.map(toAnimeSummary), more: items.length === 50 }))
+          : await jikanPage(page);
+      } catch (error) {
+        console.warn(`${provider} page ${page}: ${error.message}. Checkpoint kept.`);
+        break;
+      }
+      const unique = [...new Map(result.items.map((item) => [item.id, item])).values()];
+      const existing = new Set((await prisma.anime.findMany({ where: { id: { in: unique.map((item) => item.id) } }, select: { id: true } })).map((row) => row.id));
+      const missing = unique.filter((item) => !existing.has(item.id));
+      const batch = missing.slice(0, target - total);
+      if (batch.length) await prisma.anime.createMany({
+        data: batch.map((item) => ({ ...toAnimeListRow(item), rating: item.rating ?? null })),
+        skipDuplicates: true,
+      });
+      total = await prisma.anime.count();
+      state[provider] = batch.length < missing.length || !result.more ? page : page + 1;
+      await writeFile(temporary, JSON.stringify(state, null, 2) + "\n");
+      await rename(temporary, checkpoint);
+      console.log(`${provider} page ${page}: +${batch.length}; ${total}/${target}`);
+      if (!result.more) break;
+    }
+  }
+  console.log(`Finished: ${total} unique titles (${total - before} added). Target ${target}: ${total >= target ? "reached" : "not reached"}.`);
+  if (total < target) process.exitCode = 2;
+}
+
+try { await run(); }
+catch (error) { console.error(error.message); process.exitCode = 1; }
+finally { await prisma.$disconnect(); }

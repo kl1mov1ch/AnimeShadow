@@ -31,9 +31,8 @@ interface AuthContextValue {
   status: AuthStatus;
   user: PublicUser | null;
   login: (input: LoginInput) => Promise<void>;
-  /** Step 1 of signup — emails a code. No session changes: nobody is
-   * created or signed in until `confirmRegistration` succeeds. */
-  requestRegistration: (input: RegisterInput) => Promise<void>;
+  /** Returns true when direct signup created a session; false when a code is required. */
+  requestRegistration: (input: RegisterInput) => Promise<boolean>;
   /** Step 2 — the code was right, the account now actually exists, and this
    * applies the session exactly like `login` does. */
   /** `password`: only when the server asks for it (PASSWORD_REQUIRED) —
@@ -149,11 +148,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const requestRegistration = useCallback(async (input: RegisterInput) => {
-    // 202 — no session yet, only the ticket that binds the emailed code to
-    // these details in this browser. See AuthService.requestRegistration.
-    const res = await apiRequest<{ ticket?: string } | undefined>("/auth/register", { method: "POST", body: input });
-    if (res?.ticket) writeSignupTicket(input.email, res.ticket);
-  }, []);
+    // Both temporary direct signup (201) and the optional code flow (202).
+    const res = await apiRequest<AuthResponse | { ticket: string }>("/auth/register", { method: "POST", body: input });
+    if ("token" in res) {
+      writeSignupTicket(input.email, null);
+      applySession({ v: 1, token: res.token, user: res.user });
+      return true;
+    }
+    writeSignupTicket(input.email, res.ticket);
+    return false;
+  }, [applySession]);
 
   const confirmRegistration = useCallback(
     async (email: string, code: string, password?: string) => {
@@ -211,7 +215,7 @@ const FALLBACK_AUTH: AuthContextValue = {
   status: "anonymous",
   user: null,
   login: async () => {},
-  requestRegistration: async () => {},
+  requestRegistration: async () => false,
   confirmRegistration: async () => {},
   loginWithTelegram: async () => {},
   logout: () => {},

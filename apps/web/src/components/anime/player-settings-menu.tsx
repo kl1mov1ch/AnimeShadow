@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, ContrastIcon, DropletIcon, EyeIcon, GaugeIcon, PaletteIcon, RotateCcwIcon, RotateCwIcon, SunIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ContrastIcon, DropletIcon, EyeIcon, GaugeIcon, PaletteIcon, RotateCcwIcon, RotateCwIcon, SunIcon, Volume2Icon, CaptionsIcon } from "lucide-react";
 import { forwardRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useIsPro } from "@/components/promo/promo-offer";
@@ -18,10 +18,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export type QualityChoice =
-  | { options: Array<{ value: string; label: string }>; value: string; onPick: (value: string) => void }
+  | { options: Array<{ value: string; label: string }>; value: string; onPick: (value: string) => void; description?: string | undefined }
   | { note: string; /** The one quality there is, when known ("720p"). */ current?: string };
 
-export type SettingsPage = "main" | "quality" | "speed" | "step" | "picture";
+export type TrackChoice = { options: Array<{ value: number; label: string }>; value: number; onPick: (value: number) => void };
+export type SettingsPage = "main" | "quality" | "speed" | "step" | "picture" | "audio" | "subtitles";
 
 /**
  * The player's settings — quality, speed, how far a skip jumps — as a small
@@ -42,13 +43,15 @@ export const PlayerSettingsMenu = forwardRef<
     step: number;
     onStep: (seconds: number) => void;
     quality: QualityChoice;
+    audio?: TrackChoice | undefined;
+    subtitles?: TrackChoice | undefined;
     /** The list it opens on — the quality button opens straight on quality. */
     initialPage?: SettingsPage;
     /** A choice made: the panel has done its job. */
     onClose: () => void;
     className?: string;
   }
->(function PlayerSettingsMenu({ speed, onSpeed, step, onStep, quality, initialPage = "main", onClose, className }, ref) {
+>(function PlayerSettingsMenu({ speed, onSpeed, step, onStep, quality, audio, subtitles, initialPage = "main", onClose, className }, ref) {
   const t = useT();
   const [page, setPage] = useState<SettingsPage>(initialPage);
   const { picture } = usePlayerSettings();
@@ -84,6 +87,16 @@ export const PlayerSettingsMenu = forwardRef<
             value={speed === 1 ? t("watch.ctl.speedNormal") : speedLabel(speed)}
             onClick={() => setPage("speed")}
           />
+          {audio && audio.options.length > 1 && (
+            <Row icon={<Volume2Icon className="size-4" />} label="Аудиодорожка"
+              value={audio.options.find((option) => option.value === audio.value)?.label ?? "Авто"}
+              onClick={() => setPage("audio")} />
+          )}
+          {subtitles && subtitles.options.length > 1 && (
+            <Row icon={<CaptionsIcon className="size-4" />} label="Субтитры"
+              value={subtitles.options.find((option) => option.value === subtitles.value)?.label ?? "Выключены"}
+              onClick={() => setPage("subtitles")} />
+          )}
           <Row
             icon={<RotateCwIcon className="size-4" />}
             label={t("watch.ctl.step")}
@@ -108,23 +121,38 @@ export const PlayerSettingsMenu = forwardRef<
             className="flex h-10 shrink-0 items-center gap-1.5 border-b border-white/10 px-2.5 text-sm font-medium transition-colors hover:bg-white/[0.06]"
           >
             <ChevronLeftIcon className="size-4 text-white/60" />
-            {page === "quality" ? t("watch.ctl.quality") : page === "speed" ? t("watch.ctl.speed") : page === "picture" ? "Картинка" : t("watch.ctl.step")}
+            {page === "audio" ? "Аудиодорожка" : page === "subtitles" ? "Субтитры" : page === "quality" ? t("watch.ctl.quality") : page === "speed" ? t("watch.ctl.speed") : page === "picture" ? "Картинка" : t("watch.ctl.step")}
           </button>
           <div className="min-h-0 overflow-y-auto overscroll-contain p-1.5">
+            {(page === "audio" || page === "subtitles") && (() => {
+              const choice = page === "audio" ? audio : subtitles;
+              return choice ? (
+                <div className="flex flex-col gap-1">
+                  {choice.options.map((option) => (
+                    <Chip key={option.value} active={option.value === choice.value} onClick={() => pick(() => choice.onPick(option.value))}>
+                      {option.label}
+                    </Chip>
+                  ))}
+                </div>
+              ) : null;
+            })()}
             {page === "quality" &&
               ("note" in quality ? (
                 <p className="px-2 py-2 text-xs leading-snug text-white/60">{quality.note}</p>
               ) : (
-                <div className="grid grid-cols-2 gap-1">
-                  {quality.options.map((option) => (
-                    <Chip
-                      key={option.value}
-                      active={option.value === quality.value}
-                      onClick={() => pick(() => quality.onPick(option.value))}
-                    >
-                      {option.label}
-                    </Chip>
-                  ))}
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-1">
+                    {quality.options.map((option) => (
+                      <Chip
+                        key={option.value}
+                        active={option.value === quality.value}
+                        onClick={() => pick(() => quality.onPick(option.value))}
+                      >
+                        {option.label}
+                      </Chip>
+                    ))}
+                  </div>
+                  {quality.description && <p className="px-2 py-1 text-xs leading-snug text-white/60">{quality.description}</p>}
                 </div>
               ))}
             {page === "speed" && (
@@ -172,7 +200,7 @@ function Row({
     >
       <span className="grid w-5 shrink-0 place-items-center text-white/70">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="shrink-0 text-xs tabular-nums text-white/60">{value}</span>
+      <span className="max-w-[45%] truncate text-xs tabular-nums text-white/60" title={value}>{value}</span>
       <ChevronRightIcon className="size-4 shrink-0 text-white/40" />
     </button>
   );

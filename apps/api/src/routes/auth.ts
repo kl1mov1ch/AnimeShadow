@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 import type { FastifyPluginAsync } from "fastify";
 import { parse } from "../lib/validation.js";
+import { env } from "../config/env.js";
 
 /** Per-IP caps for endpoints that take a password or a 6-digit code — far
  * tighter than the global limit in app.ts, which alone allows brute force. */
@@ -30,6 +31,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/auth/register", strict(10, 15), async (request, reply) => {
     const input = parse(registerInputSchema, request.body);
+    if (!env.EMAIL_VERIFICATION_REQUIRED) {
+      const user = await auth.registerWithoutVerification(input);
+      reply.code(201);
+      return { token: await issueToken(user.id), user };
+    }
     // No token, nobody's signed in yet — only the ticket that binds the
     // emailed code to these details (see AuthService.requestRegistration).
     const { ticket } = await auth.requestRegistration(input);

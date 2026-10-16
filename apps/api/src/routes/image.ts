@@ -26,6 +26,7 @@ const ALLOWED_HOSTS = [
   "img.anili.st",
   "media.kitsu.app",
   "media.kitsu.io",
+  "media.animetop.info",
 ];
 
 /** Upstream fetches at once. A page of posters used to fire them all together,
@@ -392,8 +393,7 @@ export const imageRoutes: FastifyPluginAsync = async (fastify) => {
           if (wm) out = await watermark(out);
           if (width) {
             out = await sharp(out, { failOn: "none" })
-              .resize({ width, withoutEnlargement: true })
-              [jpg ? "jpeg" : "webp"](jpg ? { quality: 82, mozjpeg: true } : { quality: 72 })
+              .resize({ width, withoutEnlargement: true })[jpg ? "jpeg" : "webp"](jpg ? { quality: 82, mozjpeg: true } : { quality: 72 })
               .toBuffer();
           }
           buf = out;

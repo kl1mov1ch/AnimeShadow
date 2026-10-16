@@ -38,9 +38,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         // action button all wear it, so the eye lands on what happened and
         // what to do. Sonner's own layout is left alone, so nothing shifts.
         classNames: {
-          toast: "toast-card !rounded-2xl !items-center !gap-3 !py-3.5 !pl-4 !pr-3.5",
-          title: "!text-[13.5px] !font-semibold !leading-snug",
-          description: "!text-xs !text-muted-foreground",
+          toast: "toast-card !max-w-[calc(100vw-1.5rem)] !flex-wrap !rounded-2xl !items-center !gap-3 !py-3.5 !pl-4 !pr-3.5 [&>[data-content]]:min-w-0 [&>[data-content]]:flex-1",
+          title: "!break-words !text-[13.5px] !font-semibold !leading-snug",
+          description: "!break-words !text-xs !text-muted-foreground",
           // The mark sizes itself; the slot only centres it.
           icon: "!m-0 !size-9 !shrink-0 !flex !items-center !justify-center",
           actionButton: "toast-action !h-8 !rounded-lg !px-3 !text-xs !font-bold",
@@ -53,6 +53,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          "--width": "min(356px, calc(100vw - 24px))",
         } as React.CSSProperties
       }
       {...props}

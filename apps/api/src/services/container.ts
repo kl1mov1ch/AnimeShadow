@@ -3,6 +3,7 @@ import { PartyService } from "./party.service.js";
 import { ScheduleService } from "./schedule.service.js";
 import { DeliveryService } from "./delivery.service.js";
 import { NotificationService } from "./notification.service.js";
+import { EpisodeAvailabilityService } from "./episode-availability.service.js";
 import { isBackground } from "../lib/priority.js";
 import { AniLibriaClient } from "@animeshadow/anilibria";
 import { AniListClient } from "@animeshadow/anilist";
@@ -48,6 +49,7 @@ import {
   MyMemoryTranslator,
 } from "./translator.js";
 import { WatchService } from "./watch.service.js";
+import { DirectSources, type DirectProvider } from "./direct-sources.js";
 
 export interface ContainerDeps {
   prisma: PrismaClient;
@@ -61,7 +63,7 @@ export interface ContainerDeps {
     kodikBase: string;
     allohaToken: string;
     embedTemplate?: string | undefined;
-    kodikDirectToken?: string | undefined;
+    directProviders?: DirectProvider[];
   };
   telegramBotToken?: string | undefined;
   telegramPolling?: boolean;
@@ -105,6 +107,7 @@ export interface Services {
   landing: LandingService;
   kodikSync: KodikCatalogSync;
   notifications: NotificationService;
+  episodeAvailability: EpisodeAvailabilityService;
   delivery: DeliveryService;
   schedule: ScheduleService;
   party: PartyService;
@@ -208,7 +211,7 @@ export function createServices(deps: ContainerDeps): Services {
     alloha,
     anilibria,
     embedTemplate: deps.watch.embedTemplate,
-    kodikDirectToken: deps.watch.kodikDirectToken,
+    directSources: new DirectSources(deps.watch.directProviders ?? [], deps.logger),
     logger: deps.logger,
   });
 
@@ -305,10 +308,11 @@ export function createServices(deps: ContainerDeps): Services {
     adminPrisma,
     landing,
     notifications,
+    episodeAvailability: new EpisodeAvailabilityService(deps.prisma, watch, notifications, deps.logger),
     delivery,
     schedule,
     party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs")),
-    kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger, notifications }),
+    kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing, catalog }),
   };

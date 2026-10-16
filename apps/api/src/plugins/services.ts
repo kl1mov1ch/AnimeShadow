@@ -28,7 +28,7 @@ export default fp(
         kodikBase: env.KODIK_API_BASE,
         allohaToken: env.ALLOHA_TOKEN,
         embedTemplate: env.WATCH_EMBED_TEMPLATE,
-        kodikDirectToken: env.KODIK_DIRECT_TOKEN,
+        directProviders: env.WATCH_DIRECT_PROVIDERS,
       },
       telegramBotToken: env.TELEGRAM_BOT_TOKEN,
       telegramPolling: env.TELEGRAM_BOT_POLLING ?? env.NODE_ENV === "production",

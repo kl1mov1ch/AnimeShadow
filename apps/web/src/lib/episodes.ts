@@ -75,7 +75,7 @@ export function episodesOf(source: WatchSource): Set<number> | null {
   const keys =
     source.format === "hls"
       ? Object.keys(source.hlsEpisodes ?? {})
-      : Object.keys(source.iframeEpisodes ?? {});
+      : source.format === "mp4" ? Object.keys(source.mediaEpisodes ?? {}) : Object.keys(source.iframeEpisodes ?? {});
   if (keys.length > 0) {
     return new Set(keys.map(Number).filter((n) => Number.isInteger(n) && n > 0));
   }

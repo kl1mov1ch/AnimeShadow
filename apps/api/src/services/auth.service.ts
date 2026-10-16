@@ -128,6 +128,34 @@ export class AuthService {
    * can produce a code that was sent to it — so nothing should exist, and
    * nobody should be signed in, before that happens.
    */
+  /** Temporary direct signup. An unconfirmed inbox is never marked verified. */
+  async registerWithoutVerification(input: RegisterInput): Promise<PublicUser> {
+    const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
+    if (existing) throw new ConflictError("An account with that email already exists.");
+    const [passwordHash, avatarUrl, referredById] = await Promise.all([
+      bcrypt.hash(input.password, BCRYPT_ROUNDS), defaultAvatarUrl(), referrerFor(this.prisma, input.referralCode),
+    ]);
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({ data: {
+          email: input.email, displayName: input.displayName, passwordHash, avatarUrl,
+          referralCode: newReferralCode(), ...(referredById ? { referredById } : {}),
+          referrer: input.referrer || null, termsAcceptedAt: new Date(), termsVersion: LEGAL_VERSION,
+          trialUntil: trialEnd(), ...(this.proForAll ? { proSince: new Date() } : {}),
+        } });
+        await tx.pendingRegistration.deleteMany({ where: { email: input.email } });
+        return created;
+      });
+      registrationsTotal.inc();
+      return toPublicUser(await this.ensureAdminRole(user));
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictError("An account with that email already exists.");
+      }
+      throw error;
+    }
+  }
+
   async requestRegistration(input: RegisterInput): Promise<{ ticket: string }> {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {

@@ -26,12 +26,16 @@ export class NotificationService {
 
   /** Each title's newest episode, as a source reports it. Returns how many notifications went out. */
   async observe(latest: Map<number, number>): Promise<number> {
-    const entries = [...latest].filter(([, ep]) => Number.isInteger(ep) && ep > 0);
+    const entries = [...latest].filter(([, ep]) => Number.isInteger(ep) && ep >= 0);
     if (entries.length === 0) return 0;
     const ids = entries.map(([id]) => id);
+    const { grown, data } = await this.prisma.$transaction(async (tx) => {
+    // Checks and page requests can overlap. A transaction-scoped lock makes
+    // the mark and its notifications atomic, including across API workers.
+    for (const id of [...ids].sort((a, b) => a - b)) await tx.$queryRaw`SELECT pg_advisory_xact_lock(98235, ${id}::int)::text AS locked`;
     const [marks, known] = await Promise.all([
-      this.prisma.episodeMark.findMany({ where: { animeId: { in: ids } } }),
-      this.prisma.anime.findMany({ where: { id: { in: ids } }, select: { id: true } }),
+      tx.episodeMark.findMany({ where: { animeId: { in: ids } } }),
+      tx.anime.findMany({ where: { id: { in: ids } }, select: { id: true } }),
     ]);
     const exists = new Set(known.map((a) => a.id));
     const mark = new Map(marks.map((m) => [m.animeId, m.latest]));
@@ -43,11 +47,11 @@ export class NotificationService {
       if (before == null) fresh.push({ animeId, latest: ep });
       else if (ep > before) grown.push({ animeId, from: before + 1, to: ep });
     }
-    if (fresh.length > 0) await this.prisma.episodeMark.createMany({ data: fresh, skipDuplicates: true });
-    if (grown.length === 0) return 0;
-    await this.prisma.$transaction(grown.map((g) => this.prisma.episodeMark.update({ where: { animeId: g.animeId }, data: { latest: g.to } })));
+    if (fresh.length > 0) await tx.episodeMark.createMany({ data: fresh, skipDuplicates: true });
+    if (grown.length === 0) return { grown, data: [] };
+    for (const g of grown) await tx.episodeMark.update({ where: { animeId: g.animeId }, data: { latest: g.to } });
 
-    const listeners = await this.prisma.libraryEntry.findMany({
+    const listeners = await tx.libraryEntry.findMany({
       where: { animeId: { in: grown.map((g) => g.animeId) }, status: { in: [...LISTENING] } },
       select: { userId: true, animeId: true },
     });
@@ -56,7 +60,10 @@ export class NotificationService {
       const g = byAnime.get(l.animeId)!;
       return { userId: l.userId, animeId: l.animeId, episode: g.to, fromEpisode: g.from < g.to ? g.from : null };
     });
-    if (data.length > 0) await this.prisma.notification.createMany({ data, skipDuplicates: true });
+    const created = data.length > 0 ? await tx.notification.createManyAndReturn({ data, skipDuplicates: true }) : [];
+    return { grown, data: created };
+    });
+    if (grown.length === 0) return 0;
     this.log.info({ titles: grown.length, sent: data.length }, "new episode notifications");
     if (this.onGrown) {
       void this.onGrown(grown).catch((error: unknown) => this.log.warn({ err: (error as Error).message }, "guest push failed"));
@@ -109,6 +116,11 @@ export class NotificationService {
       },
       data: { readAt: new Date() },
     });
+    return count;
+  }
+
+  async remove(userId: string, id?: string): Promise<number> {
+    const { count } = await this.prisma.notification.deleteMany({ where: { userId, ...(id ? { id } : {}) } });
     return count;
   }
 
