@@ -775,12 +775,12 @@ export function useVoteComment(animeId: number) {
 
 import type { ContinueWatchingItem } from "@animeshadow/shared";
 
-export function useContinueWatching(enabled = true) {
+export function useContinueWatching(enabled = true, home = false) {
   return useQuery({
-    queryKey: ["me", "continue"],
+    queryKey: ["me", "continue", home],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: ContinueWatchingItem[] }>("/me/continue", { signal }),
+      apiRequest<{ items: ContinueWatchingItem[] }>(`/me/continue${home ? "?home=1" : ""}`, { signal }),
   });
 }
 
@@ -1008,11 +1008,11 @@ export function useAdminExternalAnalytics() {
 }
 
 /** The site's own themed collections, and the one of the day. */
-export function useCuratedCollections() {
+export function useCuratedCollections(home = false) {
   return useQuery({
-    queryKey: ["collections", "curated"],
+    queryKey: ["collections", "curated", home],
     queryFn: ({ signal }) =>
-      apiRequest<{ daily: string | null; items: CuratedCollection[] }>("/collections/curated", { signal }),
+      apiRequest<{ daily: string | null; items: CuratedCollection[] }>(`/collections/curated${home ? "?home=1" : ""}`, { signal }),
     staleTime: 10 * 60_000,
   });
 }

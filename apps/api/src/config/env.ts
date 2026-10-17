@@ -13,6 +13,17 @@ const envSchema = z.object({
     .default("development"),
   API_HOST: z.string().default("0.0.0.0"),
   API_PORT: z.coerce.number().int().positive().default(4000),
+  MULENPAY_ENABLED: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+  MULENPAY_API_KEY: z.string().optional(),
+  MULENPAY_SHOP_ID: z.coerce.number().int().positive().optional(),
+  MULENPAY_SECRET_KEY: z.string().optional(),
+  // Explicit merchant prices: existing dollar prices are never silently converted.
+  MULENPAY_PRICES_RUB: z.string().default("{}").transform((value, context) => {
+    try { return JSON.parse(value) as unknown; } catch {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Expected RUB prices JSON" });
+      return z.NEVER;
+    }
+  }).pipe(z.record(z.enum(["1", "3", "12"]), z.string().regex(/^[1-9]\d{0,5}(?:\.\d{1,2})?$/))),
 
   DATABASE_URL: z.string().url("DATABASE_URL must be a valid connection string"),
 
@@ -91,6 +102,7 @@ const envSchema = z.object({
   /** ffmpeg, for the homepage hero's clips; without it there are none. */
   FFMPEG_PATH: z.string().min(1).default("ffmpeg"),
   HERO_CLIP_DIR: z.string().min(1).optional(),
+  HERO_CLIPS_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
   /** Where the hourly log digests go (see lib/log-digest.ts). */
   LOG_DIR: z.string().min(1).optional(),
   /** Days of log digests kept; older files are deleted. */

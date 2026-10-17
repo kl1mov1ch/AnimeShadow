@@ -2,6 +2,8 @@ import { z } from "zod";
 
 /** One playable variant: a dub/sub track from the embed provider. */
 export const watchSourceSchema = z.object({
+  /** Optional official embed, separate from the direct stream's own addressing. */
+  providerPlayer: z.object({ url: z.string().url(), episodes: z.record(z.string(), z.string().url()) }).optional(),
   id: z.string(),
   /** Human label, e.g. "AniLibria.TV", "Оригинал (яп.) + субтитры". */
   title: z.string(),

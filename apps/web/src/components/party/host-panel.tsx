@@ -69,7 +69,7 @@ export function HostPanel({
           <SlidersHorizontalIcon className="size-5 text-primary" />
           Управление комнатой
         </DialogTitle>
-        <DialogDescription className="-mt-1 text-xs">Видно и доступно только вам — создателю.</DialogDescription>
+        <DialogDescription className="-mt-1 text-xs">Настройки доступны ведущему комнаты.</DialogDescription>
 
         <section className="flex flex-col gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Кто видит комнату</p>

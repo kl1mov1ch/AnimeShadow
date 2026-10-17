@@ -5,6 +5,7 @@ import {
   BookmarkPlusIcon,
   ChevronRightIcon,
   PlayIcon,
+  PauseIcon,
   StarIcon,
 } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -22,6 +23,7 @@ import { animeHref, fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { HeroVideoPreview } from "@/components/home/hero-video-preview";
 
 /** How long a title stays up. */
 const SLIDE_MS = 10_000;
@@ -80,7 +82,7 @@ function framesOf(anime: AnimeDetail): string[] {
  * all at once. The time left is drawn as a line running round the current
  * title's thumbnail (on a phone, a segment filling): a CSS animation, so
  * nothing re-renders while a slide runs, and when it ends the next title
- * comes. Hovering the hero, scrolling it away or leaving the tab holds it.
+ * comes. An explicit pause, scrolling away or leaving the tab holds it.
  */
 export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const t = useT();
@@ -93,8 +95,11 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const count = slides.length;
   const [index, setIndex] = useState(0);
   const [run, setRun] = useState(0);
-  const [hovered, setHovered] = useState(false);
-  const paused = hidden || hovered || !onScreen;
+  const [stopped, setStopped] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const clockRef = useRef({ key: "", remaining: SLIDE_MS });
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const paused = hidden || stopped || previewOpen || !onScreen;
 
   // The slide that just left stays fully drawn under the new one until the
   // new one has faded in — so a switch never shows the dark page between.
@@ -116,6 +121,20 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
     const id = window.setTimeout(() => setUnder(null), 1100);
     return () => window.clearTimeout(id);
   }, [under, index]);
+
+  // A real timer also works when animations are disabled by browser settings.
+  useEffect(() => {
+    const key = `${index}:${run}`;
+    if (clockRef.current.key !== key) clockRef.current = { key, remaining: SLIDE_MS };
+    if (paused || calm || count < 2) return;
+    const clock = clockRef.current;
+    const started = performance.now();
+    const timer = setTimeout(() => go(index + 1, false), clock.remaining);
+    return () => {
+      clearTimeout(timer);
+      clock.remaining = Math.max(0, clock.remaining - (performance.now() - started));
+    };
+  }, [paused, calm, count, index, run, go]);
 
   // A swipe across the frame moves between titles on a touch screen.
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -140,13 +159,11 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         if (e.key === "ArrowLeft") go(index - 1, true);
         if (e.key === "ArrowRight") go(index + 1, true);
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       className="full-bleed relative isolate overflow-hidden border-b border-border/50 bg-background outline-none"
     >
       {/* The slide's clock: invisible, it only says when the slide is over. */}
       {count > 1 && !calm && (
-        <span key={slideKey} aria-hidden className="hero-clock" style={timing} onAnimationEnd={() => go(index + 1, false)} />
+        <span key={slideKey} aria-hidden className="hero-clock" style={timing} />
       )}
 
       <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(120%_80%_at_70%_0%,color-mix(in_srgb,var(--primary)_10%,transparent),transparent_60%)]" />
@@ -176,10 +193,16 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
               under={i === under}
               // The next title's first frame is fetched ahead, quietly.
               warm={i === (index + 1) % count}
-              paused={paused || calm}
+              paused={paused || calm || videoPlaying}
               first={i === 0}
             />
           ))}
+          <HeroVideoPreview key={current.id} animeId={current.id} visible={!hidden && onScreen && !calm && !stopped && !previewOpen} onPlayingChange={setVideoPlaying} />
+          {!calm && <button type="button" onClick={() => setStopped((v) => !v)}
+            aria-label={stopped ? "Продолжить слайдер" : "Приостановить слайдер"}
+            className="absolute right-3 top-3 z-30 grid size-9 place-items-center rounded-full border border-white/15 bg-black/40 text-white hover:bg-black/65">
+            {stopped ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
+          </button>}
           {/* The lower edge fades into the page — on a phone the title sits on it. */}
           <div
             aria-hidden
@@ -201,7 +224,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         />
 
         <div className="relative z-10 -mt-[5.75rem] flex min-w-0 flex-col gap-3.5 sm:-mt-28 lg:mt-0 lg:h-full lg:max-w-[min(34rem,46%)] lg:justify-center lg:gap-5">
-          <SlidePitch key={current.id} anime={current} title={title} />
+          <SlidePitch key={current.id} anime={current} title={title} onPreviewOpen={setPreviewOpen} />
 
           {count > 1 && (
             <>
@@ -344,7 +367,8 @@ function SlideFrames({
         on ? "z-10 opacity-100 transition-opacity duration-700 ease-out" : under ? "z-0 opacity-100" : "z-0 opacity-0",
       )}
     >
-      <FadeImg key={base} src={base} priority={first} />
+      <FadeImg key={base} src={base} priority={first}
+        fallbacks={[imageSrc(anime.bannerImage), imageSrc(fullSizeCover(anime.imageLargeUrl ?? anime.imageUrl)), imageSrc(anime.imageUrl)].filter((url): url is string => !!url)} />
       {incoming && (
         <img
           key={incoming}
@@ -362,20 +386,25 @@ function SlideFrames({
 
 /** A picture that fades in once it has loaded — never shown half-drawn; one
  *  already in the browser's cache shows at once, with no second fade. */
-function FadeImg({ src, priority }: { src: string; priority: boolean }) {
+function FadeImg({ src, priority, fallbacks }: { src: string; priority: boolean; fallbacks: string[] }) {
   const ref = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState<string[]>([]);
+  const current = [src, ...fallbacks].find((url) => !failed.includes(url));
   useLayoutEffect(() => {
-    if (ref.current?.complete && ref.current.naturalWidth > 0) setLoaded(true);
-  }, [src]);
+    setLoaded(!!ref.current?.complete && ref.current.naturalWidth > 0);
+  }, [current]);
+  if (!current) return null;
   return (
     <img
       ref={ref}
-      src={src}
+      key={current}
+      src={current}
       alt=""
       decoding="async"
       fetchPriority={priority ? "high" : "low"}
       onLoad={() => setLoaded(true)}
+      onError={() => setFailed((urls) => [...urls, current])}
       className={cn("absolute inset-0 size-full object-cover transition-opacity duration-700 ease-out", loaded ? "opacity-100" : "opacity-0")}
     />
   );
@@ -386,7 +415,7 @@ function FadeImg({ src, priority }: { src: string; priority: boolean }) {
  * height — a long name or synopsis is clamped, never pushing the hero
  * taller. Keyed on the slide by its parent, so it fades in as one piece.
  */
-function SlidePitch({ anime, title }: { anime: AnimeDetail; title: string }) {
+function SlidePitch({ anime, title, onPreviewOpen }: { anime: AnimeDetail; title: string; onPreviewOpen: (open: boolean) => void }) {
   const t = useT();
   const labels = useLabels();
   const when = labels.seasonYearLabel(anime);
@@ -428,7 +457,7 @@ function SlidePitch({ anime, title }: { anime: AnimeDetail; title: string }) {
             {t("home.heroWatch")}
           </Link>
         </Button>
-        <TrailerButton url={anime.trailerEmbedUrl} title={title} compact />
+        <TrailerButton animeId={anime.id} url={anime.trailerEmbedUrl} title={title} onOpenChange={onPreviewOpen} compact />
         <KeepButton anime={anime} title={title} />
       </div>
     </div>

@@ -14,7 +14,7 @@ interface HeadOptions {
   jsonLd?: Record<string, unknown>;
   /** Keep the page out of search results. */
   noindex?: boolean;
-  type?: "website" | "article" | "video.tv_show";
+  type?: "website" | "article" | "video.tv_show" | "video.movie";
 }
 
 function setMeta(attr: "name" | "property", key: string, value: string) {
@@ -59,20 +59,22 @@ export function useDocumentHead(opts: HeadOptions): void {
 
     const url = `${SITE}${path ?? window.location.pathname}`;
     setLink("canonical", url);
-    if (description) setMeta("name", "description", description);
+    setMeta("name", "description", description ?? "AnimeShadow — каталог аниме, озвучки и история просмотра.");
 
     setMeta("property", "og:title", title);
     setMeta("property", "og:type", type);
     setMeta("property", "og:url", url);
     setMeta("property", "og:site_name", "AnimeShadow");
-    if (description) setMeta("property", "og:description", description);
-    if (image) setMeta("property", "og:image", image);
+    setMeta("property", "og:description", description ?? "AnimeShadow — каталог аниме, озвучки и история просмотра.");
+    if (image) setMeta("property", "og:image", new URL(image, SITE).href);
+    else document.head.querySelector('meta[property="og:image"]')?.remove();
 
     setMeta("name", "robots", noindex ? "noindex, follow" : "index, follow");
     setMeta("name", "twitter:card", image ? "summary_large_image" : "summary");
     setMeta("name", "twitter:title", title);
-    if (description) setMeta("name", "twitter:description", description);
-    if (image) setMeta("name", "twitter:image", image);
+    setMeta("name", "twitter:description", description ?? "AnimeShadow — каталог аниме, озвучки и история просмотра.");
+    if (image) setMeta("name", "twitter:image", new URL(image, SITE).href);
+    else document.head.querySelector('meta[name="twitter:image"]')?.remove();
 
     let ld: HTMLScriptElement | null = null;
     if (jsonLd) {

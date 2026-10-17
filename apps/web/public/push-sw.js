@@ -15,14 +15,22 @@ self.addEventListener("push", (event) => {
     data = { title: "AnimeShadow", body: event.data ? event.data.text() : "" };
   }
   const title = data.title || "AnimeShadow";
+  const room = typeof data.tag === "string" && data.tag.startsWith("party-");
+  let target = "/";
+  try {
+    const parsed = new URL(data.url || "/", self.location.origin);
+    if (parsed.origin === self.location.origin) target = parsed.pathname + parsed.search + parsed.hash;
+  } catch { /* A malformed payload opens the home page. */ }
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
       icon: data.icon || "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      tag: data.tag || undefined,
-      renotify: Boolean(data.tag),
-      data: { url: data.url || "/" },
+      tag: room ? data.tag.replace(/-(waiting|closed)$/, "") : data.tag || undefined,
+      renotify: false,
+      timestamp: Date.now(),
+      actions: room ? [{ action: "open", title: data.tag.endsWith("closed") ? "К аниме" : "В комнату" }] : [],
+      data: { url: target },
     }),
   );
 });

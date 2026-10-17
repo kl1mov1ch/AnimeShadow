@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useLocale } from "@/i18n";
 import { apiRequest } from "@/lib/api";
 import { useWatchSources } from "@/lib/query";
+import { preferredEpisodeTitle } from "@/lib/episode-title";
 
 /** One episode as the server's episode-info endpoint describes it (Kitsu). */
 interface EpisodeText {
@@ -12,11 +13,11 @@ interface EpisodeText {
   titleJa: string | null;
   synopsis: string | null;
   thumb: string | null;
+  /** Other real stills of this same episode, if a provider's CDN fails. */
+  thumbs?: string[];
   airdate: string | null;
   length: number | null;
 }
-
-const hasLatinOnly = (text: string | null) => text != null && !/[а-яё]/i.test(text);
 
 /**
  * Titles and synopses per episode, in the viewer's language. For Russian
@@ -29,15 +30,14 @@ function useEpisodeTexts(animeId: number) {
   return useQuery({
     queryKey: ["anime", animeId, "episodes-info", locale],
     queryFn: ({ signal }) =>
-      apiRequest<{ episodes: EpisodeText[] }>(`/anime/${animeId}/episodes-info?lang=${locale}`, {
+      apiRequest<{ episodes: EpisodeText[]; pending?: boolean }>(`/anime/${animeId}/episodes-info?lang=${locale}`, {
         signal,
-      }).then((r) => r.episodes),
+      }),
     staleTime: 30 * 60_000,
     refetchInterval: (query) => {
-      if (locale !== "ru") return false;
       const data = query.state.data;
-      if (!data || query.state.dataUpdateCount > 6) return false;
-      return data.some((e) => hasLatinOnly(e.synopsis)) ? 12_000 : false;
+      if (!data?.pending || query.state.dataUpdateCount > 30) return false;
+      return 4000;
     },
   });
 }
@@ -46,6 +46,7 @@ function useEpisodeTexts(animeId: number) {
 export interface EpisodeInfo {
   /** A still of this episode — AniLibria's webp first, Kodik's jpeg second. */
   thumb: string | null;
+  thumbs?: string[];
   title: string | null;
   titleEn: string | null;
   /** What happens in it, when a provider wrote it down. */
@@ -100,7 +101,8 @@ export function episodesOf(source: WatchSource): Set<number> | null {
  */
 export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
   const { data } = useWatchSources(animeId);
-  const { data: texts } = useEpisodeTexts(animeId);
+  const { data: episodeTexts } = useEpisodeTexts(animeId);
+  const texts = episodeTexts?.episodes;
   const { locale } = useLocale();
   return useMemo(() => {
     const info = new Map<number, EpisodeInfo>();
@@ -111,6 +113,7 @@ export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
       if (!e) {
         e = {
           thumb: null,
+          thumbs: [],
           title: null,
           titleEn: null,
           synopsis: null,
@@ -138,17 +141,18 @@ export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
         const n = Number(key);
         if (!Number.isInteger(n)) continue;
         const e = entry(n);
-        e.title ??= meta.title ?? null;
+        e.title = preferredEpisodeTitle(e.title, meta.title ?? null, locale);
         e.titleEn ??= meta.titleEn ?? null;
         e.durationSeconds ??= meta.durationSeconds ?? null;
         e.opening ??= meta.opening ?? null;
-        if (meta.thumb) e.thumb = meta.thumb;
+        if (meta.thumb) { e.thumb ??= meta.thumb; e.thumbs = [...new Set([...(e.thumbs ?? []), meta.thumb])]; }
       }
       for (const [key, episode] of Object.entries(source.iframeEpisodes ?? {})) {
         const n = Number(key);
         if (!Number.isInteger(n)) continue;
         const e = entry(n);
         e.thumb ??= episode.thumbs[0] ?? null;
+        e.thumbs = [...new Set([...(e.thumbs ?? []), ...episode.thumbs])];
       }
     }
 
@@ -161,17 +165,19 @@ export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
         e.titleEn ??= e.title;
         e.title = text.title;
       } else {
-        e.title ??= text.title;
+        e.title = preferredEpisodeTitle(e.title, text.title, locale);
       }
       e.synopsis ??= text.synopsis;
       e.airdate ??= text.airdate;
       e.durationSeconds ??= text.length != null ? text.length * 60 : null;
       e.thumb ??= text.thumb;
+      if (text.thumb) e.thumbs = [...new Set([...(e.thumbs ?? []), text.thumb])];
     }
 
     return { available, info };
   }, [data, texts, locale]);
 }
+
 
 /** "24:05" / "1:02:10". */
 export function formatClock(seconds: number): string {

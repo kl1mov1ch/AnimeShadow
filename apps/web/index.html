@@ -2,7 +2,7 @@
 <html lang="ru" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
       content="AnimeShadow — смотреть аниме онлайн бесплатно: онгоинги, топ аниме, фильмы и сериалы с русской озвучкой. Каталог, свой список и прогресс по сериям."
@@ -41,11 +41,13 @@
       .boot-name { position: absolute; top: calc(50% + 62px); left: 0; right: 0; text-align: center; font: 600 13px/1 system-ui, "Segoe UI", sans-serif; letter-spacing: 0.24em; color: rgba(255, 255, 255, 0.55); text-transform: uppercase; }
       @keyframes boot-spin { to { transform: rotate(360deg); } }
       @keyframes boot-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.88); opacity: 0.7; } }
-      @media (prefers-reduced-motion: reduce) { .boot-ring, .boot-glyph { animation-duration: 3s; } }
+      @media (prefers-reduced-motion: reduce) { .boot-ring, .boot-glyph { animation: none; } }
     </style>
   </head>
   <body>
+    <!-- app-root:start -->
     <div id="root"><div class="boot" role="status" aria-label="Загрузка"><div class="boot-mark"><span class="boot-ring"></span><span class="boot-glyph">影</span></div><div class="boot-name">AnimeShadow</div></div></div>
+    <!-- app-root:end -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -16,6 +16,8 @@ import {
   usePlayerSettings,
 } from "@/lib/player-settings";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { MemberFeature } from "@/components/player/member-feature";
 
 export type QualityChoice =
   | { options: Array<{ value: string; label: string }>; value: string; onPick: (value: string) => void; description?: string | undefined }
@@ -54,6 +56,8 @@ export const PlayerSettingsMenu = forwardRef<
 >(function PlayerSettingsMenu({ speed, onSpeed, step, onStep, quality, audio, subtitles, initialPage = "main", onClose, className }, ref) {
   const t = useT();
   const [page, setPage] = useState<SettingsPage>(initialPage);
+  const { status } = useAuth();
+  const member = status === "authenticated";
   const { picture } = usePlayerSettings();
 
   const qualityNow =
@@ -81,12 +85,12 @@ export const PlayerSettingsMenu = forwardRef<
             value={qualityNow ?? ("note" in quality ? quality.current : undefined) ?? "—"}
             onClick={() => setPage("quality")}
           />
-          <Row
+          {member ? <Row
             icon={<GaugeIcon className="size-4" />}
             label={t("watch.ctl.speed")}
             value={speed === 1 ? t("watch.ctl.speedNormal") : speedLabel(speed)}
             onClick={() => setPage("speed")}
-          />
+          /> : <MemberFeature label={t("watch.ctl.speed")} />}
           {audio && audio.options.length > 1 && (
             <Row icon={<Volume2Icon className="size-4" />} label="Аудиодорожка"
               value={audio.options.find((option) => option.value === audio.value)?.label ?? "Авто"}
@@ -97,12 +101,12 @@ export const PlayerSettingsMenu = forwardRef<
               value={subtitles.options.find((option) => option.value === subtitles.value)?.label ?? "Выключены"}
               onClick={() => setPage("subtitles")} />
           )}
-          <Row
+          {member ? <Row
             icon={<RotateCwIcon className="size-4" />}
             label={t("watch.ctl.step")}
             value={t("watch.ctl.stepValue", { n: step })}
             onClick={() => setPage("step")}
-          />
+          /> : <MemberFeature label={t("watch.ctl.step")} />}
           <Row
             icon={<PaletteIcon className="size-4" />}
             label="Картинка"
@@ -155,7 +159,7 @@ export const PlayerSettingsMenu = forwardRef<
                   {quality.description && <p className="px-2 py-1 text-xs leading-snug text-white/60">{quality.description}</p>}
                 </div>
               ))}
-            {page === "speed" && (
+            {page === "speed" && member && (
               <div className="grid grid-cols-4 gap-1">
                 {SPEEDS.map((rate) => (
                   <Chip key={rate} active={rate === speed} onClick={() => pick(() => onSpeed(rate))}>
@@ -165,7 +169,7 @@ export const PlayerSettingsMenu = forwardRef<
               </div>
             )}
             {page === "picture" && <PicturePanel picture={picture} />}
-            {page === "step" && (
+            {page === "step" && member && (
               <div className="grid grid-cols-5 gap-1">
                 {SKIP_STEPS.map((n) => (
                   <Chip key={n} active={n === step} onClick={() => pick(() => onStep(n))}>

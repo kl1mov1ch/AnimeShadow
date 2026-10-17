@@ -1,6 +1,7 @@
 import { GaugeIcon, WifiIcon, WifiOffIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { NEEDED_MBPS } from "@/components/player/net-stats";
+import { requiredMbps } from "@/lib/stream-health";
+import { qualityName } from "@/lib/player-quality";
 import { cn } from "@/lib/utils";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -45,13 +46,13 @@ export function useSpeedProbe(enabled: boolean): number[] {
  * Under Kodik's player (which can't show it itself): the line now, what 720p
  * needs, whether it's enough, and a little graph of the last measurements.
  */
-export function NetPanel({ history }: { history: number[] }) {
+export function NetPanel({ history, height = null, bitrate = null, playbackRate = 1 }: { history: number[]; height?: number | null; bitrate?: number | null; playbackRate?: number }) {
   const speed = history.length ? history[history.length - 1]! : null;
-  const need = NEEDED_MBPS[720]!;
-  const state = speed == null ? "unknown" : speed >= need * 1.5 ? "good" : speed >= NEEDED_MBPS[480]! ? "tight" : "short";
+  const need = requiredMbps(height, bitrate, playbackRate);
+  const state = speed == null || need == null ? "unknown" : speed >= need * 1.5 ? "good" : speed >= need ? "tight" : "short";
   const tone = { good: "text-emerald-400", tight: "text-amber-400", short: "text-rose-400", unknown: "text-muted-foreground" }[state];
-  const label = { good: "Хватает для 720p и выше", tight: "Впритык — выберите 480p в плеере, если тормозит", short: "Слабый интернет — поставьте 360–480p в плеере", unknown: "Меряем скорость…" }[state];
-  const max = Math.max(need * 1.4, ...history, 1);
+  const label = { good: "Хватает для выбранного потока", tight: "Впритык — при остановках снизьте качество", short: "Слабый интернет — снизьте качество или подождите загрузки", unknown: "Собираем данные потока…" }[state];
+  const max = Math.max((need ?? 0) * 1.4, ...history, 1);
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 px-3 py-2.5">
       <span className="flex items-center gap-2">
@@ -60,7 +61,7 @@ export function NetPanel({ history }: { history: number[] }) {
         <span className="text-xs text-muted-foreground">Мбит/с</span>
       </span>
       <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="h-6 w-24" aria-hidden>
-        <line x1="0" x2="100" y1={24 - (need / max) * 24} y2={24 - (need / max) * 24} stroke="rgb(251 191 36 / 0.6)" strokeDasharray="3 2" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        {need != null && <line x1="0" x2="100" y1={24 - (need / max) * 24} y2={24 - (need / max) * 24} stroke="rgb(251 191 36 / 0.6)" strokeDasharray="3 2" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
         {history.length > 1 && (
           <polyline
             fill="none"
@@ -74,7 +75,7 @@ export function NetPanel({ history }: { history: number[] }) {
       </svg>
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
         <GaugeIcon className="size-3.5" />
-        720p нужно ~{need} Мбит/с
+        {height ? `${qualityName(height)} · ` : ""}{need != null ? `нужно ~${need.toFixed(1)} Мбит/с` : "Битрейт пока неизвестен"}
       </span>
       <span className={cn("text-xs font-medium sm:ml-auto", tone)}>{label}</span>
     </div>

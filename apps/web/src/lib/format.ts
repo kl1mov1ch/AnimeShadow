@@ -27,7 +27,7 @@ export function genreHref(name: string): string {
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const PROXY_HOSTS =
-  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best|anilist\.co|myanimelist\.net|kitsu\.(app|io))$/i;
+  /(^|\.)(shikimori\.(io|one|org|me)|kp\.yandex\.net|mds\.yandex\.net|nekos\.best|anilist\.co|myanimelist\.net|kitsu\.(app|io)|media\.animetop\.info)$/i;
 
 /** Widths the proxy can shrink a picture to (made once, kept on disk). */
 export type ProxyWidth = 240 | 360 | 480 | 640 | 960 | 1280;

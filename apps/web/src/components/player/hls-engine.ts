@@ -42,6 +42,8 @@ export interface EngineHandle {
   /** The line's measured speed, bits per second (0 while unknown). */
   bandwidth: () => number;
   levels: () => Array<{ height: number }>;
+  /** Encoded bitrate of the active rendition, distinct from line throughput. */
+  streamBitrate: () => number;
   /** Never above this height (a room watching at its slowest member's pace); null lifts it. */
   capHeight: (height: number | null) => void;
   setAudioTrack: (id: number) => void;
@@ -268,6 +270,7 @@ export function attachEngine(
       hls.currentLevel = index;
     },
     bandwidth: () => (Number.isFinite(hls.bandwidthEstimate) ? hls.bandwidthEstimate : 0),
+    streamBitrate: () => hls.levels[hls.currentLevel]?.bitrate ?? 0,
     levels: () => hls.levels.map((l) => ({ height: l.height })),
     setAudioTrack: (id) => {
       if (Number.isInteger(id) && id >= 0 && id < hls.audioTracks.length) hls.audioTrack = id;

@@ -227,7 +227,7 @@ function RoomCard({ room, drift }: { room: PartyListing; drift: number }) {
               {V.label}
             </span>
             {room.friends && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-500 dark:text-emerald-300">Друзья здесь</span>}
-            {room.mine && <span className="rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">Вы в комнате</span>}
+            {room.mine && <span className="rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">{room.members === 0 ? "Ждёт возвращения" : "Ваша комната"}</span>}
           </span>
         </div>
       </div>

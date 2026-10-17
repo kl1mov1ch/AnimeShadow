@@ -28,8 +28,7 @@ export const recommendationRoutes: FastifyPluginAsync = async (fastify) => {
     "/recommendations/home",
     { preHandler: fastify.optionalAuth },
     async (request) => {
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-      return recommendations.homeRail(request.userId ?? null, undefined, allowAdult);
+      return recommendations.homeRail(request.userId ?? null, undefined, false);
     },
   );
 

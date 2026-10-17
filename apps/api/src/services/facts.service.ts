@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@animeshadow/db";
+import { contentGuardWhere } from "../lib/content-guard.js";
 
 export type FactKind = "history" | "record" | "drama" | "trivia";
 
@@ -281,11 +282,11 @@ export class FactsService {
     if (this.cache) return this.cache;
     const ids = [...new Set(FACTS.flatMap((f) => (f.animeId != null ? [f.animeId] : [])))];
     const rows = await this.prisma.anime.findMany({
-      where: { id: { in: ids } },
+      where: { AND: [{ id: { in: ids } }, contentGuardWhere(false)] },
       select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, imageLargeUrl: true },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
-    this.cache = FACTS.map(({ animeId, ...fact }) => {
+    this.cache = FACTS.filter((fact) => fact.animeId == null || byId.has(fact.animeId)).map(({ animeId, ...fact }) => {
       const a = animeId != null ? byId.get(animeId) : undefined;
       return {
         ...fact,

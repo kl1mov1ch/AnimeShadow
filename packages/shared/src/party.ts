@@ -102,6 +102,7 @@ export type PartyEvent =
   | { type: "playback"; playback: PartyPlayback; now: number }
   | { type: "anime"; anime: PartySnapshot["anime"] }
   | { type: "settings"; settings: PartySettings }
+  | { type: "host"; hostId: string; name: string }
   | { type: "closed"; reason: string }
   | { type: "queue"; queue: PartyQueueItem[] }
   | { type: "chat"; message: PartyChatMessage }

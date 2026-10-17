@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "@animeshadow/db";
+import type { Prisma, PrismaClient } from "@animeshadow/db";
 import type { Locale } from "@animeshadow/shared";
 import type { Translator } from "./translator.js";
 
@@ -31,7 +31,7 @@ const HEADERS = { accept: "application/vnd.api+json" };
 /** Kitsu's own page ceiling. */
 const PAGE = 20;
 /** Enough for all but the very longest shows; those get their first 600. */
-const MAX_PAGES = 30;
+const MAX_PAGES = 100;
 /** A finished show's list doesn't change; an airing one gains an episode a week. */
 const FRESH_MS = { finished: 30 * 86_400_000, airing: 86_400_000 };
 /** A failed lookup is retried after this, not on every page view. */
@@ -50,7 +50,7 @@ interface KitsuEpisode {
     description: string | null;
     airdate: string | null;
     length: number | null;
-    thumbnail: { original?: string | null } | null;
+    thumbnail: { original?: string | null; medium?: string | null; small?: string | null } | null;
   };
 }
 
@@ -75,8 +75,15 @@ export class EpisodeInfoService {
   private readonly logger: InfoLogger;
   private readonly fetchImpl: typeof fetch;
   private readonly inflight = new Map<number, Promise<EpisodeInfo[]>>();
-  private readonly translating = new Set<number>();
+  private readonly translating = new Map<number, Promise<void>>();
+  private readonly translationRetryAt = new Map<number, number>();
   private readonly failedAt = new Map<number, number>();
+  private jikanQueue: Promise<unknown> = Promise.resolve();
+  private jikanAt = 0;
+
+  pending(animeId: number): boolean {
+    return this.inflight.has(animeId) || this.translating.has(animeId);
+  }
 
   constructor(deps: EpisodeInfoDeps) {
     this.prisma = deps.prisma;
@@ -89,12 +96,13 @@ export class EpisodeInfoService {
   async get(animeId: number, lang: Locale): Promise<EpisodeInfo[]> {
     const row = await this.prisma.anime.findUnique({
       where: { id: animeId },
-      select: { episodeInfo: true, episodeInfoAt: true, airing: true },
+      select: { episodeInfo: true, episodeInfoAt: true, airing: true, type: true, title: true, titleLocalized: true, titleEnglish: true, screenshots: true },
     });
     if (!row) return [];
 
     const stored = (row.episodeInfo as EpisodeInfo[] | null) ?? null;
-    const maxAge = row.airing === "AIRING" ? FRESH_MS.airing : FRESH_MS.finished;
+    const incomplete = !stored?.length || stored.some((e) => !e.title || !e.thumb);
+    const maxAge = incomplete ? RETRY_MS : row.airing === "AIRING" ? FRESH_MS.airing : FRESH_MS.finished;
     const stale = !row.episodeInfoAt || Date.now() - row.episodeInfoAt.getTime() > maxAge;
     const recentlyFailed = Date.now() - (this.failedAt.get(animeId) ?? 0) < RETRY_MS;
 
@@ -102,25 +110,38 @@ export class EpisodeInfoService {
     if (stale && !recentlyFailed) {
       if (stored) {
         // Serve what we have; refresh behind it.
-        void this.refresh(animeId).catch(() => undefined);
+        void this.refresh(animeId, stored).catch(() => undefined);
       } else {
-        episodes = await this.refresh(animeId).catch(() => []);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        episodes = await Promise.race([
+          this.refresh(animeId).catch(() => [] as EpisodeInfo[]),
+          new Promise<EpisodeInfo[]>((resolve) => { timer = setTimeout(() => resolve([]), 2500); }),
+        ]);
+        clearTimeout(timer);
       }
     }
 
-    if (lang === "ru" && episodes.length > 0) return this.localize(animeId, episodes);
-    return episodes;
+    const localized = lang === "ru" && episodes.length > 0 ? await this.localize(animeId, episodes) : episodes;
+    if (row.type === "MOVIE" && localized.length <= 1) return [{
+      number: 1, titleJa: null, synopsis: null, airdate: null, length: null, ...localized[0],
+      title: localized[0]?.title ?? (lang === "ru" ? row.titleLocalized : row.titleEnglish) ?? row.title,
+      thumb: localized[0]?.thumb ?? row.screenshots[0] ?? null,
+    }];
+    return localized;
   }
 
-  private refresh(animeId: number): Promise<EpisodeInfo[]> {
+  private refresh(animeId: number, previous: EpisodeInfo[] = []): Promise<EpisodeInfo[]> {
     const running = this.inflight.get(animeId);
     if (running) return running;
-    const task = this.fetchFromKitsu(animeId)
+    const task = this.fetchMetadata(animeId)
       .then(async (episodes) => {
+        // An upstream outage must never erase previously cached names/stills.
+        if (episodes.length === 0) { this.failedAt.set(animeId, Date.now()); return []; }
+        episodes = mergeEpisodeInfo(previous, episodes);
         await this.prisma.anime.update({
           where: { id: animeId },
           data: {
-            episodeInfo: episodes.length > 0 ? (episodes as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+            episodeInfo: episodes as unknown as Prisma.InputJsonValue,
             episodeInfoAt: new Date(),
           },
         });
@@ -135,6 +156,45 @@ export class EpisodeInfoService {
       .finally(() => this.inflight.delete(animeId));
     this.inflight.set(animeId, task);
     return task;
+  }
+
+  private async fetchMetadata(animeId: number): Promise<EpisodeInfo[]> {
+    const episodes = await this.fetchFromKitsu(animeId).catch((error) => {
+      this.logger.warn({ error, animeId }, "Kitsu episodes unavailable; trying Jikan");
+      return [] as EpisodeInfo[];
+    });
+    if (episodes.length && episodes.filter((e) => e.title).length >= episodes.length * 0.8) return episodes;
+    // MAL episode names are a fallback; never substitute an unrelated show's frames.
+    const extra = await this.fetchFromJikan(animeId).catch(() => [] as EpisodeInfo[]);
+    const merged = new Map(episodes.map((e) => [e.number, e]));
+    for (const e of extra) {
+      const existing = merged.get(e.number);
+      merged.set(e.number, existing ? { ...e, ...existing, title: existing.title ?? e.title } : e);
+    }
+    return [...merged.values()].sort((a, b) => a.number - b.number);
+  }
+
+  private async fetchFromJikan(animeId: number): Promise<EpisodeInfo[]> {
+    const result: EpisodeInfo[] = [];
+    for (let page = 1; page <= 20; page++) {
+      const run = async () => {
+        const wait = this.jikanAt + 400 - Date.now();
+        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+        this.jikanAt = Date.now();
+        const response = await this.fetchImpl(`https://api.jikan.moe/v4/anime/${animeId}/episodes?page=${page}`, { signal: AbortSignal.timeout(8_000) });
+        if (!response.ok) throw new Error(`Jikan episodes ${response.status}`);
+        return await response.json() as { data: Array<{ mal_id: number; title?: string; title_japanese?: string; aired?: string }>; pagination?: { has_next_page?: boolean } };
+      };
+      const request = this.jikanQueue.then(run, run);
+      this.jikanQueue = request.catch(() => undefined);
+      const data = await request;
+      for (const e of data.data) if (Number.isInteger(e.mal_id) && e.mal_id > 0) result.push({
+        number: e.mal_id, title: clean(e.title ?? null), titleJa: clean(e.title_japanese ?? null),
+        airdate: e.aired ?? null, thumb: null, synopsis: null, length: null,
+      });
+      if (!data.pagination?.has_next_page) break;
+    }
+    return result;
   }
 
   private async kitsu<T>(path: string): Promise<T> {
@@ -183,7 +243,7 @@ export class EpisodeInfoService {
         title: clean(a.canonicalTitle ?? titles.en ?? titles.en_us ?? null),
         titleJa: clean(titles.ja_jp ?? null),
         synopsis: clean(a.synopsis ?? a.description ?? null),
-        thumb: a.thumbnail?.original ?? null,
+        thumb: a.thumbnail?.medium ?? a.thumbnail?.small ?? a.thumbnail?.original ?? null,
         airdate: a.airdate ?? null,
         length: a.length ?? null,
       });
@@ -205,11 +265,16 @@ export class EpisodeInfoService {
     const missing = episodes.some(
       (e) => (e.title && !store.has(`ep:${e.number}:title`)) || (e.synopsis && !store.has(`ep:${e.number}:synopsis`)),
     );
-    if (missing && this.translateEnabled && !this.translating.has(animeId)) {
-      this.translating.add(animeId);
-      void this.translateAll(animeId, episodes, store)
+    if (missing && this.translateEnabled && !this.translating.has(animeId) && Date.now() >= (this.translationRetryAt.get(animeId) ?? 0)) {
+      this.translationRetryAt.set(animeId, Date.now() + 10 * 60_000);
+      const task = this.translateAll(animeId, episodes, store)
         .catch((error) => this.logger.warn({ error, animeId }, "episode translation failed"))
         .finally(() => this.translating.delete(animeId));
+      this.translating.set(animeId, task);
+      // Usually enough for the first batch of titles; descriptions continue behind it.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([task, new Promise<void>((resolve) => { timer = setTimeout(resolve, 1500); })]);
+      clearTimeout(timer);
     }
 
     return episodes.map((e) => ({
@@ -227,6 +292,8 @@ export class EpisodeInfoService {
     const jobs: Array<{ field: string; text: string }> = [];
     for (const e of episodes) {
       if (e.title && !store.has(`ep:${e.number}:title`)) jobs.push({ field: `ep:${e.number}:title`, text: e.title });
+    }
+    for (const e of episodes) {
       if (e.synopsis && !store.has(`ep:${e.number}:synopsis`)) jobs.push({ field: `ep:${e.number}:synopsis`, text: e.synopsis });
     }
 
@@ -246,6 +313,7 @@ export class EpisodeInfoService {
       // If the marker didn't survive the round trip the parts can't be
       // matched up safely — skip the batch rather than misfile a synopsis.
       if (parts.length !== batch.length) return;
+      if (parts.some((part) => !part.trim())) return;
       await this.prisma.animeTranslation.createMany({
         data: batch.map((job, i) => ({
           animeId,
@@ -255,6 +323,7 @@ export class EpisodeInfoService {
         })),
         skipDuplicates: true,
       });
+      batch.forEach((job, i) => store.set(job.field, parts[i]!.trim()));
     };
     for (const job of jobs) {
       if (size + job.text.length > CHUNK_CHARS) await flush();
@@ -263,6 +332,20 @@ export class EpisodeInfoService {
     }
     await flush();
   }
+}
+
+/** Sparse fallback APIs must never erase a previously known episode or frame. */
+export function mergeEpisodeInfo(previous: EpisodeInfo[], incoming: EpisodeInfo[]): EpisodeInfo[] {
+  const merged = new Map(previous.map((episode) => [episode.number, episode]));
+  for (const next of incoming) {
+    const old = merged.get(next.number);
+    merged.set(next.number, old ? {
+      number: next.number, title: next.title ?? old.title, titleJa: next.titleJa ?? old.titleJa,
+      synopsis: next.synopsis ?? old.synopsis, thumb: next.thumb ?? old.thumb,
+      airdate: next.airdate ?? old.airdate, length: next.length ?? old.length,
+    } : next);
+  }
+  return [...merged.values()].sort((a, b) => a.number - b.number);
 }
 
 /** Kitsu leaves source credits in synopses: "(Source: Crunchyroll)". */

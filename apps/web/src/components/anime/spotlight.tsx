@@ -341,7 +341,7 @@ function SlideContent({
               />
             </Link>
           </Button>
-          <TrailerButton url={anime.trailerEmbedUrl} title={title} />
+          <TrailerButton animeId={anime.id} url={anime.trailerEmbedUrl} title={title} />
         </div>
         {controls}
       </div>

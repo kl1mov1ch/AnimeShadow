@@ -25,6 +25,7 @@ import { ApiRequestError, apiRequest, apiStream } from "@/lib/api";
 import { animeHref, imageSrc } from "@/lib/format";
 import { usePeople, useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { RoomPushButton } from "@/components/party/room-push-button";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const clock = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, "0")}`;
@@ -109,6 +110,10 @@ function PartyRoom({ code }: { code: string }) {
         break;
       case "settings":
         setParty((p) => (p ? { ...p, settings: e.settings } : p));
+        break;
+      case "host":
+        setParty((p) => p ? { ...p, hostId: e.hostId } : p);
+        toast.info("Ведущий сменился", { description: `Теперь управляет ${e.name}`, id: `party-host-${code}` });
         break;
       case "queue":
         setQueue(e.queue);
@@ -244,7 +249,7 @@ function PartyRoom({ code }: { code: string }) {
     if (!canControlRef.current) {
       if (Date.now() - toldNoControl.current > 15_000) {
         toldNoControl.current = Date.now();
-        toast("Управляет создатель комнаты", { description: "Пауза и перемотка вернутся к общему моменту" });
+        toast("Управляет ведущий комнаты", { description: "Пауза и перемотка вернутся к общему моменту" });
       }
       return;
     }
@@ -328,7 +333,7 @@ function PartyRoom({ code }: { code: string }) {
   };
 
 
-  // ---- leaving: asked first (the host's leaving closes the room for everyone)
+  // ---- leaving: only this member leaves; the room keeps its other viewers
   const blocker = useBlocker(({ currentLocation, nextLocation }) => !closedRef.current && joined && currentLocation.pathname !== nextLocation.pathname);
   useEffect(() => {
     if (!joined || closed) return;
@@ -399,6 +404,7 @@ function PartyRoom({ code }: { code: string }) {
             <Link to={animeHref(party.anime)} className="block truncate font-display text-lg leading-tight hover:text-primary">{title}</Link>
           </div>
           <div className="flex basis-full flex-wrap items-center gap-2">
+            <RoomPushButton />
             <EpisodeStepper value={episode} total={total} disabled={!canControl} onChange={(n) => sendPlayback({ episode: n, playing: true, position: 0 })} />
             {canControl && (
               <button
@@ -519,7 +525,7 @@ function PartyRoom({ code }: { code: string }) {
 
         {/* Reactions. */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {!party.settings.reactions && <span className="text-xs text-muted-foreground">Реакции выключены создателем</span>}
+          {!party.settings.reactions && <span className="text-xs text-muted-foreground">Реакции выключены ведущим</span>}
           {party.settings.reactions && PARTY_REACTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -581,13 +587,11 @@ function PartyRoom({ code }: { code: string }) {
             setAskLeave(false);
             if (blocker.state === "blocked") blocker.reset();
           }}
-          title={isHost ? "Закрыть комнату?" : "Выйти из комнаты?"}
+          title="Выйти из комнаты?"
           description={
-            isHost
-              ? "Вы создатель: когда вы выйдете, комната закроется для всех, кто в ней смотрит."
-              : "Просмотр продолжится без вас. Вернуться можно по ссылке, пока комната открыта."
+            "Остальные продолжат просмотр. Если выйдут все, комната подождёт 5 минут."
           }
-          confirmLabel={isHost ? "Закрыть и выйти" : "Выйти"}
+          confirmLabel="Выйти"
           onConfirm={leave}
         />
       )}
@@ -631,7 +635,7 @@ function EpisodeStepper({ value, total, onChange, disabled = false }: { value: n
   };
   return (
     <div
-      title={disabled ? "Серию меняет создатель комнаты" : undefined}
+      title={disabled ? "Серию меняет ведущий комнаты" : undefined}
       className={cn("flex h-10 items-center overflow-hidden rounded-xl border border-[var(--accent-line-soft)] bg-background/60", disabled && "pointer-events-none opacity-60")}
     >
       <button

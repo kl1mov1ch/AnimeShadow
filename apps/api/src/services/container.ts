@@ -244,7 +244,7 @@ export function createServices(deps: ContainerDeps): Services {
     dir: env.HERO_CLIP_DIR ?? join(process.cwd(), "cache", "hero"),
     ffmpeg: env.FFMPEG_PATH,
   });
-  // Clips are not cut any more (the hero shows frames); see server.ts.
+  if (env.HERO_CLIPS_ENABLED) catalog.onSpotlightsChange(() => { void heroClips.refresh(); });
   const statsRollup = new StatsRollupService({ prisma: deps.prisma, logger: deps.logger, rawDays: env.STATS_RAW_DAYS });
   // The admin's reports run on a pool of their own, four connections: a
   // heavy report then waits its turn there instead of taking the site's
@@ -314,6 +314,6 @@ export function createServices(deps: ContainerDeps): Services {
     party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs")),
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
-    seo: new SeoRenderer({ prisma: deps.prisma, landing, catalog }),
+    seo: new SeoRenderer({ prisma: deps.prisma, landing, catalog, logger: deps.logger }),
   };
 }

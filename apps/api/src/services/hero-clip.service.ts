@@ -80,6 +80,13 @@ export class HeroClipService {
   /** The lineup changed during a pass: one more pass when it ends. */
   private again = false;
   private unavailable = false;
+  private child: ReturnType<typeof spawn> | null = null;
+
+  close(): void {
+    this.unavailable = true;
+    this.again = false;
+    this.child?.kill("SIGKILL");
+  }
 
   constructor(deps: HeroClipServiceDeps) {
     this.prisma = deps.prisma;
@@ -301,6 +308,7 @@ export class HeroClipService {
     ];
     return new Promise((resolve) => {
       const child = spawn(this.ffmpeg, args, { stdio: ["ignore", "ignore", "pipe"] });
+      this.child = child;
       let stderr = "";
       child.stderr?.on("data", (chunk: Buffer) => {
         stderr = (stderr + chunk.toString()).slice(-2000);
@@ -315,6 +323,7 @@ export class HeroClipService {
       }
       const timer = setTimeout(() => child.kill("SIGKILL"), RUN_TIMEOUT_MS);
       child.on("error", (error: NodeJS.ErrnoException) => {
+        if (this.child === child) this.child = null;
         clearTimeout(timer);
         if (error.code === "ENOENT") {
           this.unavailable = true;
@@ -323,6 +332,7 @@ export class HeroClipService {
         resolve(false);
       });
       child.on("close", (code) => {
+        if (this.child === child) this.child = null;
         clearTimeout(timer);
         if (code !== 0) {
           this.logger.warn({ code, stderr: stderr.trim().slice(-400) }, "hero clip not made");

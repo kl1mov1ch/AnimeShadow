@@ -1,6 +1,8 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import type { FastifyPluginAsync } from "fastify";
+import { PreviewService } from "../services/preview.service.js";
+import { contentGuardWhere, resolveAllowAdult } from "../lib/content-guard.js";
 
 /**
  * The homepage hero's clips (see HeroClipService): which titles have one,
@@ -9,6 +11,18 @@ import type { FastifyPluginAsync } from "fastify";
  */
 export const heroRoutes: FastifyPluginAsync = async (fastify) => {
   const { heroClips } = fastify.services;
+  const previews = new PreviewService();
+
+  fastify.get("/anime/:id/preview", { preHandler: fastify.optionalAuth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    if (!Number.isSafeInteger(id) || id < 1) return reply.code(400).send({ preview: null });
+    // No background crawl: one selected, existing title per visitor action.
+    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+    const anime = await fastify.prisma.anime.findFirst({ where: { id, ...contentGuardWhere(allowAdult) }, select: { id: true } });
+    if (!anime) return reply.code(404).send({ preview: null });
+    reply.header("cache-control", "private, max-age=600");
+    return { preview: await previews.get(id) };
+  });
 
   fastify.get("/hero-clips", async (_request, reply) => {
     reply.header("cache-control", "public, max-age=300");
@@ -18,7 +32,7 @@ export const heroRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/hero/:file", async (request, reply) => {
     const path = heroClips.path((request.params as { file: string }).file);
     const info = path ? await stat(path).catch(() => null) : null;
-    if (!path || !info) {
+    if (!path || !info || info.size > 3 * 1024 * 1024) {
       reply.code(404);
       return { error: { code: "NOT_FOUND", message: "No such clip" } };
     }

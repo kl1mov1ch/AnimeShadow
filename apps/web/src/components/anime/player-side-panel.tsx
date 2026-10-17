@@ -377,8 +377,9 @@ const EpisodeRow = memo(function EpisodeRow({
   onToggleWatched: (n: number) => void;
 }) {
   const t = useT();
-  const [broken, setBroken] = useState(false);
-  const art = info?.thumb && !broken ? imageSrc(info.thumb, 240) : null;
+  const [failedImages, setFailedImages] = useState<string[]>([]);
+  const still = [info?.thumb, ...(info?.thumbs ?? [])].find((url): url is string => Boolean(url) && !failedImages.includes(url!));
+  const art = still ? imageSrc(still, 240) : null;
   const done = state?.completed ?? false;
   const numberLabel = t("detail.episodeNumber", { n });
   const length =
@@ -427,10 +428,10 @@ const EpisodeRow = memo(function EpisodeRow({
           {art ? (
             <img
               src={art}
-              alt=""
+              alt={`Кадр ${n}-й серии`}
               loading="lazy"
               decoding="async"
-              onError={() => setBroken(true)}
+              onError={() => still && setFailedImages((urls) => [...urls, still])}
               className="size-full object-cover"
             />
           ) : (

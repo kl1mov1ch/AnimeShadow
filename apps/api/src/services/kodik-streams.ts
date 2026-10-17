@@ -132,6 +132,10 @@ export function kodikCustomSource(
     format: "hls",
     embedUrl: "",
     stable: null,
+    providerPlayer: {
+      url: source.embedUrl,
+      episodes: Object.fromEntries(Object.entries(source.iframeEpisodes ?? {}).map(([n, e]) => [n, e.url])),
+    },
     hlsEpisodes: Object.fromEntries(
       episodes.map((episode) => [
         episode,

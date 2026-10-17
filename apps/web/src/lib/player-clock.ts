@@ -15,6 +15,10 @@ let clock: Clock | null = null;
 const listeners = new Set<() => void>();
 let lastEmit = 0;
 
+export function readPlayerClock(animeId: number): Clock | null {
+  return clock?.animeId === animeId ? clock : null;
+}
+
 export function publishClock(animeId: number, episode: number, time: number) {
   if (!Number.isFinite(time) || time < 0) return;
   clock = { animeId, episode, time };

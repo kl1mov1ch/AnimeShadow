@@ -58,24 +58,19 @@ const TRUSTED_STUDIOS =
   /anilibria|animevost|shiza|studio.?band|dreamcast|anidub|jam.?club|kodik/i;
 
 /**
- * How good a source is as the *default* pick. Our own HLS player (AniLibria,
- * currently the only "hls" format) leads outright whenever it isn't
- * confirmed dead — no third-party iframe UI to get stuck inside, so it
- * outranks even a merely-probed-stable Kodik/Alloha mirror, not just an
- * untested one. Only once it's actually confirmed unreachable does it drop
- * behind, same as any other dead source. After that: verified-reachable
- * beats everything, then Kodik (best anime coverage), then Alloha; a real
- * dub over subs, fuller episode lists, and studios that tend to stay up.
+ * Reachable sources lead. AniLibria has no unconditional priority: protocol
+ * and provider coverage are only tie-breakers. The browser still verifies
+ * the first media data, since server reachability cannot prove decoding or CORS.
  */
 function rankSource(s: WatchSource): number {
   let score = 0;
-  if (s.format === "hls" && s.stable !== false) score += 2000;
+  if ((s.format === "hls" || s.format === "mp4") && s.stable !== false) score += 100;
   if (s.stable === true) score += 1000;
   else if (s.stable === false) score -= 1000;
 
   const provider = s.id.split(":")[0] ?? "";
-  if (provider === "anilibria") score += 150;
-  else if (provider === "kodik") score += 100;
+  if (provider === "kodik") score += 100;
+  else if (provider === "anilibria") score += 10;
   else if (provider === "alloha") score += 50;
   else score += 10;
 
@@ -120,7 +115,7 @@ function keyOf(id: string): { provider: string; sourceKey: string } {
  * constantly, so a stored URL is no guarantee. We only look at the status —
  * the body is never read.
  */
-async function probeEmbed(url: string): Promise<boolean | null> {
+async function probeEmbed(url: string, format: WatchSource["format"] = "iframe"): Promise<boolean | null> {
   try {
     const response = await fetch(url, {
       method: "GET",
@@ -129,6 +124,10 @@ async function probeEmbed(url: string): Promise<boolean | null> {
       headers: { "user-agent": "Mozilla/5.0 (AnimeShadow player check)" },
     });
     if (response.ok) {
+      if (format === "hls") {
+        const text = await response.text();
+        return text.trimStart().startsWith("#EXTM3U") && /#EXT(?:INF|-X-STREAM-INF):/.test(text);
+      }
       // Drain nothing; just release the socket.
       void response.body?.cancel();
       return true;
@@ -466,7 +465,7 @@ export class WatchService {
         const source = queue.shift();
         if (!source) return;
         const url = probeUrlOf(source);
-        const verdict = url != null ? await probeEmbed(url) : false;
+        const verdict = url != null ? await probeEmbed(url, source.format) : false;
         // Geo-blocked from here: keep whatever we knew before.
         if (verdict == null) continue;
         const ok = verdict;

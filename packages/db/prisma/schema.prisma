@@ -136,6 +136,7 @@ model User {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   library       LibraryEntry[]
+  supportPayments SupportPayment[]
   reviews       Review[]
   progress      WatchProgress[]
   moments       FavoriteMoment[]
@@ -172,6 +173,25 @@ model User {
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_displayName_trgm_idx")
   @@index([referredById])
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_username_trgm_idx")
+}
+
+/// A server-priced invoice. Entitlement is granted once, only after authenticated provider verification.
+model SupportPayment {
+  id           String   @id
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId   Int?     @unique
+  months       Int
+  amountMinor  Int
+  currency     String   @default("rub")
+  status       String   @default("creating")
+  checkoutUrl  String?
+  consentAt    DateTime  @default(now())
+  consentVersion String
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@index([userId, createdAt])
 }
 
 /// One account following another. Mutual = friends.

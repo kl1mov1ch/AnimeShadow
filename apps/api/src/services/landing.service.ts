@@ -48,12 +48,12 @@ export class LandingService {
   }
 
   /** The landing for these params, or null when it doesn't exist (an unknown genre). */
-  async page(params: LandingParams): Promise<LandingPage | null> {
-    const key = landingPath({ ...params, page: params.page ?? 1 });
-    return this.cache.wrap(key, () => this.build(params));
+  async page(params: LandingParams, allowAdult = true): Promise<LandingPage | null> {
+    const key = `${landingPath({ ...params, page: params.page ?? 1 })}:${allowAdult}`;
+    return this.cache.wrap(key, () => this.build(params, allowAdult));
   }
 
-  private async build(params: LandingParams): Promise<LandingPage | null> {
+  private async build(params: LandingParams, allowAdult: boolean): Promise<LandingPage | null> {
     const page = params.page ?? 1;
     const genres = await this.genres();
     const genre = params.kind === "genre" ? genres.find((g) => g.slug === params.genre) : undefined;
@@ -89,7 +89,7 @@ export class LandingService {
         where = { genres: { some: { genreId: genre!.id } } };
         break;
     }
-    const filter: Prisma.AnimeWhereInput = { AND: [where, contentGuardWhere(true)] };
+    const filter: Prisma.AnimeWhereInput = { AND: [where, contentGuardWhere(allowAdult)] };
     const [rows, total] = await Promise.all([
       this.prisma.anime.findMany({
         where: filter,

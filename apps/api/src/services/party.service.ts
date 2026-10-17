@@ -43,6 +43,8 @@ interface Room {
   settings: PartySettings;
   anime: PartySnapshot["anime"];
   hostId: string;
+  creatorId: string;
+  connectedOnce: boolean;
   playback: PartyPlayback;
   chat: PartyChatMessage[];
   /** Who has been in, by id — the ten places. */
@@ -95,10 +97,9 @@ export interface PartySessionLog {
 
 const CHAT_KEEP = 120;
 /** An empty room is closed after this. */
-const EMPTY_TTL = 10 * 60_000;
-/** And no room lives longer than this. */
-const MAX_AGE = 12 * 3_600_000;
-/** The host's tab gone this long (not a reload): the room closes. */
+const EMPTY_TTL = 5 * 60_000;
+const UNVISITED_TTL = 60 * 60_000;
+/** Give a reloading host time to reconnect before handing control over. */
 const HOST_GRACE = 20_000;
 /** A tab this far behind on its stream gets no reactions or pings until it catches up… */
 const SLOW_STREAM = 256 * 1024;
@@ -109,8 +110,8 @@ const DEAD_STREAM = 2 * 1024 * 1024;
  * Watching together. A room is an anime, an episode and where playback is;
  * up to ten signed-in people, a chat and reactions. Only PRO opens a room;
  * its creator runs it — who may control playback, stickers, GIFs and
- * reactions on or off, who is muted — and when the creator leaves, the room
- * closes for everyone.
+ * reactions on or off, who is muted. An absent host hands control to an
+ * online member; only empty or never-visited rooms expire.
  *
  * Everything lives in memory (one API process) and is gone when the room
  * closes; what stays is one line in the log — how long each person watched,
@@ -140,8 +141,7 @@ export class PartyService {
       select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true },
     });
     if (!anime) throw new NotFoundError("Аниме не найдено.");
-    // One room per host: an earlier one of theirs closes.
-    for (const r of this.rooms.values()) if (r.hostId === userId) this.close(r, "Создатель открыл новую комнату");
+    // Opening another room must not interrupt people still watching in an earlier one.
     let code = "";
     do code = randomBytes(5).toString("base64url").slice(0, 7);
     while (this.rooms.has(code));
@@ -151,6 +151,8 @@ export class PartyService {
       settings: { ...PARTY_DEFAULT_SETTINGS, visibility },
       anime,
       hostId: userId,
+      creatorId: userId,
+      connectedOnce: false,
       playback: { episode, playing: false, position: 0, updatedAt: now, by: userId, waitingFor: null },
       chat: [this.line(`${person.name} создал(а) комнату. Позовите друзей — до ${PARTY_MAX} человек.`)],
       people: new Map([[userId, person]]),
@@ -200,11 +202,17 @@ export class PartyService {
       throw new ForbiddenError(`В комнате уже ${PARTY_MAX} человек.`);
     }
     // Fresh each time: PRO may have started (or ended) since the last visit.
-    room.people.set(userId, await this.person(userId));
+    const person = await this.person(userId);
+    // Capacity/room lifetime can change while the account query is in flight.
+    if (this.rooms.get(code) !== room) throw new NotFoundError("Комната уже закрыта.");
+    const currentOnline = new Set([...room.streams.values()].map((s) => s.personId));
+    if (!currentOnline.has(userId) && currentOnline.size >= PARTY_MAX) throw new ForbiddenError(`В комнате уже ${PARTY_MAX} человек.`);
+    room.people.set(userId, person);
     this.count(room);
     const streamId = randomBytes(6).toString("hex");
     const wasOnline = online.has(userId);
     room.streams.set(streamId, { personId: userId, res });
+    room.connectedOnce = true;
     room.emptySince = null;
     if (userId === room.hostId) room.hostGoneAt = null;
     this.write(res, { type: "hello", party: this.snapshot(code) });
@@ -220,30 +228,64 @@ export class PartyService {
       clearInterval(ping);
       if (!this.rooms.has(room.code)) return;
       this.count(room);
-      room.streams.delete(streamId);
+      if (!room.streams.delete(streamId)) return;
       const still = [...room.streams.values()].some((s) => s.personId === userId);
       if (!still) {
         const me = room.people.get(userId);
-        // The host's tab gone: a moment to come back (a reload), then the room closes.
+        // A reload gets a short grace period before control is handed over.
         if (room.hostId === userId) room.hostGoneAt = Date.now();
         else if (me && !room.banned.has(userId)) this.say(room, `${me.name} вышел(ла)`, true);
         room.net.delete(userId);
         if (room.loading.delete(userId)) this.afterLoading(room);
         this.broadcastMembers(room);
       }
-      if (room.streams.size === 0) room.emptySince = Date.now();
+      if (room.streams.size === 0) this.becameEmpty(room);
     };
   }
 
-  /** "Выйти" pressed: the host's leaving closes the room at once. */
+  /** Leaving removes only this person's tabs. Others keep watching. */
   leave(code: string, userId: string): { closed: boolean } {
     const room = this.rooms.get(code);
     if (!room) return { closed: true };
-    if (room.hostId === userId) {
-      this.close(room, "Создатель закрыл комнату");
-      return { closed: true };
+    this.count(room);
+    for (const [id, stream] of room.streams) {
+      if (stream.personId !== userId) continue;
+      room.streams.delete(id);
+      stream.res.end();
     }
+    room.net.delete(userId);
+    if (room.loading.delete(userId)) this.afterLoading(room);
+    if (room.hostId === userId) { room.hostGoneAt = Date.now(); this.handoff(room); }
+    if (room.streams.size === 0) this.becameEmpty(room);
+    this.broadcastMembers(room);
     return { closed: false };
+  }
+
+  private becameEmpty(room: Room) {
+    if (room.emptySince != null) return;
+    room.emptySince = Date.now();
+    room.playback = { ...room.playback, position: expected(room.playback), playing: false, updatedAt: Date.now(), waitingFor: null };
+    room.autoPaused = false;
+    this.notifyCreator(room, "Комната ждёт вас", "Все вышли. Вернитесь в течение 5 минут, чтобы продолжить.", false);
+  }
+
+  private handoff(room: Room) {
+    const next = this.online(room).find((person) => person.id !== room.hostId);
+    if (!next) return;
+    room.hostId = next.id;
+    room.hostGoneAt = null;
+    room.muted.delete(next.id);
+    this.broadcast(room, { type: "host", hostId: next.id, name: next.name });
+    this.say(room, `Теперь комнатой управляет ${next.name}`);
+    this.broadcastMembers(room);
+  }
+
+  private notifyCreator(room: Room, title: string, body: string, closed: boolean) {
+    void this.delivery.room(room.creatorId, {
+      title, body: `${room.anime.titleLocalized || room.anime.title} · ${body}`,
+      url: closed ? `${this.appUrl}/anime/${room.anime.slug || room.anime.id}` : `${this.appUrl}/party/${room.code}`,
+      tag: `party-${room.code}-${closed ? "closed" : "waiting"}`,
+    }).catch(() => undefined);
   }
 
   async playback(
@@ -253,9 +295,9 @@ export class PartyService {
   ): Promise<PartyPlayback> {
     const room = this.member(code, userId);
     const host = userId === room.hostId;
-    if (!host && !room.settings.allControl) throw new ForbiddenError("Управляет создатель комнаты.");
+    if (!host && !room.settings.allControl) throw new ForbiddenError("Управляет ведущий комнаты.");
     room.autoPaused = false;
-    if (input.animeId != null && !host && !room.settings.allControl) throw new ForbiddenError("Аниме меняет создатель комнаты.");
+    if (input.animeId != null && !host && !room.settings.allControl) throw new ForbiddenError("Аниме меняет ведущий комнаты.");
     this.count(room);
 
     // Another title for the whole room: everyone's page follows.
@@ -303,7 +345,7 @@ export class PartyService {
   chat(code: string, userId: string, input: { text?: string | undefined; sticker?: string | undefined; gif?: string | undefined }): PartyChatMessage {
     const room = this.member(code, userId);
     const me = room.people.get(userId)!;
-    if (room.muted.has(userId)) throw new ForbiddenError("Создатель комнаты отключил вам чат.");
+    if (room.muted.has(userId)) throw new ForbiddenError("Ведущий комнаты отключил вам чат.");
     let kind: PartyChatMessage["kind"];
     let text = "";
     let media: string | null = null;
@@ -334,7 +376,7 @@ export class PartyService {
   /** The host's switches: who sees the room, stickers, GIFs, reactions, who controls playback. */
   settings(code: string, userId: string, patch: Partial<PartySettings>): PartySettings {
     const room = this.member(code, userId);
-    if (room.hostId !== userId) throw new ForbiddenError("Это может только создатель комнаты.");
+    if (room.hostId !== userId) throw new ForbiddenError("Это может только ведущий комнаты.");
     return this.applySettings(room, patch, "Создатель");
   }
 
@@ -456,7 +498,7 @@ export class PartyService {
   /** The host mutes (or unmutes) someone in the chat. */
   mute(code: string, userId: string, target: string, muted: boolean): { muted: boolean } {
     const room = this.member(code, userId);
-    if (room.hostId !== userId) throw new ForbiddenError("Это может только создатель комнаты.");
+    if (room.hostId !== userId) throw new ForbiddenError("Это может только ведущий комнаты.");
     if (target === room.hostId) throw new BadRequestError("Себя заглушить нельзя.");
     if (muted) room.muted.add(target);
     else room.muted.delete(target);
@@ -472,7 +514,7 @@ export class PartyService {
    * first; empty rooms aren't listed.
    */
   async list(viewerId: string | undefined): Promise<PartyListing[]> {
-    const rooms = [...this.rooms.values()].filter((r) => r.streams.size > 0);
+    const rooms = [...this.rooms.values()].filter((r) => r.streams.size > 0 || r.creatorId === viewerId);
     if (rooms.length === 0) return [];
     let friends = new Set<string>();
     if (viewerId) {
@@ -486,7 +528,7 @@ export class PartyService {
     const out: PartyListing[] = [];
     for (const room of rooms) {
       const online = this.online(room);
-      const mine = viewerId != null && online.some((m) => m.id === viewerId);
+      const mine = viewerId != null && (room.creatorId === viewerId || online.some((m) => m.id === viewerId));
       const hostFriend = friends.has(room.hostId);
       const friendInside = online.some((m) => friends.has(m.id));
       const v = room.settings.visibility;
@@ -537,8 +579,8 @@ export class PartyService {
     let reached = 0;
     for (const { followerId } of mutual) {
       const ok = await this.delivery.direct(followerId, {
-        title: `${me.name} зовёт смотреть вместе`,
-        body: `«${title}», ${room.playback.episode} серия — заходите в комнату`,
+        title: `${me.name} приглашает в комнату`,
+        body: `${title} · Серия ${room.playback.episode}`,
         url: `${this.appUrl}/party/${room.code}`,
         button: "▶ Войти в комнату",
       });
@@ -850,9 +892,10 @@ export class PartyService {
     if (!this.rooms.has(room.code)) return;
     this.count(room);
     if (room.membersSoon) clearTimeout(room.membersSoon);
+    this.rooms.delete(room.code);
     this.broadcast(room, { type: "closed", reason });
     for (const { res } of room.streams.values()) res.end();
-    this.rooms.delete(room.code);
+    this.notifyCreator(room, "Комната закрыта", reason, true);
     void this.log(room, reason);
   }
 
@@ -897,10 +940,20 @@ export class PartyService {
   private sweep() {
     const now = Date.now();
     for (const room of [...this.rooms.values()]) {
-      if (room.hostGoneAt != null && now - room.hostGoneAt > HOST_GRACE) this.close(room, "Создатель вышел — комната закрыта");
-      else if (room.emptySince != null && now - room.emptySince > EMPTY_TTL) this.close(room, "В комнате никого не осталось");
-      else if (now - room.createdAt > MAX_AGE) this.close(room, "Комната работала 12 часов и закрылась");
+      if (room.hostGoneAt != null && now - room.hostGoneAt >= HOST_GRACE) this.handoff(room);
+      if (!room.connectedOnce && now - room.createdAt >= UNVISITED_TTL) this.close(room, "За час никто не подключился");
+      else if (room.connectedOnce && room.emptySince != null && now - room.emptySince >= EMPTY_TTL) this.close(room, "Никто не вернулся за 5 минут");
       else if (room.playback.playing && now - room.countedAt > 60_000) this.count(room);
+    }
+  }
+
+  dispose() {
+    clearInterval(this.sweeper);
+    const rooms = [...this.rooms.values()];
+    this.rooms.clear();
+    for (const room of rooms) {
+      if (room.membersSoon) clearTimeout(room.membersSoon);
+      for (const { res } of room.streams.values()) res.end();
     }
   }
 }

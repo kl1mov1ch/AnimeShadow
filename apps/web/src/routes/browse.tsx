@@ -8,7 +8,6 @@ import {
   ListIcon,
   Loader2Icon,
   type LucideIcon,
-  MonitorPlayIcon,
   RadioIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
@@ -31,6 +30,7 @@ import { useI18n } from "@/i18n";
 import { activeFilterCount, parseBrowseParams, SORT_VALUES } from "@/lib/browse-params";
 import { type BrowseParams, useBrowse, useGenres, useSmartSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { useDocumentHead } from "@/lib/seo";
 
 const VIEW_KEY = "animeshadow.browse.view.v1";
 
@@ -72,6 +72,20 @@ export function Component() {
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const params = useMemo(() => parseBrowseParams(searchParams), [searchParams]);
+  const pageNumber = params.page ?? 1;
+  const filteredForSeo = [...searchParams.keys()].some((key) => key !== "page");
+  useDocumentHead({
+    title: `Каталог аниме${pageNumber > 1 ? ` — страница ${pageNumber}` : ""} | AnimeShadow`,
+    description: `Каталог аниме AnimeShadow${pageNumber > 1 ? `, страница ${pageNumber}` : ""}: поиск по названию, жанру, году, студии и числу серий.`,
+    path: filteredForSeo || pageNumber <= 1 ? "/browse" : `/browse?page=${pageNumber}`,
+    noindex: filteredForSeo,
+  });
+  useEffect(() => {
+    if (!searchParams.has("hasCustomPlayer")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("hasCustomPlayer");
+    setSearchParams(next, { replace: true, preventScrollReset: true });
+  }, [searchParams, setSearchParams]);
   const isSearch = Boolean(params.q);
   const [view, setView] = useState<AnimeViewMode>(readStoredView);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -171,8 +185,8 @@ export function Component() {
 
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-5">
-      <header className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-5 sm:gap-6">
+      <header className="flex flex-col gap-4 border-b border-border/40 pb-4 sm:pb-5">
         <div className="flex items-baseline justify-between gap-x-4">
           <h1 className="font-display text-xl sm:text-3xl">{t("browse.pageTitle")}</h1>
           {total != null && (!isSearch || searchWithFilters) && (
@@ -393,12 +407,6 @@ const PRESETS: Preset[] = [
     icon: TimerIcon,
     patch: { episodesMin: "2", episodesMax: "13" },
     active: (p) => p.episodesMin === 2 && p.episodesMax === 13,
-  },
-  {
-    key: "own",
-    icon: MonitorPlayIcon,
-    patch: { hasCustomPlayer: "1" },
-    active: (p) => p.hasCustomPlayer === true,
   },
 ];
 

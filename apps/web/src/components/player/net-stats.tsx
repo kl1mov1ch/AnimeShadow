@@ -1,8 +1,9 @@
 import { ArrowDownIcon, GaugeIcon, WifiIcon, WifiOffIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { requiredMbps } from "@/lib/stream-health";
+import { qualityName } from "@/lib/player-quality";
 
 /** Average bitrate each quality really needs (AniLibria's streams, with a little headroom). */
-export const NEEDED_MBPS: Record<number, number> = { 480: 1, 720: 2, 1080: 4 };
 
 export type NetHealth = "good" | "tight" | "short" | "unknown";
 
@@ -33,6 +34,9 @@ export function NetStats({
   speed,
   history,
   height,
+  outputHeight = null,
+  bitrate = null,
+  playbackRate = 1,
   bufferAhead,
   lowerQuality,
   onLower,
@@ -45,6 +49,9 @@ export function NetStats({
   history: number[];
   /** The picture's quality now (480, 720, 1080), if known. */
   height: number | null;
+  outputHeight?: number | null;
+  bitrate?: number | null;
+  playbackRate?: number;
   /** Seconds loaded past the playhead. */
   bufferAhead: number;
   /** A lower quality to offer when the line is short. */
@@ -53,7 +60,8 @@ export function NetStats({
   onClose: () => void;
   className?: string;
 }) {
-  const needed = height ? (NEEDED_MBPS[height] ?? Math.round((height / 480) ** 2 * 10) / 10) : null;
+  const needed = requiredMbps(height, bitrate, playbackRate);
+  const output = outputHeight && height && outputHeight > height ? outputHeight : null;
   const health = netHealth(speed, needed, bufferAhead);
   const h = HEALTH[health];
   const max = Math.max(needed ?? 0, ...history, 0.5) * 1.15;
@@ -64,7 +72,7 @@ export function NetStats({
     {/* A small player (a phone): one line — the state, the speed, what's needed, the reserve. */}
     <div
       className={cn(
-        "flex items-center gap-1.5 rounded-full border border-white/10 bg-black/65 py-1 pl-2 pr-1 text-[11px] text-white shadow-lg backdrop-blur-md @md/player:hidden",
+        "flex max-w-[calc(100cqw-1rem)] flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-black/65 py-1 pl-2 pr-1 text-[10px] text-white shadow-lg backdrop-blur-md @md/player:hidden",
         className,
       )}
       role="status"
@@ -72,6 +80,7 @@ export function NetStats({
     >
       <span className={cn("size-1.5 shrink-0 rounded-full", h.dot, health !== "good" && "animate-pulse")} />
       <span className="font-semibold tabular-nums">{speed != null ? `${fmt(speed)} Мбит/с` : "—"}</span>
+      <span className="text-white/70">{output ? `Вывод ${qualityName(output)}` : height ? qualityName(height) : "Авто"}</span>
       {needed != null && <span className="text-white/55 tabular-nums">/ нужно {fmt(needed)}</span>}
       <span className="text-white/55 tabular-nums">· {Math.round(bufferAhead)} с</span>
       {health === "short" && lowerQuality && (
@@ -137,7 +146,7 @@ export function NetStats({
         <div className="rounded-lg bg-white/[0.06] px-2 py-1.5">
           <dt className="flex items-center gap-1 text-white/55">
             <GaugeIcon className="size-3" />
-            Нужно{height ? ` для ${height}p` : ""}
+            Поток{height ? ` ${qualityName(height)}` : ""}
           </dt>
           <dd className="font-semibold tabular-nums">{needed != null ? `~${fmt(needed)} Мбит/с` : "—"}</dd>
         </div>
@@ -155,6 +164,11 @@ export function NetStats({
           </span>
         </div>
       </dl>
+      <p className="mt-2 text-[10px] leading-relaxed text-white/55">
+        {output ? `Вывод ${qualityName(output)} · масштабирование ${qualityName(height!)}. ` : ""}
+        {bitrate && bitrate > 0 ? "По битрейту потока, с запасом." : "Оценка, пока битрейт неизвестен."}
+        {playbackRate !== 1 ? ` Скорость ${String(playbackRate).replace(".", ",")}× учтена.` : ""}
+      </p>
 
       {health === "short" && lowerQuality && (
         <button
@@ -162,7 +176,7 @@ export function NetStats({
           onClick={onLower}
           className="mt-2.5 w-full rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black transition-transform active:scale-95"
         >
-          Включить {lowerQuality}p — будет без остановок
+          Снизить до {lowerQuality}p
         </button>
       )}
       {health === "short" && !lowerQuality && (

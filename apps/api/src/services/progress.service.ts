@@ -11,6 +11,7 @@ import type {
   UpsertProgressInput,
 } from "@animeshadow/shared";
 import type { AchievementService } from "./achievement.service.js";
+import { contentGuardWhere } from "../lib/content-guard.js";
 import type { CatalogService } from "./catalog.service.js";
 
 export interface ProgressServiceDeps {
@@ -114,9 +115,9 @@ export class ProgressService {
     ]);
   }
 
-  async continueWatching(userId: string, limit = 20): Promise<ContinueWatchingItem[]> {
+  async continueWatching(userId: string, limit = 20, home = false): Promise<ContinueWatchingItem[]> {
     const rows = await this.prisma.watchProgress.findMany({
-      where: { userId },
+      where: { userId, ...(home ? { anime: contentGuardWhere(false) } : {}) },
       orderBy: { updatedAt: "desc" },
       take: 250,
       include: { anime: { include: ANIME_WITH_GENRES_INCLUDE } },

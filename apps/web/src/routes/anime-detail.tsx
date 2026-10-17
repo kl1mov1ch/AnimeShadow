@@ -169,14 +169,14 @@ function AnimeDetailView({ param }: { param: string }) {
           }),
           image: data.imageLargeUrl ?? data.imageUrl,
           path: animeUrl(data),
-          type: "video.tv_show",
+          type: data.type === "MOVIE" ? "video.movie" : "video.tv_show",
           jsonLd: {
             "@context": "https://schema.org",
-            "@type": "TVSeries",
+            "@type": data.type === "MOVIE" ? "Movie" : "TVSeries",
             name: seoTitle,
             image: data.imageLargeUrl ?? data.imageUrl ?? undefined,
             description: data.synopsis ?? undefined,
-            numberOfEpisodes: data.episodes ?? undefined,
+            numberOfEpisodes: data.type !== "MOVIE" ? data.episodes ?? undefined : undefined,
             genre: data.genresDetailed.map((g) => g.name),
             // Overall score hidden for now:
             // ...(data.score != null && data.scoredBy != null
@@ -403,7 +403,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   {t("detail.sections.watch")}
                 </a>
               </Button>
-              {data.trailerEmbedUrl && <TrailerButton url={data.trailerEmbedUrl} title={title} />}
+              <TrailerButton animeId={data.id} url={data.trailerEmbedUrl} title={title} />
               <ShareQrButton anime={data} prominent />
             </div>
           </div>

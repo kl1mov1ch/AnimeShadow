@@ -1744,17 +1744,9 @@ body:has([role="dialog"][data-state="open"]) main * {
 [data-sonner-toast].toast-card {
   color: var(--foreground) !important;
   border: 1px solid color-mix(in srgb, var(--tc) 32%, transparent) !important;
-  background:
-    linear-gradient(var(--tc), var(--tc)) left bottom / 100% 2px no-repeat,
-    radial-gradient(120% 140% at 0% 50%, color-mix(in srgb, var(--tc) 16%, transparent), transparent 60%),
-    color-mix(in srgb, var(--card) 93%, white 7%) !important;
-  box-shadow: inset 3px 0 0 var(--tc), 0 14px 40px -14px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(0 0 0 / 0.15) !important;
-  animation: toast-timer 4s linear forwards;
+  background: var(--card) !important;
+  box-shadow: inset 2px 0 0 var(--tc), 0 8px 28px -12px rgb(0 0 0 / 0.6) !important;
 }
-/* The timer line runs out with the toast and stops while it is pointed at. */
-[data-sonner-toaster]:hover [data-sonner-toast].toast-card { animation-play-state: paused; }
-[data-sonner-toast][data-type="loading"].toast-card { animation: none; background-size: 0 2px, auto, auto; }
-@keyframes toast-timer { from { background-size: 100% 2px, auto, auto; } to { background-size: 0% 2px, auto, auto; } }
 [data-sonner-toast] .toast-action {
   background: var(--tc) !important;
   color: #0b0b10 !important;
@@ -1962,6 +1954,11 @@ body:has([role="dialog"][data-state="open"]) main * {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent), 0 2px 6px rgb(0 0 0 / 0.5);
 }
 .pic-range:active::-webkit-slider-thumb { transform: scale(1.18); }
+@keyframes skip-prompt {
+  0% { opacity: 0; transform: translateY(4px); }
+  4%, 94% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(0); }
+}
 .pic-range:focus-visible { outline: none; }
 .pic-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--primary), 0 2px 6px rgb(0 0 0 / 0.5); }
 @media (pointer: coarse) {

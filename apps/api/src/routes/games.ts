@@ -116,7 +116,7 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
         AND: [
           POOL_WHERE,
           { OR: [{ screenshots: { isEmpty: false } }, { gameFrames: { isEmpty: false } }] },
-          contentGuardWhere(allowAdult),
+          contentGuardWhere(false),
         ],
       },
       select: {

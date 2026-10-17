@@ -211,6 +211,8 @@ export class CatalogService {
     lang: Locale = DEFAULT_LOCALE,
     allowAdult = false,
   ): Promise<DiscoverResponse> {
+    // The front page is a public showcase even for viewers allowed adult titles elsewhere.
+    allowAdult = false;
     return this.discoverCache.get(`discover:${lang}:${allowAdult}`, async () => {
       await this.ensureSeeded();
 
@@ -227,7 +229,7 @@ export class CatalogService {
         // Low ids ≈ long-established classics — a distinct rail from "top rated".
         this.queryCacheAsc({}, "id", 20, allowAdult),
         this.trendingNowBlended(20, allowAdult),
-        this.mostWatchedRecently(30, 20, allowAdult),
+        this.mostWatchedRecently(30, 20, allowAdult).then((items) => this.completeHomeRail(items, 20, allowAdult)),
         this.queryCacheAsc(
           { airing: "UPCOMING", airedFrom: { gte: new Date() } },
           "airedFrom",
@@ -298,7 +300,7 @@ export class CatalogService {
       where: { startedAt: { gte: since } },
       _count: { _all: true },
       orderBy: { _count: { animeId: "desc" } },
-      take: limit,
+      take: limit * 4,
     });
     const ids = grouped.map((g) => g.animeId);
     if (ids.length === 0) return [];
@@ -311,7 +313,7 @@ export class CatalogService {
     const items = ids
       .map((id) => byId.get(id))
       .filter((r): r is (typeof rows)[number] => r != null)
-      .map(toSummaryDto);
+      .map(toSummaryDto).slice(0, limit);
     this.scheduleHealMissingDetail(items);
     return items;
   }
@@ -350,9 +352,16 @@ export class CatalogService {
         .map(toSummaryDto);
     }
 
-    const combined = [...own, ...pad].slice(0, limit);
+    const combined = await this.completeHomeRail([...own, ...pad].slice(0, limit), limit, allowAdult);
     this.scheduleHealMissingDetail(combined);
     return this.ensureImages(combined, external);
+  }
+
+  /** A sparse activity feed is padded with real popular catalogue entries, still behind the home rating gate. */
+  private async completeHomeRail(items: AnimeSummary[], limit: number, allowAdult: boolean): Promise<AnimeSummary[]> {
+    if (items.length >= limit) return items.slice(0, limit);
+    const extra = await this.queryCache({ id: { notIn: items.map((item) => item.id) }, airing: { not: "UPCOMING" } }, "members", limit - items.length, allowAdult);
+    return [...items, ...extra];
   }
 
   /**

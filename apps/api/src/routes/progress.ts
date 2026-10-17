@@ -40,8 +40,9 @@ export const progressRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     "/me/continue",
     { preHandler: fastify.authenticate },
-    async (request) => ({
-      items: await progress.continueWatching(request.userId!),
-    }),
+    async (request) => {
+      const { home } = parse(z.object({ home: z.enum(["1"]).optional() }), request.query);
+      return { items: await progress.continueWatching(request.userId!, 20, home === "1") };
+    },
   );
 };

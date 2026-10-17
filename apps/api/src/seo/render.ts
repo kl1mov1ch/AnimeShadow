@@ -73,6 +73,7 @@ export interface SeoRendererDeps {
   landing: LandingService;
   /** For the home page's hero: its data and first frame are preloaded. */
   catalog?: { getDiscover: (lang: "ru", allowAdult: boolean) => Promise<{ spotlights?: Array<{ screenshots: string[] }> | null; spotlight?: { screenshots: string[] } | null }> };
+  logger?: { warn: (obj: unknown, msg?: string) => void };
 }
 
 /** The hosts the app's imageSrc sends through /api/img (keep in step with web/src/lib/format.ts). */
@@ -110,12 +111,14 @@ const PRIVATE = [
 ];
 
 export class SeoRenderer {
+  private readonly logger: SeoRendererDeps["logger"];
   private readonly prisma: PrismaClient;
   private readonly landing: LandingService;
   private readonly catalog: SeoRendererDeps["catalog"];
   private readonly cache = new TtlCache<PagePart>(5 * 60_000, 2000);
 
   constructor(deps: SeoRendererDeps) {
+    this.logger = deps.logger;
     this.prisma = deps.prisma;
     this.landing = deps.landing;
     this.catalog = deps.catalog;
@@ -151,9 +154,11 @@ export class SeoRenderer {
       const outcome = await this.route(pathname, search);
       if ("redirect" in outcome) return { status: 301, redirect: outcome.redirect };
       return { status: outcome.status ?? 200, head: this.head(outcome, address), body: outcome.body };
-    } catch {
+    } catch (error) {
+      this.logger?.warn({ error, pathname }, "SEO page rendering failed");
       // Never a broken page because of SEO: the bare shell still runs the app.
-      return { status: 200 };
+      const fallback = { title: "AnimeShadow — страница временно недоступна", description: "Обновите страницу чуть позже.", robots: "noindex" as const, body: layout("<h1>Информация временно недоступна</h1><p>Попробуйте обновить страницу чуть позже.</p>") };
+      return { status: 503, head: this.head(fallback, address), body: fallback.body };
     }
   }
 
@@ -202,11 +207,11 @@ export class SeoRenderer {
 
   private async home(): Promise<PageModel> {
     const [ongoing, top, popular, genres, discover] = await Promise.all([
-      this.landing.page({ kind: "ongoing" }),
-      this.landing.page({ kind: "top" }),
-      this.landing.page({ kind: "popular" }),
+      this.landing.page({ kind: "ongoing" }, false),
+      this.landing.page({ kind: "top" }, false),
+      this.landing.page({ kind: "popular" }, false),
       this.landing.genres(),
-      this.catalog?.getDiscover("ru", true).catch(() => null) ?? Promise.resolve(null),
+      this.catalog?.getDiscover("ru", false).catch(() => null) ?? Promise.resolve(null),
     ]);
     // The hero waits on its data and then its first frame: both start with the HTML instead.
     const shot = (discover?.spotlights?.[0] ?? discover?.spotlight)?.screenshots?.[0];
@@ -306,7 +311,7 @@ export class SeoRenderer {
       };
     }
 
-    const [dubs, similar, comments, ourRating] = await Promise.all([
+    const [dubs, similar, comments, ourRating, availability] = await Promise.all([
       this.prisma.playerSource
         .findMany({ where: { animeId: row.id }, select: { title: true, kind: true }, take: 40 })
         .then((rows) => [...new Set(rows.filter((r) => r.kind !== "subtitles").map((r) => dubName(r.title)).filter((n): n is string => n != null))].slice(0, 15)),
@@ -318,7 +323,9 @@ export class SeoRenderer {
         select: { body: true, createdAt: true, user: { select: { displayName: true } } },
       }),
       this.prisma.libraryEntry.aggregate({ where: { animeId: row.id, score: { not: null } }, _avg: { score: true }, _count: { score: true } }),
+      this.prisma.watchAvailability.findUnique({ where: { animeId: row.id }, select: { hasPlayer: true } }),
     ]);
+    const canWatch = availability?.hasPlayer === true && row.airing !== "UPCOMING";
 
     const episodes = row.episodes ?? null;
     const facts: Array<[string, string]> = [
@@ -355,7 +362,7 @@ export class SeoRenderer {
     ];
 
     const description = clip(
-      `Смотрите ${kind} «${name}»${yearPart} онлайн бесплатно в хорошем качестве${episodes ? `: ${plural(episodes, "серия", "серии", "серий")}` : ""}${dubs.length ? `, озвучка ${dubs.slice(0, 3).join(", ")}` : ""}. ${row.synopsis ?? ""}`,
+      `${canWatch ? "Смотрите" : "Информация про"} ${kind} «${name}»${yearPart}${canWatch ? " онлайн на AnimeShadow" : ""}${episodes ? `: ${plural(episodes, "серия", "серии", "серий")}` : ""}. ${row.synopsis ?? ""}`,
       190,
     );
     const ratingCount = ourRating._count.score;
@@ -364,28 +371,10 @@ export class SeoRenderer {
     const frames = row.screenshots.slice(0, 6);
     const wide = (src: string) => `${SITE}/api/img?u=${encodeURIComponent(src)}&w=1280&wm=1&f=jpg`;
     const lead = frames[0] ? wide(frames[0]) : row.bannerImage ?? poster;
-    const minutes = /(\d+)/.exec(row.duration ?? "")?.[1];
     const watchUrl = `${SITE}${canonical}#watch`;
-    const epWord = episodes ? plural(episodes, "серия", "серии", "серий") : null;
-    const faq: Array<[string, string]> = [
-      [
-        `Где смотреть «${name}» онлайн бесплатно?`,
-        `«${name}»${yearPart} можно смотреть онлайн бесплатно на ${BRAND}${epWord ? ` — ${epWord}` : ""} в хорошем качестве${dubs.length ? `, с озвучкой ${dubs.slice(0, 4).join(", ")}` : ""}. Без регистрации; с аккаунтом сайт запомнит, где вы остановились.`,
-      ],
-      ...(episodes && row.type !== "MOVIE"
-        ? [[`Сколько серий в аниме «${name}»?`, `${row.airing === "AIRING" ? "Аниме ещё выходит. Запланировано" : "Всего"} ${epWord}${row.duration ? ` по ${row.duration}` : ""}.`] as [string, string]]
-        : []),
-      ...(dubs.length
-        ? [[`В какой озвучке есть «${name}»?`, `На ${BRAND} доступны озвучки: ${dubs.join(", ")}. Переключить озвучку можно прямо в плеере.`] as [string, string]]
-        : []),
-      ...(row.synopsis ? [[`О чём аниме «${name}»?`, clip(row.synopsis, 320)] as [string, string]] : []),
-      ...(similar.length
-        ? [[`Что посмотреть похожее на «${name}»?`, `Похожие аниме: ${similar.slice(0, 6).map((s) => s.titleLocalized ?? s.title).join(", ")}.`] as [string, string]]
-        : []),
-    ];
 
     return {
-      title: `${name}${yearPart} — смотреть ${kind} онлайн бесплатно${row.type === "TV" ? (episodes ? `, все ${plural(episodes, "серия", "серии", "серий")}` : ", все серии") : ""} в хорошем качестве | ${BRAND}`,
+      title: `${name}${yearPart}${canWatch ? " — смотреть аниме онлайн" : " — описание и информация"} | ${BRAND}`,
       description: clip(`${r18 ? "18+ · " : ""}${row.score != null && row.score > 0 ? `★ ${row.score.toFixed(1)}/10 · ` : ""}${description}`, 200),
       canonical,
       image: lead,
@@ -417,9 +406,8 @@ export class SeoRenderer {
           ...(row.airedFrom ? { datePublished: row.airedFrom.toISOString().slice(0, 10) } : {}),
           ...(row.type !== "MOVIE" && episodes ? { numberOfEpisodes: episodes } : {}),
           ...(row.studios.length ? { productionCompany: row.studios.map((s) => ({ "@type": "Organization", name: s })) } : {}),
-          countryOfOrigin: { "@type": "Country", name: "Japan" },
           inLanguage: "ja",
-          potentialAction: { "@type": "WatchAction", target: watchUrl },
+          ...(canWatch ? { potentialAction: { "@type": "WatchAction", target: watchUrl } } : {}),
           ...(row.rating ? { contentRating: row.rating } : {}),
           // Only our own viewers' scores — never another site's rating.
           ...(ratingCount >= 3 && ourRating._avg.score != null
@@ -434,30 +422,6 @@ export class SeoRenderer {
               }
             : {}),
         },
-        // The player on the page, so search can show a video with a frame of the show.
-        ...(frames.length
-          ? [
-              {
-                "@context": "https://schema.org",
-                "@type": "VideoObject",
-                name: `${name} — смотреть онлайн${row.type === "TV" ? ", 1 серия" : ""}`,
-                description: clip(`${name}${yearPart}: ${row.synopsis ?? `${typeRu} онлайн бесплатно на ${BRAND}`}`, 300),
-                thumbnailUrl: frames.map(wide),
-                uploadDate: (row.airedFrom ?? row.createdAt).toISOString(),
-                ...(minutes ? { duration: `PT${minutes}M` } : {}),
-                embedUrl: watchUrl,
-                url: `${SITE}${canonical}`,
-                inLanguage: "ru",
-                isFamilyFriendly: !/^(r|rx)/i.test(row.rating ?? ""),
-                publisher: { "@type": "Organization", name: BRAND, logo: { "@type": "ImageObject", url: absolute(DEFAULT_IMAGE) } },
-              },
-            ]
-          : []),
-        {
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
-        },
         breadcrumbs([
           ["Главная", "/"],
           ["Каталог", "/browse"],
@@ -471,7 +435,7 @@ export class SeoRenderer {
           <div>
             <h1>${esc(name)}${esc(yearPart)}</h1>
             ${altNames.length ? `<p class="ssr-muted">${esc(altNames.join(" · "))}</p>` : ""}
-            <p>Смотреть ${esc(kind)} «${esc(name)}» онлайн бесплатно${episodes ? ` — ${esc(plural(episodes, "серия", "серии", "серий"))}` : ""}${dubs.length ? `, ${dubs.length > 1 ? "озвучки" : "озвучка"}: ${esc(dubs.join(", "))}` : ""}.</p>
+            <p>${canWatch ? `Доступен просмотр на ${esc(BRAND)}.` : "Информация об аниме. Доступность видео уточняется в плеере."}${dubs.length && canWatch ? ` Озвучки: ${esc(dubs.join(", "))}.` : ""}</p>
             <dl class="ssr-facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>
           </div>
         </article>
@@ -479,8 +443,6 @@ export class SeoRenderer {
         ${row.background ? `<p>${esc(clip(row.background, 800))}</p>` : ""}
         ${comments.length ? `<h2>Отзывы зрителей</h2>${comments.map((c) => `<blockquote><p>${esc(clip(c.body, 400))}</p><footer>— ${esc(c.user.displayName)}</footer></blockquote>`).join("")}` : ""}
         ${similar.length ? section("Похожие аниме", null, similar) : ""}
-        <h2>Частые вопросы</h2>
-        ${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}
       `),
     };
   }
@@ -530,15 +492,19 @@ export class SeoRenderer {
   }
 
   private async browse(search: string): Promise<PageModel> {
-    const page = await this.landing.page({ kind: "popular" });
+    const requested = new URLSearchParams(search).get("page");
+    const pageNumber = requested == null ? 1 : Number(requested);
+    if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > 2000) return this.notFound();
+    const page = await this.landing.page({ kind: "popular", page: pageNumber });
+    if (pageNumber > 1 && !page?.items.length) return this.notFound();
     // The catalogue with filters or a search is endless combinations of the
     // same titles: followed, not indexed — the clean landings carry that.
     const filtered = /[?&](?!page=)[^=&]+=/.test(search);
     return {
-      title: `Каталог аниме — смотреть аниме онлайн бесплатно | ${BRAND}`,
+      title: `Каталог аниме${pageNumber > 1 ? ` — страница ${pageNumber}` : " — смотреть аниме онлайн бесплатно"} | ${BRAND}`,
       description:
         "Каталог аниме с фильтрами по жанру, году, сезону, рейтингу и числу серий. Тысячи аниме-сериалов и фильмов — смотрите онлайн бесплатно.",
-      canonical: "/browse",
+      canonical: !filtered && pageNumber > 1 ? `/browse?page=${pageNumber}` : "/browse",
       robots: filtered ? "noindex" : "index",
       body: layout(`
         <h1>Каталог аниме</h1>
@@ -551,6 +517,10 @@ export class SeoRenderer {
           { href: "/announced", label: "Анонсы" },
         ])}
         ${grid(page?.items ?? [])}
+        ${page ? links([
+          ...(pageNumber > 1 ? [{ href: pageNumber === 2 ? "/browse" : `/browse?page=${pageNumber - 1}`, label: "Предыдущая страница" }] : []),
+          ...(pageNumber * page.perPage < page.total ? [{ href: `/browse?page=${pageNumber + 1}`, label: "Следующая страница" }] : []),
+        ]) : ""}
       `),
     };
   }

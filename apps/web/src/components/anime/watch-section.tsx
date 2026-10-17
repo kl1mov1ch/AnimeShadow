@@ -20,7 +20,6 @@ import {
   RotateCwIcon,
   Settings2Icon,
   SkipForwardIcon,
-  SparklesIcon,
   SignalIcon,
   VolumeXIcon,
   WifiOffIcon,
@@ -31,6 +30,8 @@ import { createPortal } from "react-dom";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { LogoGlyph } from "@/components/brand/logo-glyph";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
@@ -42,22 +43,24 @@ import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
 import { dubName, hasEpisode, nativeVariantsFromMaster, resumePosition, sourcesForEpisode } from "@/lib/playback-sources";
 import { persistPlayerSettings, pictureFilter, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PicturePanel, PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { PlayerSidePanel } from "@/components/anime/player-side-panel";
-import { DrawnCheck, MorphIcon } from "@/components/ui/morph-icon";
+import { MorphIcon } from "@/components/ui/morph-icon";
 import { attachEngine, type EngineHandle, type EngineStatus, type EngineTracks, loadHls, slowLine, warmHls } from "@/components/player/hls-engine";
 import { EMPTY_TRACKS, observeNativeTracks, pickNativeTrack, readNativeTracks } from "@/components/player/native-tracks";
 import { useMediaSession } from "@/components/player/use-media-session";
 import { FramePreview } from "@/components/player/frame-preview";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
-import { NEEDED_MBPS, NetStats } from "@/components/player/net-stats";
-import { type JumpDetail, publishClock } from "@/lib/player-clock";
+import { NetStats } from "@/components/player/net-stats";
+import { MemberFeature } from "@/components/player/member-feature";
+import { SkipSegmentButton } from "@/components/player/skip-segment-button";
+import { type JumpDetail, publishClock, readPlayerClock } from "@/lib/player-clock";
 import type { CommentMark } from "@animeshadow/shared";
 import { fitSegments, SEGMENT_LABEL, segmentAt, type SkipSegment } from "@/lib/skip-times";
 import type { SkipSegmentRaw } from "@animeshadow/shared";
@@ -115,10 +118,15 @@ export function WatchSection({
   // Prepare our video on entry; sound and playback require one user action.
   const [activated, setActivated] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [preferOwn, setPreferOwn] = useState(() => {
+    try { return localStorage.getItem("as:player-mode") !== "kodik"; } catch { return true; }
+  });
+  const [switchStart, setSwitchStart] = useState<{ episode: number; seconds: number } | null>(null);
   // Same route, different title: the component is reused, so the choice to
   // load a player on one page must not carry over to the next.
   useEffect(() => {
     setActivated(false);
+    setSwitchStart(null);
   }, [anime.id]);
   const releaseDate = anime.airedFrom ? new Date(anime.airedFrom) : null;
   const notYetOut =
@@ -130,6 +138,11 @@ export function WatchSection({
 
   // The API exposes direct sources only; every dub uses the same controls.
   const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls" || s.format === "mp4") ?? []) : [];
+  const providerSources: WatchSource[] = (rawData?.sources ?? []).filter((s) => s.providerPlayer && isKodikUrl(s.providerPlayer.url)).map((s) => ({
+    ...s, format: "iframe", embedUrl: s.providerPlayer!.url,
+    iframeEpisodes: Object.fromEntries(Object.entries(s.providerPlayer!.episodes).map(([n, url]) => [n, { url, thumbs: [] }])),
+    hlsEpisodes: undefined, hlsVariants: undefined,
+  }));
   // Our player's streaming code, fetched while the visitor reads the page —
   // not after "play" is pressed.
   const hasOwn = ownSources.length > 0;
@@ -186,7 +199,8 @@ export function WatchSection({
   // a few episodes behind Kodik on a show that is airing; asking it for one
   // it doesn't carry would quietly play its first episode instead.
   const ownHasEpisode = ownSources.some((s) => hasEpisode(s, episode));
-  const useOwn = canUseOwn && ownHasEpisode;
+  const canUseProvider = providerSources.some((s) => hasEpisode(s, episode));
+  const useOwn = canUseOwn && ownHasEpisode && (preferOwn || !canUseProvider);
 
   // A direct stream can be reachable from our server and not from the
   // viewer — AniLibria's CDN is blocked or throttled in some countries, and
@@ -196,7 +210,7 @@ export function WatchSection({
   // hiccup nobody notices. Their own click always wins afterwards: this
   // only fires while the preference is still the one we chose for them.
   const data = rawData
-    ? { ...rawData, sources: sourcesForEpisode(ownSources, episode) }
+    ? { ...rawData, sources: sourcesForEpisode(useOwn ? ownSources : providerSources, episode) }
     : rawData;
   // Warm the TCP/TLS handshake for the top few candidate embeds the moment
   // we know them — that connection setup is otherwise dead time that only
@@ -232,11 +246,16 @@ export function WatchSection({
         episode={episode}
         onEpisodeChange={chooseEpisode}
         onRefreshSources={refreshSources}
-        startAt={startAt}
+        startAt={switchStart ?? startAt}
         useOwn={useOwn}
         canUseOwn={canUseOwn && ownHasEpisode}
-        canUseProvider={false}
-        onUseOwnChange={() => {}}
+        canUseProvider={canUseProvider}
+        onUseOwnChange={(next) => {
+          const clock = readPlayerClock(anime.id);
+          setSwitchStart(clock?.episode === episode ? { episode, seconds: clock.time } : { episode, seconds: 0 });
+          setPreferOwn(next);
+          try { localStorage.setItem("as:player-mode", next ? "own" : "kodik"); } catch { /* Session only. */ }
+        }}
       />
     );
   }
@@ -1031,8 +1050,8 @@ export function CustomHlsPlayer({
   }, [src]);
 
   const applyResume = () => {
-    onReady();
     const video = videoRef.current;
+    if (video && (video.readyState >= 2 || format === "mp4" || video.canPlayType("application/vnd.apple.mpegurl"))) onReady();
     const at = resumeRef.current;
     if (!video || resumedSrcRef.current === src) return;
     const duration = video.duration;
@@ -1087,7 +1106,10 @@ export function CustomHlsPlayer({
   // Which list of the settings panel is open, if it is.
   const [menu, setMenu] = useState<SettingsPage | null>(null);
   const menuOpen = menu != null;
-  const settings = usePlayerSettings();
+  const savedSettings = usePlayerSettings();
+  const { status: memberStatus } = useAuth();
+  const member = memberStatus === "authenticated";
+  const settings = member ? savedSettings : { ...savedSettings, speed: 1, step: 10 };
   const closeMenu = useCallback(() => setMenu(null), []);
   // A press outside the player closes the panel; inside, its backdrop does.
   useDismiss(menuOpen, closeMenu, containerRef);
@@ -1231,7 +1253,6 @@ export function CustomHlsPlayer({
             // "Ready" for the race: the manifest is parsed, so this source
             // is real and answering — not after the first (slow) segment.
             onManifest: () => {
-              onReady();
               resumeIfWinner();
             },
             onStatus: setStatus,
@@ -1267,7 +1288,6 @@ export function CustomHlsPlayer({
       video.load();
       if (master) URL.revokeObjectURL(master);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, reloadKey, format]);
 
   // Frames for the seek bar's preview: the lowest quality is plenty for a
@@ -1282,7 +1302,7 @@ export function CustomHlsPlayer({
   const bufferingRef = useRef(false);
   const [preview, setPreview] = useState<FramePreview | null>(null);
   useEffect(() => {
-    if (!isWinner) return;
+    if (!isWinner || !member) return;
     // The preview never takes the line from the episode: it waits while the
     // main picture is short of data.
     // On a slow line the preview uses only frames already played — it never fetches.
@@ -1295,7 +1315,7 @@ export function CustomHlsPlayer({
       next.destroy();
       setPreview(null);
     };
-  }, [previewSrc, isWinner]);
+  }, [previewSrc, isWinner, member]);
   const previewRef = useRef(preview);
   previewRef.current = preview;
 
@@ -1741,6 +1761,7 @@ export function CustomHlsPlayer({
   };
 
   const changeSpeed = (rate: number) => {
+    if (!member) return;
     setPlayerSetting({ speed: rate });
     wake();
   };
@@ -1902,7 +1923,7 @@ export function CustomHlsPlayer({
   const skippedRef = useRef<{ src: string; done: Set<string> }>({ src, done: new Set() });
   if (skippedRef.current.src !== src) skippedRef.current = { src, done: new Set() };
   useEffect(() => {
-    if (!isWinner || !playing || duration <= 0) return;
+    if (!member || !isWinner || !playing || duration <= 0) return;
     const seg = segmentAt(fitSegments(segments, duration, opening), currentTime);
     if (!seg || !seg.exact) return;
     const key = `${seg.kind}:${seg.start}`;
@@ -1914,7 +1935,7 @@ export function CustomHlsPlayer({
     if (seg.kind === "ed" && seg.stop >= duration - 5) onEndedRef.current?.();
     else video.currentTime = seg.stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTime, isWinner, playing, duration]);
+  }, [currentTime, isWinner, playing, duration, member]);
 
   const shownTime = scrubTime ?? currentTime;
   const canPip =
@@ -1929,15 +1950,13 @@ export function CustomHlsPlayer({
         ? `${activeHeight}p`
         : t("watch.ctl.qualityAuto");
   const centerVisible = controlsVisible || !playing;
-  // The quality on screen, snapped to the ones we know the need of.
+  // Preserve the real resolution, including 1080p/1440p and nonstandard encodes.
   const shownHeight = (() => {
     // Before the first switch: where the stream starts (the lowest, or the viewer's pick).
     const start = settings.quality !== "auto" && levels.includes(Number(settings.quality)) ? Number(settings.quality) : levels.length ? Math.min(...levels) : null;
     const hgt = activeHeight ?? (videoHeight || null) ?? start;
     if (!hgt) return null;
-    return Object.keys(NEEDED_MBPS)
-      .map(Number)
-      .reduce((a, b) => (Math.abs(b - hgt) < Math.abs(a - hgt) ? b : a));
+    return hgt;
   })();
   const lowerQuality = (() => {
     if (levels.length < 2 || !shownHeight) return null;
@@ -1960,6 +1979,7 @@ export function CustomHlsPlayer({
   return (
     <div
       ref={containerRef}
+      data-animeshadow-player=""
       className={cn(
         "@container/player absolute inset-0 size-full select-none bg-black",
         !isWinner && "pointer-events-none opacity-0",
@@ -2031,6 +2051,9 @@ export function CustomHlsPlayer({
               speed={netSpeed}
               history={netHistory}
               height={shownHeight}
+              outputHeight={outputHeight}
+              bitrate={engineRef.current?.streamBitrate() ?? null}
+              playbackRate={speed}
               bufferAhead={bufferAhead}
               lowerQuality={lowerQuality}
               onLower={() => lowerQuality && pickQuality(String(lowerQuality))}
@@ -2172,30 +2195,18 @@ export function CustomHlsPlayer({
           {/* "Пропустить …" while a marked part is on screen: the opening,
               the ending or a recap. */}
           {activeSegment && (
-            <button
-              key={`${activeSegment.kind}-${activeSegment.start}`}
-              type="button"
-              onClick={() => {
+            <SkipSegmentButton
+              key={`${src}:${activeSegment.kind}-${activeSegment.start}`}
+              label={SEGMENT_LABEL[activeSegment.kind]}
+              playing={playing}
+              onSkip={() => {
                 const video = videoRef.current;
                 if (!video) return;
                 if (activeSegment.kind === "ed" && activeSegment.stop >= duration - 5) onEndedRef.current?.();
                 else video.currentTime = activeSegment.stop;
                 wake();
               }}
-              className="absolute bottom-16 right-2 z-20 flex animate-in items-center gap-2 rounded-xl border border-white/25 bg-black/75 px-3.5 py-2 text-sm font-semibold text-white shadow-xl backdrop-blur-sm transition-all duration-200 fade-in-0 slide-in-from-right-4 hover:border-primary hover:bg-primary active:scale-95 @lg/player:bottom-20 @lg/player:right-4"
-            >
-              <SkipForwardIcon className="size-4" />
-              Пропустить {SEGMENT_LABEL[activeSegment.kind]}
-              <span
-                aria-hidden
-                className="h-1 w-8 overflow-hidden rounded-full bg-white/25"
-              >
-                <span
-                  className="block h-full bg-white"
-                  style={{ width: `${Math.min(100, ((currentTime - activeSegment.start) / Math.max(1, activeSegment.stop - activeSegment.start)) * 100)}%` }}
-                />
-              </span>
-            </button>
+            />
           )}
 
           <div
@@ -2454,7 +2465,7 @@ function Player({
     readFavouriteDub(animeId),
   );
   const [racePool, setRacePool] = useState<string[]>(() =>
-    initialRacePool(data.sources, readFavouriteDub(animeId)),
+    initialRacePool(data.sources, readFavouriteDub(animeId) ?? readWorkingDub(animeId)),
   );
   const [winnerId, setWinnerId] = useState<string | null>(null);
   const racePoolRef = useRef(racePool);
@@ -2745,6 +2756,13 @@ function Player({
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const kodik = useKodikBridge(kodikFrame, {
+    onStarted: () => {
+      setActuallyPlaying(true);
+      try { if (winnerSource) localStorage.setItem(`as:last-working:${animeId}`, winnerSource.title); } catch { /* Session only. */ }
+      onStarted();
+    },
+    onPlay: () => setActuallyPlaying(true),
+    onPause: () => setActuallyPlaying(false),
     onDuration: (d) => {
       lastDuration.current = d;
     },
@@ -2934,6 +2952,8 @@ function Player({
   const handleFailed = (id: string) => {
     if (!racePoolRef.current.includes(id)) return;
     if (winnerId != null && winnerId !== id) return;
+    setActuallyPlaying(false);
+    setNotice("Источник не ответил. Проверяем следующую озвучку…");
     handoff.current = { episode, seconds: lastTime.current };
     setWinnerId(null);
     setTriedIds((tried) => {
@@ -2989,7 +3009,10 @@ function Player({
               <CustomHlsPlayer
                 format={source.format}
                 autoStart={autoStart}
-                onStarted={onStarted}
+                onStarted={() => {
+                  try { localStorage.setItem(`as:last-working:${animeId}`, source.title); } catch { /* Session only. */ }
+                  onStarted();
+                }}
                 onPlaybackChange={setActuallyPlaying}
                 poster={poster}
                 key={episode}
@@ -3031,7 +3054,15 @@ function Player({
             );
           }
 
-          return null;
+          const embed = sourceUrlFor(source, episode);
+          if (!embed || !isKodikUrl(embed)) return null;
+          return <iframe key={`${source.id}:${episode}:${attempt}`} src={embed}
+            ref={(node) => { if (node) frames.current.set(id, node); else frames.current.delete(id); }}
+            onLoad={() => handleLoad(id)} onError={() => handleFailed(id)}
+            title={`Kodik Player · ${source.title} · Серия ${episode}`}
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen
+            referrerPolicy="origin" className={cn("absolute inset-0 size-full border-0", !isWinner && "invisible")}
+          />;
         })}
         {notice && (
           <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 animate-in rounded-lg bg-black/75 px-2.5 py-1 text-xs font-medium text-white fade-in-0 slide-in-from-top-1">
@@ -3081,8 +3112,8 @@ function Player({
           instead of floating on its own row above the player. One card
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
-      <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/60 px-2 py-1.5 text-sm sm:flex-wrap sm:gap-2 sm:px-3 sm:py-2">
-        {canUseOwn && (
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-2 py-2 text-sm sm:px-3">
+        {(canUseOwn || canUseProvider) && (
           <PlayerSwitch
             useOwn={useOwn}
             canUseOwn={canUseOwn}
@@ -3092,11 +3123,11 @@ function Player({
         )}
         {/* What is on screen, by number and — where anyone has published
             one — by name. */}
-        <span className="flex min-w-0 items-center gap-1.5 text-xs">
+        <span className="order-last flex w-full min-w-0 items-start gap-2 border-t border-border/50 pt-2 text-xs sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
           <span className="shrink-0 rounded-md bg-primary/15 px-1.5 py-0.5 font-display tabular-nums text-primary">
             {episode}
           </span>
-          <span className="hidden min-w-0 truncate font-medium sm:inline">
+          <span className="min-w-0 break-words font-medium leading-relaxed [overflow-wrap:anywhere]">
             {catalog.info.get(episode)?.title ?? t("detail.episodeNumber", { n: episode })}
           </span>
         </span>
@@ -3387,6 +3418,7 @@ function PlayerPrefsBar({
         {items.map(({ key, icon: Icon, label, hint }) => {
           const on = prefs[key];
           const off = locked || !supported || (key === "autoNext" && !hasNext);
+          if (locked) return <MemberFeature key={key} label={label} className="flex h-9 min-w-0 items-center gap-1.5 rounded-lg border border-border/40 px-2 text-[11px] text-muted-foreground hover:border-primary/40" />;
           return (
             <Tooltip key={key}>
               <TooltipTrigger asChild>
@@ -3421,18 +3453,6 @@ function PlayerPrefsBar({
           );
         })}
       </div>
-      {locked && (
-        <Link
-          to="/register"
-          className="flex items-center gap-2 rounded-lg border border-primary/35 bg-gradient-to-r from-primary/15 to-fuchsia-500/10 px-2.5 py-1.5 text-[11px] leading-snug transition-colors hover:border-primary/60"
-        >
-          <LockIcon className="size-3.5 shrink-0 text-primary" />
-          <span className="min-w-0 flex-1">
-            <b className="font-semibold">Войдите</b> — и плеер будет пропускать опенинги, сам включать следующую серию и
-            продолжать с того места, где вы остановились.
-          </span>
-        </Link>
-      )}
       {supported && (prefs.skipOpening || prefs.skipEnding) && !hasTimes && (
         <p className="px-1 text-[10px] leading-snug text-muted-foreground">{t("watch.pref.noTimes")}</p>
       )}
@@ -3509,6 +3529,10 @@ function readFavouriteDub(animeId: number): string | null {
   }
 }
 
+function readWorkingDub(animeId: number): string | null {
+  try { return localStorage.getItem(`as:last-working:${animeId}`); } catch { return null; }
+}
+
 
 /**
  * Which sources we actually drive. A direct stream plays in our own picture
@@ -3516,93 +3540,25 @@ function readFavouriteDub(animeId: number): string | null {
  * player and its own everything. That is a real difference to a viewer
  * choosing between two dubs, and it used to be invisible.
  */
-/**
- * Ours or theirs, as one segmented control above the picture.
- *
- * Deliberately not a dropdown: there are exactly two, the difference is
- * something a viewer feels immediately (our interface versus the
- * provider's), and switching back after trying one should cost a single
- * click in a place the eye already is.
- *
- * A side with nothing to play stays visible and goes unavailable, with the
- * reason on hover, rather than disappearing — otherwise the bar would
- * change shape from title to title and the control would be something you
- * have to go looking for.
- */
-function PlayerSwitch({
-  useOwn,
-  canUseOwn,
-  canUseProvider,
-  onChange,
-}: {
-  useOwn: boolean;
-  canUseOwn: boolean;
-  canUseProvider: boolean;
-  onChange: (useOwn: boolean) => void;
+/** Compact engine picker; unavailable alternatives stay visible and disabled. */
+function PlayerSwitch({ useOwn, canUseOwn, canUseProvider, onChange }: {
+  useOwn: boolean; canUseOwn: boolean; canUseProvider: boolean; onChange: (own: boolean) => void;
 }) {
-  const t = useT();
-  const options = [
-    {
-      own: true,
-      label: t("watch.playerOwn"),
-      enabled: canUseOwn,
-      why: t("watch.playerOwnUnavailable"),
-    },
-    {
-      own: false,
-      label: t("watch.playerProvider"),
-      enabled: canUseProvider,
-      why: t("watch.playerProviderUnavailable"),
-    },
-  ];
   return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-secondary/40 p-0.5">
-      {options.filter((option) => option.enabled).map((option) => {
-        const active = useOwn === option.own;
-        return (
-          <Tooltip key={String(option.own)}>
-            <TooltipTrigger asChild>
-              {/* The disabled half still has to answer a hover, and a
-                  disabled button doesn't fire pointer events — so the
-                  wrapper carries the tooltip and the button inside it goes
-                  inert instead. */}
-              <span className={cn(!option.enabled && "cursor-not-allowed")}>
-                <button
-                  type="button"
-                  onClick={() => option.enabled && onChange(option.own)}
-                  aria-pressed={active}
-                  aria-disabled={!option.enabled}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all duration-200 sm:gap-1.5 sm:px-2.5",
-                    !option.enabled
-                      ? "pointer-events-none opacity-40"
-                      : active
-                        ? "bg-primary/15 text-primary"
-                        : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground active:scale-95",
-                  )}
-                >
-                  {option.own && (
-                    <SparklesIcon
-                      className={cn(
-                        "size-3 transition-transform duration-300",
-                        active && "morph-pop",
-                      )}
-                    />
-                  )}
-                  {option.label}
-                  {active && option.enabled && (
-                    <DrawnCheck key={String(useOwn)} className="hidden size-3 sm:block" />
-                  )}
-                </button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {option.enabled ? t(`watch.${option.own ? "playerOwnHint" : "playerProviderHint"}`) : option.why}
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
+    <Select value={useOwn ? "own" : "kodik"} onValueChange={(value) => onChange(value === "own")}>
+      <SelectTrigger aria-label="Выбрать плеер" className="h-9 max-w-full shrink-0 gap-2 bg-primary/5 text-xs">
+        {useOwn && <LogoGlyph className="size-4 text-primary" />}
+        <SelectValue>{useOwn ? "Свой плеер" : "Kodik Player"}</SelectValue>
+      </SelectTrigger>
+      <SelectContent position="popper" align="start" className="max-w-[calc(100vw-2rem)]">
+        <SelectGroup>
+          <SelectItem value="own" disabled={!canUseOwn} textValue="Свой плеер · AnimeShadow">
+            <span className="flex items-center gap-2"><LogoGlyph className="size-4 text-primary" />Свой плеер · AnimeShadow</span>
+          </SelectItem>
+          <SelectItem value="kodik" disabled={!canUseProvider}>Kodik Player</SelectItem>
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }
 

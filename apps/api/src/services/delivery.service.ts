@@ -287,8 +287,13 @@ export class DeliveryService {
   async direct(userId: string, msg: { title: string; body: string; url: string; button: string }): Promise<boolean> {
     const tg = await this.sendTelegramTo(userId, `🎬 <b>${escapeHtml(msg.title)}</b>
 ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
-    const push = await this.pushTo(userId, { title: msg.title, body: msg.body, url: msg.url, tag: "party" });
+    const push = await this.pushTo(userId, { title: msg.title, body: msg.body, url: msg.url, tag: `party-invite-${new URL(msg.url).pathname.split("/").pop()}` });
     return tg || push > 0;
+  }
+
+  /** Room lifecycle messages respect browser notification preferences. */
+  async room(userId: string, msg: { title: string; body: string; url: string; tag: string }): Promise<number> {
+    return this.pushTo(userId, msg);
   }
 
   // ---- delivery ------------------------------------------------------------
@@ -391,7 +396,7 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         JSON.stringify(payload),
-        { TTL: 24 * 3600, urgency: "normal" },
+        { TTL: payload.tag?.endsWith("-waiting") ? 300 : 24 * 3600, urgency: "normal" },
       );
       return true;
     } catch (error) {

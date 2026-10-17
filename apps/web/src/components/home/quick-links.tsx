@@ -46,7 +46,7 @@ const CHIP =
 export function HomeQuickLinks() {
   const navigate = useNavigate();
   const [rolling, setRolling] = useState(false);
-  const { data: curated } = useCuratedCollections();
+  const { data: curated } = useCuratedCollections(true);
   const season = seasonOf(new Date());
   const seasonName = seasonNameRu(season.season, "nom");
   const links: QuickLink[] = [
@@ -62,7 +62,7 @@ export function HomeQuickLinks() {
     { to: "/movies", title: "Фильмы", hint: "Полнометражные", Icon: ClapperboardIcon, curated: "one-evening" },
     { to: "/announced", title: "Анонсы", hint: "Скоро выйдут", Icon: CalendarClockIcon },
     { to: "/collections", title: "Подборки", hint: "На любой вечер", Icon: LayersIcon },
-    { to: "/browse?hasCustomPlayer=1", title: "Без рекламы", hint: "Свой плеер, до 1080p", Icon: MonitorPlayIcon, curated: "no-ads" },
+    { to: "/browse", title: "Смотреть", hint: "AnimeShadow Player", Icon: MonitorPlayIcon },
   ];
   const byslug = new Map((curated?.items ?? []).map((c) => [c.slug, c]));
 
@@ -70,7 +70,7 @@ export function HomeQuickLinks() {
     if (rolling) return;
     setRolling(true);
     try {
-      const r = await apiRequest<{ slug: string }>("/anime/random");
+      const r = await apiRequest<{ slug: string }>("/anime/random?home=1");
       navigate(`/anime/${r.slug}`);
     } catch {
       /* nothing to open */

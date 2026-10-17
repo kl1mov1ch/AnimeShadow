@@ -44,7 +44,7 @@ export function Component() {
   const isAuthed = status === "authenticated";
   const { data, isPending, isError, refetch } = useDiscover();
   const homeGenres = useHomeGenres();
-  const { data: cont } = useContinueWatching(isAuthed);
+  const { data: cont } = useContinueWatching(isAuthed, true);
   const { data: recs, isPending: recsPending } = useHomeRecommendations();
 
   if (isError) {
@@ -86,7 +86,8 @@ export function Component() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="flex flex-col gap-12 [&>section.full-bleed:first-child]:-mt-6 sm:[&>section.full-bleed:first-child]:-mt-10">
+    <div className="flex flex-col gap-12 [&>section.full-bleed:first-of-type]:-mt-6 sm:[&>section.full-bleed:first-of-type]:-mt-10">
+      <h1 className="sr-only">Аниме на AnimeShadow</h1>
 
       {/* Full-bleed, so it meets the header above it and the first rail
           below without the page's gutters showing through. The negative

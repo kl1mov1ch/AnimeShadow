@@ -40,17 +40,14 @@ export function fitSegments(
   duration: number,
   providerOpening?: { start: number; stop: number } | null,
 ): SkipSegment[] {
+  if (!Number.isFinite(duration) || duration <= 0) return [];
   const out: SkipSegment[] = [];
-  if (providerOpening && providerOpening.stop > providerOpening.start) out.push({ kind: "op", ...providerOpening, exact: true });
+  const validOpening = providerOpening && Number.isFinite(providerOpening.start) && Number.isFinite(providerOpening.stop) && providerOpening.start >= 0 && providerOpening.stop > providerOpening.start && providerOpening.stop <= duration ? providerOpening : null;
+  if (validOpening) out.push({ kind: "op", ...validOpening, exact: true });
   for (const kind of ["op", "ed", "recap"] as const) {
-    if (kind === "op" && providerOpening) continue;
-    const candidates = (raw ?? []).filter((s) => s.kind === kind);
+    if (kind === "op" && validOpening) continue;
+    const candidates = (raw ?? []).filter((s) => s.kind === kind && Number.isFinite(s.start) && Number.isFinite(s.stop) && s.start >= 0 && s.stop > s.start && Number.isFinite(s.length) && s.length >= 0);
     if (candidates.length === 0) continue;
-    if (!(duration > 0)) {
-      const first = candidates[0]!;
-      out.push({ kind, start: first.start, stop: first.stop, exact: false });
-      continue;
-    }
     const best = candidates.reduce((a, b) =>
       Math.abs((b.length || duration) - duration) < Math.abs((a.length || duration) - duration) ? b : a,
     );

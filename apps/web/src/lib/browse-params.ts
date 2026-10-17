@@ -50,7 +50,6 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     year: num("year"),
     genres: genres.length > 0 ? genres : undefined,
     hasPlayer: search.get("hasPlayer") === "1" ? true : undefined,
-    hasCustomPlayer: search.get("hasCustomPlayer") === "1" ? true : undefined,
     studio: search.get("studio")?.trim() || undefined,
     rating: ["g", "pg", "pg13", "r17", "rplus"].includes(search.get("rating") ?? "") ? (search.get("rating") as string) : undefined,
     maxScore: num("maxScore"),

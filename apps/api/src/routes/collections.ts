@@ -125,7 +125,8 @@ export const collectionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // The site's own themed lists (see CuratedService) — above the viewers' ones.
   fastify.get("/collections/curated", { preHandler: fastify.optionalAuth }, async (request, reply) => {
-    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+    const { home } = parse(z.object({ home: z.enum(["1"]).optional() }), request.query);
+    const allowAdult = home === "1" ? false : await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
     if (!request.userId) reply.header("cache-control", "public, max-age=600");
     return fastify.services.curated.list(allowAdult);
   });

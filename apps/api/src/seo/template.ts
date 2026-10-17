@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { env } from "../config/env.js";
+import { renderShell } from "./shell.js";
 
 /**
  * The built app's index.html — the shell every page is. Read from the web
@@ -41,10 +42,5 @@ export function fillShell(head: string, body: string): string {
   // Replacer functions, not strings: in a replacement string `$&`, `$'` and
   // the like are patterns, and a collection title or a display name holding
   // one spliced copies of the page into it.
-  return appShell()
-    .replace(/<html[^>]*>/i, () => '<html lang="ru" class="dark">')
-    .replace(/<title>[\s\S]*?<\/title>/i, () => "")
-    .replace(/<meta\s+name="description"[^>]*>/i, () => "")
-    .replace(/<\/head>/i, () => `${head}\n</head>`)
-    .replace(/<div id="root"><\/div>/i, () => `<div id="root">${body}</div>`);
+  return renderShell(appShell(), head, body);
 }

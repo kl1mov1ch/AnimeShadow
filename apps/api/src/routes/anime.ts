@@ -84,13 +84,14 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+      const { home } = parse(z.object({ home: z.enum(["1"]).optional() }), request.query);
       // Only what can actually be watched here: a random title that then
       // says "no player" is a dead end, not a surprise.
       const pool = await fastify.prisma.anime.findMany({
         where: {
           AND: [
             { score: { gte: 7 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
-            contentGuardWhere(allowAdult),
+            contentGuardWhere(home === "1" ? false : allowAdult),
           ],
         },
         select: { id: true, slug: true },
@@ -143,7 +144,8 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parse(idParams, request.params);
     const { lang } = parse(localeQuerySchema, request.query);
     reply.header("cache-control", "public, max-age=600");
-    return { episodes: await episodeInfo.get(id, lang) };
+    const episodes = await episodeInfo.get(id, lang);
+    return { episodes, pending: episodeInfo.pending(id) };
   });
 
   fastify.get(

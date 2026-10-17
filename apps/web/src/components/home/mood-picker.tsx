@@ -25,7 +25,7 @@ const MOODS: Array<{ slug: string; label: string }> = [
  * hovered mood fans out its first posters.
  */
 export function HomeMoodPicker() {
-  const { data, isPending } = useCuratedCollections();
+  const { data, isPending } = useCuratedCollections(true);
   const bySlug = new Map((data?.items ?? []).map((c) => [c.slug, c]));
   const moods = MOODS.map((m) => ({ ...m, collection: bySlug.get(m.slug) })).filter(
     (m): m is { slug: string; label: string; collection: CuratedCollection } => m.collection != null,

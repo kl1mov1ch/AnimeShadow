@@ -1,4 +1,5 @@
-import { CoffeeIcon, ExternalLinkIcon, HeartHandshakeIcon, HeartIcon, type LucideIcon, MessageCircleIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
+import { BookOpenIcon, CoffeeIcon, ExternalLinkIcon, HeartHandshakeIcon, HeartIcon, type LucideIcon, MessageCircleIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 import { ConsentCheck, usePayConsent } from "@/components/legal/consent";
 import { type CSSProperties, useState } from "react";
 import { ReactionGif } from "@/components/common/reaction-gif";
@@ -10,6 +11,8 @@ import { useT } from "@/i18n";
 import { BOOSTY_URL, donateHref } from "@/lib/support-links";
 import { cn } from "@/lib/utils";
 import { PromoCard } from "@/components/promo/promo-offer";
+import { MulenPayCheckout } from "@/components/promo/mulenpay-checkout";
+import { useDocumentHead } from "@/lib/seo";
 
 const reveal = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -24,6 +27,7 @@ const reveal = (i: number) => ({ "--i": i }) as CSSProperties;
  * the site sells. Every perk on it is one the site actually delivers.
  */
 export function Component() {
+  useDocumentHead({ title: "Поддержать AnimeShadow — PRO и способы оплаты", description: "Возможности PRO, действующие предложения и способы поддержки AnimeShadow. Условия подписки и помощь зрителям.", path: "/support" });
   const t = useT();
   const { user } = useAuth();
   // The gif in the corner cheers up when the pointer is on a support button.
@@ -87,10 +91,26 @@ export function Component() {
       <div className="reveal" style={reveal(1)}>
         <PlansSection ctaHref={BOOSTY_URL} showCompare={false} />
       </div>
+      <MulenPayCheckout consent={pay.accepted} />
+
+      <section className="grid gap-5 rounded-2xl border border-border/60 bg-card/30 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:p-7">
+        <div>
+          <BookOpenIcon className="mb-3 size-6 text-primary" />
+          <h2 className="font-display text-xl">Всё о сервисе и подписке</h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">Как устроены просмотр, списки и поддержка проекта. Ознакомьтесь с условиями перед оплатой и найдите нужные контакты.</p>
+        </div>
+        <nav aria-label="Документация проекта" className="grid content-center gap-2">
+          {[{ to: "/about", title: "Возможности AnimeShadow", note: "Инструкция и ответы на вопросы" }, { to: "/legal?doc=terms", title: "Подписка и возвраты", note: "Действующие условия сервиса" }, { to: "/legal?doc=contacts", title: "Связаться с поддержкой", note: "Контакты администрации" }].map((item) => <Link key={item.to} to={item.to} className="group flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-primary">
+            <span className="min-w-0"><span className="block text-sm font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{item.note}</span></span>
+            <ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground group-hover:text-primary" />
+          </Link>)}
+        </nav>
+      </section>
 
       {/* How PRO actually gets switched on — said plainly, since it is by hand. */}
       <section className="reveal flex flex-col gap-4" style={reveal(2)}>
         <SectionTitle icon={SparklesIcon} title={t("support.steps.title")} />
+        <p className="text-sm text-muted-foreground">Для поддержки через Boosty: сообщите свой профиль, чтобы мы связали подписку с аккаунтом AnimeShadow.</p>
         <ol className="grid gap-3 md:grid-cols-3">
           {steps.map(({ icon: Icon, title, body }, i) => (
             <li

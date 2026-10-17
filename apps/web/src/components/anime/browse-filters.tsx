@@ -9,7 +9,6 @@ import {
   ChevronUpIcon,
   EyeOffIcon,
   MinusIcon,
-  MonitorPlayIcon,
   PlayCircleIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -251,12 +250,6 @@ export function BrowseFilters({
       </Fold>
 
       <div className="flex flex-col gap-0.5 rounded-xl border border-border/50 bg-foreground/[0.02] px-2 py-1">
-        <Switch
-          icon={MonitorPlayIcon}
-          label="Свой плеер, без рекламы"
-          on={params.hasCustomPlayer === true}
-          onClick={() => onChange({ hasCustomPlayer: params.hasCustomPlayer ? null : "1" })}
-        />
         <Switch
           icon={PlayCircleIcon}
           label="Показать и без плеера"
