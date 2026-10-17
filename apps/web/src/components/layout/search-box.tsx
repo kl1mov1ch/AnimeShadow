@@ -1,6 +1,7 @@
 import type { AnimeSummary, CollectionSummary, UserCard } from "@animeshadow/shared";
 import { Loader2Icon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useHeaderOverlay } from "@/hooks/use-header-overlay";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   budgetGroups,
@@ -55,6 +56,7 @@ export function SearchBox() {
 
   const isAuthed = status === "authenticated";
   const [open, setOpen] = useState(false);
+  useHeaderOverlay(open);
   // Genre chips only exist in the open dropdown — fetched on first open,
   // not on every page load.
   const [wasOpened, setWasOpened] = useState(false);

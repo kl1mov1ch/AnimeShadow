@@ -297,7 +297,7 @@ export function Component() {
       <div
         aria-hidden={!pillShown}
         className={cn(
-          "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border/70 bg-card/95 p-1 shadow-lg shadow-black/40 backdrop-blur transition-[opacity,transform] duration-300 ease-out",
+          "fixed bottom-[calc(var(--mobile-nav-space)+0.75rem)] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border/70 bg-card/95 p-1 shadow-lg shadow-black/40 backdrop-blur transition-[opacity,transform] duration-300 ease-out",
           pillShown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
         )}
       >

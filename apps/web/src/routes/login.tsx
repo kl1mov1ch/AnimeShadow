@@ -104,7 +104,7 @@ export function Component() {
         </>
       }
     >
-      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+      <form onSubmit={onSubmit} noValidate className="flex min-w-0 flex-col gap-3.5 sm:gap-5">
         <FormErrorAlert message={errors.form} />
 
         <AuthField label={t("auth.email")} error={errors.email}>
@@ -116,7 +116,6 @@ export function Component() {
               autoComplete="email"
               inputMode="email"
               placeholder={t("auth.emailPlaceholder")}
-              autoFocus
               required
             />
           )}

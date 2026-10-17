@@ -1,3 +1,4 @@
+import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { LockIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,9 +18,9 @@ export function MemberFeature({ label, className }: { label: string; className?:
       </button>
     </PopoverTrigger>
     <PopoverContent portalContainer={container} className="w-64 max-w-[calc(100vw-1.5rem)] text-sm" side="top">
-      <p className="font-semibold">{label}</p>
+      <p className="flex items-center gap-2 font-semibold"><LogoGlyph className="size-5 shrink-0 text-primary" />{label}</p>
       <p className="mt-1 text-xs text-muted-foreground">Доступно бесплатно после регистрации. Ваши настройки сохранятся между сериями.</p>
-      <Link to="/register" className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">Зарегистрироваться</Link>
+      <Link to="/register" className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">Зарегистрироваться</Link>
     </PopoverContent>
   </Popover>;
 }

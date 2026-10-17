@@ -3306,7 +3306,7 @@ function Player({
           <div
             className={cn(
               mini
-                ? "fixed bottom-4 left-4 z-50 aspect-video w-[min(26rem,calc(100vw-2rem))] animate-in overflow-hidden rounded-xl border border-white/15 bg-black shadow-2xl shadow-black/60 fade-in-0 slide-in-from-bottom-4"
+                ? "fixed bottom-[calc(var(--mobile-nav-space,0px)+1rem)] left-4 z-50 aspect-video w-[min(26rem,calc(100vw-2rem))] animate-in overflow-hidden rounded-xl border border-white/15 bg-black shadow-2xl shadow-black/60 fade-in-0 slide-in-from-bottom-4"
                 : "absolute inset-0",
             )}
           >

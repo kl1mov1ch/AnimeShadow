@@ -2,7 +2,7 @@ import { registerInputSchema } from "@animeshadow/shared";
 import { GiftIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AuthCard,
   AuthDivider,
@@ -31,6 +31,9 @@ export function Component() {
   const t = useT();
   const { requestRegistration, confirmRegistration, loginWithTelegram } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
+  const returnTo = from?.startsWith("/") && !from.startsWith("//") ? from : "/library";
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState(false);
   const [password, setPassword] = useState("");
@@ -47,7 +50,7 @@ export function Component() {
       await confirmRegistration(pendingEmail, value, password || undefined);
       forgetReferral();
       toast.success("Аккаунт создан!");
-      navigate("/library", { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (error) {
       setCodeError(error instanceof ApiRequestError ? error.message : t("auth.genericError"));
       setCode("");
@@ -69,7 +72,7 @@ export function Component() {
     try {
       await loginWithTelegram(data);
       toast.success("Добро пожаловать!", { description: "Аккаунт готов — начинай собирать свой список" });
-      navigate("/library", { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (error) {
       const message = error instanceof ApiRequestError ? error.message : t("auth.genericError");
       setErrors({ form: message });
@@ -113,7 +116,7 @@ export function Component() {
         setNeedsEmailCode(false);
         forgetReferral();
         toast.success("Аккаунт создан!");
-        navigate("/library", { replace: true });
+        navigate(returnTo, { replace: true });
         return;
       }
       setPendingEmail(parsed.data.email);
@@ -159,7 +162,7 @@ export function Component() {
         </>
       }
     >
-      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
+      <form onSubmit={onSubmit} noValidate className="flex min-w-0 flex-col gap-3.5 sm:gap-5">
         <FormErrorAlert message={errors.form} />
 
         <AuthField label={t("auth.displayName")} error={errors.displayName}>
@@ -169,7 +172,6 @@ export function Component() {
               name="displayName"
               autoComplete="nickname"
               placeholder={t("auth.displayNamePlaceholder")}
-              autoFocus
               required
             />
           )}
@@ -209,8 +211,8 @@ export function Component() {
           <PasswordStrength password={password} />
         </div>
 
-        <AuthField
-          label="Код друга — если пригласили"
+        <details className="rounded-xl border border-border/60 px-3 py-2"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">Есть код друга?</summary><div className="pt-3"><AuthField
+          label="Код друга"
           hint={
             friend.data?.valid
               ? undefined
@@ -241,7 +243,7 @@ export function Component() {
               )}
             </div>
           )}
-        </AuthField>
+        </AuthField></div></details>
 
         <ConsentCheck
           kind="register"

@@ -51,7 +51,7 @@ function Backdrop() {
 function Showcase({ kind }: { kind: "login" | "register" }) {
   const c = SHOWCASE[kind];
   return (
-    <div className="relative isolate flex flex-col overflow-hidden border-b border-border/50 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_srgb,var(--primary)_22%,transparent),transparent_60%)] p-5 sm:p-7 lg:border-b-0 lg:border-r lg:p-9">
+    <div className="relative isolate hidden flex-col overflow-hidden border-b border-border/50 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_srgb,var(--primary)_22%,transparent),transparent_60%)] p-5 sm:p-7 lg:flex lg:border-b-0 lg:border-r lg:p-9">
       <LogoWatermark className="-bottom-10 -right-10 size-72 text-primary/[0.07]" />
       {/* Phone: a short strip — face and a line, the form right under it. */}
       <div className="flex items-center gap-4 lg:hidden">
@@ -109,10 +109,10 @@ function Showcase({ kind }: { kind: "login" | "register" }) {
  */
 export function AuthCard({ title, subtitle, children, footer, showcase }: AuthCardProps) {
   return (
-    <div className="relative flex min-h-[calc(100dvh-7rem)] items-center justify-center overflow-hidden px-4 py-8 sm:py-14">
+    <div className="relative flex min-h-[calc(100dvh-11rem)] items-start justify-center px-0 py-2 sm:items-center sm:px-4 sm:py-10">
       <Backdrop />
 
-      <div className={cn("w-full animate-in duration-500 fade-in slide-in-from-bottom-4", showcase ? "max-w-[920px]" : "max-w-[420px]")}>
+      <div className={cn("w-full min-w-0 motion-safe:animate-in motion-safe:fade-in duration-300", showcase ? "max-w-[440px] lg:max-w-[920px]" : "max-w-[420px]")}>
         <div
           className={cn(
             "relative overflow-hidden rounded-3xl border border-[color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color-mix(in_srgb,var(--card)_94%,white_6%)] shadow-[0_30px_80px_-30px_rgb(0_0_0/0.8)]",
@@ -121,18 +121,18 @@ export function AuthCard({ title, subtitle, children, footer, showcase }: AuthCa
         >
           <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
           {showcase && <Showcase kind={showcase} />}
-          <div className="relative isolate overflow-hidden p-5 sm:p-8">
+          <div className="relative isolate min-w-0 p-4 sm:p-7">
             {!showcase && <LogoWatermark className="-right-12 -top-12 size-48" />}
-            <Link to="/" className="mb-5 flex items-center gap-2 font-display text-base tracking-tight text-foreground/90">
+            <Link to="/" className="mb-3 flex items-center gap-2 font-display text-base tracking-tight text-foreground/90">
               <LogoGlyph className="size-5 text-primary" />
               AnimeShadow
             </Link>
-            <div className="mb-6 flex flex-col gap-1.5">
-              <h1 className="font-display text-2xl">{title}</h1>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <div className="mb-4 flex flex-col gap-1">
+              <h1 className="font-display text-xl sm:text-2xl">{title}</h1>
+              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{subtitle}</p>
             </div>
             {children}
-            <p className="mt-6 border-t border-border/50 pt-5 text-center text-sm text-muted-foreground">{footer}</p>
+            <p className="mt-4 border-t border-border/50 pt-3 text-center text-xs leading-relaxed text-muted-foreground">{footer}</p>
           </div>
         </div>
       </div>
@@ -143,7 +143,7 @@ export function AuthCard({ title, subtitle, children, footer, showcase }: AuthCa
 /** Separates the email/password form from an alternate sign-in method below it. */
 export function AuthDivider({ label }: { label: string }) {
   return (
-    <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+    <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
       <span className="h-px flex-1 bg-gradient-to-r from-transparent to-border" />
       {label}
       <span className="h-px flex-1 bg-gradient-to-l from-transparent to-border" />
@@ -188,7 +188,7 @@ export function AuthField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-xs font-medium sm:text-sm">
         {label}
       </label>
       {children({

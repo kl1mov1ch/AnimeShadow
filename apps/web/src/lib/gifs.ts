@@ -65,10 +65,12 @@ export function pickGif(library: Library | undefined, category: string): string 
 }
 
 /** The categories the pages use most — fetched while the browser is idle. */
-const WARM = ["wave", "pout", "happy", "smile", "hug", "cry", "shrug", "blush", "think"];
+const WARM = ["wave", "happy"];
 
 export function warmGifs(library: Library | undefined): void {
   if (!library || typeof window === "undefined") return;
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "") || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const run = () => {
     for (const cat of WARM) {
       const url = pickGif(library, cat);

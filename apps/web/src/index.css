@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+:root { --mobile-nav-space: 0px; }
+@media (max-width: 767px) {
+  :root { --mobile-nav-space: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -177,6 +182,7 @@
   }
 
   html {
+    scrollbar-gutter: stable;
     color-scheme: light;
     -webkit-text-size-adjust: 100%;
     /* Backstop against stray horizontal overflow (a fixed-width element, an

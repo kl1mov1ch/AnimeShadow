@@ -5,6 +5,9 @@ import {
   logSessionInputSchema,
   setUsernameInputSchema,
   updateProfileInputSchema,
+  mobileNavigationSchema,
+  DEFAULT_MOBILE_NAVIGATION,
+  normalizeMobileNavigation,
 } from "@animeshadow/shared";
 import { createMomentInputSchema, updateMomentInputSchema } from "@animeshadow/shared";
 import { addMoment, listMoments, removeMoment, updateMoment } from "../lib/moments.js";
@@ -19,6 +22,24 @@ const IMAGE_BODY_LIMIT = 9 * 1024 * 1024;
 
 export const profileRoutes: FastifyPluginAsync = async (fastify) => {
   const { profile, achievements } = fastify.services;
+
+  // A small account preference request; no profile statistics or achievements are needed.
+  fastify.get("/me/navigation", { preHandler: fastify.authenticate }, async (request, reply) => {
+    reply.header("cache-control", "private, no-store");
+    const saved = await fastify.prisma.mobileNavigationPreference.findUnique({ where: { userId: request.userId! }, select: { buttons: true } });
+    return normalizeMobileNavigation(saved ?? { buttons: [...DEFAULT_MOBILE_NAVIGATION] });
+  });
+
+  fastify.put("/me/navigation", { preHandler: fastify.authenticate, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const input = parse(mobileNavigationSchema, request.body);
+    await fastify.prisma.mobileNavigationPreference.upsert({
+      where: { userId: request.userId! },
+      create: { userId: request.userId!, buttons: input.buttons },
+      update: { buttons: input.buttons },
+    });
+    reply.header("cache-control", "private, no-store");
+    return input;
+  });
 
   fastify.get("/me/profile", { preHandler: fastify.authenticate }, async (request) =>
     profile.getMine(request.userId!),

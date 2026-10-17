@@ -2,7 +2,7 @@
 export const TELEGRAM_CHANNEL = "https://t.me/shadowani";
 
 /** The site's TikTok. */
-export const TIKTOK_URL = "https://www.tiktok.com/@ifstream";
+export const TIKTOK_URL = "https://www.tiktok.com/@anime_shadow_online";
 
 /** The channel's invite link — the one to pass on to friends. */
 export const TELEGRAM_INVITE = "https://t.me/+GS8YSkXLD6RjMjEy";

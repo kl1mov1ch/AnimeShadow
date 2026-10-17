@@ -1,5 +1,4 @@
 import { genreHref } from "@/lib/format";
-import { AnimeFaq } from "@/components/anime/anime-faq";
 import { useMarkNotificationsRead, useUnreadNotifications } from "@/lib/notifications";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
 import { memo, useEffect, useMemo, useState } from "react";
@@ -9,6 +8,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
+  CopyIcon,
   ImageIcon,
   LayersIcon,
   ListVideoIcon,
@@ -71,6 +71,7 @@ import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { WhenNear } from "@/components/common/when-near";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export function Component() {
   const t = useT();
@@ -280,14 +281,14 @@ function AnimeDetailView({ param }: { param: string }) {
             It sits a little higher than the text column from sm up and
             crosses the panel's top edge, which is what stops it reading as
             a stray thumbnail parked in the bottom-left corner. */}
-        <div className="grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-start gap-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+        <div data-anime-hero className="grid min-w-0 grid-cols-1 items-start gap-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
           {/* The poster leads, at a size worth looking at. Everything else
               is a column beside it that wraps under on a phone. */}
-          <div className="group w-full overflow-hidden rounded-xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 sm:rounded-2xl">
+          <div data-anime-poster className="group mx-auto w-[min(60vw,14rem)] overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 sm:w-full">
             <PosterImage src={poster} title={title} seed={data.id} />
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5 sm:gap-3">
             <div className="flex flex-col gap-1">
               {isAdultRating(data.rating) && (
                 <span
@@ -297,7 +298,7 @@ function AnimeDetailView({ param }: { param: string }) {
                   18+
                 </span>
               )}
-              <h1 className="break-words font-display text-xl leading-tight text-foreground sm:text-3xl lg:text-4xl">
+              <h1 className="break-words font-display text-lg leading-snug text-foreground sm:text-3xl lg:text-4xl">
                 {title}
               </h1>
               {(japaneseTitle || originalTitle) && (
@@ -310,7 +311,7 @@ function AnimeDetailView({ param }: { param: string }) {
             {/* Year · type · episodes · runtime, exactly as the catalogue
                 knows them — every one of these is a real field, and any the
                 title has no answer for simply drops out of the line. */}
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {heroMeta.map(({ icon: Icon, value, hint }) => (
                 <Tooltip key={hint}>
                   <TooltipTrigger asChild>
@@ -384,8 +385,8 @@ function AnimeDetailView({ param }: { param: string }) {
                 a second one; the list control itself stays where it always
                 was, on the bar above the player, so there is exactly one of
                 it on the page. */}
-            <div className="-ml-24 flex flex-wrap items-center gap-2 pt-2 sm:ml-0 sm:pt-1">
-              <Button asChild size="lg">
+            <div className="grid grid-cols-2 gap-2 pt-1 [&_button]:min-w-0 [&_button]:text-xs [&_a]:text-sm sm:flex sm:flex-wrap sm:items-center sm:pt-1">
+              <Button asChild size="lg" className="col-span-2 sm:col-span-1">
                 <a
                   href="#watch"
                   onClick={(event) => {
@@ -422,8 +423,6 @@ function AnimeDetailView({ param }: { param: string }) {
           player's container. */}
       {/* On a phone the section runs edge to edge and the player with it;
           the list and score bar go under the picture, which comes first. */}
-      {/* Over the player, never in it: a guest's reminder of what they lose. */}
-      <GuestPlayerBanner />
       <Panel
         id="watch"
         icon={MonitorPlayIcon}
@@ -439,6 +438,8 @@ function AnimeDetailView({ param }: { param: string }) {
           startAt={startAt}
         />
       </Panel>
+
+      <GuestPlayerBanner />
 
       {/* Under the player: on the left what the title is (the description)
           and what viewers did with it (their marks, beside it on a wide
@@ -469,9 +470,7 @@ function AnimeDetailView({ param }: { param: string }) {
         </Panel>
       </WhenNear></div>
 
-      <WhenNear minHeight={200}>
-        <AnimeFaq anime={data} title={title} />
-      </WhenNear>
+
     </article>
   );
 }
@@ -537,7 +536,7 @@ function TitleHeader({
       {/* Contained to the same width as everything below it, even though
           the art behind it runs edge to edge — the text column lines up
           with the page, only the picture is wider than it. */}
-      <div className="relative mx-auto flex w-full min-w-0 max-w-[1400px] flex-col gap-3 px-4 py-6 sm:px-6 sm:py-8 lg:py-10">
+      <div className="relative mx-auto flex w-full min-w-0 max-w-[1400px] flex-col gap-3 px-4 py-4 sm:px-6 sm:py-8 lg:py-10">
         {children}
       </div>
     </div>
@@ -759,10 +758,21 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
       <aside className="flex min-w-0 flex-col gap-4">
         <TitleTracker anime={anime} title={title} />
         <InfoSidebarM anime={anime} />
+        <TitleNames anime={anime} />
         {watchTime && <WatchTimeCard anime={anime} />}
       </aside>
     </div>
   );
+}
+
+/** Existing metadata only: useful for finding an edit or discussing a title elsewhere. */
+function TitleNames({ anime }: { anime: AnimeDetail }) {
+  const names = [...new Set([anime.titleLocalized, anime.title, anime.titleJapanese].filter((name): name is string => Boolean(name?.trim())))];
+  return <details className="rounded-xl border border-border/60 bg-card/30 p-3">
+    <summary className="cursor-pointer text-sm font-medium">Названия для поиска</summary>
+    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Удобно искать обсуждения, мангу или поделиться названием с другом.</p>
+    <ul className="mt-2 flex flex-col gap-1">{names.map((name) => <li key={name} className="flex min-w-0 items-center gap-2 rounded-lg bg-secondary/30 px-2 py-1"><span className="min-w-0 flex-1 break-words text-xs leading-relaxed">{name}</span><button type="button" aria-label={`Скопировать название: ${name}`} onClick={() => { void navigator.clipboard?.writeText(name).then(() => toast.success("Название скопировано")).catch(() => toast.error("Не удалось скопировать название")); }} className="grid size-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary"><CopyIcon className="size-4" /></button></li>)}</ul>
+  </details>;
 }
 
 /** A frame with the site's mark burned in (made once on the server, see lib/watermark). */
@@ -1166,7 +1176,7 @@ function DetailSkeleton() {
       <div className="full-bleed border-b border-border/60 bg-card">
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
           <div className="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-5">
-            <Skeleton className="mx-auto size-32 shrink-0 rounded-2xl sm:mx-0 sm:size-40 lg:size-48" />
+            <Skeleton className="mx-auto aspect-[2/3] w-[min(60vw,14rem)] shrink-0 rounded-2xl sm:mx-0 sm:w-40 lg:w-48" />
             <div className="flex min-w-0 flex-1 flex-col gap-3">
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-9 w-3/4" />

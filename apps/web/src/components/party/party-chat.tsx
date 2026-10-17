@@ -54,6 +54,7 @@ export function PartyChat({
   pro,
   capHeight,
   settings,
+  capacity = PARTY_MAX,
 }: {
   code: string;
   members: PartyMember[];
@@ -62,6 +63,7 @@ export function PartyChat({
   pro: boolean;
   capHeight: number | null;
   settings: PartySettings;
+  capacity?: number;
 }) {
   const muted = members.find((m) => m.id === myId)?.muted ?? false;
   const [tab, setTab] = useState<Tab>(pro ? "text" : "emoji");
@@ -91,7 +93,7 @@ export function PartyChat({
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">В комнате</span>
           <span className="rounded-full bg-primary/15 px-2 text-[11px] font-bold tabular-nums text-primary">
-            {members.length}/{PARTY_MAX}
+            {members.length}/{capacity}
           </span>
           {capHeight && (
             <span

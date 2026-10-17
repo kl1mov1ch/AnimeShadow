@@ -17,6 +17,8 @@ import {
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { FrameCropEditor } from "@/components/anime/frame-crop-editor";
+import { fitFrameCrop, FULL_FRAME, prepareFrame, type FrameCrop } from "@/lib/frame-image";
 import { PosterFallback } from "@/components/anime/poster-fallback";
 import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,42 +29,12 @@ import { useLabels } from "@/lib/labels";
 import { useFrameSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
+import { useDocumentHead } from "@/lib/seo";
 
 const step = (i: number) => ({ "--i": i }) as CSSProperties;
 
-/** 4MB is what the API accepts once decoded; stop it here rather than after
- *  spending the upload. */
-const MAX_BYTES = 4 * 1024 * 1024;
-
-function readAsDataUrl(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read failed"));
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * The screenshot made small before it leaves the device: 640 px on the long
- * side as JPEG — tens of kilobytes instead of megabytes, so the upload is
- * instant even on a phone and the match comes back faster. The preview
- * stays the original.
- */
-async function shrinkForSearch(file: File): Promise<string> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    return canvas.toDataURL("image/jpeg", 0.85);
-  } catch {
-    return readAsDataUrl(file);
-  }
-}
+/** Photos are reduced locally before the API receives a bounded JPEG. */
+const MAX_BYTES = 20 * 1024 * 1024;
 
 function formatTimestamp(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
@@ -81,36 +53,65 @@ function formatTimestamp(seconds: number): string {
  * of the answer landing below the fold. While it searches, a scan line runs
  * over your frame; the best match gets a card of its own, the rest a list.
  */
-/** Hidden for now (see FEATURES.frameSearch): an old link lands on the home page. */
+/** Kept consistent with the server-rendered /frame-search route. */
 export function Component() {
   return FEATURES.frameSearch ? <FrameSearchPage /> : <Navigate to="/" replace />;
 }
 
 function FrameSearchPage() {
+  useDocumentHead({ title: "Найти аниме по картинке — AnimeShadow", description: "Загрузи кадр, выдели аниме на скриншоте и узнай название, серию и момент при совпадении.", path: "/frame-search" });
   const t = useT();
   const { status } = useAuth();
   const search = useFrameSearch();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [size, setSize] = useState({ width: 1, height: 1 });
+  const [crop, setCrop] = useState<FrameCrop>(FULL_FRAME);
+  const [mirror, setMirror] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const generation = useRef(0);
   const [preview, setPreview] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const submit = useCallback(
     async (file: File) => {
+      if (search.isPending || preparing) return;
+      const run = ++generation.current;
       setLocalError(null);
       if (!file.type.startsWith("image/")) {
         setLocalError(t("frameSearch.errorNotImage"));
         return;
       }
       if (file.size > MAX_BYTES) {
-        setLocalError(t("frameSearch.errorTooLarge"));
+        setLocalError("Выбери изображение до 20 МБ.");
         return;
       }
-      setPreview(URL.createObjectURL(file));
-      search.mutate(await shrinkForSearch(file));
+      try {
+        const bitmap = await createImageBitmap(file);
+        const dimensions = { width: bitmap.width, height: bitmap.height };
+        bitmap.close();
+        if (run !== generation.current) return;
+        if (dimensions.width * dimensions.height > 40_000_000) throw new Error("Изображение слишком большое. Сделай скриншот или уменьши его до 40 Мп.");
+        setFile(file); setSize(dimensions);
+        setCrop(dimensions.height > dimensions.width * 1.2 ? fitFrameCrop(dimensions.width, dimensions.height) : FULL_FRAME);
+        setMirror(false);
+        setPreview(URL.createObjectURL(file));
+        search.reset();
+      } catch (error) { setLocalError(error instanceof Error ? error.message : "Не удалось прочитать изображение."); }
     },
-    [search, t],
+    [search, t, preparing],
   );
+
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => () => { generation.current += 1; }, []);
+  const runSearch = async () => {
+    if (!file || search.isPending || preparing) return;
+    setPreparing(true); setLocalError(null);
+    try { search.mutate(await prepareFrame(file, crop, mirror)); }
+    catch (error) { setLocalError(error instanceof Error ? error.message : "Не удалось подготовить кадр."); }
+    finally { setPreparing(false); }
+  };
 
   // Pasting a screenshot straight from the clipboard is how most people
   // actually have one to hand — Win+Shift+S, then Ctrl+V here.
@@ -147,6 +148,8 @@ function FrameSearchPage() {
   }, [search.isPending]);
 
   const reset = () => {
+    generation.current += 1;
+    setFile(null);
     setPreview(null);
     setLocalError(null);
     search.reset();
@@ -189,12 +192,14 @@ function FrameSearchPage() {
           <div className="flex flex-wrap justify-center gap-2 pt-1">
             <Link
               to="/login"
+              state={{ from: "/frame-search" }}
               className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg active:scale-95"
             >
               {t("common.signIn")}
             </Link>
             <Link
               to="/register"
+              state={{ from: "/frame-search" }}
               className="inline-flex h-10 items-center rounded-lg border border-border/70 bg-primary/10 px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               {t("common.createAccount")}
@@ -217,7 +222,7 @@ function FrameSearchPage() {
               }}
             />
 
-            <div
+            {preview ? <FrameCropEditor src={preview} width={size.width} height={size.height} crop={crop} onChange={(next) => { setCrop(next); search.reset(); }} disabled={search.isPending || preparing} /> : <div
               role="button"
               tabIndex={0}
               onClick={() => !search.isPending && inputRef.current?.click()}
@@ -242,25 +247,9 @@ function FrameSearchPage() {
                 "group relative flex aspect-video cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center outline-none transition-all duration-300 focus-visible:ring-4 focus-visible:ring-primary/25",
                 dragging
                   ? "scale-[1.01] border-primary bg-primary/10 shadow-xl"
-                  : preview
-                    ? "border-border/70 bg-black"
-                    : "border-border/70 bg-[var(--accent-surface)] hover:border-primary/70 hover:bg-primary/[0.06]",
+                  : "border-border/70 bg-[var(--accent-surface)] hover:border-primary/70 hover:bg-primary/[0.06]",
               )}
             >
-              {preview ? (
-                <>
-                  <img src={preview} alt="" className="absolute inset-0 size-full object-contain" />
-                  {search.isPending && (
-                    // A scan line sweeping the frame while trace.moe looks.
-                    <>
-                      <span aria-hidden className="absolute inset-0 bg-primary/10" />
-                      <span aria-hidden className="frame-scan absolute inset-x-0 h-16 bg-gradient-to-b from-transparent via-primary/45 to-transparent" />
-                      <span aria-hidden className="frame-scan absolute inset-x-0 h-0.5 bg-primary shadow-[0_0_12px_2px_var(--primary)]" />
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
                   <span
                     aria-hidden
                     className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(color-mix(in_srgb,var(--primary)_35%,transparent)_1px,transparent_1px)] [background-size:18px_18px]"
@@ -273,24 +262,25 @@ function FrameSearchPage() {
                     <ClipboardPasteIcon className="size-3.5 text-primary" />
                     {t("frameSearch.pasteHint")}
                   </p>
-                </>
-              )}
-            </div>
+
+            </div>}
 
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                disabled={search.isPending}
+                disabled={search.isPending || preparing}
                 className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95 disabled:pointer-events-none disabled:opacity-60"
               >
                 <UploadIcon className="size-4" />
                 {t("frameSearch.pickFile")}
               </button>
+              {file && <button type="button" disabled={search.isPending || preparing} onClick={() => void runSearch()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"><ScanSearchIcon className="size-4" />{search.isPending || preparing ? "Ищем аниме…" : "Найти аниме и серию"}</button>}
               {(preview || search.data) && (
                 <button
                   type="button"
                   onClick={reset}
+                  disabled={search.isPending || preparing}
                   className="group inline-flex h-10 items-center gap-2 rounded-lg border border-border/70 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
                 >
                   <RotateCcwIcon className="size-3.5 transition-transform duration-500 group-hover:-rotate-180" />
@@ -299,6 +289,8 @@ function FrameSearchPage() {
               )}
             </div>
 
+            {file && <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={mirror} disabled={search.isPending || preparing} onChange={(e) => { setMirror(e.target.checked); search.reset(); }} className="size-4 accent-primary" />Отразить кадр по горизонтали</label>}
+            <p className="text-xs leading-relaxed text-muted-foreground">Если совпадений нет, проверим зеркальный вариант. Сильные фильтры и крупные надписи могут помешать; серию показываем только из ответа сервиса.</p>
             {(localError || serverError) && (
               <p className="animate-in rounded-xl border border-destructive/40 bg-destructive/[0.07] p-3 text-sm text-destructive fade-in slide-in-from-top-1 duration-200">
                 {localError ?? serverError}
@@ -341,7 +333,7 @@ function FrameSearchPage() {
                     <MatchRow key={`${match.title}-${i}`} match={match} index={i} />
                   ))}
                   <p className="text-xs text-muted-foreground/70">
-                    {t("frameSearch.framesSearched", { count: search.data.framesSearched.toLocaleString() })}
+                    {t("frameSearch.framesSearched", { count: search.data.framesSearched.toLocaleString("ru-RU") })}
                   </p>
                 </>
               )
@@ -460,6 +452,12 @@ function when(match: FrameMatch, t: ReturnType<typeof useT>) {
     : t("frameSearch.atTime", { time: formatTimestamp(match.fromSeconds) });
 }
 
+function frameMatchHref(match: FrameMatch) {
+  if (!match.anime) return "/browse";
+  const path = animeHref(match.anime);
+  return match.episode != null ? path + "?ep=" + match.episode + "&t=" + Math.floor(match.fromSeconds) + "#watch" : path;
+}
+
 function BestMatch({ match }: { match: FrameMatch }) {
   const t = useT();
   const labels = useLabels();
@@ -473,7 +471,7 @@ function BestMatch({ match }: { match: FrameMatch }) {
       <MatchMedia match={match} title={title} className="w-full rounded-xl" />
       <div className="flex flex-col gap-2">
         {match.anime ? (
-          <Link to={animeHref(match.anime)} viewTransition className="font-display text-lg leading-snug transition-colors hover:text-primary">
+          <Link to={frameMatchHref(match)} viewTransition className="font-display text-lg leading-snug transition-colors hover:text-primary">
             {title}
           </Link>
         ) : (
@@ -483,7 +481,7 @@ function BestMatch({ match }: { match: FrameMatch }) {
         <Similarity percent={Math.round(match.similarity * 100)} />
         {match.anime ? (
           <Link
-            to={animeHref(match.anime)}
+            to={frameMatchHref(match)}
             viewTransition
             className="group mt-1 inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg active:scale-95"
           >
@@ -511,7 +509,7 @@ function MatchRow({ match, index }: { match: FrameMatch; index: number }) {
       <MatchMedia match={match} title={title} className="w-28 sm:w-36" />
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
         {match.anime ? (
-          <Link to={animeHref(match.anime)} viewTransition className="line-clamp-2 text-sm font-semibold leading-snug transition-colors hover:text-primary">
+          <Link to={frameMatchHref(match)} viewTransition className="line-clamp-2 text-sm font-semibold leading-snug transition-colors hover:text-primary">
             {title}
           </Link>
         ) : (

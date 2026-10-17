@@ -13,6 +13,8 @@ import { ApiRequestError, apiRequest } from "@/lib/api";
 import { useIsPro } from "@/components/promo/promo-offer";
 import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FeaturedParty } from "@/components/party/featured-party";
+import { useDocumentHead } from "@/lib/seo";
 
 const clock = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, "0")}`;
 
@@ -24,13 +26,15 @@ type Filter = "all" | "friends" | "mine";
  * into one; and a way to open one's own, choosing who sees it.
  */
 export function Component() {
+  useDocumentHead({ title: "Комнаты и общий эфир — AnimeShadow", description: "Смотрите аниме вместе: общий эфир, комнаты друзей, синхронный плеер, чат и голосование за продолжение.", path: "/party" });
   const { status } = useAuth();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [picking, setPicking] = useState(false);
   const [visibility, setVisibility] = useState<PartyVisibility>("public");
-  const { data, isPending, dataUpdatedAt } = useQuery({
+  const [name, setName] = useState("");
+  const { data, isPending, isError, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["party-list", status],
     queryFn: ({ signal }) => apiRequest<{ rooms: PartyListing[] }>("/party", { signal }),
     refetchInterval: 10_000,
@@ -48,7 +52,7 @@ export function Component() {
     if (filter === "friends" && !r.friends) return false;
     if (filter === "mine" && !r.mine) return false;
     const term = q.trim().toLowerCase();
-    if (term && !`${r.anime.titleLocalized ?? ""} ${r.anime.title}`.toLowerCase().includes(term)) return false;
+    if (term && !`${r.name ?? ""} ${r.host.name} ${r.anime.titleLocalized ?? ""} ${r.anime.title}`.toLowerCase().includes(term)) return false;
     return true;
   });
   const total = data?.rooms.reduce((n, r) => n + r.members, 0) ?? 0;
@@ -74,8 +78,8 @@ export function Component() {
       <PageHero
         icon={UsersIcon}
         eyebrow="Вместе"
-        title="Совместный просмотр"
-        lead="Комнаты, где смотрят прямо сейчас: одна серия и один момент у всех, чат и реакции. Заходите в открытую или создайте свою — до 10 человек."
+        title="Комнаты"
+        lead="Заходите в общий эфир или собирайте друзей на свой сеанс. Плеер, чат и продолжение — вместе."
         aside={
           <button
             type="button"
@@ -90,9 +94,16 @@ export function Component() {
       >
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
-          Сейчас {data?.rooms.length ?? 0} {plural(data?.rooms.length ?? 0, "комната", "комнаты", "комнат")} · {total} {plural(total, "зритель", "зрителя", "зрителей")}
+          Комнаты зрителей: {data?.rooms.length ?? 0} · участников: {total}
         </p>
       </PageHero>
+
+      <FeaturedParty />
+      <h2 className="mt-2 font-display text-xl">Комнаты зрителей</h2>
+      {isError && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-3 text-sm text-muted-foreground">
+        Не удалось обновить список комнат.
+        <button type="button" onClick={() => void refetch()} className="ml-auto rounded-lg px-3 py-2 text-xs text-primary hover:bg-primary/10">Повторить</button>
+      </div>}
 
       {/* Filters. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -122,7 +133,7 @@ export function Component() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Найти по аниме"
+            placeholder="Аниме, комната или ведущий"
             className="h-10 w-full rounded-xl border border-[var(--accent-line-soft)] bg-background/60 pl-9 pr-3 text-sm outline-none focus:border-primary/50"
           />
         </label>
@@ -138,7 +149,7 @@ export function Component() {
       ) : rooms.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--accent-line-soft)] px-6 py-14 text-center">
           <UsersIcon className="size-10 text-muted-foreground" />
-          <p className="font-medium">{filter === "all" && !q ? "Сейчас никто не смотрит вместе" : "Таких комнат нет"}</p>
+          <p className="font-medium">{isError ? "Комнаты временно недоступны" : filter === "all" && !q ? "Сейчас никто не смотрит вместе" : "Таких комнат нет"}</p>
           <p className="max-w-sm text-sm text-muted-foreground">Создайте свою комнату и позовите друзей — по ссылке, QR-коду или прямо с сайта.</p>
           <button type="button" onClick={create} className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
             <PlusIcon className="size-4" />
@@ -158,6 +169,10 @@ export function Component() {
         onOpenChange={setPicking}
         hint="Выберите аниме — серию выберете в комнате."
         header={
+          <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">Название комнаты
+            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="Например, вечер аниме с друзьями" className="h-10 rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+          </label>
           <div className="grid grid-cols-3 gap-1.5">
             {(Object.keys(VISIBILITY) as PartyVisibility[]).map((v) => {
               const Icon = VISIBILITY[v].icon;
@@ -178,10 +193,11 @@ export function Component() {
               );
             })}
           </div>
+          </div>
         }
         onPick={async ({ anime, episode }) => {
           try {
-            const { code } = await apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId: anime.id, episode, visibility } });
+            const { code } = await apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId: anime.id, episode, visibility, name: name.trim() || null } });
             setPicking(false);
             navigate(`/party/${code}`);
           } catch (error) {
@@ -210,7 +226,8 @@ function RoomCard({ room, drift }: { room: PartyListing; drift: number }) {
           </span>
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="line-clamp-2 font-display text-base leading-tight">{title}</p>
+          <p className="line-clamp-2 font-display text-base leading-tight">{room.name || title}</p>
+          {room.name && <p className="truncate text-xs text-muted-foreground">{title}</p>}
           <p className="text-xs text-muted-foreground">
             Серия {room.episode} · {clock(room.position + drift)}
           </p>
@@ -253,12 +270,4 @@ function RoomCard({ room, drift }: { room: PartyListing; drift: number }) {
       </div>
     </article>
   );
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
 }

@@ -37,9 +37,7 @@ export const FEATURES = {
    */
   lightTheme: false,
   /**
-   * Search by a frame (a screenshot → which anime and episode). Off: no
-   * links to it anywhere and /frame-search goes to the home page; the
-   * page, the API and its quota stay as they are.
+   * Search by a frame, with local crop preparation and a bounded provider queue.
    */
   frameSearch: false,
 } as const;

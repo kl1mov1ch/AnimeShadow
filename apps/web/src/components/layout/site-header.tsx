@@ -11,8 +11,8 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
+  PanelBottomIcon,
   MoonStarIcon,
-  ScanSearchIcon,
   SearchIcon,
   ShieldCheckIcon,
   Settings2Icon,
@@ -24,11 +24,12 @@ import {
   XIcon, GiftIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
 import { NotificationBell } from "@/components/notification-bell";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { HeaderOverlayContext } from "@/hooks/use-header-overlay";
 import { useTheme } from "next-themes";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
-import { ReactionGif } from "@/components/common/reaction-gif";
+import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { RandomRoll } from "@/components/layout/random-roll";
@@ -109,10 +110,15 @@ export function SiteHeader() {
   const { canInstall, isIosSafari } = usePwaInstall();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [overlayLocks, setOverlayLocks] = useState(0);
+  const acquireOverlay = useCallback(() => {
+    setOverlayLocks((count) => count + 1);
+    return () => setOverlayLocks((count) => Math.max(0, count - 1));
+  }, []);
   const navRef = useRef<HTMLElement | null>(null);
   const scrolled = useScrolled();
-  const { down, nearTop } = useScrollDirection();
-  const tuckAway = down && !nearTop && !menuOpen;
+  const { down, nearTop } = useScrollDirection(96, menuOpen || overlayLocks > 0);
+  const tuckAway = down && !nearTop && !menuOpen && overlayLocks === 0;
 
   const nav: NavItem[] = [
     { to: "/", label: t("nav.discover"), end: true, Icon: HouseIcon },
@@ -131,11 +137,11 @@ export function SiteHeader() {
 
 
   return (
-    <header
+    <HeaderOverlayContext value={acquireOverlay}><header data-site-header data-hidden={tuckAway}
       className={cn(
-        "sticky top-0 z-40 border-b bg-background/95 transition-[transform,box-shadow,border-color] duration-300 ease-out",
+        "sticky top-0 z-40 border-b bg-background/95 transition-[translate,box-shadow,border-color] duration-200 ease-out motion-reduce:transition-none",
         scrolled ? "border-border/60 shadow-lg shadow-black/20" : "border-border/40",
-        tuckAway && "max-md:-translate-y-full max-md:shadow-none",
+        tuckAway && "-translate-y-full shadow-none [&:has(:focus-visible)]:translate-y-0",
       )}
     >
       <span aria-hidden className={cn("header-line pointer-events-none absolute inset-x-0 -bottom-px h-px transition-opacity duration-500", scrolled ? "opacity-100" : "opacity-0")} />
@@ -146,7 +152,7 @@ export function SiteHeader() {
             others open theirs under the pointer — the bar stays short and
             the search gets the room. */}
         <nav ref={navRef} aria-label={t("common.menu")} className="relative hidden items-center gap-0.5 rounded-full border border-border/50 bg-card/40 p-1 lg:flex">
-          {nav.map(({ to, label, end, Icon }) => (
+          {nav.filter((item) => item.to !== "/library").map(({ to, label, end, Icon }) => (
             <NavLink
               viewTransition
               key={to}
@@ -200,11 +206,6 @@ export function SiteHeader() {
             </span>
           </div>
           <div className="hidden items-center md:flex">
-            {FEATURES.frameSearch && (
-              <HeaderIcon label={t("frameSearch.navLabel")} to="/frame-search">
-                <ScanSearchIcon />
-              </HeaderIcon>
-            )}
             {FEATURES.englishLocale && <LanguageSwitcher />}
             {FEATURES.lightTheme && <ThemeToggle />}
             {(canInstall || isIosSafari) && <InstallAppButton />}
@@ -220,7 +221,7 @@ export function SiteHeader() {
               to="/register"
               className="mr-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2.5 text-[12px] font-semibold text-foreground md:hidden"
             >
-              <SparklesIcon className="size-3.5 text-primary" />
+              <LogoGlyph className="size-4 text-primary" />
               Вступить
             </Link>
           )}
@@ -235,6 +236,7 @@ export function SiteHeader() {
               </Button>
             </SheetTrigger>
             <MobileMenu
+              active={menuOpen}
               nav={nav}
               onNavigate={() => setMenuOpen(false)}
               onParty={() => {
@@ -245,7 +247,7 @@ export function SiteHeader() {
           </Sheet>
         </div>
       </div>
-    </header>
+    </header></HeaderOverlayContext>
   );
 }
 
@@ -310,13 +312,13 @@ function MobileTelegramRow({ row, onNavigate }: { row: string; onNavigate: () =>
   );
 }
 
-function MobileMenu({ nav, onNavigate, onParty }: { nav: NavItem[]; onNavigate: () => void; onParty: () => void }) {
+function MobileMenu({ active, nav, onNavigate, onParty }: { active: boolean; nav: NavItem[]; onNavigate: () => void; onParty: () => void }) {
   const { t } = useI18n();
   const { status, user, logout } = useAuth();
   const navigate = useNavigate();
   const authed = status === "authenticated" && user;
-  const { data: configured } = useRecommendationsStatus(Boolean(authed));
-  const { data: profile } = useMyProfile(Boolean(authed));
+  const { data: configured } = useRecommendationsStatus(Boolean(authed) && active);
+  const { data: profile } = useMyProfile(Boolean(authed) && active);
   const needsSetup = Boolean(authed) && configured === false;
   const { roll } = useSurprise(onNavigate);
 
@@ -359,7 +361,7 @@ function MobileMenu({ nav, onNavigate, onParty }: { nav: NavItem[]; onNavigate: 
           <div className="flex flex-col gap-3 p-4">
             <Wordmark />
             <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/[0.07] p-3">
-              <ReactionGif category="wave" className="size-14 shrink-0" />
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><LogoGlyph className="size-8" /></span>
               <p className="text-[13px] leading-snug text-foreground/85">
                 <b className="text-foreground">Стань своим на AnimeShadow</b> — список, прогресс серий и подборки сохранятся навсегда.
               </p>
@@ -435,13 +437,6 @@ function MobileMenu({ nav, onNavigate, onParty }: { nav: NavItem[]; onNavigate: 
               {chevron}
             </Link>
           )}
-          {FEATURES.frameSearch && (
-            <Link to="/frame-search" onClick={onNavigate} className={row}>
-              <ScanSearchIcon className="size-4 shrink-0 text-muted-foreground" />
-              {t("frameSearch.navLabel")}
-              {chevron}
-            </Link>
-          )}
           <button type="button" onClick={onParty} className={cn(row, "text-left")}>
             <UsersIcon className="size-4 shrink-0 text-muted-foreground" />
             Смотреть вместе
@@ -450,6 +445,7 @@ function MobileMenu({ nav, onNavigate, onParty }: { nav: NavItem[]; onNavigate: 
             <ShuffleIcon className="size-4 shrink-0 text-muted-foreground" />
             {t("footer.randomAnime")}
           </button>
+          <Link to={authed ? "/profile?studio=navigation" : "/register"} state={authed ? undefined : { from: "/profile?studio=navigation" }} onClick={onNavigate} className={row}><PanelBottomIcon className="size-4 shrink-0 text-muted-foreground" />Настроить нижнее меню</Link>
           <InstallAppMenuRow />
           {FEATURES.englishLocale && <MobileLanguage />}
           {FEATURES.lightTheme && <MobileTheme />}

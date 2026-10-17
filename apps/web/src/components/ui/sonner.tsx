@@ -15,7 +15,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       visibleToasts={3}
       duration={4500}
       offset={16}
-      mobileOffset={{ bottom: 16, left: 12, right: 12 }}
+      mobileOffset={{ bottom: "calc(var(--mobile-nav-space, 0px) + 12px)", left: 12, right: 12 }}
       icons={{
         success: <CheckIcon className="size-5 text-emerald-400" />,
         info: <InfoIcon className="size-5 text-sky-400" />,

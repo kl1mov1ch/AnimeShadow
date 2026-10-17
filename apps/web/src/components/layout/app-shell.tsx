@@ -12,6 +12,7 @@ import { GlobalTitleTooltips } from "@/components/common/global-title-tooltips";
 import { SearchCommandMount } from "@/components/layout/search-command-mount";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useExternalAnalytics } from "@/hooks/use-external-analytics";
@@ -38,7 +39,7 @@ export function AppShell() {
 
   return (
     <TooltipProvider delayDuration={300} skipDelayDuration={500}>
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex min-h-dvh flex-col pb-[var(--mobile-nav-space)]">
         <SiteHeader />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:py-10">
           <div key={routeKey} className="route-fade">
@@ -46,6 +47,7 @@ export function AppShell() {
           </div>
         </main>
         <SiteFooter />
+        <MobileNav />
       </div>
       {/* Mounted once, globally: it owns ⌘K for the whole app, and pulls the
           palette itself down only when that key is first pressed. */}

@@ -107,7 +107,7 @@ function PublicView({ username }: { username: string }) {
   return <ProfileView profile={data} own={false} />;
 }
 
-const STUDIO_TABS: StudioTab[] = ["profile", "look", "showcase", "taste", "privacy", "notify", "list", "account"];
+const STUDIO_TABS: StudioTab[] = ["profile", "look", "showcase", "taste", "privacy", "notify", "list", "account", "navigation"];
 
 function OwnView() {
   const t = useT();

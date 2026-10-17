@@ -22,8 +22,10 @@ import {
 import { BadRequestError, ForbiddenError, NotFoundError } from "../lib/errors.js";
 import { proActive } from "../lib/pro.js";
 import type { DeliveryService } from "./delivery.service.js";
+import type { PartyStore } from "./party-store.js";
+import { decodeRoom, encodeRoom } from "./party-codec.js";
 
-interface Person {
+export interface Person {
   id: string;
   name: string;
   avatarUrl: string | null;
@@ -38,13 +40,18 @@ interface Watched {
   episodes: Set<string>;
 }
 
-interface Room {
+export interface Room {
   code: string;
   settings: PartySettings;
   anime: PartySnapshot["anime"];
   hostId: string;
   creatorId: string;
   connectedOnce: boolean;
+  official: boolean;
+  name: string | null;
+  durationSeconds: number | null;
+  nextVotes: Set<string>;
+  availableEpisodes: number[];
   playback: PartyPlayback;
   chat: PartyChatMessage[];
   /** Who has been in, by id — the ten places. */
@@ -122,18 +129,24 @@ export class PartyService {
   private sweeper: ReturnType<typeof setInterval>;
   /** The most people in rooms at once since the server started. */
   private peakLive = { people: 0, at: 0 };
+  private checkpointAt = 0;
+  private mainTask: Promise<PartySnapshot | null> | null = null;
+  private advancing = new Set<string>();
+  private closing = false;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly delivery: DeliveryService,
     private readonly appUrl: string,
     private readonly logDir: string,
+    private readonly store?: PartyStore,
+    private readonly program?: (animeId?: number, episode?: number) => Promise<{ anime: Room["anime"]; episode: number; durationSeconds: number; sourceId?: string; availableEpisodes?: number[] } | null>,
   ) {
     this.sweeper = setInterval(() => this.sweep(), 5_000);
     this.sweeper.unref();
   }
 
-  async create(userId: string, animeId: number, episode: number, visibility: PartySettings["visibility"] = "public"): Promise<{ code: string }> {
+  async create(userId: string, animeId: number, episode: number, visibility: PartySettings["visibility"] = "public", name: string | null = null): Promise<{ code: string }> {
     const person = await this.person(userId);
     if (!person.pro) throw new ForbiddenError("Создавать комнаты можно с PRO. Заходить в чужие — всем.");
     const anime = await this.prisma.anime.findUnique({
@@ -153,6 +166,11 @@ export class PartyService {
       hostId: userId,
       creatorId: userId,
       connectedOnce: false,
+      official: false,
+      name,
+      durationSeconds: null,
+      nextVotes: new Set(),
+      availableEpisodes: [],
       playback: { episode, playing: false, position: 0, updatedAt: now, by: userId, waitingFor: null },
       chat: [this.line(`${person.name} создал(а) комнату. Позовите друзей — до ${PARTY_MAX} человек.`)],
       people: new Map([[userId, person]]),
@@ -175,6 +193,7 @@ export class PartyService {
       peak: 0,
       membersSoon: null,
     });
+    this.checkpoint(this.rooms.get(code)!);
     return { code };
   }
 
@@ -185,6 +204,12 @@ export class PartyService {
       settings: room.settings,
       anime: room.anime,
       hostId: room.hostId,
+      official: room.official,
+      name: room.name,
+      durationSeconds: room.durationSeconds,
+      nextVotes: [...room.nextVotes],
+      capacity: room.official ? 200 : PARTY_MAX,
+      availableEpisodes: room.availableEpisodes,
       members: this.online(room),
       playback: room.playback,
       chat: room.chat.slice(-60),
@@ -198,15 +223,16 @@ export class PartyService {
     const room = this.room(code);
     if (room.banned.has(userId)) throw new ForbiddenError("Администрация убрала вас из этой комнаты.");
     const online = new Set([...room.streams.values()].map((s) => s.personId));
-    if (!online.has(userId) && online.size >= PARTY_MAX) {
-      throw new ForbiddenError(`В комнате уже ${PARTY_MAX} человек.`);
+    const capacity = room.official ? 200 : PARTY_MAX;
+    if (!online.has(userId) && online.size >= capacity) {
+      throw new ForbiddenError(`В комнате уже ${capacity} человек.`);
     }
     // Fresh each time: PRO may have started (or ended) since the last visit.
     const person = await this.person(userId);
     // Capacity/room lifetime can change while the account query is in flight.
     if (this.rooms.get(code) !== room) throw new NotFoundError("Комната уже закрыта.");
     const currentOnline = new Set([...room.streams.values()].map((s) => s.personId));
-    if (!currentOnline.has(userId) && currentOnline.size >= PARTY_MAX) throw new ForbiddenError(`В комнате уже ${PARTY_MAX} человек.`);
+    if (!currentOnline.has(userId) && currentOnline.size >= capacity) throw new ForbiddenError(`В комнате уже ${capacity} человек.`);
     room.people.set(userId, person);
     this.count(room);
     const streamId = randomBytes(6).toString("hex");
@@ -215,6 +241,7 @@ export class PartyService {
     room.connectedOnce = true;
     room.emptySince = null;
     if (userId === room.hostId) room.hostGoneAt = null;
+    this.checkpoint(room);
     this.write(res, { type: "hello", party: this.snapshot(code) });
     if (!wasOnline) {
       this.say(room, `${room.people.get(userId)!.name} присоединился(ась)`, true);
@@ -240,6 +267,7 @@ export class PartyService {
         this.broadcastMembers(room);
       }
       if (room.streams.size === 0) this.becameEmpty(room);
+      this.checkpoint(room);
     };
   }
 
@@ -258,10 +286,12 @@ export class PartyService {
     if (room.hostId === userId) { room.hostGoneAt = Date.now(); this.handoff(room); }
     if (room.streams.size === 0) this.becameEmpty(room);
     this.broadcastMembers(room);
+    this.checkpoint(room);
     return { closed: false };
   }
 
   private becameEmpty(room: Room) {
+    if (room.official) return;
     if (room.emptySince != null) return;
     room.emptySince = Date.now();
     room.playback = { ...room.playback, position: expected(room.playback), playing: false, updatedAt: Date.now(), waitingFor: null };
@@ -270,6 +300,7 @@ export class PartyService {
   }
 
   private handoff(room: Room) {
+    if (room.official) return;
     const next = this.online(room).find((person) => person.id !== room.hostId);
     if (!next) return;
     room.hostId = next.id;
@@ -281,6 +312,7 @@ export class PartyService {
   }
 
   private notifyCreator(room: Room, title: string, body: string, closed: boolean) {
+    if (room.official) return;
     void this.delivery.room(room.creatorId, {
       title, body: `${room.anime.titleLocalized || room.anime.title} · ${body}`,
       url: closed ? `${this.appUrl}/anime/${room.anime.slug || room.anime.id}` : `${this.appUrl}/party/${room.code}`,
@@ -291,9 +323,10 @@ export class PartyService {
   async playback(
     code: string,
     userId: string,
-    input: { animeId?: number | undefined; episode: number; playing: boolean; position: number; waiting?: boolean | undefined },
+    input: { animeId?: number | undefined; episode: number; playing: boolean; position: number; waiting?: boolean | undefined; sourceId?: string | null | undefined },
   ): Promise<PartyPlayback> {
     const room = this.member(code, userId);
+    if (room.official) throw new ForbiddenError("Программу общего эфира выбирают голосованием.");
     const host = userId === room.hostId;
     if (!host && !room.settings.allControl) throw new ForbiddenError("Управляет ведущий комнаты.");
     room.autoPaused = false;
@@ -312,7 +345,7 @@ export class PartyService {
       room.loading.clear();
       room.queue.delete(anime.id);
       this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
-      room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId, waitingFor: null };
+      room.playback = { episode: input.episode, playing: input.playing, position: input.position, updatedAt: Date.now(), by: userId, waitingFor: null, sourceId: input.sourceId ?? null };
       this.broadcast(room, { type: "anime", anime });
       this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
       this.say(room, `${room.people.get(userId)?.name ?? "Кто-то"} включил(а) «${anime.titleLocalized || anime.title}»`);
@@ -323,6 +356,7 @@ export class PartyService {
     // A new episode: nobody is loading the old one any more.
     if (before.episode !== input.episode) room.loading.clear();
     room.playback = {
+      sourceId: input.sourceId ?? room.playback.sourceId ?? null,
       episode: input.episode,
       playing: input.playing,
       position: input.position,
@@ -335,6 +369,7 @@ export class PartyService {
     else if (before.playing && !input.playing) this.say(room, `${who} поставил(а) паузу на ${clock(input.position)}`, true);
     else if (!before.playing && input.playing && Math.abs(expected(before) - input.position) < 3) this.say(room, `${who} продолжил(а) просмотр`, true);
     else if (Math.abs(expected(before) - input.position) >= 3) this.say(room, `${who} перемотал(а) на ${clock(input.position)}`, true);
+    this.checkpoint(room);
     return room.playback;
   }
 
@@ -363,7 +398,7 @@ export class PartyService {
       if (!text) throw new BadRequestError("Пустое сообщение.");
       kind = emojiOnly(text) ? "emoji" : "text";
     }
-    if (kind !== "emoji" && !me.pro) {
+    if (kind !== "emoji" && !me.pro && !room.official) {
       throw new ForbiddenError(kind === "text" ? "Писать в комнатах можно с PRO. Смайлики — всем." : "Стикеры и гифки — с PRO.");
     }
     const message: PartyChatMessage = { id: randomBytes(6).toString("hex"), at: Date.now(), author: me, kind, text, media };
@@ -452,6 +487,11 @@ export class PartyService {
   async propose(code: string, userId: string, animeId: number) {
     const room = this.member(code, userId);
     if (animeId === room.anime.id) throw new BadRequestError("Это аниме уже идёт.");
+    if (room.official) {
+      if (!await this.program?.(animeId, 1)) throw new BadRequestError("Для этого аниме сейчас нет доступного потока.");
+      this.clearBallot(room, userId);
+      this.broadcast(room, { type: "ballot", nextVotes: [...room.nextVotes] });
+    }
     const have = room.queue.get(animeId);
     if (have) {
       have.votes.add(userId);
@@ -466,6 +506,7 @@ export class PartyService {
       this.say(room, `${room.people.get(userId)?.name ?? "Кто-то"} предлагает «${anime.titleLocalized || anime.title}»`);
     }
     this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    this.checkpoint(room);
     return { queue: this.queueOf(room) };
   }
 
@@ -473,9 +514,13 @@ export class PartyService {
     const room = this.member(code, userId);
     const item = room.queue.get(animeId);
     if (!item) throw new NotFoundError("Этого аниме нет в очереди.");
-    if (item.votes.has(userId)) item.votes.delete(userId);
+    const selected = item.votes.has(userId);
+    if (room.official) this.clearBallot(room, userId);
+    if (selected) item.votes.delete(userId);
     else item.votes.add(userId);
+    if (room.official) this.broadcast(room, { type: "ballot", nextVotes: [...room.nextVotes] });
     this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    this.checkpoint(room);
     return { queue: this.queueOf(room) };
   }
 
@@ -486,6 +531,7 @@ export class PartyService {
     if (item.by !== userId && room.hostId !== userId) throw new ForbiddenError("Убрать может тот, кто предложил, или создатель.");
     room.queue.delete(animeId);
     this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    this.checkpoint(room);
     return { queue: this.queueOf(room) };
   }
 
@@ -514,7 +560,7 @@ export class PartyService {
    * first; empty rooms aren't listed.
    */
   async list(viewerId: string | undefined): Promise<PartyListing[]> {
-    const rooms = [...this.rooms.values()].filter((r) => r.streams.size > 0 || r.creatorId === viewerId);
+    const rooms = [...this.rooms.values()].filter((r) => !r.official && (r.streams.size > 0 || r.creatorId === viewerId));
     if (rooms.length === 0) return [];
     let friends = new Set<string>();
     if (viewerId) {
@@ -537,6 +583,7 @@ export class PartyService {
       const host = room.people.get(room.hostId);
       const p = room.playback;
       out.push({
+        name: room.name,
         code: room.code,
         anime: room.anime,
         episode: p.episode,
@@ -858,6 +905,7 @@ export class PartyService {
   private push(room: Room, message: PartyChatMessage) {
     room.chat.push(message);
     if (room.chat.length > CHAT_KEEP) room.chat.splice(0, room.chat.length - CHAT_KEEP);
+    this.checkpoint(room);
   }
 
   /** One event to every tab — serialised once, not once per tab. */
@@ -893,6 +941,7 @@ export class PartyService {
     this.count(room);
     if (room.membersSoon) clearTimeout(room.membersSoon);
     this.rooms.delete(room.code);
+    void this.store?.remove(room.code).catch(() => undefined);
     this.broadcast(room, { type: "closed", reason });
     for (const { res } of room.streams.values()) res.end();
     this.notifyCreator(room, "Комната закрыта", reason, true);
@@ -940,21 +989,131 @@ export class PartyService {
   private sweep() {
     const now = Date.now();
     for (const room of [...this.rooms.values()]) {
+      if (room.official) {
+        if (room.durationSeconds && expected(room.playback) >= room.durationSeconds) void this.advanceMain(room);
+        continue;
+      }
       if (room.hostGoneAt != null && now - room.hostGoneAt >= HOST_GRACE) this.handoff(room);
       if (!room.connectedOnce && now - room.createdAt >= UNVISITED_TTL) this.close(room, "За час никто не подключился");
       else if (room.connectedOnce && room.emptySince != null && now - room.emptySince >= EMPTY_TTL) this.close(room, "Никто не вернулся за 5 минут");
       else if (room.playback.playing && now - room.countedAt > 60_000) this.count(room);
     }
+    if (now - this.checkpointAt >= 15_000) {
+      this.checkpointAt = now;
+      for (const room of this.rooms.values()) this.checkpoint(room);
+    }
   }
 
-  dispose() {
+  async dispose() {
+    if (this.closing) return;
+    this.closing = true;
     clearInterval(this.sweeper);
     const rooms = [...this.rooms.values()];
+    for (const room of rooms) this.checkpoint(room);
     this.rooms.clear();
     for (const room of rooms) {
       if (room.membersSoon) clearTimeout(room.membersSoon);
       for (const { res } of room.streams.values()) res.end();
     }
+    await this.store?.flush();
+  }
+
+  private checkpoint(room: Room) { void this.store?.save(room.code, encodeRoom(room)).catch(() => undefined); }
+
+  async restore() {
+    if (!this.store) return;
+    for (const value of await this.store.load()) {
+      const room = decodeRoom(value);
+      if (room) this.rooms.set(room.code, room);
+    }
+    this.sweep();
+  }
+
+  /** A real shared program, driven by server time rather than a viewer's tab. */
+  async main(): Promise<PartySnapshot | null> {
+    if (this.closing) return null;
+    const current = this.rooms.get("main-live");
+    if (current) {
+      if (current.availableEpisodes.length === 0 && this.program) {
+        const metadata = await this.program(current.anime.id, current.playback.episode);
+        if (metadata) {
+          current.availableEpisodes = metadata.availableEpisodes ?? [];
+          current.playback.sourceId ??= metadata.sourceId ?? null;
+          this.checkpoint(current);
+        }
+      }
+      if (current.durationSeconds && expected(current.playback) >= current.durationSeconds) await this.advanceMain(current);
+      return current.durationSeconds && expected(current.playback) >= current.durationSeconds ? null : this.snapshot(current.code);
+    }
+    if (!this.program) return null;
+    if (this.mainTask) return this.mainTask;
+    this.mainTask = (async () => {
+      const pick = await this.program!();
+      if (!pick || this.closing) return null;
+      const now = Date.now();
+      const room: Room = {
+        code: "main-live", anime: pick.anime, name: "Общий эфир AnimeShadow", official: true,
+        hostId: "animeshadow", creatorId: "animeshadow", connectedOnce: true, durationSeconds: pick.durationSeconds, nextVotes: new Set(),
+        availableEpisodes: pick.availableEpisodes ?? [],
+        settings: { ...PARTY_DEFAULT_SETTINGS, visibility: "public", waitForSlow: false, capQuality: false },
+        playback: { episode: pick.episode, position: 0, playing: true, updatedAt: now, by: null, waitingFor: null, sourceId: pick.sourceId ?? null },
+        people: new Map(), streams: new Map(), createdAt: now, emptySince: null, hostGoneAt: null,
+        chat: [this.line("Общий эфир идёт по серверному времени. Выбирайте продолжение голосованием.")],
+        lastReaction: new Map(), net: new Map(), muted: new Set(), loading: new Set(), autoPaused: false, queue: new Map(),
+        watched: new Map(), titles: new Map([[pick.anime.id, pick.anime.titleLocalized || pick.anime.title]]),
+        countedAt: now, banned: new Set(), messages: 0, reactions: 0, peak: 0, membersSoon: null,
+      };
+      this.rooms.set(room.code, room);
+      this.checkpoint(room);
+      return this.snapshot(room.code);
+    })().finally(() => { this.mainTask = null; });
+    return this.mainTask;
+  }
+
+  voteNext(code: string, userId: string) {
+    const room = this.member(code, userId);
+    if (!room.official) throw new BadRequestError("Это голосование доступно в общем эфире.");
+    const selected = room.nextVotes.has(userId);
+    this.clearBallot(room, userId);
+    if (!selected) room.nextVotes.add(userId);
+    this.broadcast(room, { type: "ballot", nextVotes: [...room.nextVotes] });
+    this.broadcast(room, { type: "queue", queue: this.queueOf(room) });
+    this.checkpoint(room);
+    return { nextVotes: [...room.nextVotes] };
+  }
+
+  private clearBallot(room: Room, userId: string) {
+    room.nextVotes.delete(userId);
+    for (const item of room.queue.values()) item.votes.delete(userId);
+  }
+
+  private async advanceMain(room: Room) {
+    if (!this.program || this.advancing.has(room.code)) return;
+    this.advancing.add(room.code);
+    try {
+      const winner = this.queueOf(room).find((item) => item.votes.length > room.nextVotes.size);
+      let pick = winner ? await this.program(winner.anime.id, 1) : null;
+      pick ??= await this.program(room.anime.id, room.playback.episode + 1);
+      pick ??= await this.program();
+      if (!pick || !this.rooms.has(room.code)) return;
+      this.count(room);
+      room.anime = pick.anime;
+      room.durationSeconds = pick.durationSeconds;
+      room.availableEpisodes = pick.availableEpisodes ?? [];
+      room.playback = { episode: pick.episode, playing: true, position: 0, updatedAt: Date.now(), by: null, waitingFor: null, sourceId: pick.sourceId ?? null };
+      room.queue.clear(); room.nextVotes.clear();
+      const onlineIds = new Set([...room.streams.values()].map((stream) => stream.personId));
+      for (const personId of room.people.keys()) if (!onlineIds.has(personId)) room.people.delete(personId);
+      room.titles.set(pick.anime.id, pick.anime.titleLocalized || pick.anime.title);
+      this.broadcast(room, { type: "anime", anime: room.anime });
+      this.broadcast(room, { type: "playback", playback: room.playback, now: Date.now() });
+      this.broadcast(room, { type: "ballot", nextVotes: [] });
+      this.broadcast(room, { type: "queue", queue: [] });
+      this.say(room, `Началась ${pick.episode} серия: ${pick.anime.titleLocalized || pick.anime.title}`);
+      this.broadcast(room, { type: "hello", party: this.snapshot(room.code) });
+      this.checkpoint(room);
+    } catch { /* Keep the current program visible; a later sweep retries the provider. */ }
+    finally { this.advancing.delete(room.code); }
   }
 }
 

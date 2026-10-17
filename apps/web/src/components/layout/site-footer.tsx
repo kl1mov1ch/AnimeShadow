@@ -30,7 +30,7 @@ export function SiteFooter() {
     { to: "/ongoing", label: "Онгоинги" },
     { to: "/top", label: "Топ аниме" },
     { to: "/collections", label: t("nav.collections") },
-    { to: "/library", label: t("nav.library") },
+    { to: "/party", label: "Комнаты" },
     { to: "/about", label: t("footer.about") },
   ];
 
@@ -38,20 +38,20 @@ export function SiteFooter() {
     <footer className="cv-auto relative isolate mt-12 overflow-hidden border-t border-border/50 bg-card/30 sm:mt-16">
       {/* The site's mark, large and faint, on the footer's right. */}
       <LogoWatermark className="-bottom-24 -right-16 size-80 -rotate-6 sm:-bottom-32 sm:right-[4%] sm:size-[26rem]" />
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-7 px-4 py-9 sm:py-11">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-4 py-6 sm:gap-7 sm:py-11">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex max-w-md flex-col gap-2.5">
             <Wordmark size="lg" className="self-start" />
-            <p className="text-sm leading-relaxed text-muted-foreground">{t("footer.welcome")}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">{t("footer.welcome")}</p>
           </div>
 
           {/* Where to find us, by name — and how to help the site along. */}
-          <div className="flex flex-col items-start gap-3 md:items-end">
+          <div className="flex flex-row flex-wrap items-center gap-3 md:flex-col md:items-end">
             {/* Support stands out on its own; the networks are round icons. */}
             <div className="flex flex-wrap items-center gap-2 md:justify-end">
             <Link
               to="/support"
-              className="support-glow group relative inline-flex h-12 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-6 text-[15px] font-bold text-white shadow-xl shadow-primary/40 ring-1 ring-white/20 transition-transform hover:-translate-y-0.5 hover:shadow-primary/60 active:scale-95"
+              className="support-glow group relative inline-flex h-10 items-center gap-2.5 sm:h-12 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-4 text-sm sm:px-6 sm:text-[15px] font-bold text-white shadow-xl shadow-primary/40 ring-1 ring-white/20 transition-transform hover:-translate-y-0.5 hover:shadow-primary/60 active:scale-95"
             >
               <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -translate-x-[150%] -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 group-hover:translate-x-[400%]" />
               <HeartIcon className="support-beat size-5 fill-current" />
@@ -77,9 +77,9 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <nav aria-label={t("footer.nav")} className="flex flex-wrap gap-x-5 gap-y-2.5 text-sm">
+        <nav aria-label={t("footer.nav")} className="grid grid-cols-2 gap-1 text-xs sm:flex sm:flex-wrap sm:gap-x-4 sm:text-sm">
           {links.map(({ to, label }) => (
-            <Link key={to} to={to} className="text-muted-foreground transition-colors duration-200 hover:text-foreground">
+            <Link key={to} to={to} className="rounded-lg px-2 py-2 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground">
               {label}
             </Link>
           ))}
@@ -89,7 +89,7 @@ export function SiteFooter() {
           <div className="flex flex-col gap-1">
             <span>{t("footer.rights", { year })}</span>
             <span className="max-w-3xl leading-relaxed text-muted-foreground/60">{t("footer.disclaimer")}</span>
-            <span className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+            <details className="mt-2 rounded-lg border border-border/50 px-3 py-2"><summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">Документы и контакты</summary><span className="mt-2 grid gap-2 pb-1 leading-relaxed sm:grid-cols-2">
               <Link to="/legal?doc=terms" className="transition-colors hover:text-foreground">
                 Пользовательское соглашение
               </Link>
@@ -102,7 +102,7 @@ export function SiteFooter() {
               <Link to="/legal?doc=contacts" className="transition-colors hover:text-foreground">
                 Контакты
               </Link>
-            </span>
+            </span></details>
           </div>
           <BackToTop label={t("footer.toTop")} />
         </div>

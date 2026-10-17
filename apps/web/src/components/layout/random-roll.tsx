@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/api";
 import { animeHref, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { useHeaderOverlay } from "@/hooks/use-header-overlay";
 
 interface Roll {
   pick: AnimeSummary;
@@ -55,6 +56,7 @@ export function RandomRoll({ className }: { className?: string }) {
   const t = useT();
   const labels = useLabels();
   const [open, setOpen] = useState(false);
+  useHeaderOverlay(open);
   const [pick, setPick] = useState<AnimeSummary | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [dealing, setDealing] = useState(false);

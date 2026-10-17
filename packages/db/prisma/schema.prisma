@@ -11,6 +11,13 @@ generator client {
   output   = "../src/generated/client"
 }
 
+/// Persistent checkpoints for shared viewing, including the main broadcast.
+model WatchPartyRoom {
+  code      String   @id
+  state     Json
+  updatedAt DateTime @updatedAt
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -21,6 +28,7 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
+  mobileNavigationPreference MobileNavigationPreference?
   id            String          @id @default(cuid())
   email         String          @unique
   displayName   String
@@ -173,6 +181,13 @@ model User {
   @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_displayName_trgm_idx")
   @@index([referredById])
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_username_trgm_idx")
+}
+
+model MobileNavigationPreference {
+  userId    String   @id
+  buttons   String[]
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// A server-priced invoice. Entitlement is granted once, only after authenticated provider verification.

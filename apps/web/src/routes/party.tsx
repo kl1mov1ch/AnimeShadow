@@ -26,6 +26,8 @@ import { animeHref, imageSrc } from "@/lib/format";
 import { usePeople, useWatchSources } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { RoomPushButton } from "@/components/party/room-push-button";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { dubName } from "@/lib/playback-sources";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const clock = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, "0")}`;
@@ -115,6 +117,9 @@ function PartyRoom({ code }: { code: string }) {
         setParty((p) => p ? { ...p, hostId: e.hostId } : p);
         toast.info("Ведущий сменился", { description: `Теперь управляет ${e.name}`, id: `party-host-${code}` });
         break;
+      case "ballot":
+        setParty((p) => p ? { ...p, nextVotes: e.nextVotes } : p);
+        break;
       case "queue":
         setQueue(e.queue);
         break;
@@ -145,20 +150,28 @@ function PartyRoom({ code }: { code: string }) {
     let alive = true;
     void (async () => {
       for (let attempt = 0; alive; attempt++) {
+        const connection = new AbortController();
+        const abort = () => connection.abort();
+        ac.signal.addEventListener("abort", abort, { once: true });
+        let lastEvent = Date.now();
+        const heartbeat = setInterval(() => { if (Date.now() - lastEvent > 45_000) connection.abort(); }, 10_000);
         try {
           await apiStream(
             `/party/${code}/events`,
             {
-              onData: (d) => handleRef.current(d as PartyEvent),
+              onData: (d) => { lastEvent = Date.now(); handleRef.current(d as PartyEvent); },
               onError: (message) => {
                 alive = false;
                 setFatal(message);
               },
             },
-            ac.signal,
+            connection.signal,
           );
         } catch {
           if (!alive) return;
+        } finally {
+          clearInterval(heartbeat);
+          ac.signal.removeEventListener("abort", abort);
         }
         setConnected(false);
         if (!alive || closedRef.current) return;
@@ -208,17 +221,18 @@ function PartyRoom({ code }: { code: string }) {
   }, []);
 
   const sendPlayback = useCallback(
-    (patch: Partial<Pick<PartyPlayback, "episode" | "playing" | "position">> & { waiting?: boolean }) => {
+    (patch: Partial<Pick<PartyPlayback, "episode" | "playing" | "position" | "sourceId">> & { waiting?: boolean }) => {
       const p = playbackRef.current;
       if (!p) return;
       const next = {
+        sourceId: patch.sourceId ?? p.sourceId ?? null,
         episode: patch.episode ?? p.episode,
         playing: patch.playing ?? p.playing,
         position: Math.max(0, patch.position ?? expected()),
         ...(patch.waiting ? { waiting: true } : {}),
       };
       // Shown at once here; the room tells everyone else.
-      setPlayback({ episode: next.episode, playing: next.playing, position: next.position, updatedAt: Date.now() + offsetRef.current, by: user?.id ?? null, waitingFor: patch.waiting ? (user?.displayName ?? null) : null });
+      setPlayback({ ...next, updatedAt: Date.now() + offsetRef.current, by: user?.id ?? null, waitingFor: patch.waiting ? (user?.displayName ?? null) : null });
       void apiRequest(`/party/${code}/playback`, { method: "POST", body: next }).catch(() => toast.error("Не получилось синхронизировать"));
     },
     [code, expected, user?.id, user?.displayName],
@@ -228,7 +242,8 @@ function PartyRoom({ code }: { code: string }) {
   const animeId = party?.anime.id ?? 0;
   const { data: watch, refreshSources } = useWatchSources(animeId, animeId > 0);
   const episode = playback?.episode ?? 1;
-  const own = watch?.sources.find((s) => (s.format === "hls" || s.format === "mp4") && (s.hlsEpisodes ?? s.mediaEpisodes)?.[String(episode)] && !failedSources.includes(s.id));
+  const roomSources = watch?.sources.filter((s) => (s.format === "hls" || s.format === "mp4") && (s.hlsEpisodes ?? s.mediaEpisodes)?.[String(episode)]) ?? [];
+  const own = roomSources.find((s) => s.id === playback?.sourceId && !failedSources.includes(s.id)) ?? roomSources.find((s) => !failedSources.includes(s.id));
   const ownUrl = own ? sourceUrlFor(own, episode) : null;
   useEffect(() => { setFailedSources([]); }, [animeId, episode]);
 
@@ -247,9 +262,10 @@ function PartyRoom({ code }: { code: string }) {
     if (type === "pause") localPlaying.current = false;
     // Not ours to steer: the room puts this screen back at its next check.
     if (!canControlRef.current) {
+      if (type === "play") return;
       if (Date.now() - toldNoControl.current > 15_000) {
         toldNoControl.current = Date.now();
-        toast("Управляет ведущий комнаты", { description: "Пауза и перемотка вернутся к общему моменту" });
+        toast(party?.official ? "Идёт общий эфир" : "Управляет ведущий комнаты", { description: "Пауза и перемотка вернутся к общему моменту" });
       }
       return;
     }
@@ -398,14 +414,18 @@ function PartyRoom({ code }: { code: string }) {
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
               <UsersIcon className="size-3.5" />
-              Совместный просмотр
+              {party.official ? "Общий эфир AnimeShadow" : party.name || "Совместный просмотр"}
               <span className={cn("size-1.5 rounded-full", connected ? "bg-emerald-400" : "animate-pulse bg-amber-400")} title={connected ? "На связи" : "Переподключаемся…"} />
             </p>
             <Link to={animeHref(party.anime)} className="block truncate font-display text-lg leading-tight hover:text-primary">{title}</Link>
           </div>
           <div className="flex basis-full flex-wrap items-center gap-2">
-            <RoomPushButton />
+            {!party.official && <RoomPushButton />}
             <EpisodeStepper value={episode} total={total} disabled={!canControl} onChange={(n) => sendPlayback({ episode: n, playing: true, position: 0 })} />
+            {roomSources.length > 0 && <Select value={own?.id ?? ""} disabled={!canControl} onValueChange={(sourceId) => sendPlayback({ sourceId })}>
+              <SelectTrigger aria-label="Озвучка комнаты" className="h-10 max-w-[min(13rem,100%)] text-xs"><SelectValue placeholder="Озвучка" /></SelectTrigger>
+              <SelectContent position="popper" className="max-w-[calc(100vw-2rem)]"><SelectGroup>{roomSources.map((source) => <SelectItem key={source.id} value={source.id}>{dubName(source.title)}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>}
             {canControl && (
               <button
                 type="button"
@@ -442,6 +462,7 @@ function PartyRoom({ code }: { code: string }) {
               type="button"
               onClick={() => (joined ? setAskLeave(true) : navigate("/party"))}
               title="Выйти из комнаты"
+              aria-label="Выйти из комнаты"
               className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--accent-line-soft)] px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-rose-400/50 hover:text-rose-400"
             >
               <LogOutIcon className="size-3.5" />
@@ -551,8 +572,11 @@ function PartyRoom({ code }: { code: string }) {
 
       </section>
 
-      <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro} capHeight={capHeight} settings={party.settings} />
+      <PartyChat code={code} members={members} chat={chat} myId={user?.id ?? null} pro={meIsPro || !!party.official} capHeight={capHeight} settings={party.settings} capacity={party.capacity ?? 10} />
         <NextUp
+          official={party.official ?? false}
+          nextVotes={party.nextVotes ?? []}
+          availableEpisodes={party.availableEpisodes ?? []}
           className="lg:col-start-1 lg:row-start-2"
           code={code}
           queue={queue}
@@ -589,7 +613,7 @@ function PartyRoom({ code }: { code: string }) {
           }}
           title="Выйти из комнаты?"
           description={
-            "Остальные продолжат просмотр. Если выйдут все, комната подождёт 5 минут."
+            party.official ? "Эфир продолжится. Вернуться к просмотру можно в любой момент." : "Остальные продолжат просмотр. Если выйдут все, комната подождёт 5 минут."
           }
           confirmLabel="Выйти"
           onConfirm={leave}
@@ -629,6 +653,7 @@ function EpisodeStepper({ value, total, onChange, disabled = false }: { value: n
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
   const commit = () => {
+    if (disabled) { setDraft(String(value)); return; }
     const n = Math.round(Number(draft));
     if (Number.isFinite(n) && n >= 1 && n <= total && n !== value) onChange(n);
     else setDraft(String(value));
@@ -640,7 +665,7 @@ function EpisodeStepper({ value, total, onChange, disabled = false }: { value: n
     >
       <button
         type="button"
-        disabled={value <= 1}
+        disabled={disabled || value <= 1}
         onClick={() => onChange(value - 1)}
         aria-label="Предыдущая серия"
         className="grid h-full w-9 place-items-center text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-30"
@@ -650,6 +675,7 @@ function EpisodeStepper({ value, total, onChange, disabled = false }: { value: n
       <label className="flex h-full items-center gap-1 border-x border-[var(--accent-line-soft)] px-2 text-xs text-muted-foreground">
         Серия
         <input
+          disabled={disabled}
           value={draft}
           inputMode="numeric"
           onChange={(e) => setDraft(e.target.value.replace(/\D/g, "").slice(0, 4))}
@@ -664,7 +690,7 @@ function EpisodeStepper({ value, total, onChange, disabled = false }: { value: n
       </label>
       <button
         type="button"
-        disabled={value >= total}
+        disabled={disabled || value >= total}
         onClick={() => onChange(value + 1)}
         aria-label="Следующая серия"
         className="grid h-full w-9 place-items-center text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:opacity-30"
@@ -775,6 +801,9 @@ function InviteDialog({ code, party, members, onClose }: { code: string; party: 
  * "Включить" to put one on for everyone.
  */
 function NextUp({
+  official,
+  nextVotes,
+  availableEpisodes,
   className,
   code,
   queue,
@@ -788,6 +817,9 @@ function NextUp({
   onNextEpisode,
   onPropose,
 }: {
+  official: boolean;
+  nextVotes: string[];
+  availableEpisodes: number[];
   className?: string;
   code: string;
   queue: PartyQueueItem[];
@@ -801,13 +833,13 @@ function NextUp({
   onNextEpisode: () => void;
   onPropose: () => void;
 }) {
-  const vote = (id: number) => void apiRequest(`/party/${code}/queue/${id}/vote`, { method: "POST" }).catch(() => undefined);
+  const vote = (id: number) => void apiRequest(`/party/${code}/queue/${id}/vote`, { method: "POST" }).catch((error: unknown) => toast.error(error instanceof ApiRequestError ? error.message : "Не получилось проголосовать"));
   const remove = (id: number) => void apiRequest(`/party/${code}/queue/${id}`, { method: "DELETE" }).catch(() => undefined);
   const play = (id: number) =>
     void apiRequest(`/party/${code}/playback`, { method: "POST", body: { animeId: id, episode: 1, playing: false, position: 0 } }).catch(() =>
       toast.error("Не получилось включить"),
     );
-  const hasNext = episode < total;
+  const hasNext = official ? availableEpisodes.includes(episode + 1) : episode < total;
   return (
     <section className={cn("flex min-w-0 flex-col gap-2.5 rounded-2xl border border-[var(--accent-line-soft)] bg-card/50 p-3", className)}>
       <div className="flex items-center gap-2">
@@ -825,8 +857,11 @@ function NextUp({
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Следующая серия</p>
               <p className="truncate text-sm font-medium">Серия {episode + 1}</p>
-              <p className="text-[11px] text-muted-foreground">{autoNext ? "Включится сама в конце" : "Автопереход выключен"}</p>
+              <p className="text-[11px] text-muted-foreground">{official ? "По результатам голосования" : autoNext ? "Включится сама в конце" : "Автопереход выключен"}</p>
             </div>
+            {official && <button type="button" aria-label="Голосовать за следующую серию" aria-pressed={!!myId && nextVotes.includes(myId)}
+              onClick={() => void apiRequest(`/party/${code}/vote-next`, { method: "POST" }).catch((error: unknown) => toast.error(error instanceof ApiRequestError ? error.message : "Не получилось проголосовать"))}
+              className={cn("inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-xs", myId && nextVotes.includes(myId) ? "bg-primary/15 text-primary" : "bg-foreground/5 text-muted-foreground")}><HeartIcon className="size-3.5" />{nextVotes.length}</button>}
             {canControl && (
               <button type="button" onClick={onNextEpisode} title="Включить сейчас" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <SkipForwardIcon className="size-4" />

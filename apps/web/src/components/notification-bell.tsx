@@ -1,6 +1,7 @@
 import type { AppNotification } from "@animeshadow/shared";
 import { BellIcon, CheckCheckIcon, PlayIcon, Trash2Icon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useHeaderOverlay } from "@/hooks/use-header-overlay";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -69,10 +70,12 @@ export function NotificationRow({ n, onOpen, className }: { n: AppNotification; 
  * click away, "read all". Once a visit, if there are new ones, a
  * notification says so on arrival.
  */
-export function NotificationBell({ className }: { className?: string }) {
+export function NotificationBell({ className, children, side, onOpenChange }: { className?: string; children?: ReactNode; side?: "top" | "bottom"; onOpenChange?: (open: boolean) => void }) {
   const { status, user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  useHeaderOverlay(open);
+  const changeOpen = (value: boolean) => { setOpen(value); onOpenChange?.(value); };
   const remove = useDeleteNotifications();
   const { data: unread = 0 } = useUnreadNotifications();
   const { data } = useNotifications(open);
@@ -100,7 +103,7 @@ export function NotificationBell({ className }: { className?: string }) {
   const items = data?.items ?? [];
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={changeOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -110,7 +113,7 @@ export function NotificationBell({ className }: { className?: string }) {
             className,
           )}
         >
-          <BellIcon className={cn("size-[18px]", unread > 0 && "text-foreground")} />
+          {children ?? <BellIcon className={cn("size-[18px]", unread > 0 && "text-foreground")} />}
           {unread > 0 && (
             <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground ring-2 ring-background">
               {unread > 99 ? "99+" : unread}
@@ -118,7 +121,7 @@ export function NotificationBell({ className }: { className?: string }) {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} collisionPadding={12} className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(24rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0">
+      <PopoverContent align="end" side={side} sideOffset={8} collisionPadding={12} className="flex max-h-[var(--radix-popover-content-available-height)] w-[min(24rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden p-0">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3.5 py-3">
           <p className="text-sm font-semibold">Новые серии</p>
           {unread > 0 && (
@@ -142,7 +145,7 @@ export function NotificationBell({ className }: { className?: string }) {
               </p>
             </div>
           ) : (
-            items.map((n) => <NotificationRow key={n.id} n={n} onOpen={() => setOpen(false)} />)
+            items.map((n) => <NotificationRow key={n.id} n={n} onOpen={() => changeOpen(false)} />)
           )}
         </div>
         {items.length > 0 && <button type="button" disabled={remove.isPending}
@@ -153,14 +156,14 @@ export function NotificationBell({ className }: { className?: string }) {
         <div className="grid shrink-0 grid-cols-2 border-t border-border/60 text-xs font-medium text-muted-foreground">
           <Link
             to="/library#new-episodes"
-            onClick={() => setOpen(false)}
+            onClick={() => changeOpen(false)}
             className="px-3.5 py-2.5 text-center transition-colors hover:text-foreground"
           >
             Все в «Моём списке»
           </Link>
           <Link
             to="/profile?studio=notify"
-            onClick={() => setOpen(false)}
+            onClick={() => changeOpen(false)}
             className="border-l border-border/60 px-3.5 py-2.5 text-center transition-colors hover:text-foreground"
           >
             Telegram и push

@@ -6,7 +6,7 @@ import { REACTION_CATEGORIES, type ReactionCategory } from "./reaction-gif.js";
 
 /**
  * The site's own little library of reaction gifs: a few per category,
- * downloaded once from nekos.best, shrunk to 256 px animated WebP (a
+ * downloaded once from nekos.best, stored as 384 px animated WebP (a
  * 160 KB gif becomes about 20 KB) and kept on disk. The browser gets one
  * small manifest and then files that never change — cached for a year, so
  * from the second page on a gif is on screen instantly.
@@ -45,7 +45,7 @@ export class GifLibrary {
     if (hit) return hit;
     const buf = await this.file(name);
     if (!buf) return null;
-    const out = await sharp(buf).webp({ quality: 50 }).toBuffer().catch(() => null);
+    const out = await sharp(buf).webp({ quality: 82 }).toBuffer().catch(() => null);
     if (!out) return null;
     if (this.stills.size >= 800) this.stills.delete(this.stills.keys().next().value!);
     this.stills.set(name, out);
@@ -82,7 +82,8 @@ export class GifLibrary {
         const made: string[] = [];
         for (const url of urls) {
           if (made.length + have.length >= PER_CATEGORY * 2) break;
-          const name = `${cat}-${createHash("sha1").update(url).digest("hex").slice(0, 12)}.webp`;
+          // Include encoding version: immutable browser caches keep old URLs forever.
+          const name = `${cat}-${createHash("sha1").update(`hq2:${url}`).digest("hex").slice(0, 12)}.webp`;
           if (have.includes(name) || made.includes(name)) continue;
           const ok = await this.convert(url, join(this.dir, name));
           if (ok) made.push(name);
@@ -121,8 +122,8 @@ export class GifLibrary {
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length > 12 * 1024 * 1024) return false;
       const out = await sharp(buf, { animated: true, limitInputPixels: 64_000_000 })
-        .resize({ width: 256, withoutEnlargement: true })
-        .webp({ quality: 55, effort: 4 })
+        .resize({ width: 384, withoutEnlargement: true })
+        .webp({ quality: 82, effort: 4 })
         .toBuffer();
       await writeFile(path, out);
       return true;

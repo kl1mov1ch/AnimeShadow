@@ -26,6 +26,8 @@ import { SeoRenderer } from "../seo/render.js";
 import { AnalyticsService } from "./analytics.service.js";
 import { StatsRollupService } from "./stats-rollup.service.js";
 import { HeroClipService } from "./hero-clip.service.js";
+import { PrismaPartyStore } from "./party-store.js";
+import { createPartyProgram } from "./party-program.js";
 import { TitleNamesService } from "./title-names.service.js";
 import { CuratedService } from "./curated.service.js";
 import { AuthService } from "./auth.service.js";
@@ -311,7 +313,8 @@ export function createServices(deps: ContainerDeps): Services {
     episodeAvailability: new EpisodeAvailabilityService(deps.prisma, watch, notifications, deps.logger),
     delivery,
     schedule,
-    party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs")),
+    party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs"),
+      new PrismaPartyStore(deps.prisma, (error) => deps.logger.warn({ err: error }, "party checkpoint failed")), createPartyProgram(deps.prisma, watch)),
     kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
     anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
     seo: new SeoRenderer({ prisma: deps.prisma, landing, catalog, logger: deps.logger }),

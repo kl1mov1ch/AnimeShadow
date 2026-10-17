@@ -10,12 +10,12 @@ import { cn } from "@/lib/utils";
  */
 export function ReactionGif({ category, className }: { category: string; className?: string }) {
   const { data } = useReactionGif(category);
-  const [broken, setBroken] = useState(false);
-  const url = data?.url && !broken ? imageSrc(data.url) : null;
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const url = data?.url && data.url !== brokenUrl ? imageSrc(data.url) : null;
   return (
     <span className={cn("relative block overflow-hidden rounded-2xl bg-foreground/[0.06]", className)}>
       {url ? (
-        <img key={url} src={url} alt="" decoding="async" onError={() => setBroken(true)} className="size-full object-cover" />
+        <img key={url} src={url} alt="" decoding="async" loading="lazy" onError={() => setBrokenUrl(data?.url ?? null)} className="size-full object-cover" />
       ) : (
         <span aria-hidden className="grid size-full place-items-center font-display text-4xl text-primary/30">
           影

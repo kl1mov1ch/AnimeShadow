@@ -1,4 +1,4 @@
-import { frameSearchInputSchema, localeQuerySchema, searchLogInputSchema, searchQuerySchema, type SearchPulse } from "@animeshadow/shared";
+import { localeQuerySchema, searchLogInputSchema, searchQuerySchema, type SearchPulse } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { resolveAllowAdult } from "../lib/content-guard.js";
 import { parse } from "../lib/validation.js";
@@ -76,32 +76,4 @@ export const searchRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // How many searches are ahead: the page shows "в очереди: 2" while it waits.
-  fastify.get("/search/frame/queue", async (_request, reply) => {
-    reply.header("cache-control", "no-store");
-    return fastify.services.frames.queue();
-  });
-
-  fastify.post(
-    "/search/frame",
-    {
-      // Signed in only: every call spends part of a shared monthly quota on
-      // trace.moe's free tier, so it is not something to leave open to
-      // anonymous traffic.
-      preHandler: fastify.authenticate,
-      // A handful a minute per address: one account could otherwise spend
-      // the whole month's quota in a loop.
-      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
-      // Fastify defaults to 1MB, and a screenshot carried as a base64 data
-      // URL is about a third larger than the file it came from — well past
-      // that for anything at screen resolution. The service enforces the
-      // real 4MB ceiling on the decoded bytes.
-      bodyLimit: 6 * 1024 * 1024,
-    },
-    async (request) => {
-      const { dataUrl } = parse(frameSearchInputSchema, request.body);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-      return fastify.services.frames.searchByFrame(dataUrl, allowAdult);
-    },
-  );
 };

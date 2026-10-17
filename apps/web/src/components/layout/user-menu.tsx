@@ -1,4 +1,6 @@
-import { ChevronRightIcon, CrownIcon, FolderHeartIcon, GiftIcon, HeartIcon, LibraryIcon, LogInIcon, LogOutIcon, Settings2Icon, ShieldCheckIcon, SparklesIcon, UserPlusIcon, WandSparklesIcon } from "lucide-react";
+import { LogoGlyph } from "@/components/brand/logo-glyph";
+import { useHeaderOverlay } from "@/hooks/use-header-overlay";
+import { ChevronRightIcon, CrownIcon, FolderHeartIcon, GiftIcon, HeartIcon, LibraryIcon, LogInIcon, LogOutIcon, Settings2Icon, PanelBottomIcon, ShieldCheckIcon, SparklesIcon, WandSparklesIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
 import { usePromo } from "@/components/promo/promo-offer";
 import { useReferrals } from "@/lib/referral";
@@ -28,6 +30,7 @@ export function UserMenu() {
   const { status, user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  useHeaderOverlay(open);
   const authed = status === "authenticated" && Boolean(user);
   // Unobtrusive by design: a small dot on the avatar, and one extra menu
   // item — never a modal or a toast forced on login. Disappears for good
@@ -61,7 +64,7 @@ export function UserMenu() {
           title={t("common.createAccount")}
           className="group inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/[0.08] px-3.5 text-[13px] font-semibold transition-colors hover:border-primary/60 hover:bg-primary/15"
         >
-          <UserPlusIcon className="size-4 text-primary" />
+          <LogoGlyph className="size-4 text-primary" />
           <span className="bg-gradient-to-r from-primary via-rose-400 to-fuchsia-400 bg-clip-text text-transparent">Стать участником</span>
         </Link>
       </div>
@@ -131,6 +134,7 @@ export function UserMenu() {
         <div className="flex flex-col p-1.5">
           <Row to="/library" icon={LibraryIcon}>{t("userMenu.list")}</Row>
           <Row to="/collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
+          <Row to="/profile?studio=navigation" icon={PanelBottomIcon}>Нижнее меню</Row>
           <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
           <Row to="/profile?tab=invite" icon={GiftIcon}>
             Пригласить друга

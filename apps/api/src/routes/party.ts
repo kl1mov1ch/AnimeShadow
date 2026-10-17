@@ -23,8 +23,15 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/party", { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {
     const input = parse(createPartyInputSchema, request.body);
-    return party.create(request.userId!, input.animeId, input.episode, input.visibility);
+    return party.create(request.userId!, input.animeId, input.episode, input.visibility, input.name || null);
   });
+
+  fastify.get("/party/featured", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+    return { party: await party.main() };
+  });
+
+  fastify.post("/party/:code/vote-next", auth, async (request) => party.voteNext(parse(codeParams, request.params).code, request.userId!));
 
   // The list of rooms going on (open ones, and friends' for their friends).
   fastify.get("/party", { preHandler: fastify.optionalAuth }, async (request, reply) => {
@@ -79,14 +86,24 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(probe);
   });
 
-  fastify.get("/party/:code", auth, async (request) => party.snapshot(parse(codeParams, request.params).code));
+  fastify.get("/party/:code", auth, async (request) => {
+    const { code } = parse(codeParams, request.params);
+    if (code === "main-live") await party.main();
+    return party.snapshot(code);
+  });
 
   // The room's live stream (server-sent events), taken over from Fastify so
   // nothing — compression included — buffers it.
   fastify.get("/party/:code/events", auth, async (request, reply) => {
     const { code } = parse(codeParams, request.params);
     let leave: (() => void) | null = null;
+    let disconnected = false;
+    // The incoming GET can finish while its SSE response is still open.
+    // Presence belongs to that response, including disconnects during the account lookup.
+    reply.raw.once("close", () => { disconnected = true; leave?.(); });
     try {
+      if (code === "main-live") await party.main();
+      if (disconnected || reply.raw.destroyed || reply.raw.writableEnded) return;
       reply.hijack();
       reply.raw.writeHead(200, {
         "content-type": "text/event-stream; charset=utf-8",
@@ -96,13 +113,14 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
       });
       reply.raw.write(": open\n\n");
       leave = await party.connect(code, request.userId!, reply.raw);
+      if (disconnected || reply.raw.destroyed || reply.raw.writableEnded) leave();
     } catch (error) {
+      if (disconnected || reply.raw.destroyed || reply.raw.writableEnded) return;
       const message = error instanceof AppError ? error.message : "Не получилось подключиться к комнате";
       reply.raw.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
       reply.raw.end();
       return;
     }
-    request.raw.on("close", () => leave?.());
   });
 
   fastify.post("/party/:code/playback", { ...auth, config: { rateLimit: { max: 120, timeWindow: "1 minute" } } }, async (request) => {

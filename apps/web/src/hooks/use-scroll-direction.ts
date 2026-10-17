@@ -13,14 +13,16 @@ export interface ScrollDirection {
  * only when the direction flips (after a few pixels of the same movement),
  * never on every scroll event.
  */
-export function useScrollDirection(topZone = 96): ScrollDirection {
+export function useScrollDirection(topZone = 96, paused = false): ScrollDirection {
   const [state, setState] = useState<ScrollDirection>({ down: false, nearTop: true });
   useEffect(() => {
-    let last = window.scrollY;
+    let last = Math.max(0, window.scrollY);
     let frame = 0;
     const read = () => {
       frame = 0;
-      const y = window.scrollY;
+      const y = Math.max(0, Math.min(window.scrollY, document.documentElement.scrollHeight - window.innerHeight));
+      // Radix changes scroll locking while opening a menu; that isn't a user's scroll.
+      if (paused || document.body.hasAttribute("data-scroll-locked")) { last = y; return; }
       const nearTop = y < topZone;
       const delta = y - last;
       if (!nearTop && Math.abs(delta) < 8) return;
@@ -36,6 +38,6 @@ export function useScrollDirection(topZone = 96): ScrollDirection {
       window.removeEventListener("scroll", onScroll);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [topZone]);
+  }, [topZone, paused]);
   return state;
 }

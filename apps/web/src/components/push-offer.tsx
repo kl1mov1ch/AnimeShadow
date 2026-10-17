@@ -112,7 +112,7 @@ export function PushOffer() {
 
   if (mode === "corner") {
     return (
-      <div className="fixed inset-x-3 bottom-3 z-40 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 md:inset-x-auto md:bottom-5 md:left-5 md:w-[21rem]">
+      <div className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-space,0px)+0.75rem)] z-40 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 md:inset-x-auto md:bottom-5 md:left-5 md:w-[21rem]">
         <div className="flex items-center gap-3 rounded-2xl border border-[var(--accent-line-soft)] bg-card/95 p-3 shadow-[0_18px_50px_-18px_rgb(0_0_0/0.8)] backdrop-blur">
           <span className="push-bell grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
             <BellRingIcon className="size-5" />

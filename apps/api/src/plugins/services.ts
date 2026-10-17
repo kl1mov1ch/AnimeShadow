@@ -43,10 +43,11 @@ export default fp(
       },
     });
     fastify.decorate("services", services);
+    await services.party.restore();
+    fastify.addHook("preClose", async () => { await services.party.dispose(); });
     // Page views waiting in memory are written before the database goes.
     fastify.addHook("onClose", async () => {
       services.heroClips.close();
-      services.party.dispose();
       await services.analytics.close();
       await services.adminPrisma.$disconnect();
     });

@@ -1,4 +1,4 @@
-import { MenuIcon, ScanSearchIcon, XIcon } from "lucide-react";
+import { MenuIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
@@ -6,8 +6,6 @@ import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { SearchBox } from "@/components/layout/search-box";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { HOME_NAV } from "./home-nav";
@@ -21,7 +19,6 @@ import { FEATURES } from "@/lib/features";
  */
 export function HomeHeader() {
   const t = useT();
-  const { status } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -60,20 +57,6 @@ export function HomeHeader() {
         </div>
 
         <div className="ml-auto flex items-center gap-1 lg:ml-0">
-          {status === "authenticated" && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  to="/frame-search"
-                  aria-label={t("frameSearch.navLabel")}
-                  className="grid size-9 place-items-center rounded-lg text-[var(--hm-muted)] transition-colors hover:bg-[var(--hm-card)] hover:text-[var(--hm-text)]"
-                >
-                  <ScanSearchIcon className="size-[18px]" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>{t("frameSearch.navLabel")}</TooltipContent>
-            </Tooltip>
-          )}
           {FEATURES.englishLocale && <LanguageSwitcher />}
           {FEATURES.lightTheme && <ThemeToggle />}
           <UserMenu />

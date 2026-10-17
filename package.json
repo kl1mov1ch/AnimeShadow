@@ -16,7 +16,7 @@
     "db:grant-pro": "pnpm --filter @animeshadow/db grant-pro",
     "db:studio": "pnpm --filter @animeshadow/db studio",
     "catalog:expand": "pnpm --filter @animeshadow/db bulk-seed",
-    "test:player": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/player.test.ts ../../tests/notifications.test.ts ../../tests/episode-info.test.ts ../../tests/payments.test.ts ../../tests/party.test.ts ../../tests/preview.test.ts",
+    "test:player": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/player.test.ts ../../tests/notifications.test.ts ../../tests/episode-info.test.ts ../../tests/payments.test.ts ../../tests/party.test.ts ../../tests/party-broadcast.test.ts ../../tests/preview.test.ts ../../tests/frame-search.test.ts ../../tests/mobile-navigation.test.ts",
     "packages:build": "pnpm --filter \"./packages/*\" -r build",
     "setup": "pnpm install && pnpm db:up && pnpm db:generate && pnpm packages:build && pnpm db:migrate && pnpm db:seed",
     "predev": "pnpm db:generate && pnpm packages:build",

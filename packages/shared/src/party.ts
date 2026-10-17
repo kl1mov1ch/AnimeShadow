@@ -18,6 +18,7 @@ export interface PartyMember {
 }
 
 export interface PartyPlayback {
+  sourceId?: string | null;
   episode: number;
   playing: boolean;
   /** Seconds, as of `updatedAt` (server ms). */
@@ -83,6 +84,12 @@ export interface PartyQueueItem {
 }
 
 export interface PartySnapshot {
+  official?: boolean;
+  name?: string | null;
+  durationSeconds?: number | null;
+  capacity?: number;
+  nextVotes?: string[];
+  availableEpisodes?: number[];
   code: string;
   settings: PartySettings;
   anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; episodes: number | null };
@@ -103,6 +110,7 @@ export type PartyEvent =
   | { type: "anime"; anime: PartySnapshot["anime"] }
   | { type: "settings"; settings: PartySettings }
   | { type: "host"; hostId: string; name: string }
+  | { type: "ballot"; nextVotes: string[] }
   | { type: "closed"; reason: string }
   | { type: "queue"; queue: PartyQueueItem[] }
   | { type: "chat"; message: PartyChatMessage }
@@ -145,6 +153,7 @@ export const adminPartyActionSchema = z.discriminatedUnion("action", [
 export type AdminPartyAction = z.infer<typeof adminPartyActionSchema>;
 
 export const createPartyInputSchema = z.object({
+  name: z.string().trim().max(80).nullable().optional(),
   animeId: z.number().int().positive(),
   episode: z.number().int().min(1).max(5000).default(1),
   visibility: z.enum(PARTY_VISIBILITY).default("public"),
@@ -169,6 +178,7 @@ export const partyMuteInputSchema = z.object({ userId: z.string().min(1).max(40)
 
 /** A room in the list of rooms ("Совместный просмотр"). */
 export interface PartyListing {
+  name?: string | null;
   code: string;
   anime: PartySnapshot["anime"];
   episode: number;
@@ -188,6 +198,7 @@ export interface PartyListing {
 }
 
 export const partyPlaybackInputSchema = z.object({
+  sourceId: z.string().max(160).nullable().optional(),
   /** Paused because this member is still loading (it resumes when they're ready). */
   waiting: z.boolean().optional(),
   /** Another title for the whole room (anyone may switch it). */

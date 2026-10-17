@@ -96,7 +96,7 @@ export function SearchCommandDialog({
   const { data, isFetching } = useSmartSearch(debounced, open && showResults && mode === "anime");
   const matches = useTitleMatches(data?.flat ?? [], debounced);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => setOpen(false), [setOpen]);
 
   const submit = useCallback(
     (value: string) => {

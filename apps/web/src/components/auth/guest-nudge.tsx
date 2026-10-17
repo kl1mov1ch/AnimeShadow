@@ -1,10 +1,10 @@
-import { BookmarkIcon, FolderHeartIcon, HeartIcon, HistoryIcon, SparklesIcon, TrophyIcon, XIcon } from "lucide-react";
+import { BookmarkIcon, FolderHeartIcon, HistoryIcon, TrophyIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ReactionGif } from "@/components/common/reaction-gif";
+import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { PromoStrip } from "@/components/promo/promo-offer";
+
 
 /** What an account gives — the same list on the invite and the sign-up page. */
 export const ACCOUNT_PERKS = [
@@ -19,13 +19,13 @@ type Variant = "home" | "browse" | "collections";
 const COPY: Record<Variant, { gif: string; title: string; text: string }> = {
   home: {
     gif: "wave",
-    title: "Эй, останешься с нами?",
+    title: "Твой следующий аниме-вечер — с того же места",
     text: "Ты уже здесь — осталось 20 секунд, и AnimeShadow станет твоим: главная подстроится под вкус, серии будут отмечаться сами, а всё, что нашёл, никуда не денется. Бесплатно и навсегда.",
   },
   browse: {
     gif: "pout",
-    title: "Находки же пропадут!",
-    text: "Сохрани их в «В планах» — без аккаунта всё исчезнет с закрытой вкладкой.",
+    title: "Сохрани аниме на потом",
+    text: "Добавляй находки в свой список и возвращайся к ним с любого устройства.",
   },
   collections: {
     gif: "blush",
@@ -106,6 +106,8 @@ export function GuestNudge() {
     }
     // A beat after the page arrives, not on top of the transition.
     const id = window.setTimeout(() => {
+      // A reader already scrolling through results should keep their place.
+      if (window.scrollY > window.innerHeight * 0.6 || document.querySelector('[role="dialog"]')) return;
       memLast.current = Date.now();
       writeLast(memLast.current);
       setVariant(v);
@@ -113,94 +115,36 @@ export function GuestNudge() {
     return () => window.clearTimeout(id);
   }, [guest, pathname]);
 
+  useEffect(() => {
+    if (!variant) return;
+    const hideWhileBrowsing = () => {
+      if (window.scrollY > window.innerHeight * 0.6) setVariant(null);
+    };
+    window.addEventListener("scroll", hideWhileBrowsing, { passive: true });
+    return () => window.removeEventListener("scroll", hideWhileBrowsing);
+  }, [variant]);
+
   if (!guest || !variant) return null;
   const copy = COPY[variant];
-  const big = variant === "home";
   const close = () => setVariant(null);
-
   return (
-    <div
-      role="dialog"
-      aria-label={copy.title}
-      data-guest-nudge
-      className={cn(
-        "guest-nudge fixed z-50 animate-in duration-500 fade-in-0",
-        // Phone: a compact card in the middle. Computer: the bottom-left corner.
-        "inset-x-0 top-1/2 mx-auto w-[min(22rem,calc(100vw-2rem))] -translate-y-1/2 zoom-in-90",
-        "md:inset-x-auto md:bottom-5 md:left-5 md:top-auto md:mx-0 md:translate-y-0",
-        big ? "md:w-[27rem]" : "md:w-[21rem]",
-        " md:zoom-in-100 md:slide-in-from-left-8",
-      )}
-    >
-      <div className="nudge-ring rounded-3xl p-px shadow-[0_24px_60px_-18px_rgb(0_0_0/0.85)]">
-        <div className="relative overflow-hidden rounded-[calc(1.5rem-1px)] bg-[color-mix(in_srgb,var(--card)_95%,white_5%)] p-3.5">
-          <span aria-hidden className="pointer-events-none absolute -left-10 -top-12 size-36 rounded-full bg-primary/25 blur-3xl" />
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Закрыть"
-            className="absolute right-2 top-2 z-10 grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
-          >
-            <XIcon className="size-3.5" />
-          </button>
-          <div className="relative flex items-center gap-3">
-            <div className="relative shrink-0">
-              <ReactionGif category={copy.gif} className={cn("nudge-bob size-14 rounded-xl shadow-lg", big ? "md:size-24" : "md:size-16")} />
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  aria-hidden
-                  className="nudge-heart text-primary"
-                  style={{ left: `${20 + i * 22}%`, animationDelay: `${i * 0.9}s` }}
-                >
-                  <HeartIcon className="size-3 fill-current" />
-                </span>
-              ))}
-            </div>
-            <div className="flex min-w-0 flex-col gap-0.5 pr-5">
-              <p className={cn("font-display text-[15px] leading-tight", big && "md:text-lg")}>{copy.title}</p>
-              <p className={cn("line-clamp-2 text-[12px] leading-snug text-foreground/75 max-md:hidden", big && "md:line-clamp-none md:text-[13px]")}>{copy.text}</p>
-            </div>
-          </div>
-          {big && (
-            <ul className="relative mt-3 hidden flex-col gap-1.5 border-t border-border/50 pt-3 md:flex">
-              {ACCOUNT_PERKS.map(({ icon: Icon, text }) => (
-                <li key={text} className="flex items-start gap-2 text-[12.5px] leading-snug text-foreground/85">
-                  <span className="grid size-5 shrink-0 place-items-center rounded-md bg-primary/15 text-primary">
-                    <Icon className="size-3" />
-                  </span>
-                  {text}
-                </li>
-              ))}
-              <li className="flex items-start gap-2 text-[12.5px] leading-snug text-foreground/85">
-                <span className="grid size-5 shrink-0 place-items-center rounded-md bg-primary/15 text-primary">
-                  <SparklesIcon className="size-3" />
-                </span>
-                Калькулятор марафона, рекомендации по вкусу и уведомления о новых сериях
-              </li>
-            </ul>
-          )}
-          <PromoStrip className="mt-3 max-md:hidden" />
-          <div className="relative mt-2.5 flex items-center gap-2">
-            <Link
-              to="/register"
-              onClick={close}
-              className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-primary via-rose-500 to-fuchsia-500 px-3 text-[13px] font-bold text-white shadow-lg shadow-primary/30 transition-transform active:scale-95"
-            >
-              <SparklesIcon className="size-3.5" />
-              Создать аккаунт
-            </Link>
-            <Link
-              to="/login"
-              onClick={close}
-              className="inline-flex h-9 items-center justify-center rounded-xl border border-border/70 px-3 text-[13px] font-semibold transition-colors hover:border-foreground/30"
-            >
-              Войти
-            </Link>
-          </div>
-        </div>
+    <aside aria-label="Возможности аккаунта" data-guest-nudge className="guest-nudge fixed inset-x-3 bottom-[calc(var(--mobile-nav-space)+0.75rem)] z-40 mx-auto max-w-sm rounded-2xl border border-primary/25 bg-card p-4 shadow-xl shadow-black/30 motion-safe:animate-in motion-safe:slide-in-from-bottom-2 md:inset-x-auto md:left-5 md:mx-0">
+      <button type="button" onClick={close} aria-label="Закрыть приглашение" className="absolute right-1 top-1 grid size-10 place-items-center rounded-xl text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"><XIcon className="size-4" /></button>
+      <div className="flex items-center gap-3 pr-6">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><LogoGlyph className="size-7" /></span>
+        <p className="text-sm font-semibold leading-snug">{copy.title}</p>
       </div>
-    </div>
+      <ul className="my-3 grid gap-1.5 text-xs leading-snug text-muted-foreground">
+        <li>Продолжение с сохранённой серии и минуты</li>
+        <li>Свои списки, оценки и подборки</li>
+        <li>Уведомления о новых доступных сериях</li>
+      </ul>
+      <div className="flex gap-2">
+        <Link to="/register" state={{ from: pathname }} onClick={close} className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/85">Создать аккаунт</Link>
+        <Link to="/login" state={{ from: pathname }} onClick={close} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border px-4 text-sm hover:bg-secondary">Войти</Link>
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">Регистрация бесплатна</p>
+    </aside>
   );
 }
 

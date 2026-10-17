@@ -11,6 +11,7 @@ import {
   LinkIcon,
   LockIcon,
   PaletteIcon,
+  PanelBottomIcon,
   PinIcon,
   TrophyIcon,
   UploadIcon,
@@ -18,7 +19,7 @@ import {
   UserRoundIcon,
   XIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
@@ -36,8 +37,9 @@ import { NickTagEditor } from "./nick-tag-editor";
 import { NotifySettingsSection } from "./notify-settings";
 import { levelOf } from "./profile-level";
 import { useProfileMedia } from "./use-profile-media";
+import { NavigationSettings } from "./navigation-settings";
 
-export type StudioTab = "profile" | "look" | "showcase" | "taste" | "privacy" | "notify" | "list" | "account";
+export type StudioTab = "profile" | "look" | "showcase" | "taste" | "privacy" | "notify" | "list" | "account" | "navigation";
 
 const SECTIONS: Array<{ id: StudioTab; icon: typeof PaletteIcon; title: string; hint: string }> = [
   { id: "profile", icon: UserRoundIcon, title: "Профиль", hint: "Аватар, обложка, ник, описание, статус" },
@@ -46,6 +48,7 @@ const SECTIONS: Array<{ id: StudioTab; icon: typeof PaletteIcon; title: string; 
   { id: "taste", icon: HeartIcon, title: "Вкусы", hint: "Любимые жанры для рекомендаций" },
   { id: "privacy", icon: LockIcon, title: "Приватность", hint: "Кто что видит в профиле" },
   { id: "notify", icon: BellRingIcon, title: "Уведомления", hint: "Новые серии в Telegram и браузере" },
+  { id: "navigation", icon: PanelBottomIcon, title: "Нижнее меню", hint: "Свои кнопки и интерактивный предпросмотр" },
   { id: "list", icon: UploadIcon, title: "Список", hint: "Импорт из MAL и Shikimori, экспорт" },
   { id: "account", icon: UserCogIcon, title: "Аккаунт", hint: "Почта, возраст, удаление" },
 ];
@@ -78,6 +81,16 @@ export function ProfileStudio({
   initialTab?: StudioTab;
 }) {
   const [tab, setTab] = useState<StudioTab>(initialTab);
+  const sectionNav = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      const rail = sectionNav.current;
+      const active = rail?.querySelector<HTMLElement>('[aria-current="true"]');
+      if (rail && active && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: active.offsetLeft - rail.clientWidth / 2 + active.offsetWidth / 2 });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab, open]);
   const [lastOpen, setLastOpen] = useState(open);
   if (open !== lastOpen) {
     setLastOpen(open);
@@ -125,7 +138,7 @@ export function ProfileStudio({
                 <p className="font-display text-lg">Настройки профиля</p>
               </div>
 
-              <nav className="grid grid-cols-4 gap-1 sm:flex sm:flex-col sm:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <nav ref={sectionNav} aria-label="Разделы настроек" className="flex gap-1 overflow-x-auto sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {SECTIONS.map(({ id, icon: Icon, title, hint }) => {
                   const on = tab === id;
                   return (
@@ -135,7 +148,7 @@ export function ProfileStudio({
                       onClick={() => setTab(id)}
                       aria-current={on}
                       className={cn(
-                        "group flex min-w-0 shrink-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-center transition-[background-color,color] duration-200 sm:flex-row sm:gap-2.5 sm:px-3 sm:py-2.5 sm:text-left",
+                        "group flex min-h-11 min-w-0 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left transition-[background-color,color] duration-200 sm:gap-2.5 sm:py-2.5",
                         on ? "bg-primary text-primary-foreground shadow-md shadow-primary/25" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
                       )}
                     >
@@ -187,6 +200,7 @@ export function ProfileStudio({
                 {tab === "taste" && taste}
                 {tab === "privacy" && <PrivacySection profile={profile} />}
                 {tab === "notify" && <NotifySettingsSection />}
+                {tab === "navigation" && <NavigationSettings />}
                 {tab === "list" && <PortabilitySection />}
                 {tab === "account" && account}
               </div>
