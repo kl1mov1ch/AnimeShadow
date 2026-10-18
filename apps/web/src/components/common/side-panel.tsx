@@ -30,6 +30,7 @@ export function SideItem({
   count,
   active,
   dot,
+  tone,
   icon: Icon,
   onClick,
 }: {
@@ -38,6 +39,7 @@ export function SideItem({
   active: boolean;
   /** A colour class for the marker dot. */
   dot?: string;
+  tone?: string;
   /** Or an icon instead of a dot. */
   icon?: LucideIcon;
   onClick: () => void;
@@ -48,8 +50,9 @@ export function SideItem({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "relative flex h-8 shrink-0 items-center gap-2.5 lg:h-7 [@media(max-height:820px)]:lg:h-6 rounded-lg px-2.5 text-sm transition-colors lg:w-full",
-        active ? "bg-foreground/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
+        "relative flex h-10 shrink-0 items-center gap-2.5 rounded-xl px-3 text-sm transition-colors lg:w-full",
+        active ? "bg-primary/15 font-semibold text-foreground ring-1 ring-primary/25" : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
+        active && tone,
       )}
     >
       {active && <span aria-hidden className="absolute inset-y-1.5 left-0 hidden w-[3px] rounded-full bg-primary lg:block" />}

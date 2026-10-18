@@ -1,0 +1,49 @@
+/* Kept independent of Tailwind: Samsung 2020 uses Chromium 69. */
+* { box-sizing: border-box; }
+html { background: #0a0b10; color: #f2f2f5; font: 22px/1.5 Arial, sans-serif; }
+body { margin: 0; }
+header { padding: 24px 4%; background: #14151e; border-bottom: 1px solid #30313c; }
+header a { display: inline-block; margin-right: 32px; }
+a { color: #f2f2f5; text-decoration: none; }
+button, select, input { font: inherit; color: #f2f2f5; background: #20212d; border: 1px solid #464755; border-radius: 10px; padding: 12px 18px; min-height: 52px; }
+button, select, a { cursor: pointer; }
+a:focus, button:focus, input:focus, select:focus, video:focus { outline: 4px solid #ff4d6d; outline-offset: 5px; }
+.brand { font-size: 28px; font-weight: bold; }
+.brand b { color: #ff4d6d; font-size: 36px; vertical-align: middle; }
+.brand small { color: #ff4d6d; }
+main { max-width: 1700px; margin: auto; padding: 32px 4%; }
+h1 { font-size: 38px; line-height: 1.2; margin: 0 0 24px; }
+h2 { font-size: 26px; }
+p { margin: 12px 0; }
+label { display: block; margin: 16px 0 8px; }
+.search { display: flex; margin-bottom: 32px; }
+.search input { flex: 1; min-width: 0; margin-right: 16px; }
+.grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-gap: 24px; }
+.card { display: block; min-width: 0; padding: 8px; background: #15161f; border: 1px solid #30313c; border-radius: 12px; }
+.card img, .poster-empty { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: 8px; background: #20212d; }
+.poster-empty { text-align: center; padding-top: 90px; font-size: 64px; color: #ff4d6d; }
+.card h2 { font-size: 21px; line-height: 1.35; margin: 12px 0 6px; height: 2.7em; overflow: hidden; }
+.card p, .muted { font-size: 19px; color: #b4b5c4; }
+.pages { margin-top: 40px; }
+.pages a, .pages span { display: inline-block; margin-right: 24px; padding: 12px; }
+.detail { display: flex; margin-bottom: 36px; }
+.poster { width: 240px; height: 350px; object-fit: cover; border-radius: 12px; margin-right: 32px; }
+.synopsis { max-width: 950px; color: #c7c8d2; }
+.primary { display: inline-block; background: #e33d60; color: white; padding: 12px 24px; border-radius: 10px; margin-top: 16px; }
+#player { padding: 24px; background: #14151e; border: 1px solid #30313c; border-radius: 16px; }
+#choices { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; grid-column-gap: 20px; margin-top: 16px; }
+#choices label { margin: 0 0 8px; }
+#choices label[for="source"] { grid-column: 1; grid-row: 1; }
+#choices label[for="episode"] { grid-column: 2; grid-row: 1; }
+#choices select { width: 100%; min-width: 0; display: block; grid-row: 2; }
+#source { grid-column: 1; }
+#episode { grid-column: 2; }
+#start { grid-column: 3; grid-row: 2; margin: 0; }
+#status { min-height: 2em; }
+video { display: block; width: 100%; height: 52vh; min-height: 280px; margin: 24px 0; background: black; object-fit: contain; }
+.controls { display: flex; flex-wrap: wrap; }
+.controls button { margin: 0 12px 12px 0; }
+footer { padding: 24px 4%; color: #a1a2b0; font-size: 18px; border-top: 1px solid #30313c; }
+[hidden] { display: none !important; }
+@media (max-width: 1200px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .card img { height: 260px; } }
+@media (max-width: 650px) { html { font-size: 17px; } header a { margin-right: 16px; } .brand { display: block; } h1 { font-size: 28px; } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-gap: 16px; } .card img { height: 230px; } .detail { display: block; } .poster { width: 140px; height: 210px; margin-bottom: 24px; } #player { padding: 16px; } video { min-height: 180px; } }

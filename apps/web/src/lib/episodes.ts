@@ -30,9 +30,13 @@ function useEpisodeTexts(animeId: number) {
   return useQuery({
     queryKey: ["anime", animeId, "episodes-info", locale],
     queryFn: ({ signal }) =>
-      apiRequest<{ episodes: EpisodeText[]; pending?: boolean }>(`/anime/${animeId}/episodes-info?lang=${locale}`, {
-        signal,
-      }),
+      apiRequest<{ episodes: EpisodeText[]; pending?: boolean }>(
+        `/anime/${animeId}/episodes-info?lang=${locale}`,
+        {
+          signal,
+          cache: "no-store",
+        },
+      ),
     staleTime: 30 * 60_000,
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -76,7 +80,9 @@ export function episodesOf(source: WatchSource): Set<number> | null {
   const keys =
     source.format === "hls"
       ? Object.keys(source.hlsEpisodes ?? {})
-      : source.format === "mp4" ? Object.keys(source.mediaEpisodes ?? {}) : Object.keys(source.iframeEpisodes ?? {});
+      : source.format === "mp4"
+        ? Object.keys(source.mediaEpisodes ?? {})
+        : Object.keys(source.iframeEpisodes ?? {});
   if (keys.length > 0) {
     return new Set(keys.map(Number).filter((n) => Number.isInteger(n) && n > 0));
   }
@@ -99,7 +105,10 @@ export function episodesOf(source: WatchSource): Set<number> | null {
  * Reads the same react-query cache entry the player does, so building this
  * costs no request.
  */
-export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
+export function useEpisodeCatalog(
+  animeId: number,
+  sourceFilter?: (source: WatchSource) => boolean,
+): EpisodeCatalog {
   const { data } = useWatchSources(animeId);
   const { data: episodeTexts } = useEpisodeTexts(animeId);
   const texts = episodeTexts?.episodes;
@@ -128,7 +137,7 @@ export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
     };
 
     for (const source of data?.sources ?? []) {
-      const own = episodesOf(source);
+      const own = !sourceFilter || sourceFilter(source) ? episodesOf(source) : null;
       if (own) {
         for (const n of own) {
           entry(n).dubs += 1;
@@ -145,7 +154,10 @@ export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
         e.titleEn ??= meta.titleEn ?? null;
         e.durationSeconds ??= meta.durationSeconds ?? null;
         e.opening ??= meta.opening ?? null;
-        if (meta.thumb) { e.thumb ??= meta.thumb; e.thumbs = [...new Set([...(e.thumbs ?? []), meta.thumb])]; }
+        if (meta.thumb) {
+          e.thumb ??= meta.thumb;
+          e.thumbs = [...new Set([...(e.thumbs ?? []), meta.thumb])];
+        }
       }
       for (const [key, episode] of Object.entries(source.iframeEpisodes ?? {})) {
         const n = Number(key);
@@ -171,13 +183,18 @@ export function useEpisodeCatalog(animeId: number): EpisodeCatalog {
       e.airdate ??= text.airdate;
       e.durationSeconds ??= text.length != null ? text.length * 60 : null;
       e.thumb ??= text.thumb;
-      if (text.thumb) e.thumbs = [...new Set([...(e.thumbs ?? []), text.thumb])];
+      e.thumbs = [
+        ...new Set(
+          [...(e.thumbs ?? []), text.thumb, ...(text.thumbs ?? [])].filter(
+            (url): url is string => Boolean(url),
+          ),
+        ),
+      ];
     }
 
     return { available, info };
-  }, [data, texts, locale]);
+  }, [data, texts, locale, sourceFilter]);
 }
-
 
 /** "24:05" / "1:02:10". */
 export function formatClock(seconds: number): string {

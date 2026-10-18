@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@animeshadow/db";
+import { sourceBelongsToStudio, type StudioId } from "@animeshadow/shared";
 import { contentGuardWhere } from "../lib/content-guard.js";
 import type { WatchService } from "./watch.service.js";
+import { PARTY_ANIME_SELECT, partyAnime } from "./party-artwork.js";
 
 export function episodeDuration(text: string | null): number | null {
   if (!text) return null;
@@ -12,21 +14,27 @@ export function episodeDuration(text: string | null): number | null {
 
 /** Never invent episodes or start a broadcast without a real direct source. */
 export function createPartyProgram(prisma: PrismaClient, watch: Pick<WatchService, "getSources">) {
-  return async (animeId?: number, episode = 1) => {
+  return async (animeId?: number, episode = 1, studio?: StudioId | null) => {
     const candidates = await prisma.anime.findMany({
-      where: { ...(animeId ? { id: animeId } : {}), ...contentGuardWhere(false), airing: { not: "UPCOMING" }, playerSources: { some: { format: { in: ["hls", "mp4"] } } } },
+      where: { ...(animeId ? { id: animeId } : { watchAvailability: { hasCustomPlayer: true } }), ...contentGuardWhere(true) },
       orderBy: [{ popularity: "asc" }, { id: "asc" }], take: animeId ? 1 : 5,
-      select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, episodes: true, duration: true },
+      select: { ...PARTY_ANIME_SELECT, duration: true },
     });
     for (const candidate of candidates) {
       try {
-        const watchData = await watch.getSources(candidate.id);
-        const source = watchData.sources.find((s) => (s.format === "hls" || s.format === "mp4") && s.stable !== false && !!(s.hlsEpisodes ?? s.mediaEpisodes)?.[String(episode)]);
+        let watchData = await watch.getSources(candidate.id);
+        const playable = () => watchData.sources.find((s) => sourceBelongsToStudio(s, studio) && (s.format === "hls" || s.format === "mp4") && !!(s.hlsEpisodes ?? s.mediaEpisodes)?.[String(episode)]);
+        // A cold provider may still be resolving after the fast watch response.
+        for (let attempt = 0; !playable() && watchData.sourcesPending && attempt < 3; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          watchData = await watch.getSources(candidate.id);
+        }
+        const source = playable();
         if (!source) continue;
         const durationSeconds = source.episodeMeta?.[String(episode)]?.durationSeconds ?? episodeDuration(candidate.duration);
-        if (!durationSeconds || !Number.isFinite(durationSeconds) || durationSeconds < 60) continue;
-        const { duration: _duration, ...anime } = candidate;
-        return { anime, episode, durationSeconds, sourceId: source.id, availableEpisodes: Object.keys(source.hlsEpisodes ?? source.mediaEpisodes ?? {}).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0).sort((a, b) => a - b) };
+        const duration = durationSeconds && Number.isFinite(durationSeconds) && durationSeconds >= 60 ? durationSeconds : null;
+        const anime = partyAnime(candidate);
+        return { anime, episode, durationSeconds: duration, sourceId: source.id, availableEpisodes: Object.keys(source.hlsEpisodes ?? source.mediaEpisodes ?? {}).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0).sort((a, b) => a - b) };
       } catch { /* A failed provider does not prevent trying the next real title. */ }
     }
     return null;

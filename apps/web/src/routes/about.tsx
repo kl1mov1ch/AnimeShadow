@@ -18,6 +18,7 @@ import { Link } from "react-router-dom";
 import { PageHero, SectionTitle } from "@/components/common/page-hero";
 import { useT } from "@/i18n";
 import { BOOSTY_URL } from "@/lib/support-links";
+import { AccountPreview } from "@/components/auth/account-preview";
 
 const reveal = (i: number) => ({ "--i": i }) as CSSProperties;
 
@@ -90,6 +91,7 @@ export function Component() {
 
       <section className="reveal flex flex-col gap-4" style={reveal(2)}>
         <SectionTitle icon={SparklesIcon} title={t("about.featuresTitle")} />
+        <AccountPreview compact />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {features.map(({ icon: Icon, title, body }, i) => (
             <article

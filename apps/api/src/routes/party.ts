@@ -8,6 +8,7 @@ import {
   partyMuteInputSchema,
   partyQueueInputSchema,
   partySettingsInputSchema,
+  isPublicPartyCode,
 } from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
@@ -23,12 +24,13 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/party", { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {
     const input = parse(createPartyInputSchema, request.body);
-    return party.create(request.userId!, input.animeId, input.episode, input.visibility, input.name || null);
+    return party.create(request.userId!, input.animeId, input.episode, input.visibility, input.name || null, input);
   });
 
   fastify.get("/party/featured", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (_request, reply) => {
     reply.header("cache-control", "no-store");
-    return { party: await party.main() };
+    const rooms = await party.publicRooms();
+    return { party: rooms[0] ?? null, rooms };
   });
 
   fastify.post("/party/:code/vote-next", auth, async (request) => party.voteNext(parse(codeParams, request.params).code, request.userId!));
@@ -58,7 +60,8 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/party/:code/queue", { ...auth, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request) => {
     const { code } = parse(codeParams, request.params);
-    return party.propose(code, request.userId!, parse(partyQueueInputSchema, request.body).animeId);
+    const input = parse(partyQueueInputSchema, request.body);
+    return party.propose(code, request.userId!, input.animeId, input.episode);
   });
 
   fastify.post("/party/:code/queue/:animeId/vote", { ...auth, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request) => {
@@ -88,7 +91,7 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/party/:code", auth, async (request) => {
     const { code } = parse(codeParams, request.params);
-    if (code === "main-live") await party.main();
+    if (isPublicPartyCode(code)) await party.main(code);
     return party.snapshot(code);
   });
 
@@ -102,7 +105,7 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
     // Presence belongs to that response, including disconnects during the account lookup.
     reply.raw.once("close", () => { disconnected = true; leave?.(); });
     try {
-      if (code === "main-live") await party.main();
+      if (isPublicPartyCode(code)) await party.main(code);
       if (disconnected || reply.raw.destroyed || reply.raw.writableEnded) return;
       reply.hijack();
       reply.raw.writeHead(200, {
@@ -131,6 +134,16 @@ export const partyRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post("/party/:code/chat", { ...auth, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request) => {
     const { code } = parse(codeParams, request.params);
     return party.chat(code, request.userId!, parse(partyChatInputSchema, request.body));
+  });
+
+  fastify.get("/party/:code/history", auth, async (request, reply) => {
+    reply.header("cache-control", "private, no-store");
+    return party.history(parse(codeParams, request.params).code, request.userId!);
+  });
+
+  fastify.post("/party/:code/ended", { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {
+    const input = parse(z.object({ animeId: z.number().int().positive(), episode: z.number().int().positive(), duration: z.number().min(60).max(36000) }), request.body);
+    return party.ended(parse(codeParams, request.params).code, request.userId!, input);
   });
 
   fastify.post("/party/:code/invite", { ...auth, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request) => {

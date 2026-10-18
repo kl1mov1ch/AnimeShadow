@@ -3,7 +3,27 @@
 
 :root { --mobile-nav-space: 0px; }
 @media (max-width: 767px) {
-  :root { --mobile-nav-space: calc(4rem + env(safe-area-inset-bottom, 0px)); }
+  :root { --mobile-nav-space: calc(4rem + 1px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Touch screens do not need hover loops or animated decoration. Loading,
+   playback and progress indicators keep their functional animation. */
+@media (hover: none), (pointer: coarse) {
+  .route-fade, .header-line, .hnav-active, .hnav-active > span,
+  .scene-star, .scene-moon, .scene-mist, .scene-slash, .scene-petal, .scene-rays, .scene-ember,
+  .ach-spin, .ach-spin-back, .ach-pulse, .ach-shine, .ach-ember, .ach-flicker,
+  .lvl-spin, .lvl-spin-back, .lvl-pulse, .lvl-shine, .lvl-twinkle, .lvl-float, .lvl-ember,
+  .achx-spin, .achx-spin-back, .achx-breathe, .achx-sheen, .achx-float,
+  .title-text, .title-badge, .ptitle-sheen, .pro-seal, .fx-rise, .fx-fall, .fx-flash,
+  .nudge-ring, .nudge-bob, .nudge-heart, .support-beat, .moment-btn-icon,
+  .mh-scene, .mh-fill, .mh-pin, .mh-tag, .push-bell svg {
+    animation: none !important;
+  }
+  .route-fade { opacity: 1; transform: none; }
+  .anime-card *, .hero-frame img { transition-duration: 150ms !important; }
+  .hero-frame { will-change: auto !important; }
+  .hero-ring { animation: none !important; stroke-dashoffset: 0; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
 }
 
 @custom-variant dark (&:is(.dark *));

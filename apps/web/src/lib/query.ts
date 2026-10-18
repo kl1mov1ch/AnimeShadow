@@ -72,6 +72,7 @@ import {
 } from "@tanstack/react-query";
 import { useLocale } from "@/i18n";
 import { apiRequest } from "./api.js";
+import { episodeProgressKey } from "./episode-progress";
 import { pickGif, useGifLibrary } from "./gifs";
 
 export const queryClient = new QueryClient({
@@ -114,6 +115,7 @@ export type BrowseParams = {
   hasPlayer?: boolean;
   hasCustomPlayer?: boolean;
   studio?: string;
+  dubbingStudio?: "hon-kon";
   rating?: string;
   maxScore?: number;
   excludeGenres?: number[];
@@ -152,7 +154,12 @@ export function useGenres(enabled = true) {
  * richer character/studio/mood/synopsis lenses cost more but the visitor
  * is already committed to a results page, not typing into a dropdown.
  */
-export function useSmartSearch(q: string, enabled = true, fast = true, scope: SearchScope = "all") {
+export function useSmartSearch(
+  q: string,
+  enabled = true,
+  fast = true,
+  scope: SearchScope = "all",
+) {
   const { locale } = useLocale();
   const term = q.trim();
   return useQuery({
@@ -187,7 +194,8 @@ export function useSearchPulse(enabled: boolean) {
     queryKey: ["search", "pulse", locale],
     enabled,
     staleTime: 2 * 60_000,
-    queryFn: ({ signal }) => apiRequest<SearchPulse>("/search/pulse", { signal, query: { lang: locale } }),
+    queryFn: ({ signal }) =>
+      apiRequest<SearchPulse>("/search/pulse", { signal, query: { lang: locale } }),
   });
 }
 
@@ -195,7 +203,9 @@ export function useSearchPulse(enabled: boolean) {
 export function logSearch(term: string): void {
   const q = term.trim();
   if (q.length < 2 || q.length > 60) return;
-  void apiRequest<void>("/search/log", { method: "POST", body: { term: q } }).catch(() => undefined);
+  void apiRequest<void>("/search/log", { method: "POST", body: { term: q } }).catch(
+    () => undefined,
+  );
 }
 
 export function useSearchTrending(enabled: boolean) {
@@ -204,7 +214,10 @@ export function useSearchTrending(enabled: boolean) {
     queryKey: ["search-trending", locale],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: TrendingPick[] }>("/search/trending", { signal, query: { lang: locale } }).then((r) => r.items),
+      apiRequest<{ items: TrendingPick[] }>("/search/trending", {
+        signal,
+        query: { lang: locale },
+      }).then((r) => r.items),
     staleTime: 10 * 60_000,
   });
 }
@@ -221,7 +234,9 @@ export function useBrowse(params: BrowseParams, enabled = true) {
           allTitles: undefined,
           hasPlayer: params.hasPlayer || !params.allTitles ? true : undefined,
           genres: params.genres?.length ? params.genres.join(",") : undefined,
-          excludeGenres: params.excludeGenres?.length ? params.excludeGenres.join(",") : undefined,
+          excludeGenres: params.excludeGenres?.length
+            ? params.excludeGenres.join(",")
+            : undefined,
         },
       }),
     placeholderData: (previous) => previous,
@@ -286,7 +301,10 @@ export function useCharacterDetail(id: number | null) {
     queryKey: ["character", id, locale],
     enabled: id != null,
     queryFn: ({ signal }) =>
-      apiRequest<CharacterDetail>(`/characters/${id}`, { signal, query: { lang: locale } }),
+      apiRequest<CharacterDetail>(`/characters/${id}`, {
+        signal,
+        query: { lang: locale },
+      }),
     staleTime: 30 * 60_000,
   });
 }
@@ -325,10 +343,9 @@ export function useRecommendations(id: number, enabled = true) {
     queryKey: queryKeys.recommendations(id),
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: RecommendationItem[] }>(
-        `/anime/${id}/recommendations`,
-        { signal },
-      ).then((r) => r.items),
+      apiRequest<{ items: RecommendationItem[] }>(`/anime/${id}/recommendations`, {
+        signal,
+      }).then((r) => r.items),
     staleTime: 30 * 60_000,
   });
 }
@@ -338,9 +355,9 @@ export function useFranchise(id: number, enabled = true) {
     queryKey: queryKeys.franchise(id),
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: FranchiseEntry[] }>(`/anime/${id}/franchise`, { signal }).then(
-        (r) => r.items,
-      ),
+      apiRequest<{ items: FranchiseEntry[] }>(`/anime/${id}/franchise`, {
+        signal,
+      }).then((r) => r.items),
     staleTime: 60 * 60_000,
   });
 }
@@ -368,7 +385,7 @@ export function useWatchSources(id: number, enabled = true) {
   const client = useQueryClient();
   const query = useQuery<WatchResponse>({
     queryKey: queryKeys.watch(id),
-    refetchInterval: (query) => query.state.data?.sourcesPending ? 2000 : false,
+    refetchInterval: (query) => (query.state.data?.sourcesPending ? 2000 : false),
     enabled,
     queryFn: ({ signal }) =>
       apiRequest<WatchResponse>(`/anime/${id}/watch`, { signal }),
@@ -377,7 +394,9 @@ export function useWatchSources(id: number, enabled = true) {
   return {
     ...query,
     refreshSources: async () => {
-      const fresh = await apiRequest<WatchResponse>(`/anime/${id}/watch?refresh=1`, { signal: AbortSignal.timeout(20_000) });
+      const fresh = await apiRequest<WatchResponse>(`/anime/${id}/watch?refresh=1`, {
+        signal: AbortSignal.timeout(20_000),
+      });
       client.setQueryData(queryKeys.watch(id), fresh);
       return fresh;
     },
@@ -400,21 +419,14 @@ export function useLibrarySummary(enabled = true) {
   return useQuery({
     queryKey: queryKeys.librarySummary,
     enabled,
-    queryFn: ({ signal }) =>
-      apiRequest<LibrarySummary>("/library/summary", { signal }),
+    queryFn: ({ signal }) => apiRequest<LibrarySummary>("/library/summary", { signal }),
   });
 }
 
 export function useUpsertLibraryEntry() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      animeId,
-      input,
-    }: {
-      animeId: number;
-      input: UpsertLibraryInput;
-    }) =>
+    mutationFn: ({ animeId, input }: { animeId: number; input: UpsertLibraryInput }) =>
       apiRequest<LibraryEntry>(`/library/${animeId}`, {
         method: "PUT",
         body: input,
@@ -485,31 +497,31 @@ export function useMyProgress(enabled = true) {
   return useQuery({
     queryKey: ["me", "progress"],
     enabled,
-    queryFn: ({ signal }) =>
-      apiRequest<ProgressDetail[]>("/me/progress", { signal }),
+    queryFn: ({ signal }) => apiRequest<ProgressDetail[]>("/me/progress", { signal }),
   });
 }
 
 /** Per-episode progress for one title — where to resume, and what's been watched. */
-export function useAnimeProgress(animeId: number, enabled = true) {
+export function useAnimeProgress(animeId: number, enabled = true, ownerId?: string) {
   return useQuery({
-    queryKey: ["anime", animeId, "progress"],
-    enabled,
+    queryKey: episodeProgressKey(animeId, ownerId),
+    enabled: enabled && Boolean(ownerId),
     queryFn: ({ signal }) =>
       apiRequest<AnimeProgress>(`/anime/${animeId}/progress`, { signal }),
   });
 }
 
-export function useUpdateProgress(animeId: number) {
+export function useUpdateProgress(animeId: number, ownerId?: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: UpsertProgressInput) =>
       apiRequest<AnimeProgress>(`/anime/${animeId}/progress`, {
         method: "PUT",
         body: input,
+        keepalive: true,
       }),
     onSuccess: (data) => {
-      client.setQueryData(["anime", animeId, "progress"], data);
+      client.setQueryData(episodeProgressKey(animeId, ownerId), data);
       void client.invalidateQueries({ queryKey: ["me", "progress"] });
       void client.invalidateQueries({ queryKey: ["me", "continue"] });
       // The server moves the list entry along with the episodes — progress,
@@ -598,7 +610,10 @@ export function useUploadBanner() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (dataUrl: string) =>
-      apiRequest<{ bannerUrl: string }>("/me/banner", { method: "POST", body: { dataUrl } }),
+      apiRequest<{ bannerUrl: string }>("/me/banner", {
+        method: "POST",
+        body: { dataUrl },
+      }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["me", "profile"] });
       void client.invalidateQueries({ queryKey: ["profile"] });
@@ -611,10 +626,10 @@ export function useSetRandomBanner() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiRequest<{ bannerUrl: string; anime: { id: number; slug: string; title: string } }>(
-        "/me/banner/random",
-        { method: "POST" },
-      ),
+      apiRequest<{
+        bannerUrl: string;
+        anime: { id: number; slug: string; title: string };
+      }>("/me/banner/random", { method: "POST" }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["me", "profile"] });
       void client.invalidateQueries({ queryKey: ["profile"] });
@@ -640,7 +655,8 @@ export function useLogSession() {
       episode: number;
       seconds: number;
       startedAt: string;
-    }) => apiRequest<void>("/me/session", { method: "POST", body: input, keepalive: true }),
+    }) =>
+      apiRequest<void>("/me/session", { method: "POST", body: input, keepalive: true }),
   });
 }
 
@@ -652,7 +668,11 @@ export function logGuestSession(input: {
   startedAt: string;
   visitorId: string;
 }): Promise<void> {
-  return apiRequest<void>("/guest/session", { method: "POST", body: input, keepalive: true });
+  return apiRequest<void>("/guest/session", {
+    method: "POST",
+    body: input,
+    keepalive: true,
+  });
 }
 
 // -- signup confirmation + password reset ----------------------------------
@@ -711,10 +731,10 @@ export function useComments(animeId: number, query: CommentQuery) {
   return useQuery({
     queryKey: ["comments", animeId, query],
     queryFn: ({ signal }) =>
-      apiRequest<{ comments: Comment[]; count: number }>(
-        `/anime/${animeId}/comments`,
-        { signal, query: { ...query } },
-      ),
+      apiRequest<{ comments: Comment[]; count: number }>(`/anime/${animeId}/comments`, {
+        signal,
+        query: { ...query },
+      }),
     placeholderData: (prev) => prev,
   });
 }
@@ -755,7 +775,10 @@ export function useDeleteComment(animeId: number) {
 export function useReportComment() {
   return useMutation({
     mutationFn: ({ id, ...input }: { id: string; reason: string; note?: string }) =>
-      apiRequest<{ already: boolean }>(`/comments/${id}/report`, { method: "POST", body: input }),
+      apiRequest<{ already: boolean }>(`/comments/${id}/report`, {
+        method: "POST",
+        body: input,
+      }),
   });
 }
 
@@ -780,7 +803,10 @@ export function useContinueWatching(enabled = true, home = false) {
     queryKey: ["me", "continue", home],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: ContinueWatchingItem[] }>(`/me/continue${home ? "?home=1" : ""}`, { signal }),
+      apiRequest<{ items: ContinueWatchingItem[] }>(
+        `/me/continue${home ? "?home=1" : ""}`,
+        { signal },
+      ),
   });
 }
 
@@ -855,7 +881,9 @@ export function useUnlikeAnime() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (animeId: number) =>
-      apiRequest<{ liked: boolean }>(`/me/liked-anime/${animeId}`, { method: "DELETE" }),
+      apiRequest<{ liked: boolean }>(`/me/liked-anime/${animeId}`, {
+        method: "DELETE",
+      }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["me", "liked-anime"] });
       void client.invalidateQueries({ queryKey: ["me", "recommendations-status"] });
@@ -871,9 +899,9 @@ export function useRecommendationsStatus(enabled = true) {
     queryKey: ["me", "recommendations-status"],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ configured: boolean }>("/me/recommendations-status", { signal }).then(
-        (r) => r.configured,
-      ),
+      apiRequest<{ configured: boolean }>("/me/recommendations-status", {
+        signal,
+      }).then((r) => r.configured),
     staleTime: 30 * 60_000,
   });
 }
@@ -910,7 +938,8 @@ export function useSimilarAnime(animeId: number, enabled = true) {
 export function useAdminAnalytics(params: Partial<AdminAnalyticsQuery>) {
   return useQuery({
     queryKey: ["admin", "analytics", params],
-    queryFn: ({ signal }) => apiRequest<AdminAnalytics>("/admin/analytics", { signal, query: params }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminAnalytics>("/admin/analytics", { signal, query: params }),
     placeholderData: (previous) => previous,
     staleTime: 60_000,
   });
@@ -920,7 +949,11 @@ export function useAdminAnalytics(params: Partial<AdminAnalyticsQuery>) {
 export function useAdminAnalyticsLive(params: Partial<AdminAnalyticsQuery>) {
   return useQuery({
     queryKey: ["admin", "analytics-live", params],
-    queryFn: ({ signal }) => apiRequest<AdminAnalyticsLive>("/admin/analytics/live", { signal, query: params }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminAnalyticsLive>("/admin/analytics/live", {
+        signal,
+        query: params,
+      }),
     refetchInterval: 30_000,
     staleTime: 20_000,
   });
@@ -928,11 +961,18 @@ export function useAdminAnalyticsLive(params: Partial<AdminAnalyticsQuery>) {
 
 /** The analytics blocks below the curve, each its own request, made only
  *  once the block is on screen (`enabled`). */
-export function useAdminHeatmap(params: Partial<AdminAnalyticsQuery>, enabled: boolean) {
+export function useAdminHeatmap(
+  params: Partial<AdminAnalyticsQuery>,
+  enabled: boolean,
+) {
   return useQuery({
     queryKey: ["admin", "heatmap", params],
     enabled,
-    queryFn: ({ signal }) => apiRequest<AdminAnalyticsHeatmap>("/admin/analytics/heatmap", { signal, query: params }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminAnalyticsHeatmap>("/admin/analytics/heatmap", {
+        signal,
+        query: params,
+      }),
     placeholderData: (previous) => previous,
     staleTime: 5 * 60_000,
   });
@@ -947,17 +987,27 @@ export function useAdminBreakdowns(
     queryKey: ["admin", "breakdowns", group, params],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<Partial<AdminAnalyticsBreakdowns>>("/admin/analytics/breakdowns", { signal, query: { ...params, group } }),
+      apiRequest<Partial<AdminAnalyticsBreakdowns>>("/admin/analytics/breakdowns", {
+        signal,
+        query: { ...params, group },
+      }),
     placeholderData: (previous) => previous,
     staleTime: 5 * 60_000,
   });
 }
 
-export function useAdminRetention(params: Partial<AdminAnalyticsQuery>, enabled: boolean) {
+export function useAdminRetention(
+  params: Partial<AdminAnalyticsQuery>,
+  enabled: boolean,
+) {
   return useQuery({
     queryKey: ["admin", "retention", { ...params, to: undefined }],
     enabled,
-    queryFn: ({ signal }) => apiRequest<AdminAnalyticsRetention>("/admin/analytics/retention", { signal, query: params }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminAnalyticsRetention>("/admin/analytics/retention", {
+        signal,
+        query: params,
+      }),
     placeholderData: (previous) => previous,
     staleTime: 30 * 60_000,
   });
@@ -968,7 +1018,8 @@ export function useAdminArchive(enabled: boolean) {
   return useQuery({
     queryKey: ["admin", "archive"],
     enabled,
-    queryFn: ({ signal }) => apiRequest<AdminArchiveMonth[]>("/admin/analytics/archive", { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminArchiveMonth[]>("/admin/analytics/archive", { signal }),
     staleTime: 10 * 60_000,
   });
 }
@@ -977,7 +1028,8 @@ export function useAdminArchiveMonth(month: string | null) {
   return useQuery({
     queryKey: ["admin", "archive", month],
     enabled: month != null,
-    queryFn: ({ signal }) => apiRequest<AdminArchiveDetail>(`/admin/analytics/archive/${month}`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminArchiveDetail>(`/admin/analytics/archive/${month}`, { signal }),
     staleTime: 10 * 60_000,
   });
 }
@@ -985,7 +1037,11 @@ export function useAdminArchiveMonth(month: string | null) {
 export function useAdminVisitors(params: Partial<AdminVisitorsQuery>) {
   return useQuery({
     queryKey: ["admin", "visitors", params],
-    queryFn: ({ signal }) => apiRequest<Paginated<AdminVisitor>>("/admin/analytics/visitors", { signal, query: params }),
+    queryFn: ({ signal }) =>
+      apiRequest<Paginated<AdminVisitor>>("/admin/analytics/visitors", {
+        signal,
+        query: params,
+      }),
     placeholderData: (previous) => previous,
     staleTime: 30_000,
   });
@@ -995,14 +1051,19 @@ export function useAdminVisitor(id: string | null) {
   return useQuery({
     queryKey: ["admin", "visitor", id],
     enabled: id != null,
-    queryFn: ({ signal }) => apiRequest<AdminVisitorDetail>(`/admin/analytics/visitors/${encodeURIComponent(id!)}`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminVisitorDetail>(
+        `/admin/analytics/visitors/${encodeURIComponent(id!)}`,
+        { signal },
+      ),
   });
 }
 
 export function useAdminExternalAnalytics() {
   return useQuery({
     queryKey: ["admin", "external-analytics"],
-    queryFn: ({ signal }) => apiRequest<AdminExternalAnalytics>("/admin/analytics/external", { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminExternalAnalytics>("/admin/analytics/external", { signal }),
     staleTime: 5 * 60_000,
   });
 }
@@ -1012,7 +1073,10 @@ export function useCuratedCollections(home = false) {
   return useQuery({
     queryKey: ["collections", "curated", home],
     queryFn: ({ signal }) =>
-      apiRequest<{ daily: string | null; items: CuratedCollection[] }>(`/collections/curated${home ? "?home=1" : ""}`, { signal }),
+      apiRequest<{ daily: string | null; items: CuratedCollection[] }>(
+        `/collections/curated${home ? "?home=1" : ""}`,
+        { signal },
+      ),
     staleTime: 10 * 60_000,
   });
 }
@@ -1020,7 +1084,8 @@ export function useCuratedCollections(home = false) {
 export function useCuratedCollection(slug: string) {
   return useQuery({
     queryKey: ["collections", "curated", slug],
-    queryFn: ({ signal }) => apiRequest<CuratedCollectionDetail>(`/collections/curated/${slug}`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<CuratedCollectionDetail>(`/collections/curated/${slug}`, { signal }),
     staleTime: 10 * 60_000,
   });
 }
@@ -1050,7 +1115,8 @@ export function useAdminOverviewTimeline(enabled: boolean) {
   return useQuery({
     queryKey: ["admin", "overview-timeline"],
     enabled,
-    queryFn: ({ signal }) => apiRequest<AdminTimelinePoint[]>("/admin/overview/timeline", { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminTimelinePoint[]>("/admin/overview/timeline", { signal }),
     staleTime: 5 * 60_000,
   });
 }
@@ -1060,7 +1126,8 @@ export function useAdminOverviewTop(enabled: boolean) {
   return useQuery({
     queryKey: ["admin", "overview-top"],
     enabled,
-    queryFn: ({ signal }) => apiRequest<AdminOverviewTop>("/admin/overview/top", { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminOverviewTop>("/admin/overview/top", { signal }),
     staleTime: 5 * 60_000,
   });
 }
@@ -1071,7 +1138,8 @@ export function useAdminOverviewTop(enabled: boolean) {
 export function useAdminMonitoring(range: AdminMonitoringRange) {
   return useQuery({
     queryKey: ["admin", "monitoring", range],
-    queryFn: ({ signal }) => apiRequest<AdminMonitoring>("/admin/monitoring", { signal, query: { range } }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminMonitoring>("/admin/monitoring", { signal, query: { range } }),
     refetchInterval: 30_000,
     staleTime: 15_000,
     placeholderData: (previous) => previous,
@@ -1086,7 +1154,10 @@ export function useAdminUsers(params: AdminListParams<AdminUserQuery>, enabled =
     queryKey: ["admin", "users", params],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<Paginated<AdminUserSummary>>("/admin/users", { signal, query: params }),
+      apiRequest<Paginated<AdminUserSummary>>("/admin/users", {
+        signal,
+        query: params,
+      }),
     placeholderData: (prev) => prev,
   });
 }
@@ -1112,7 +1183,8 @@ export function useAdminUser(id: string | null) {
   return useQuery({
     queryKey: ["admin", "user", id],
     enabled: Boolean(id),
-    queryFn: ({ signal }) => apiRequest<AdminUserDetail>(`/admin/users/${id}`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<AdminUserDetail>(`/admin/users/${id}`, { signal }),
   });
 }
 
@@ -1127,12 +1199,18 @@ export function useAdminSetPassword() {
   });
 }
 
-export function useAdminComments(params: AdminListParams<AdminCommentQuery>, enabled = true) {
+export function useAdminComments(
+  params: AdminListParams<AdminCommentQuery>,
+  enabled = true,
+) {
   return useQuery({
     queryKey: ["admin", "comments", params],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<Paginated<AdminCommentSummary>>("/admin/comments", { signal, query: params }),
+      apiRequest<Paginated<AdminCommentSummary>>("/admin/comments", {
+        signal,
+        query: params,
+      }),
     placeholderData: (prev) => prev,
   });
 }
@@ -1141,7 +1219,9 @@ export function useAdminDismissCommentReports() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiRequest<{ dismissed: number }>(`/admin/comments/${id}/dismiss-reports`, { method: "POST" }),
+      apiRequest<{ dismissed: number }>(`/admin/comments/${id}/dismiss-reports`, {
+        method: "POST",
+      }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["admin", "comments"] }),
   });
 }
@@ -1167,11 +1247,18 @@ import type {
   ProfileReportResult,
 } from "@animeshadow/shared";
 
-export function useAdminReports(params: AdminListParams<AdminReportQuery>, enabled = true) {
+export function useAdminReports(
+  params: AdminListParams<AdminReportQuery>,
+  enabled = true,
+) {
   return useQuery({
     queryKey: ["admin", "reports", params],
     enabled,
-    queryFn: ({ signal }) => apiRequest<Paginated<AdminReportGroup>>("/admin/reports", { signal, query: params }),
+    queryFn: ({ signal }) =>
+      apiRequest<Paginated<AdminReportGroup>>("/admin/reports", {
+        signal,
+        query: params,
+      }),
     placeholderData: (prev) => prev,
   });
 }
@@ -1179,8 +1266,17 @@ export function useAdminReports(params: AdminListParams<AdminReportQuery>, enabl
 export function useAdminResolveReports() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ targetId, input }: { targetId: string; input: AdminResolveReportsInput }) =>
-      apiRequest<AdminResolveReportsResult>(`/admin/reports/${targetId}/resolve`, { method: "POST", body: input }),
+    mutationFn: ({
+      targetId,
+      input,
+    }: {
+      targetId: string;
+      input: AdminResolveReportsInput;
+    }) =>
+      apiRequest<AdminResolveReportsResult>(`/admin/reports/${targetId}/resolve`, {
+        method: "POST",
+        body: input,
+      }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["admin", "reports"] });
       void client.invalidateQueries({ queryKey: ["admin", "summary"] });
@@ -1193,7 +1289,10 @@ export function useAdminResolveReports() {
 export function useReportProfile(userId: string) {
   return useMutation({
     mutationFn: (input: CreateProfileReportInput) =>
-      apiRequest<ProfileReportResult>(`/users/${userId}/report`, { method: "POST", body: input }),
+      apiRequest<ProfileReportResult>(`/users/${userId}/report`, {
+        method: "POST",
+        body: input,
+      }),
   });
 }
 
@@ -1226,7 +1325,8 @@ export function useUserYear(userId: string | undefined, year: number, enabled = 
   return useQuery({
     queryKey: ["user", userId, "year", year],
     enabled: Boolean(userId) && enabled,
-    queryFn: ({ signal }) => apiRequest<YearRecap>(`/users/${userId}/year`, { signal, query: { year } }),
+    queryFn: ({ signal }) =>
+      apiRequest<YearRecap>(`/users/${userId}/year`, { signal, query: { year } }),
     staleTime: 5 * 60_000,
   });
 }
@@ -1236,7 +1336,9 @@ export function useUserFeed(userId: string | undefined, enabled = true) {
     queryKey: ["user", userId, "feed"],
     enabled: Boolean(userId) && enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: FeedEvent[] }>(`/users/${userId}/feed`, { signal }).then((r) => r.items),
+      apiRequest<{ items: FeedEvent[] }>(`/users/${userId}/feed`, { signal }).then(
+        (r) => r.items,
+      ),
     staleTime: 60_000,
   });
 }
@@ -1246,7 +1348,9 @@ export function useUserList(userId: string | undefined, enabled = true) {
     queryKey: ["user", userId, "list"],
     enabled: Boolean(userId) && enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: PublicListEntry[] }>(`/users/${userId}/list`, { signal }).then((r) => r.items),
+      apiRequest<{ items: PublicListEntry[] }>(`/users/${userId}/list`, {
+        signal,
+      }).then((r) => r.items),
     staleTime: 60_000,
   });
 }
@@ -1256,7 +1360,9 @@ export function useUserWatching(userId: string | undefined, enabled = true) {
     queryKey: ["user", userId, "watching"],
     enabled: Boolean(userId) && enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: WatchingNow[] }>(`/users/${userId}/watching`, { signal }).then((r) => r.items),
+      apiRequest<{ items: WatchingNow[] }>(`/users/${userId}/watching`, {
+        signal,
+      }).then((r) => r.items),
     staleTime: 60_000,
   });
 }
@@ -1265,7 +1371,8 @@ export function useTasteCompare(userId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ["user", userId, "compare"],
     enabled: Boolean(userId) && enabled,
-    queryFn: ({ signal }) => apiRequest<TasteCompare>(`/users/${userId}/compare`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<TasteCompare>(`/users/${userId}/compare`, { signal }),
     staleTime: 5 * 60_000,
   });
 }
@@ -1274,10 +1381,13 @@ export function useImportLibrary() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: LibraryImportInput) =>
-      apiRequest<{ total: number; imported: number; skipped: number }>("/me/library/import", {
-        method: "POST",
-        body: input,
-      }),
+      apiRequest<{ total: number; imported: number; skipped: number }>(
+        "/me/library/import",
+        {
+          method: "POST",
+          body: input,
+        },
+      ),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["library"] });
       void client.invalidateQueries({ queryKey: ["me"] });
@@ -1294,7 +1404,10 @@ export function useCollections(params: CollectionListParams) {
   return useQuery({
     queryKey: ["collections", "list", params],
     queryFn: ({ signal }) =>
-      apiRequest<Paginated<CollectionSummary>>("/collections", { signal, query: { ...params } }),
+      apiRequest<Paginated<CollectionSummary>>("/collections", {
+        signal,
+        query: { ...params },
+      }),
     placeholderData: (previous) => previous,
   });
 }
@@ -1303,7 +1416,8 @@ export function useCollection(id: string | undefined) {
   return useQuery({
     queryKey: ["collections", "one", id],
     enabled: Boolean(id),
-    queryFn: ({ signal }) => apiRequest<CollectionDetail>(`/collections/${id}`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<CollectionDetail>(`/collections/${id}`, { signal }),
   });
 }
 
@@ -1312,7 +1426,10 @@ export function useUserCollections(userId: string | undefined) {
     queryKey: ["collections", "user", userId],
     enabled: Boolean(userId),
     queryFn: ({ signal }) =>
-      apiRequest<{ items: CollectionSummary[]; limit: CollectionLimit | null }>(`/users/${userId}/collections`, { signal }),
+      apiRequest<{ items: CollectionSummary[]; limit: CollectionLimit | null }>(
+        `/users/${userId}/collections`,
+        { signal },
+      ),
   });
 }
 
@@ -1320,7 +1437,8 @@ export function useMyCollectionsStats(enabled = true) {
   return useQuery({
     queryKey: ["collections", "my-stats"],
     enabled,
-    queryFn: ({ signal }) => apiRequest<MyCollectionsStats>("/me/collections/stats", { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<MyCollectionsStats>("/me/collections/stats", { signal }),
   });
 }
 
@@ -1328,7 +1446,8 @@ export function useCollectionStats(id: string | undefined) {
   return useQuery({
     queryKey: ["collections", "stats", id],
     enabled: Boolean(id),
-    queryFn: ({ signal }) => apiRequest<CollectionStats>(`/collections/${id}/stats`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<CollectionStats>(`/collections/${id}/stats`, { signal }),
   });
 }
 
@@ -1353,7 +1472,8 @@ export function useSaveCollection() {
 export function useDeleteCollection() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiRequest<void>(`/collections/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) =>
+      apiRequest<void>(`/collections/${id}`, { method: "DELETE" }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["collections"] }),
   });
 }
@@ -1364,14 +1484,24 @@ export function useLikeCollection(id: string) {
   const key = ["collections", "one", id];
   return useMutation({
     mutationFn: (on: boolean) =>
-      apiRequest<{ liked: boolean; likeCount: number }>(`/collections/${id}/like`, { method: on ? "PUT" : "DELETE" }),
+      apiRequest<{ liked: boolean; likeCount: number }>(`/collections/${id}/like`, {
+        method: on ? "PUT" : "DELETE",
+      }),
     onMutate: (on) => {
       const before = client.getQueryData<CollectionDetail>(key);
-      if (before) client.setQueryData<CollectionDetail>(key, { ...before, liked: on, likeCount: Math.max(0, before.likeCount + (on ? 1 : -1)) });
+      if (before)
+        client.setQueryData<CollectionDetail>(key, {
+          ...before,
+          liked: on,
+          likeCount: Math.max(0, before.likeCount + (on ? 1 : -1)),
+        });
       return { before };
     },
     onError: (_e, _on, ctx) => ctx?.before && client.setQueryData(key, ctx.before),
-    onSuccess: (r) => client.setQueryData<CollectionDetail>(key, (old) => (old ? { ...old, ...r } : old)),
+    onSuccess: (r) =>
+      client.setQueryData<CollectionDetail>(key, (old) =>
+        old ? { ...old, ...r } : old,
+      ),
   });
 }
 
@@ -1380,14 +1510,19 @@ export function useFavoriteCollection(id: string) {
   const client = useQueryClient();
   const key = ["collections", "one", id];
   return useMutation({
-    mutationFn: (on: boolean) => apiRequest<{ favorited: boolean }>(`/collections/${id}/favorite`, { method: on ? "PUT" : "DELETE" }),
+    mutationFn: (on: boolean) =>
+      apiRequest<{ favorited: boolean }>(`/collections/${id}/favorite`, {
+        method: on ? "PUT" : "DELETE",
+      }),
     onMutate: (on) => {
       const before = client.getQueryData<CollectionDetail>(key);
-      if (before) client.setQueryData<CollectionDetail>(key, { ...before, favorited: on });
+      if (before)
+        client.setQueryData<CollectionDetail>(key, { ...before, favorited: on });
       return { before };
     },
     onError: (_e, _on, ctx) => ctx?.before && client.setQueryData(key, ctx.before),
-    onSettled: () => void client.invalidateQueries({ queryKey: ["collections", "list"] }),
+    onSettled: () =>
+      void client.invalidateQueries({ queryKey: ["collections", "list"] }),
   });
 }
 
@@ -1395,12 +1530,17 @@ export function useRateCollection(id: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (value: number) =>
-      apiRequest<{ ratingAvg: number | null; ratingCount: number; myRating: number }>(`/collections/${id}/rating`, {
-        method: "PUT",
-        body: { value },
-      }),
+      apiRequest<{ ratingAvg: number | null; ratingCount: number; myRating: number }>(
+        `/collections/${id}/rating`,
+        {
+          method: "PUT",
+          body: { value },
+        },
+      ),
     onSuccess: (r) =>
-      client.setQueryData<CollectionDetail>(["collections", "one", id], (old) => (old ? { ...old, ...r } : old)),
+      client.setQueryData<CollectionDetail>(["collections", "one", id], (old) =>
+        old ? { ...old, ...r } : old,
+      ),
   });
 }
 
@@ -1408,7 +1548,8 @@ export function useCollectionComments(id: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ["collections", "comments", id],
     enabled: Boolean(id) && enabled,
-    queryFn: ({ signal }) => apiRequest<CollectionComment[]>(`/collections/${id}/comments`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<CollectionComment[]>(`/collections/${id}/comments`, { signal }),
   });
 }
 
@@ -1416,10 +1557,16 @@ export function useAddCollectionComment(id: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { body: string; parentId?: string }) =>
-      apiRequest<CollectionComment>(`/collections/${id}/comments`, { method: "POST", body: input }),
+      apiRequest<CollectionComment>(`/collections/${id}/comments`, {
+        method: "POST",
+        body: input,
+      }),
     onSuccess: (comment) => {
       // Comments come oldest first; the page orders threads itself.
-      client.setQueryData<CollectionComment[]>(["collections", "comments", id], (old) => [...(old ?? []), comment]);
+      client.setQueryData<CollectionComment[]>(
+        ["collections", "comments", id],
+        (old) => [...(old ?? []), comment],
+      );
       client.setQueryData<CollectionDetail>(["collections", "one", id], (old) =>
         old ? { ...old, commentCount: old.commentCount + 1 } : old,
       );
@@ -1431,7 +1578,9 @@ export function useDeleteCollectionComment(id: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (commentId: string) =>
-      apiRequest<void>(`/collections/${id}/comments/${commentId}`, { method: "DELETE" }),
+      apiRequest<void>(`/collections/${id}/comments/${commentId}`, {
+        method: "DELETE",
+      }),
     onSuccess: (_, commentId) => {
       client.setQueryData<CollectionComment[]>(["collections", "comments", id], (old) =>
         (old ?? []).filter((c) => c.id !== commentId),
@@ -1445,7 +1594,10 @@ export function useDeleteCollectionComment(id: string) {
 
 /** Counted once per visitor per day on the server. */
 export function recordCollectionView(id: string, visitorId: string): Promise<void> {
-  return apiRequest<void>(`/collections/${id}/view`, { method: "POST", body: { visitorId } });
+  return apiRequest<void>(`/collections/${id}/view`, {
+    method: "POST",
+    body: { visitorId },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1456,7 +1608,8 @@ export function useSocial(userId: string | undefined) {
   return useQuery({
     queryKey: ["social", userId],
     enabled: Boolean(userId),
-    queryFn: ({ signal }) => apiRequest<SocialSummary>(`/users/${userId}/social`, { signal }),
+    queryFn: ({ signal }) =>
+      apiRequest<SocialSummary>(`/users/${userId}/social`, { signal }),
     staleTime: 30_000,
   });
 }
@@ -1466,7 +1619,9 @@ export function useFollow(userId: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (follow: boolean) =>
-      apiRequest<SocialSummary>(`/users/${userId}/follow`, { method: follow ? "POST" : "DELETE" }),
+      apiRequest<SocialSummary>(`/users/${userId}/follow`, {
+        method: follow ? "POST" : "DELETE",
+      }),
     onMutate: async (follow) => {
       await client.cancelQueries({ queryKey: ["social", userId] });
       const before = client.getQueryData<SocialSummary>(["social", userId]);
@@ -1475,7 +1630,9 @@ export function useFollow(userId: string) {
           ...before,
           isFollowing: follow,
           followers: Math.max(0, before.followers + (follow ? 1 : -1)),
-          friends: before.followsYou ? Math.max(0, before.friends + (follow ? 1 : -1)) : before.friends,
+          friends: before.followsYou
+            ? Math.max(0, before.friends + (follow ? 1 : -1))
+            : before.friends,
         });
       }
       return { before };
@@ -1491,12 +1648,19 @@ export function useFollow(userId: string) {
   });
 }
 
-export function usePeople(userId: string | undefined, kind: FollowKind, enabled = true) {
+export function usePeople(
+  userId: string | undefined,
+  kind: FollowKind,
+  enabled = true,
+) {
   return useQuery({
     queryKey: ["people", userId, kind],
     enabled: Boolean(userId) && enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: UserCard[] }>(`/users/${userId}/people`, { signal, query: { kind } }).then((r) => r.items),
+      apiRequest<{ items: UserCard[] }>(`/users/${userId}/people`, {
+        signal,
+        query: { kind },
+      }).then((r) => r.items),
     staleTime: 30_000,
   });
 }
@@ -1507,7 +1671,10 @@ export function useSearchPeople(q: string, enabled = true) {
     queryKey: ["people", "search", q],
     enabled: enabled && q.trim().replace(/^@+/, "").length >= 2,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: UserCard[] }>("/people/search", { signal, query: { q } }).then((r) => r.items),
+      apiRequest<{ items: UserCard[] }>("/people/search", {
+        signal,
+        query: { q },
+      }).then((r) => r.items),
     staleTime: 60_000,
     placeholderData: (previous) => previous,
   });
@@ -1519,7 +1686,10 @@ export function usePopularPeople(enabled = true) {
     queryKey: ["people", "popular"],
     enabled,
     queryFn: ({ signal }) =>
-      apiRequest<{ items: Array<UserCard & { weekHours: number; followers: number }> }>("/people/popular", { signal }).then((r) => r.items),
+      apiRequest<{ items: Array<UserCard & { weekHours: number; followers: number }> }>(
+        "/people/popular",
+        { signal },
+      ).then((r) => r.items),
     staleTime: 5 * 60_000,
   });
 }
@@ -1528,7 +1698,10 @@ export function useSuggestedPeople(enabled = true) {
   return useQuery({
     queryKey: ["people", "suggested"],
     enabled,
-    queryFn: ({ signal }) => apiRequest<{ items: UserCard[] }>("/people/suggested", { signal }).then((r) => r.items),
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: UserCard[] }>("/people/suggested", { signal }).then(
+        (r) => r.items,
+      ),
     staleTime: 5 * 60_000,
   });
 }
@@ -1539,7 +1712,10 @@ export function useWall(userId: string | undefined) {
     enabled: Boolean(userId),
     initialPageParam: null as string | null,
     queryFn: ({ signal, pageParam }) =>
-      apiRequest<WallPage>(`/users/${userId}/wall`, { signal, query: { cursor: pageParam ?? undefined } }),
+      apiRequest<WallPage>(`/users/${userId}/wall`, {
+        signal,
+        query: { cursor: pageParam ?? undefined },
+      }),
     getNextPageParam: (last) => last.nextCursor,
     staleTime: 30_000,
   });
@@ -1548,7 +1724,8 @@ export function useWall(userId: string | undefined) {
 export function usePostToWall(userId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) => apiRequest<WallPost>(`/users/${userId}/wall`, { method: "POST", body: { body } }),
+    mutationFn: (body: string) =>
+      apiRequest<WallPost>(`/users/${userId}/wall`, { method: "POST", body: { body } }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["wall", userId] }),
   });
 }
@@ -1556,7 +1733,8 @@ export function usePostToWall(userId: string) {
 export function useDeleteWallPost(userId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (postId: string) => apiRequest<void>(`/wall/${postId}`, { method: "DELETE" }),
+    mutationFn: (postId: string) =>
+      apiRequest<void>(`/wall/${postId}`, { method: "DELETE" }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["wall", userId] }),
   });
 }
@@ -1565,7 +1743,10 @@ export function useFriendsActivity(enabled = true) {
   return useQuery({
     queryKey: ["friends-activity"],
     enabled,
-    queryFn: ({ signal }) => apiRequest<{ items: FriendEvent[] }>("/me/friends/activity", { signal }).then((r) => r.items),
+    queryFn: ({ signal }) =>
+      apiRequest<{ items: FriendEvent[] }>("/me/friends/activity", { signal }).then(
+        (r) => r.items,
+      ),
     staleTime: 60_000,
   });
 }

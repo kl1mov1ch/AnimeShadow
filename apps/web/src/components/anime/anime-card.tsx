@@ -1,5 +1,4 @@
 import type { AnimeSummary } from "@animeshadow/shared";
-import { hoverPrefetch } from "@/lib/prefetch";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BookmarkCheckIcon,
@@ -62,7 +61,7 @@ const PREFETCH_HOVER_INTENT_MS = 150;
 export function AnimeCard({ anime, priority = false, className }: AnimeCardProps) {
   const t = useT();
   const labels = useLabels();
-  const canHover = useMediaQuery("(hover: hover)");
+  const canHover = useMediaQuery("(hover: hover) and (pointer: fine)");
   const navigate = useNavigate();
   const { status: authStatus } = useAuth();
   const isAuthed = authStatus === "authenticated";
@@ -97,12 +96,12 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   };
 
   const startIntent = () => {
-    if (!hovered) setHovered(true);
     if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
-    prefetchTimer.current = setTimeout(prefetch, PREFETCH_HOVER_INTENT_MS);
+    prefetchTimer.current = setTimeout(() => { setHovered(true); prefetch(); }, PREFETCH_HOVER_INTENT_MS);
   };
   const cancelIntent = () => {
     if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    setHovered(false);
   };
   useEffect(() => () => {
     if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
@@ -142,7 +141,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
   const isAdult = isAdultRating(anime.rating);
 
   const card = (
-    <article className={cn("group flex flex-col gap-2", className)}>
+    <article className={cn("anime-card group flex flex-col gap-2", className)}>
       <div
         // Not even attached on a touch device: there is no hover to intend,
         // OpeningVideo would refuse to render, and the request is disabled —
@@ -152,7 +151,7 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         // deepens with it, on the same long ease-out as everything else on
         // the card. The red glow and the faster timing it used to have made
         // a grid of these flicker as the pointer crossed it.
-        className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/50 bg-muted transition-[border-color,transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-1 group-hover:border-foreground/15 group-hover:shadow-xl group-hover:shadow-black/30 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
+        className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border/50 bg-muted transition-[border-color] duration-150 group-hover:border-primary/50 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background motion-reduce:transition-none"
       >
         {/* Everything below is opacity/transform only — nothing that forces
             a repaint on scroll — and all of it sits behind `group-hover:`,
@@ -166,7 +165,6 @@ export function AnimeCard({ anime, priority = false, className }: AnimeCardProps
         <Link
           to={animeHref(anime)}
           viewTransition
-          {...hoverPrefetch(animeHref(anime).slice("/anime/".length))}
           aria-label={title}
           className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />

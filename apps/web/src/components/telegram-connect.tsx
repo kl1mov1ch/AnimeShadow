@@ -63,9 +63,9 @@ export function useTelegramConnect() {
         setWaiting(true);
         toast("Нажмите «Start» в боте", { description: "Мы сами увидим, когда чат подключится" });
       },
-      onError: () => {
+      onError: (error) => {
         tab?.close();
-        toast.error("Не получилось получить ссылку на бота");
+        toast.error("Не получилось подключить Telegram", { description: error.message });
       },
     });
   };

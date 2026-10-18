@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/api";
 import { currentSubscription, enablePushHere, offerMemory, pushSupport, rememberOffer } from "@/lib/push";
 import { cn } from "@/lib/utils";
+import { pushErrorHint } from "@/lib/push-registration";
 
 const DAY = 86_400_000;
 /** After "Не сейчас": the big offer comes back in a week, the corner card in three days. */
@@ -99,7 +100,7 @@ export function PushOffer() {
         rememberOffer("dismissed");
         setMode(null);
       } else {
-        toast.error("Не получилось включить уведомления");
+        toast.error("Не получилось включить уведомления", { description: pushErrorHint(error) });
       }
     } finally {
       setBusy(false);

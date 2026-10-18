@@ -151,6 +151,7 @@ export function attachEngine(
     onManifest,
     onStatus,
     onFatal,
+    onResponse,
     onTracks,
     preloadOnly: initialPreloadOnly = false,
   }: {
@@ -164,6 +165,7 @@ export function attachEngine(
     onManifest: () => void;
     onStatus: (status: EngineStatus) => void;
     onFatal: (reason: string) => void;
+    onResponse?: () => void;
     onTracks?: (tracks: EngineTracks) => void;
     preloadOnly?: boolean;
   },
@@ -175,6 +177,12 @@ export function attachEngine(
   let mediaRetries = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let dead = false;
+  // A paused five-second preload may have stopped the loader. Seeking must
+  // wake it at the new position while keeping the same small buffer budget.
+  const onSeeking = () => {
+    if (!dead && preloadOnly) hls.startLoad(video.currentTime);
+  };
+  video.addEventListener("seeking", onSeeking);
 
   const reportTracks = () => {
     if (dead) return;
@@ -194,6 +202,7 @@ export function attachEngine(
 
   hls.on(HlsClass.Events.MANIFEST_PARSED, (_e, data) => {
     if (dead) return;
+    onResponse?.();
     const heights = data.levels.map((l) => l.height ?? 0);
     onLevels(heights);
     const picked = startLevel?.(heights) ?? -1;
@@ -201,6 +210,8 @@ export function attachEngine(
     onManifest();
   });
   hls.on(HlsClass.Events.LEVEL_SWITCHED, (_e, data) => onLevelSwitched(hls.levels[data.level]?.height ?? null));
+  hls.on(HlsClass.Events.LEVEL_LOADED, () => { if (!dead) onResponse?.(); });
+  hls.on(HlsClass.Events.FRAG_LOADED, () => { if (!dead) onResponse?.(); });
   hls.on(HlsClass.Events.FRAG_BUFFERED, () => {
     // HLS downloads whole segments: stop at the first segment boundary
     // covering five seconds instead of downloading a full minute on entry.
@@ -263,6 +274,7 @@ export function attachEngine(
     },
     destroy: () => {
       dead = true;
+      video.removeEventListener("seeking", onSeeking);
       if (timer) clearTimeout(timer);
       hls.destroy();
     },

@@ -31,7 +31,7 @@ try {
     sessions.push((await request("/auth/login", undefined, { email: `${id}@example.invalid`, password })).token);
   }
   code = (await request("/party", sessions[0], { animeId: 21, episode: 1, visibility: "link", name: "Private persistence QA" })).code;
-  for (const token of sessions) {
+  for (const [index, token] of sessions.entries()) {
     const controller = new AbortController(); streams.push(controller);
     const response = await fetch(`${base}/party/${code}/events`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
     assert.equal(response.status, 200);
@@ -44,12 +44,16 @@ try {
       greeting += decoder.decode(chunk.value, { stream: true });
     }
     assert.ok(greeting.includes('"hello"'));
+    if (index === 0) await request(`/party/${code}/chat`, token, { text: "История до подключения второго участника" });
+    else assert.ok(greeting.includes("История до подключения второго участника"));
     // Retain the connection, with a bounded amount of SSE buffered during this short test.
     void (async () => { try { while (!(await reader.read()).done) { /* drain */ } } catch { /* test cleanup */ } })();
   }
   await new Promise((resolve) => setTimeout(resolve, 1100));
   const joined = await request(`/party/${code}`, sessions[1]) as PartySnapshot;
   assert.equal(joined.members.length, 2);
+  const history = await request(`/party/${code}/history`, sessions[1]) as { messages: Array<{ text: string }> };
+  assert.ok(history.messages.some((message) => message.text === "История до подключения второго участника"));
   const left = await request(`/party/${code}/leave`, sessions[0], {});
   assert.equal(left.closed, false);
   const remaining = await request(`/party/${code}`, sessions[1]) as PartySnapshot;

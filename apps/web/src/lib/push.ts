@@ -3,15 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "./api";
 import { getVisitorId } from "./visitor";
+import { activePushRegistration, findPushRegistration, subscribeWithCurrentKey, subscriptionUsesKey } from "./push-registration";
 
-const SW_URL = "/push-sw.js";
-const SW_SCOPE = "/push/";
 const KEY = ["notify-settings"] as const;
 const OFFER_KEY = "as:push-offer";
 
 /** Push needs a service worker, the Push API and notifications — and, on an iPhone, the site added to the home screen. */
-export function pushSupport(): "ok" | "ios-home-screen" | "unsupported" {
+export function pushSupport(): "ok" | "ios-home-screen" | "unsupported" | "insecure" {
   if (typeof window === "undefined") return "unsupported";
+  if (window.isSecureContext === false) return "insecure";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const standalone = window.matchMedia?.("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone;
   if (ios && !standalone) return "ios-home-screen";
@@ -32,25 +32,10 @@ function keyBytes(base64: string): Uint8Array<ArrayBuffer> {
  * that waits for a worker controlling *this page*, and ours (scope /push/)
  * never controls any — it would wait forever.
  */
-async function activeRegistration(): Promise<ServiceWorkerRegistration> {
-  const reg = (await navigator.serviceWorker.getRegistration(SW_SCOPE)) ?? (await navigator.serviceWorker.register(SW_URL, { scope: SW_SCOPE }));
-  if (reg.active) return reg;
-  const worker = reg.installing ?? reg.waiting;
-  if (worker) {
-    await new Promise<void>((resolve) => {
-      const done = () => worker.state === "activated" && resolve();
-      worker.addEventListener("statechange", done);
-      done();
-      setTimeout(resolve, 8000);
-    });
-  }
-  return reg;
-}
-
 /** This browser's subscription, if it has one. */
 export async function currentSubscription(): Promise<PushSubscription | null> {
   if (pushSupport() !== "ok") return null;
-  const reg = await navigator.serviceWorker.getRegistration(SW_SCOPE);
+  const reg = await findPushRegistration(navigator.serviceWorker, window.location.origin);
   return (await reg?.pushManager.getSubscription()) ?? null;
 }
 
@@ -78,14 +63,15 @@ export function rememberOffer(state: "dismissed" | "off" | null) {
  * of what it watched; signing in later makes it the account's).
  */
 export async function enablePushHere(authed: boolean): Promise<NotifySettings | { ok: true }> {
+  const support = pushSupport();
+  if (support !== "ok") throw new Error(support);
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error(permission === "denied" ? "denied" : "dismissed");
-  const publicKey = (await apiRequest<{ publicKey: string | null }>("/push/key")).publicKey;
+  const publicKey = (await apiRequest<{ publicKey: string | null }>("/push/key", { cache: "no-store" })).publicKey;
   if (!publicKey) throw new Error("unavailable");
-  const reg = await activeRegistration();
-  const sub =
-    (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }));
+  const reg = await activePushRegistration(navigator.serviceWorker);
+  const sub = await subscribeWithCurrentKey(reg, keyBytes(publicKey), endpoint =>
+    apiRequest("/push/unsubscribe", { method: "POST", body: { endpoint } }));
   const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
   const body = { endpoint: json.endpoint, keys: json.keys, visitorId: getVisitorId() };
   rememberOffer(null);
@@ -119,7 +105,16 @@ export function useNotifySettings() {
 
 /** Whether this very browser is subscribed (others may be). */
 export function useThisBrowserPush() {
-  return useQuery({ queryKey: ["push-here"], queryFn: async () => Boolean(await currentSubscription()), staleTime: 60_000 });
+  const { user } = useAuth();
+  return useQuery({ queryKey: ["push-here", user?.id ?? null], queryFn: async () => {
+    const sub = await currentSubscription();
+    if (!sub || Notification.permission !== "granted") return false;
+    const { publicKey } = await apiRequest<{ publicKey: string | null }>("/push/key", { cache: "no-store" });
+    if (!publicKey || !subscriptionUsesKey(sub, keyBytes(publicKey))) return false;
+    if (!user) return true;
+    const state = await apiRequest<{ registered: boolean; enabled: boolean }>("/me/push/status", { method: "POST", body: { endpoint: sub.endpoint } });
+    return state.registered && state.enabled;
+  }, staleTime: 30_000, refetchOnWindowFocus: "always" });
 }
 
 export function useNotifyActions() {
@@ -158,7 +153,7 @@ export function useNotifyActions() {
       onSuccess: refresh,
     }),
     test: useMutation({
-      mutationFn: () => apiRequest<{ telegram: boolean; push: number }>("/me/notify-test", { method: "POST" }),
+      mutationFn: (channel?: "all" | "telegram" | "push") => apiRequest<{ telegram: boolean; push: number; telegramError?: string }>("/me/notify-test", { method: "POST", body: { channel: channel ?? "all" } }),
     }),
   };
 }

@@ -51,7 +51,7 @@ export function VolumeControl({
       >
         <Icon className="size-[18px]" />
       </button>
-      <div className="w-0 overflow-hidden transition-[width] duration-300 ease-out group-hover/vol:w-[5.5rem] group-focus-within/vol:w-[5.5rem] pointer-coarse:hidden">
+      <div className="hidden w-0 overflow-hidden transition-[width] duration-300 ease-out group-hover/vol:w-[5.5rem] group-focus-within/vol:w-[5.5rem] @md/player:block pointer-coarse:hidden">
         <div
           ref={trackRef}
           role="slider"
@@ -94,7 +94,7 @@ export function VolumeControl({
         </div>
       </div>
       {/* The level, always in numbers next to the slider. */}
-      <span className="w-0 overflow-hidden text-right text-[11px] font-semibold tabular-nums text-white/85 transition-[width] duration-300 group-hover/vol:w-9 group-focus-within/vol:w-9 pointer-coarse:hidden">
+      <span className="hidden w-0 overflow-hidden text-right text-[11px] font-semibold tabular-nums text-white/85 transition-[width] duration-300 group-hover/vol:w-9 group-focus-within/vol:w-9 @md/player:block pointer-coarse:hidden">
         {Math.round(level * 100)}%
       </span>
     </div>

@@ -20,6 +20,9 @@ import { CollectionService } from "./collection.service.js";
 import { FactsService } from "./facts.service.js";
 import { AdminAnalyticsService } from "./admin-analytics.service.js";
 import { KodikCatalogSync } from "./kodik-sync.service.js";
+import { HonkonService } from "./honkon.service.js";
+import { StudioChannel } from "./studio-channel.js";
+import { resolveStudioIdentity } from "./studio-identities.js";
 import { AnilibriaCatalogSync } from "./anilibria-sync.service.js";
 import { LandingService } from "./landing.service.js";
 import { SeoRenderer } from "../seo/render.js";
@@ -70,7 +73,11 @@ export interface ContainerDeps {
   telegramBotToken?: string | undefined;
   telegramPolling?: boolean;
   telegramApiUrl?: string;
-  vapid?: { publicKey?: string | undefined; privateKey?: string | undefined; subject: string };
+  vapid?: {
+    publicKey?: string | undefined;
+    privateKey?: string | undefined;
+    subject: string;
+  };
   traceMoeApiKey?: string | undefined;
   adminEmails: string[];
   email: {
@@ -108,6 +115,7 @@ export interface Services {
   adminPrisma: PrismaClient;
   landing: LandingService;
   kodikSync: KodikCatalogSync;
+  honkon: HonkonService;
   notifications: NotificationService;
   episodeAvailability: EpisodeAvailabilityService;
   delivery: DeliveryService;
@@ -241,13 +249,21 @@ export function createServices(deps: ContainerDeps): Services {
     prisma: deps.prisma,
     anilibria,
     logger: deps.logger,
-    spotlightIds: async () => (await catalog.getDiscover()).spotlights.map((anime) => anime.id),
+    spotlightIds: async () =>
+      (await catalog.getDiscover()).spotlights.map((anime) => anime.id),
     resolveSources: (animeId) => watch.getSources(animeId),
     dir: env.HERO_CLIP_DIR ?? join(process.cwd(), "cache", "hero"),
     ffmpeg: env.FFMPEG_PATH,
   });
-  if (env.HERO_CLIPS_ENABLED) catalog.onSpotlightsChange(() => { void heroClips.refresh(); });
-  const statsRollup = new StatsRollupService({ prisma: deps.prisma, logger: deps.logger, rawDays: env.STATS_RAW_DAYS });
+  if (env.HERO_CLIPS_ENABLED)
+    catalog.onSpotlightsChange(() => {
+      void heroClips.refresh();
+    });
+  const statsRollup = new StatsRollupService({
+    prisma: deps.prisma,
+    logger: deps.logger,
+    rawDays: env.STATS_RAW_DAYS,
+  });
   // The admin's reports run on a pool of their own, four connections: a
   // heavy report then waits its turn there instead of taking the site's
   // connections from visitors.
@@ -274,7 +290,10 @@ export function createServices(deps: ContainerDeps): Services {
   });
   // The bot's /schedule: this week's and next week's broadcasts.
   delivery.useSchedule(async () => {
-    const [now, next] = await Promise.all([schedule.week(0, undefined, true), schedule.week(1, undefined, true)]);
+    const [now, next] = await Promise.all([
+      schedule.week(0, undefined, true),
+      schedule.week(1, undefined, true),
+    ]);
     return [...now.items, ...next.items];
   });
   const notifications = new NotificationService(
@@ -282,6 +301,20 @@ export function createServices(deps: ContainerDeps): Services {
     deps.logger,
     (items) => delivery.deliver(items),
     (grown) => delivery.deliverGuests(grown),
+  );
+  const kodikSync = new KodikCatalogSync({
+    prisma: deps.prisma,
+    kodik,
+    logger: deps.logger,
+  });
+  const honkon = new HonkonService(
+    kodik,
+    kodikSync,
+    watch,
+    deps.logger,
+    undefined,
+    new StudioChannel(),
+    (row) => resolveStudioIdentity(deps.prisma, row),
   );
   return {
     catalog,
@@ -299,24 +332,55 @@ export function createServices(deps: ContainerDeps): Services {
     statsRollup,
     curated: new CuratedService({ prisma: deps.prisma }),
     heroClips,
-    titleNames: new TitleNamesService({ prisma: deps.prisma, shikimori, logger: deps.logger }),
+    titleNames: new TitleNamesService({
+      prisma: deps.prisma,
+      shikimori,
+      logger: deps.logger,
+    }),
     admin,
     episodeInfo,
     insights,
     social: new SocialService({ prisma: deps.prisma, insights }),
-    collections: new CollectionService({ prisma: deps.prisma, proForAll: deps.proForAll }),
+    collections: new CollectionService({
+      prisma: deps.prisma,
+      proForAll: deps.proForAll,
+    }),
     facts: new FactsService({ prisma: deps.prisma }),
     adminAnalytics: new AdminAnalyticsService({ prisma: adminPrisma }),
     adminPrisma,
     landing,
     notifications,
-    episodeAvailability: new EpisodeAvailabilityService(deps.prisma, watch, notifications, deps.logger),
+    episodeAvailability: new EpisodeAvailabilityService(
+      deps.prisma,
+      watch,
+      notifications,
+      deps.logger,
+    ),
     delivery,
     schedule,
-    party: new PartyService(deps.prisma, delivery, deps.email.appUrl.replace(/\/$/, ""), env.LOG_DIR ?? join(process.cwd(), "logs"),
-      new PrismaPartyStore(deps.prisma, (error) => deps.logger.warn({ err: error }, "party checkpoint failed")), createPartyProgram(deps.prisma, watch)),
-    kodikSync: new KodikCatalogSync({ prisma: deps.prisma, kodik, logger: deps.logger }),
-    anilibriaSync: new AnilibriaCatalogSync({ prisma: deps.prisma, anilibria, catalog, logger: deps.logger }),
-    seo: new SeoRenderer({ prisma: deps.prisma, landing, catalog, logger: deps.logger }),
+    party: new PartyService(
+      deps.prisma,
+      delivery,
+      deps.email.appUrl.replace(/\/$/, ""),
+      env.LOG_DIR ?? join(process.cwd(), "logs"),
+      new PrismaPartyStore(deps.prisma, (error) =>
+        deps.logger.warn({ err: error }, "party checkpoint failed"),
+      ),
+      createPartyProgram(deps.prisma, watch),
+    ),
+    kodikSync,
+    honkon,
+    anilibriaSync: new AnilibriaCatalogSync({
+      prisma: deps.prisma,
+      anilibria,
+      catalog,
+      logger: deps.logger,
+    }),
+    seo: new SeoRenderer({
+      prisma: deps.prisma,
+      landing,
+      catalog,
+      logger: deps.logger,
+    }),
   };
 }

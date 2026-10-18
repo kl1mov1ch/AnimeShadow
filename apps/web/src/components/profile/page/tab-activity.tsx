@@ -1,6 +1,6 @@
 import type { FeedEvent, PublicProfile } from "@animeshadow/shared";
 import { ActivityIcon, CalendarDaysIcon, FlameIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { useUserFeed, useUserYear } from "@/lib/query";
@@ -10,14 +10,6 @@ import { EmptyNote, LockedNote, Panel, Pills } from "./kit";
 import { FeedRow } from "./tab-overview";
 
 const MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
-
-function heat(n: number): string {
-  if (n === 0) return "bg-foreground/[0.06]";
-  if (n === 1) return "bg-primary/30";
-  if (n <= 3) return "bg-primary/55";
-  if (n <= 6) return "bg-primary/80";
-  return "bg-primary";
-}
 
 /**
  * Activity: the year as a grid of days (a column per week, brighter for
@@ -48,36 +40,17 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
   const years = Array.from({ length: Math.max(1, Math.min(4, thisYear - joined + 1)) }, (_, i) => thisYear - i);
   const [year, setYear] = useState(thisYear);
   const { data, isPending } = useUserYear(profile.id, year);
-  const scroller = useRef<HTMLDivElement>(null);
-
-  // Weeks from the Monday on or before 1 January, a column each.
-  const weeks = useMemo(() => {
-    const byDay = new Map((data?.days ?? []).map((d) => [d.day.slice(0, 10), d.episodes]));
-    const start = new Date(year, 0, 1);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    const end = new Date(year, 11, 31);
-    const out: Array<Array<{ key: string; n: number; inYear: boolean; future: boolean; today: boolean }>> = [];
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    for (let d = new Date(start); d <= end; ) {
-      const week = [];
-      for (let i = 0; i < 7; i += 1) {
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        week.push({ key, n: byDay.get(key) ?? 0, inYear: d.getFullYear() === year, future: d > today, today: key === todayKey });
-        d.setDate(d.getDate() + 1);
-      }
-      out.push(week);
+  const months = useMemo(() => {
+    const totals = Array.from({ length: 12 }, () => 0);
+    for (const day of data?.days ?? []) {
+      const key = day.day.slice(0, 10);
+      if (Number(key.slice(0, 4)) !== year) continue;
+      const month = Number(key.slice(5, 7)) - 1;
+      if (month >= 0 && month < 12) totals[month]! += day.episodes;
     }
-    return out;
+    return totals;
   }, [data, year]);
-
-  // On a phone the grid scrolls; start it with today near the right edge.
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const mark = el.querySelector<HTMLElement>("[data-today]");
-    el.scrollLeft = year === thisYear && mark ? mark.offsetLeft - el.clientWidth + 48 : el.scrollWidth;
-  }, [weeks, year, thisYear]);
+  const maximum = Math.max(1, ...months);
 
   const tiles = data
     ? [
@@ -101,54 +74,21 @@ function YearPanel({ profile }: { profile: PublicProfile }) {
       }
     >
       <div className="flex flex-col gap-4">
-        <div className="min-w-0">
-          <div ref={scroller} className="relative pb-1">
-            <div className="flex flex-col gap-1">
-              <div className="grid gap-[2px] text-[9px] text-muted-foreground sm:gap-[3px] sm:text-[10px]" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
-                {weeks.map((week, i) => {
-                  const first = week.find((d) => d.inYear && d.key.endsWith("-01"));
-                  return (
-                    <span key={i} className="overflow-visible whitespace-nowrap">
-                      {first ? MONTHS[Number(first.key.slice(5, 7)) - 1] : ""}
-                    </span>
-                  );
-                })}
-              </div>
-              <div className={cn("grid gap-[2px] transition-opacity sm:gap-[3px]", isPending && "opacity-40")} style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
-                {weeks.map((week, i) => (
-                  <div key={i} className="flex min-w-0 flex-col gap-[2px] sm:gap-[3px]">
-                    {week.map((day) => (
-                      <span
-                        key={day.key}
-                        data-today={day.today || undefined}
-                        title={day.inYear ? `${new Date(day.key).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}: ${day.n} ${plural(day.n, "серия", "серии", "серий")}` : undefined}
-                        className={cn(
-                          "aspect-square w-full rounded-[2px] transition-colors sm:rounded-[3px]",
-                          !day.inYear ? "bg-transparent" : day.future ? "bg-foreground/[0.025]" : heat(day.n),
-                          day.today && "ring-1 ring-primary ring-offset-1 ring-offset-background",
-                        )}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-            меньше
-            {[0, 1, 2, 4, 8].map((n) => (
-              <span key={n} className={cn("size-[11px] rounded-[3px]", heat(n))} />
-            ))}
-            больше
-          </div>
+        <div aria-label={`Просмотренные серии по месяцам за ${year} год`} className={cn("grid grid-cols-6 gap-x-3 gap-y-4 sm:grid-cols-12 sm:gap-2", isPending && "opacity-40")}>
+          {months.map((total, month) => <div key={month} className="flex min-w-0 flex-col gap-1.5 text-center" title={`${MONTHS[month]}: ${total} серий`}>
+            <span className="text-[11px] font-semibold tabular-nums">{total || "—"}</span>
+            <span className="flex h-16 items-end rounded-md bg-secondary/50 sm:h-24"><span className={cn("block w-full rounded-md", total ? "bg-primary/80" : "bg-border")} style={{ height: total ? `${Math.max(8, total / maximum * 100)}%` : 3 }} /></span>
+            <span className="text-[10px] text-muted-foreground">{MONTHS[month]}</span>
+          </div>)}
         </div>
+        {!isPending && months.every(n => n === 0) && <p className="text-xs text-muted-foreground">Начните смотреть — здесь появится история по месяцам.</p>}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {isPending
             ? Array.from({ length: 4 }, (_, i) => <div key={i} className="h-12 animate-pulse rounded-2xl bg-foreground/[0.05]" />)
             : tiles.map((tile) => (
-                <div key={tile.label} className="flex items-baseline gap-2 rounded-2xl bg-background/40 px-3 py-2">
+                <div key={tile.label} className="flex min-w-0 flex-col gap-0.5 rounded-xl bg-secondary/50 px-3 py-2">
                   <span className="font-display text-xl tabular-nums">{tile.value}</span>
-                  <span className="truncate text-xs text-muted-foreground">{tile.label}</span>
+                  <span className="text-[11px] leading-snug text-muted-foreground">{tile.label}</span>
                 </div>
               ))}
           {data?.topGenre && (
@@ -169,11 +109,11 @@ function RhythmPanel({ profile }: { profile: PublicProfile }) {
   return (
     <Panel title="Две недели" icon={FlameIcon} className="h-full">
       <div className="flex h-32 items-end gap-1.5">
-        {days.map((d, i) => (
+        {days.map((d) => (
           <div key={d.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1" title={`${new Date(d.day).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}: ${d.episodes} ${plural(d.episodes, "серия", "серии", "серий")}, ${d.minutes} мин`}>
             <span
-              className={cn("w-full rounded-md transition-[height] duration-700 ease-out", d.episodes > 0 ? "bg-primary" : "bg-foreground/[0.08]")}
-              style={{ height: Math.max(6, (d.episodes / max) * 104), transitionDelay: `${i * 30}ms` }}
+              className={cn("w-full rounded-md", d.episodes > 0 ? "bg-primary" : "bg-foreground/[0.08]")}
+              style={{ height: Math.max(6, (d.episodes / max) * 104) }}
             />
             <span className="text-[9px] tabular-nums text-muted-foreground">{new Date(d.day).getDate()}</span>
           </div>

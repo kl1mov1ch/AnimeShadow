@@ -1000,8 +1000,8 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
 // collapsed view is always whole rows — two tidy rows of 6 up through
 // tablet, one single row of 12 on desktop, never a half-filled row
 // stretched wide by too few items.
-const CHARACTERS_COLLAPSED = 10;
-const CHARACTERS_GRID = "grid grid-cols-5 gap-x-2.5 gap-y-4 sm:gap-x-3 lg:grid-cols-10";
+const CHARACTERS_COLLAPSED = 6;
+const CHARACTERS_GRID = "grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4";
 
 /**
  * The heading belongs to the content, not to the slot.
@@ -1083,7 +1083,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("detail.searchCharacters")}
-              className="h-8 w-40 rounded-full border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-48"
+              className="h-10 w-full rounded-xl border border-border/60 bg-card/40 pl-8 pr-3 text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-48"
             />
           </div>
         )}
@@ -1092,9 +1092,9 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       {isPending ? (
         <div className={CHARACTERS_GRID}>
           {Array.from({ length: CHARACTERS_COLLAPSED }, (_, i) => (
-            <div key={i} className="flex flex-col items-center gap-1.5">
-              <Skeleton className="aspect-square w-full rounded-full" />
-              <Skeleton className="h-2.5 w-10 rounded-full" />
+            <div key={i} className="flex h-16 items-center gap-2 rounded-xl border border-border/50 p-2">
+              <Skeleton className="size-11 shrink-0 rounded-xl" />
+              <Skeleton className="h-3 w-16 rounded" />
             </div>
           ))}
         </div>

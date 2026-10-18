@@ -2,6 +2,7 @@ import { BellIcon, BellRingIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { pushSupport, useNotifyActions, useThisBrowserPush } from "@/lib/push";
+import { pushErrorHint } from "@/lib/push-registration";
 
 export function RoomPushButton() {
   const { data: enabled, isLoading } = useThisBrowserPush();
@@ -12,7 +13,7 @@ export function RoomPushButton() {
     onClick={() => enablePush.mutate(undefined, {
       onSuccess: () => toast.success("Уведомления включены", { description: "Приглашения и сообщения о комнате придут сюда." }),
       onError: (error) => toast.error(error.message === "denied" ? "Браузер заблокировал уведомления" : "Не получилось включить уведомления", {
-        description: error.message === "denied" ? "Разрешите их в настройках этого сайта." : "Попробуйте ещё раз позже.",
+        description: pushErrorHint(error),
       }),
     })}>
     {enablePush.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : enabled ? <BellRingIcon data-icon="inline-start" /> : <BellIcon data-icon="inline-start" />}

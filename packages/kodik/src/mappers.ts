@@ -101,7 +101,8 @@ export function toAnimeSummary(group: KodikGroup): AnimeSummary {
     imageLargeUrl: md.anime_poster_url ?? md.poster_url ?? null,
     type: mapKind(md.anime_kind),
     airing: mapStatus(md.all_status ?? md.anime_status),
-    episodes: md.episodes_total ?? primary.episodes_count ?? primary.last_episode ?? null,
+    episodes:
+      md.episodes_total ?? primary.episodes_count ?? primary.last_episode ?? null,
     score: md.shikimori_rating ?? null,
     year: deriveYear(md, primary),
     season: deriveSeason(md),
@@ -161,8 +162,9 @@ function absolute(url: string): string {
  * Every episode Kodik lists for a row, flattened across its seasons.
  *
  * The API nests episodes under seasons, but this project addresses a title
- * by a single running episode number, so seasons are walked in numeric
- * order and the numbering carries across them. A row that came back without
+ * by the provider's positive episode numbers. Season 0 holds specials that
+ * have separate catalogue identities, so it must never overwrite episode 1.
+ * A row that came back without
  * `with_episodes_data` simply yields nothing, and the caller falls back to
  * the one series-wide embed URL.
  */
@@ -170,18 +172,26 @@ export function toEpisodeMap(
   row: KodikResult,
 ): Record<string, { url: string; thumbs: string[] }> {
   const out: Record<string, { url: string; thumbs: string[] }> = {};
+  const usedUrls = new Set<string>();
   const seasons = Object.entries(row.seasons ?? {}).sort(
     ([a], [b]) => Number(a) - Number(b),
   );
-  for (const [, season] of seasons) {
+  for (const [seasonNumber, season] of seasons) {
+    if (Number(seasonNumber) === 0) continue;
     const episodes = Object.entries(season.episodes ?? {}).sort(
       ([a], [b]) => Number(a) - Number(b),
     );
     for (const [number, episode] of episodes) {
+      if (!/^[1-9]\d*$/.test(number) || out[number]) continue;
       const link = typeof episode === "string" ? episode : episode.link;
       if (!link) continue;
       const thumbs = typeof episode === "string" ? [] : (episode.screenshots ?? []);
-      out[number] = { url: absolute(link), thumbs };
+      const url = absolute(link);
+      // A provider sometimes repeats a series URL for several episode numbers.
+      // Such entries must not become several buttons playing the same video.
+      if (usedUrls.has(url)) continue;
+      usedUrls.add(url);
+      out[number] = { url, thumbs };
     }
   }
   return out;
@@ -189,9 +199,11 @@ export function toEpisodeMap(
 
 export function toWatchSources(group: KodikGroup): WatchSource[] {
   const best = new Map<string, KodikResult>();
+  const rows = new Map<string, KodikResult[]>();
   for (const row of group.translations) {
     if (!row.link) continue;
     const key = String(row.translation.id);
+    rows.set(key, [...(rows.get(key) ?? []), row]);
     const current = best.get(key);
     if (
       !current ||
@@ -203,22 +215,39 @@ export function toWatchSources(group: KodikGroup): WatchSource[] {
   }
 
   return [...best.values()]
-    .map((row): WatchSource => ({
-      id: String(row.translation.id),
-      title: row.translation.title,
-      kind:
-        row.translation.type === "voice"
-          ? "voice"
-          : row.translation.type === "subtitles"
-            ? "subtitles"
-            : "unknown",
-      format: "iframe",
-      embedUrl: absolute(row.link),
-      iframeEpisodes: toEpisodeMap(row),
-      quality: row.quality ?? null,
-      episodesCount: row.episodes_count ?? row.last_episode ?? null,
-      stable: null,
-    }))
+    .map((row): WatchSource => {
+      const episodes = toEpisodeMap(row);
+      const used = new Set(Object.values(episodes).map((entry) => entry.url));
+      // Keep complementary episodes from duplicate rows of the same verified
+      // title and dub. Never overwrite an existing episode with another row.
+      for (const alternate of rows.get(String(row.translation.id)) ?? []) {
+        for (const [number, entry] of Object.entries(toEpisodeMap(alternate))) {
+          if (episodes[number] || used.has(entry.url)) continue;
+          episodes[number] = entry;
+          used.add(entry.url);
+        }
+      }
+      return {
+        id: String(row.translation.id),
+        title: row.translation.title,
+        kind:
+          row.translation.type === "voice"
+            ? "voice"
+            : row.translation.type === "subtitles"
+              ? "subtitles"
+              : "unknown",
+        format: "iframe",
+        embedUrl: absolute(row.link),
+        iframeEpisodes: episodes,
+        quality: row.quality ?? null,
+        episodesCount:
+          Object.keys(episodes).length ||
+          row.episodes_count ||
+          row.last_episode ||
+          null,
+        stable: null,
+      };
+    })
     .sort((a, b) => {
       if (a.kind !== b.kind) return a.kind === "voice" ? -1 : 1;
       return (b.episodesCount ?? 0) - (a.episodesCount ?? 0);

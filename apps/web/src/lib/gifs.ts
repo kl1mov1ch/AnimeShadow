@@ -69,6 +69,7 @@ const WARM = ["wave", "happy"];
 
 export function warmGifs(library: Library | undefined): void {
   if (!library || typeof window === "undefined") return;
+  if (window.matchMedia("(pointer: coarse)").matches) return;
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
   if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "") || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const run = () => {

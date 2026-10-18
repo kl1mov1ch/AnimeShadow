@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { LogoWatermark } from "@/components/brand/logo-watermark";
+import { AccountPreview } from "@/components/auth/account-preview";
+import { AnimePoster } from "@/components/anime/anime-poster";
 import { PromoStrip } from "@/components/promo/promo-offer";
-import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useBrowse } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -56,7 +57,7 @@ export function LibraryGuest() {
                 <SparklesIcon className="size-3.5" />
                 Мой список
               </span>
-              <h1 className="font-display text-3xl leading-tight sm:text-4xl">Всё, что ты смотришь, — в одном месте</h1>
+              <h1 className="font-display text-2xl leading-tight sm:text-4xl">Всё, что ты смотришь, — в одном месте</h1>
               <p className="max-w-xl text-sm leading-relaxed text-foreground/75 sm:text-base">
                 Что смотришь сейчас, что уже досмотрел и что ждёт своей очереди. Прогресс по сериям сохраняется сам — открыл
                 тайтл и продолжил ровно оттуда, где остановился.
@@ -94,15 +95,15 @@ export function LibraryGuest() {
                 Уже есть аккаунт
               </Link>
             </div>
-            <p className="text-xs text-muted-foreground">20 секунд на регистрацию · без карты и подписок</p>
+            <p className="text-xs text-muted-foreground">Бесплатная регистрация · без банковской карты</p>
           </div>
 
           {/* The list as it would look — real titles, made-up progress. */}
           <div className="relative">
             <span className="absolute -top-3 right-3 z-10 rounded-full border border-primary/30 bg-card px-3 py-1 text-[11px] font-semibold shadow-lg">
-              Так будет выглядеть твой список
+              Пример твоего списка
             </span>
-            <ul className="grid grid-cols-3 gap-2.5 rounded-2xl border border-border/50 bg-background/40 p-3 sm:gap-3">
+            <ul className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-2.5 rounded-2xl border border-border/50 bg-background/40 p-3 sm:gap-3">
               {PREVIEW.map((p, i) => {
                 const anime = posters[i];
                 const meta = STATUS_META[p.status];
@@ -114,7 +115,7 @@ export function LibraryGuest() {
                     style={{ animationDelay: `${i * 70}ms`, animationFillMode: "backwards" }}
                   >
                     <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted">
-                      {anime?.imageUrl && <img src={imageSrc(anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+                      {anime && <AnimePoster anime={anime} title={labels.title(anime)} small />}
                       <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9.5px] font-semibold text-white backdrop-blur">
                         <span className={cn("size-1.5 rounded-full", meta.dot)} />
                         {p.label}
@@ -147,7 +148,8 @@ export function LibraryGuest() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <AccountPreview />
+      <section className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         {PERKS.map(({ icon: Icon, title, text }) => (
           <div key={title} className="flex flex-col gap-2 rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-4">
             <span className="grid size-10 place-items-center rounded-xl bg-primary/12 text-primary">

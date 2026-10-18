@@ -4,10 +4,10 @@ import { ChevronLeftIcon, ChevronRightIcon, NotebookPenIcon, PlusIcon } from "lu
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { PosterFallback } from "@/components/anime/poster-fallback";
+import { AnimePoster } from "@/components/anime/anime-poster";
 import { useLocale, useT } from "@/i18n";
 import { isSlowConnection } from "@/lib/connection";
-import { animeHref, imageSrc } from "@/lib/format";
+import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { animeQueryOptions } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -36,18 +36,8 @@ function usePrefetch(entry: LibraryEntry) {
 function Poster({ entry, className }: { entry: LibraryEntry; className?: string }) {
   const labels = useLabels();
   return (
-    <div className={cn("overflow-hidden bg-muted", className)}>
-      {entry.anime.imageUrl ? (
-        <img
-          src={imageSrc(entry.anime.imageUrl)}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="size-full object-cover"
-        />
-      ) : (
-        <PosterFallback title={labels.title(entry.anime)} seed={entry.anime.id} />
-      )}
+    <div className={cn("relative overflow-hidden bg-muted", className)}>
+      <AnimePoster anime={entry.anime} title={labels.title(entry.anime)} className="size-full object-cover" />
     </div>
   );
 }
@@ -84,13 +74,13 @@ export function LibraryTile({
   const prefetch = usePrefetch(entry);
 
   return (
-    <div className="reveal group/tile flex min-w-0 flex-col gap-1.5" style={{ "--i": index % 16 } as CSSProperties}>
+    <div className="reveal group/tile relative flex min-w-0 flex-col gap-1.5" style={{ "--i": index % 16 } as CSSProperties}>
       <Link
         to={animeHref(entry.anime)}
         {...prefetch}
-        className="relative block aspect-[2/3] overflow-hidden rounded-xl ring-1 ring-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 hover:ring-primary/50"
+        className="relative block aspect-[2/3] overflow-hidden rounded-xl ring-1 ring-border/50 transition-colors hover:ring-primary/50"
       >
-        <Poster entry={entry} className="absolute inset-0 transition-transform duration-500 group-hover/tile:scale-[1.04]" />
+        <Poster entry={entry} className="absolute inset-0" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
 
         <div className="absolute inset-x-1.5 top-1.5 flex items-start justify-between gap-1">
@@ -139,15 +129,13 @@ export function LibraryTile({
         </div>
       </Link>
 
-      <div className="flex items-center gap-1">
-        <ProgressStepper entry={entry} edit={edit} compact className="flex-1" />
-        <div className="flex items-center gap-0.5">
+      <div className="absolute right-1.5 top-16 flex items-center gap-0.5 rounded-lg bg-black/75 text-white">
           {entry.notes && (
             <NotebookPenIcon className="size-3 text-primary" aria-label={t("library.notesLabel")} />
           )}
           <EntryMenu entry={entry} edit={edit} />
-        </div>
       </div>
+      <ProgressStepper entry={entry} edit={edit} compact />
     </div>
   );
 }

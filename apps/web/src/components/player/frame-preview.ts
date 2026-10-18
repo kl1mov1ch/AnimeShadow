@@ -5,6 +5,7 @@ import { hlsConfig, loadHls } from "./hls-engine";
 const STEP = 5;
 const W = 192;
 const H = 108;
+const MAX_FRAMES = 96;
 
 /**
  * Frames for the seek bar's tooltip.
@@ -26,12 +27,14 @@ export class FramePreview {
   private wanted: number | null = null;
   private busy = false;
   private dead = false;
+  private abort = new AbortController();
 
   constructor(
     /** The lowest-quality playlist of this episode. */
     private readonly src: string | null,
     /** True while the main video is short of data. */
     private readonly mainStarved: () => boolean,
+    private readonly format: "hls" | "mp4" = "hls",
   ) {}
 
   private key(t: number): number {
@@ -60,8 +63,7 @@ export class FramePreview {
     if (this.frames.has(k) || Math.abs(video.currentTime - k * STEP) > 1.2) return;
     const canvas = this.draw(video);
     if (canvas) {
-      this.frames.set(k, canvas);
-      this.emit();
+      this.store(k, canvas);
     }
   }
 
@@ -91,16 +93,28 @@ export class FramePreview {
 
   destroy(): void {
     this.dead = true;
+    this.abort.abort();
     this.listeners.clear();
     this.hls?.destroy();
     this.hls = null;
-    this.probe?.remove();
+    if (this.probe) {
+      this.probe.pause();
+      this.probe.removeAttribute("src");
+      this.probe.load();
+      this.probe.remove();
+    }
     this.probe = null;
     this.frames.clear();
   }
 
   private emit(): void {
     for (const fn of this.listeners) fn();
+  }
+
+  private store(key: number, canvas: HTMLCanvasElement): void {
+    this.frames.set(key, canvas);
+    if (this.frames.size > MAX_FRAMES) this.frames.delete(this.frames.keys().next().value!);
+    this.emit();
   }
 
   private started = false;
@@ -120,7 +134,7 @@ export class FramePreview {
     document.body.appendChild(video);
     this.probe = video;
     const native = video.canPlayType("application/vnd.apple.mpegurl") !== "" && /Apple/.test(navigator.vendor);
-    if (native) {
+    if (native || this.format === "mp4") {
       video.src = this.src!;
       return video;
     }
@@ -144,7 +158,7 @@ export class FramePreview {
       hls.loadSource(this.src!);
       hls.attachMedia(video);
       this.hls = hls;
-      this.begin(at);
+      hls.on(HlsClass.Events.MANIFEST_PARSED, () => this.begin(at));
       return video;
     } catch {
       return null;
@@ -171,13 +185,16 @@ export class FramePreview {
         if (this.frames.has(k)) continue;
         const video = await this.ensureProbe(k * STEP);
         if (!video) return;
-        const ok = await seekTo(video, k * STEP);
+        const ok = await seekTo(video, k * STEP, this.abort.signal);
         if (!ok || this.dead) continue;
         const canvas = this.draw(video);
         if (canvas) {
-          this.frames.set(k, canvas);
-          this.emit();
+          this.store(k, canvas);
         }
+        // One requested frame is enough; do not keep this second decoder
+        // fetching in the background between pointer movements.
+        this.hls?.stopLoad();
+        this.started = false;
       }
     } finally {
       this.busy = false;
@@ -186,7 +203,7 @@ export class FramePreview {
 }
 
 /** Seeks and waits for a decoded frame there — or gives up after 10 s. */
-function seekTo(video: HTMLVideoElement, t: number): Promise<boolean> {
+export function seekTo(video: HTMLVideoElement, t: number, signal: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {
     let done = false;
     const finish = (ok: boolean) => {
@@ -194,22 +211,33 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<boolean> {
       done = true;
       clearTimeout(timer);
       video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("loadeddata", onLoadedData);
+      video.removeEventListener("loadedmetadata", go);
+      video.removeEventListener("error", onError);
+      signal.removeEventListener("abort", onError);
       resolve(ok);
     };
+    const onLoadedData = () => { if (video.readyState >= 2 && !video.seeking) finish(true); };
+    const onError = () => finish(false);
     const onSeeked = () => {
       // The frame may still be decoding right after "seeked".
       if (video.readyState >= 2) finish(true);
-      else video.addEventListener("loadeddata", () => finish(true), { once: true });
+      else video.addEventListener("loadeddata", onLoadedData);
     };
     const timer = setTimeout(() => finish(false), 10_000);
     video.addEventListener("seeked", onSeeked);
     const go = () => {
       try {
-        video.currentTime = Math.max(0.1, t);
+        const target = Math.min(Math.max(0.1, t), Number.isFinite(video.duration) ? Math.max(0.1, video.duration - 0.1) : t);
+        if (Math.abs(video.currentTime - target) < 0.05 && video.readyState >= 2 && !video.seeking) finish(true);
+        else video.currentTime = target;
       } catch {
         finish(false);
       }
     };
+    video.addEventListener("error", onError);
+    signal.addEventListener("abort", onError, { once: true });
+    if (signal.aborted) { finish(false); return; }
     if (video.readyState >= 1) go();
     else video.addEventListener("loadedmetadata", go, { once: true });
   });

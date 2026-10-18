@@ -1,5 +1,9 @@
 import { ANIME_WITH_GENRES_INCLUDE, toSummaryDto } from "@animeshadow/db";
-import { animeQuerySchema, localeQuerySchema, type WatchResponse } from "@animeshadow/shared";
+import {
+  animeQuerySchema,
+  localeQuerySchema,
+  type WatchResponse,
+} from "@animeshadow/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { TtlCache } from "../lib/cache.js";
@@ -12,7 +16,9 @@ import { sendAnimeVostVideo } from "../lib/video-response.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const slugParams = z.object({ slug: z.string().min(1).max(120) });
-const rollQuery = z.object({ count: z.coerce.number().int().min(1).max(14).default(14) });
+const rollQuery = z.object({
+  count: z.coerce.number().int().min(1).max(14).default(14),
+});
 /**
  * The ids the header's random pick draws from — a few thousand rows that
  * change only when the catalogue does, so they are read once per ten
@@ -50,15 +56,15 @@ function slimWatch(response: WatchResponse): WatchResponse {
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const { catalog, watch, episodeInfo } = fastify.services;
 
-  fastify.get(
-    "/anime",
-    { preHandler: fastify.optionalAuth },
-    async (request) => {
-      const query = parse(animeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-      return catalog.browse(query, allowAdult, request.userId);
-    },
-  );
+  fastify.get("/anime", { preHandler: fastify.optionalAuth }, async (request) => {
+    const query = parse(animeQuerySchema, request.query);
+    const allowAdult = await resolveAllowAdult(
+      fastify.prisma,
+      request.userId,
+      request.headers["x-adult-dob"],
+    );
+    return catalog.browse(query, allowAdult, request.userId);
+  });
 
   // A random title out of the catalogue's current filters.
   fastify.get(
@@ -66,7 +72,11 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.optionalAuth },
     async (request) => {
       const query = parse(animeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        request.userId,
+        request.headers["x-adult-dob"],
+      );
       const pick = await catalog.randomFrom(query, allowAdult, request.userId);
       if (!pick) throw new NotFoundError("По этим фильтрам ничего нет.");
       return pick;
@@ -74,7 +84,10 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   fastify.get("/studios", async (request) => {
-    const { q } = parse(z.object({ q: z.string().trim().min(1).max(60) }), request.query);
+    const { q } = parse(
+      z.object({ q: z.string().trim().min(1).max(60) }),
+      request.query,
+    );
     return { items: await catalog.studios(q) };
   });
 
@@ -83,14 +96,25 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     "/anime/random",
     { preHandler: fastify.optionalAuth },
     async (request) => {
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-      const { home } = parse(z.object({ home: z.enum(["1"]).optional() }), request.query);
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        request.userId,
+        request.headers["x-adult-dob"],
+      );
+      const { home } = parse(
+        z.object({ home: z.enum(["1"]).optional() }),
+        request.query,
+      );
       // Only what can actually be watched here: a random title that then
       // says "no player" is a dead end, not a surprise.
       const pool = await fastify.prisma.anime.findMany({
         where: {
           AND: [
-            { score: { gte: 7 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
+            {
+              score: { gte: 7 },
+              imageUrl: { not: null },
+              watchAvailability: { hasPlayer: true },
+            },
             contentGuardWhere(home === "1" ? false : allowAdult),
           ],
         },
@@ -107,59 +131,64 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
    * one it lands on. All of them have a player and a poster; the pick is
    * the last of the strip.
    */
-  fastify.get(
-    "/anime/roll",
-    { preHandler: fastify.optionalAuth },
-    async (request) => {
-      const { count } = parse(rollQuery, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-      const pool = await rollPool.wrap(allowAdult ? "adult" : "safe", async () => {
-        const rows = await fastify.prisma.anime.findMany({
-          where: {
-            AND: [
-              { score: { gte: 6.8 }, imageUrl: { not: null }, watchAvailability: { hasPlayer: true } },
-              contentGuardWhere(allowAdult),
-            ],
-          },
-          select: { id: true },
-        });
-        return rows.map((row) => row.id);
-      });
-      if (pool.length === 0) throw new NotFoundError("Каталог пуст.");
-      const ids = new Set<number>();
-      while (ids.size < Math.min(count, pool.length)) {
-        ids.add(pool[Math.floor(Math.random() * pool.length)]!);
-      }
+  fastify.get("/anime/roll", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { count } = parse(rollQuery, request.query);
+    const allowAdult = await resolveAllowAdult(
+      fastify.prisma,
+      request.userId,
+      request.headers["x-adult-dob"],
+    );
+    const pool = await rollPool.wrap(allowAdult ? "adult" : "safe", async () => {
       const rows = await fastify.prisma.anime.findMany({
-        where: { id: { in: [...ids] } },
-        include: ANIME_WITH_GENRES_INCLUDE,
+        where: {
+          AND: [
+            {
+              score: { gte: 6.8 },
+              imageUrl: { not: null },
+              watchAvailability: { hasPlayer: true },
+            },
+            contentGuardWhere(allowAdult),
+          ],
+        },
+        select: { id: true },
       });
-      const reel = rows.map(toSummaryDto).sort(() => Math.random() - 0.5);
-      return { pick: reel[reel.length - 1]!, reel };
-    },
-  );
+      return rows.map((row) => row.id);
+    });
+    if (pool.length === 0) throw new NotFoundError("Каталог пуст.");
+    const ids = new Set<number>();
+    while (ids.size < Math.min(count, pool.length)) {
+      ids.add(pool[Math.floor(Math.random() * pool.length)]!);
+    }
+    const rows = await fastify.prisma.anime.findMany({
+      where: { id: { in: [...ids] } },
+      include: ANIME_WITH_GENRES_INCLUDE,
+    });
+    const reel = rows.map(toSummaryDto).sort(() => Math.random() - 0.5);
+    return { pick: reel[reel.length - 1]!, reel };
+  });
 
   // What each episode is called and what happens in it — see EpisodeInfoService.
   fastify.get("/anime/:id/episodes-info", async (request, reply) => {
     const { id } = parse(idParams, request.params);
     const { lang } = parse(localeQuerySchema, request.query);
-    reply.header("cache-control", "public, max-age=600");
     const episodes = await episodeInfo.get(id, lang);
-    return { episodes, pending: episodeInfo.pending(id) };
+    const pending = episodeInfo.pending(id);
+    reply.header("cache-control", pending ? "no-store" : "public, max-age=300");
+    return { episodes, pending };
   });
 
-  fastify.get(
-    "/anime/:id",
-    { preHandler: fastify.optionalAuth },
-    async (request) => {
-      const { id } = parse(idParams, request.params);
-      const { lang } = parse(localeQuerySchema, request.query);
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-      // Views are counted from page visits (AnalyticsService), not here: this
-      // also answers the hover prefetch of a card.
-      return catalog.getAnimeById(id, lang, allowAdult);
-    },
-  );
+  fastify.get("/anime/:id", { preHandler: fastify.optionalAuth }, async (request) => {
+    const { id } = parse(idParams, request.params);
+    const { lang } = parse(localeQuerySchema, request.query);
+    const allowAdult = await resolveAllowAdult(
+      fastify.prisma,
+      request.userId,
+      request.headers["x-adult-dob"],
+    );
+    // Views are counted from page visits (AnalyticsService), not here: this
+    // also answers the hover prefetch of a card.
+    return catalog.getAnimeById(id, lang, allowAdult);
+  });
 
   // ЧПУ: resolve a slug → id, then serve the same detail payload.
   fastify.get(
@@ -174,7 +203,11 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: { members: "desc" },
       });
       if (!row) throw new NotFoundError("Аниме не найдено.");
-      const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        request.userId,
+        request.headers["x-adult-dob"],
+      );
       return catalog.getAnimeById(row.id, lang, allowAdult);
     },
   );
@@ -202,7 +235,6 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     return { stats: await catalog.getAnimeStats(id) };
   });
 
-
   // Frames of a title for the homepage hero: every screenshot Shikimori has,
   // fetched once an hour; browsers keep the answer six hours.
   fastify.get("/anime/:id/frames", async (request, reply) => {
@@ -223,10 +255,13 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
               for (const source of watch.sources) {
                 for (const [key, meta] of Object.entries(source.episodeMeta ?? {})) {
                   const n = Number(key);
-                  if (Number.isInteger(n) && meta.thumb && !byEpisode.has(n)) byEpisode.set(n, meta.thumb);
+                  if (Number.isInteger(n) && meta.thumb && !byEpisode.has(n))
+                    byEpisode.set(n, meta.thumb);
                 }
               }
-              return [...byEpisode.entries()].sort((x, y) => y[0] - x[0]).map(([, url]) => url);
+              return [...byEpisode.entries()]
+                .sort((x, y) => y[0] - x[0])
+                .map(([, url]) => url);
             })
             .catch(() => [] as string[]);
     const frames = [...shots, ...fromEpisodes].slice(0, 12);
@@ -241,7 +276,10 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   // Where the opening and ending are in one episode, for auto-skip.
   fastify.get("/anime/:id/skip-times", async (request, reply) => {
     const { id } = parse(idParams, request.params);
-    const { episode } = parse(z.object({ episode: z.coerce.number().int().min(1).max(5000) }), request.query);
+    const { episode } = parse(
+      z.object({ episode: z.coerce.number().int().min(1).max(5000) }),
+      request.query,
+    );
     reply.header("cache-control", "public, max-age=86400");
     return fetchSkipTimes(id, episode);
   });
@@ -249,34 +287,76 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/anime/:id/watch", async (request, reply) => {
     reply.header("cache-control", "private, no-store");
     const { id } = parse(idParams, request.params);
-    const { refresh } = parse(z.object({ refresh: z.literal("1").optional() }), request.query);
+    const { refresh } = parse(
+      z.object({ refresh: z.literal("1").optional() }),
+      request.query,
+    );
     return slimWatch(await (refresh ? watch.refreshSources(id) : watch.getSources(id)));
   });
 
-  fastify.get("/anime/:id/streams/kodik/:translationId/:episode/master.m3u8", {
-    config: { rateLimit: { max: 90, timeWindow: "1 minute" } },
-    preHandler: fastify.optionalAuth,
-  }, async (request, reply) => {
-    const { id, translationId, episode } = parse(z.object({
-      id: z.coerce.number().int().positive(), translationId: z.string().regex(/^\d{1,12}$/),
-      episode: z.coerce.number().int().min(1).max(10000),
-    }), request.params);
-    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-    const title = await fastify.prisma.anime.findFirst({ where: { id, ...contentGuardWhere(allowAdult) }, select: { id: true } });
-    if (!title) throw new NotFoundError("Аниме не найдено.");
-    const { variants } = await watch.getKodikStreams(id, translationId, episode);
-    reply.header("cache-control", "private, no-store");
-    return reply.type("application/vnd.apple.mpegurl").send(kodikMasterPlaylist(variants));
-  });
+  fastify.get(
+    "/anime/:id/streams/kodik/:translationId/:episode/master.m3u8",
+    {
+      config: { rateLimit: { max: 90, timeWindow: "1 minute" } },
+      preHandler: fastify.optionalAuth,
+    },
+    async (request, reply) => {
+      const { id, translationId, episode } = parse(
+        z.object({
+          id: z.coerce.number().int().positive(),
+          translationId: z.string().regex(/^\d{1,12}$/),
+          episode: z.coerce.number().int().min(1).max(10000),
+        }),
+        request.params,
+      );
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        request.userId,
+        request.headers["x-adult-dob"],
+      );
+      const title = await fastify.prisma.anime.findFirst({
+        where: { id, ...contentGuardWhere(allowAdult) },
+        select: { id: true },
+      });
+      if (!title) throw new NotFoundError("Аниме не найдено.");
+      const { variants } = await watch.getKodikStreams(id, translationId, episode);
+      reply.header("cache-control", "private, no-store");
+      return reply
+        .type("application/vnd.apple.mpegurl")
+        .send(kodikMasterPlaylist(variants));
+    },
+  );
 
-  fastify.get("/anime/:id/streams/animevost/:releaseId/:episode/video.mp4", {
-    config: { rateLimit: { max: 240, timeWindow: "1 minute" } }, preHandler: fastify.optionalAuth,
-  }, async (request, reply) => {
-    const { id, releaseId, episode } = parse(z.object({ id: z.coerce.number().int().positive(),
-      releaseId: z.string().regex(/^\d{1,12}$/), episode: z.coerce.number().int().min(1).max(10000) }), request.params);
-    const allowAdult = await resolveAllowAdult(fastify.prisma, request.userId, request.headers["x-adult-dob"]);
-    const title = await fastify.prisma.anime.findFirst({ where: { id, ...contentGuardWhere(allowAdult) }, select: { id: true } });
-    if (!title) throw new NotFoundError("Аниме не найдено.");
-    return sendAnimeVostVideo(request, reply, await watch.getAnimeVostStream(id, releaseId, episode));
-  });
+  fastify.get(
+    "/anime/:id/streams/animevost/:releaseId/:episode/video.mp4",
+    {
+      config: { rateLimit: { max: 240, timeWindow: "1 minute" } },
+      preHandler: fastify.optionalAuth,
+    },
+    async (request, reply) => {
+      const { id, releaseId, episode } = parse(
+        z.object({
+          id: z.coerce.number().int().positive(),
+          releaseId: z.string().regex(/^\d{1,12}$/),
+          episode: z.coerce.number().int().min(1).max(10000),
+        }),
+        request.params,
+      );
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        request.userId,
+        request.headers["x-adult-dob"],
+      );
+      const title = await fastify.prisma.anime.findFirst({
+        where: { id, ...contentGuardWhere(allowAdult) },
+        select: { id: true },
+      });
+      if (!title) throw new NotFoundError("Аниме не найдено.");
+      return sendAnimeVostVideo(
+        request,
+        reply,
+        await watch.getAnimeVostStream(id, releaseId, episode),
+      );
+    },
+  );
 };

@@ -199,6 +199,13 @@ export class SeoRenderer {
     // Hidden on the site for now (FEATURES.frameSearch in the web app).
     if (path === "/frame-search") return FRAME_SEARCH_PAGE ? this.frameSearch() : { redirect: "/" };
     if (path === "/about") return this.about();
+    if (path === "/studio/hon-kon/workspace") return { redirect: "/studio/hon-kon/releases" };
+    if (path === "/studio/hon-kon" || path === "/studio/hon-kon/releases") return {
+      title: path.endsWith("releases") ? "Все релизы Hon-Kon Studio | AnimeShadow" : "Hon-Kon Studio — команда, релизы и озвучка | AnimeShadow",
+      description: "Познакомьтесь с командой Hon-Kon Studio: голоса, перевод, звук и аниме на AnimeShadow.",
+      canonical: path,
+      body: layout("<h1>Hon-Kon Studio × AnimeShadow</h1><p>Любительская озвучка аниме. Релизы, команда и новости студии.</p><a href='/studio/hon-kon/releases'>Все релизы</a>"),
+    };
     if (path === "/support") return this.support();
     return this.notFound();
   }

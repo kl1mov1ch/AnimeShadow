@@ -51,7 +51,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Guests: the key, subscribing by browser id, and "off" by the endpoint itself.
   fastify.get("/push/key", async (_request, reply) => {
-    reply.header("cache-control", "public, max-age=3600");
+    reply.header("cache-control", "no-store");
     return { publicKey: delivery.publicKey };
   });
 
@@ -68,7 +68,12 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     delivery.unsubscribe(request.userId!, parse(pushUnsubscribeInputSchema, request.body).endpoint),
   );
 
-  fastify.post("/me/notify-test", { ...auth, config: { rateLimit: { max: 3, timeWindow: "1 minute" } } }, async (request) =>
-    delivery.test(request.userId!),
+  fastify.post("/me/push/status", auth, async (request) =>
+    delivery.pushStatus(request.userId!, parse(pushUnsubscribeInputSchema, request.body).endpoint),
   );
+
+  fastify.post("/me/notify-test", { ...auth, config: { rateLimit: { max: 3, timeWindow: "1 minute" } } }, async (request) => {
+    const input = parse(z.object({ channel: z.enum(["all", "telegram", "push"]).default("all") }), request.body ?? {});
+    return delivery.test(request.userId!, input.channel);
+  });
 };

@@ -74,8 +74,8 @@ export function CollectionCard({
       viewTransition
       style={style}
       className={cn(
-        "group/cc relative isolate flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-card shadow-lg shadow-black/20 transition-[transform,border-color,box-shadow] duration-300 hover:border-foreground/20",
-        featured ? "min-h-[22rem] sm:min-h-[24rem]" : "min-h-[20rem]",
+        "group/cc relative isolate flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-card transition-colors duration-150 hover:border-foreground/20",
+        featured ? "min-h-[20rem] sm:min-h-[24rem]" : "min-h-[18rem]",
         className,
       )}
     >
@@ -83,7 +83,7 @@ export function CollectionCard({
       {backdrop && (
         <img
           aria-hidden
-          src={imageSrc(backdrop)}
+          src={imageSrc(backdrop, 640)}
           alt=""
           loading="lazy"
           decoding="async"
@@ -96,7 +96,7 @@ export function CollectionCard({
       <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/80 to-card/10" />
 
       {/* The posters, fanned; under the pointer they open up. */}
-      <div className={cn("relative mx-3 mt-3 flex-1", featured ? "min-h-52" : "min-h-40")}>
+      <div className={cn("relative mx-3 mt-3 flex-1", featured ? "min-h-40 sm:min-h-52" : "min-h-32 sm:min-h-40")}>
         {fan.map((item, i) => {
           const offset = i - mid;
           return (
@@ -117,7 +117,7 @@ export function CollectionCard({
                 } as React.CSSProperties
               }
             >
-              {item.image && <img src={imageSrc(item.image)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
+              {item.image && <img src={imageSrc(item.image, 240)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
             </span>
           );
         })}
@@ -137,7 +137,7 @@ export function CollectionCard({
 
       {/* Title, lead, tags, then who and how it's doing. */}
       <div className="relative z-20 flex flex-col gap-1.5 px-3.5 pb-3 pt-3">
-        <h3 className={cn("line-clamp-2 font-display leading-tight transition-colors group-hover/cc:text-foreground/85", featured ? "text-xl sm:text-2xl" : "text-base")}>
+        <h3 className={cn("line-clamp-3 font-display leading-snug transition-colors group-hover/cc:text-foreground/85", featured ? "text-xl sm:text-2xl" : "text-base")}>
           {collection.title}
         </h3>
         {collection.summary && (

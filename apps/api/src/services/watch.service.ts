@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@animeshadow/db";
 import {
   type KodikClient,
   toWatchSources as kodikToSources,
+  kodikEpisodeIdentityChanged,
 } from "@animeshadow/kodik";
 import type { AllohaClient, AllohaResult } from "@animeshadow/alloha";
 import { type AniLibriaClient, bestEpisodeUrl } from "@animeshadow/anilibria";
@@ -292,6 +293,28 @@ export class WatchService {
     });
   }
 
+  /** Import a verified provider index row without deleting other studios. */
+  async importStudioSources(group: Parameters<typeof kodikToSources>[0]): Promise<void> {
+    const sources = kodikToSources(group);
+    for (const source of sources) {
+      const key = keyOf(source.id);
+      const data = { title: source.title, kind: source.kind, format: source.format,
+        embedUrl: source.embedUrl, iframeEpisodes: source.iframeEpisodes ?? Prisma.JsonNull,
+        episodesCount: source.episodesCount, quality: source.quality, stable: null };
+      await this.prisma.playerSource.upsert({
+        where: { animeId_provider_sourceKey: { animeId: group.shikimoriId, provider: key.provider, sourceKey: key.sourceKey } },
+        create: { animeId: group.shikimoriId, provider: key.provider, sourceKey: key.sourceKey, position: 0, ...data }, update: data,
+      });
+    }
+    const count = await this.prisma.playerSource.count({ where: { animeId: group.shikimoriId } });
+    const hasCustomPlayer = sources.some((source) => kodikCustomSource(group.shikimoriId, source));
+    await this.prisma.watchAvailability.upsert({ where: { animeId: group.shikimoriId },
+      create: { animeId: group.shikimoriId, hasPlayer: count > 0, hasCustomPlayer, sourceCount: count, provider: "kodik" },
+      update: { hasPlayer: count > 0, ...(hasCustomPlayer ? { hasCustomPlayer: true } : {}), sourceCount: count, checkedAt: new Date() },
+    });
+    this.cache.delete(String(group.shikimoriId));
+  }
+
   async warm(limit: number): Promise<void> {
     if (limit <= 0) return;
     const staleBefore = new Date(Date.now() - RECHECK_MS);
@@ -332,6 +355,9 @@ export class WatchService {
       where: { animeId: malId },
     });
     if (!availability || availability.hasPlayer == null) return null;
+    // The prologue used to be negatively cached; its parent also needs new
+    // numbering. Rebuild just these identities once, including negative hits.
+    if (kodikEpisodeIdentityChanged(malId) && availability.checkedAt.getTime() < Date.parse("2026-10-18T08:17:18Z")) return null;
 
     // Past the recheck window: a full re-resolve can itself take several
     // seconds (network calls to Kodik/Alloha) — the single biggest

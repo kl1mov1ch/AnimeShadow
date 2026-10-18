@@ -11,7 +11,6 @@ import {
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { TrailerButton } from "@/components/anime/trailer-button";
 import { Button } from "@/components/ui/button";
 import { MorphIcon } from "@/components/ui/morph-icon";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,14 +22,13 @@ import { animeHref, fullSizeCover, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useLibrary, useUpsertLibraryEntry } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { HeroVideoPreview } from "@/components/home/hero-video-preview";
 
 /** How long a title stays up. */
 const SLIDE_MS = 10_000;
 /** How long each frame of it shows before the next fades in. */
-const FRAME_MS = 2_000;
+const FRAME_MS = 4_000;
 /** Frames per title: as many as fit in a slide. */
-const MAX_FRAMES = SLIDE_MS / FRAME_MS;
+const MAX_FRAMES = 5;
 
 /** Whether this tab is in the background — the slider stops while it is. */
 function useTabHidden(): boolean {
@@ -96,10 +94,8 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
   const [index, setIndex] = useState(0);
   const [run, setRun] = useState(0);
   const [stopped, setStopped] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const clockRef = useRef({ key: "", remaining: SLIDE_MS });
-  const [videoPlaying, setVideoPlaying] = useState(false);
-  const paused = hidden || stopped || previewOpen || !onScreen;
+  const paused = hidden || stopped || !onScreen;
 
   // The slide that just left stays fully drawn under the new one until the
   // new one has faded in — so a switch never shows the dark page between.
@@ -193,11 +189,10 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
               under={i === under}
               // The next title's first frame is fetched ahead, quietly.
               warm={i === (index + 1) % count}
-              paused={paused || calm || videoPlaying}
+              paused={paused || calm}
               first={i === 0}
             />
           ))}
-          <HeroVideoPreview key={current.id} animeId={current.id} visible={!hidden && onScreen && !calm && !stopped && !previewOpen} onPlayingChange={setVideoPlaying} />
           {!calm && <button type="button" onClick={() => setStopped((v) => !v)}
             aria-label={stopped ? "Продолжить слайдер" : "Приостановить слайдер"}
             className="absolute right-3 top-3 z-30 grid size-9 place-items-center rounded-full border border-white/15 bg-black/40 text-white hover:bg-black/65">
@@ -224,7 +219,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         />
 
         <div className="relative z-10 -mt-[5.75rem] flex min-w-0 flex-col gap-3.5 sm:-mt-28 lg:mt-0 lg:h-full lg:max-w-[min(34rem,46%)] lg:justify-center lg:gap-5">
-          <SlidePitch key={current.id} anime={current} title={title} onPreviewOpen={setPreviewOpen} />
+          <SlidePitch key={current.id} anime={current} title={title} />
 
           {count > 1 && (
             <>
@@ -415,15 +410,14 @@ function FadeImg({ src, priority, fallbacks }: { src: string; priority: boolean;
  * height — a long name or synopsis is clamped, never pushing the hero
  * taller. Keyed on the slide by its parent, so it fades in as one piece.
  */
-function SlidePitch({ anime, title, onPreviewOpen }: { anime: AnimeDetail; title: string; onPreviewOpen: (open: boolean) => void }) {
-  const t = useT();
+function SlidePitch({ anime, title }: { anime: AnimeDetail; title: string }) {
   const labels = useLabels();
   const when = labels.seasonYearLabel(anime);
   const episodes = anime.episodes ? labels.episodeLabel(anime.episodes, anime.type) : null;
   const facts = [labels.typeLabel(anime.type), when, episodes].filter(Boolean) as string[];
 
   return (
-    <div className="flex min-w-0 animate-in flex-col duration-500 ease-out fade-in-0 slide-in-from-bottom-2">
+    <div className="flex min-w-0 flex-col duration-300 ease-out lg:animate-in lg:fade-in-0 lg:slide-in-from-bottom-2">
       <div className="flex min-w-0 items-center gap-x-2.5 text-xs sm:text-sm">
         {anime.score != null && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 font-semibold tabular-nums text-white">
@@ -454,10 +448,9 @@ function SlidePitch({ anime, title, onPreviewOpen }: { anime: AnimeDetail; title
         <Button asChild size="lg" className="h-11 flex-1 px-6 text-[15px] sm:flex-none">
           <Link to={`${animeHref(anime)}#watch`} viewTransition>
             <PlayIcon className="fill-current" />
-            {t("home.heroWatch")}
+            Плеер
           </Link>
         </Button>
-        <TrailerButton animeId={anime.id} url={anime.trailerEmbedUrl} title={title} onOpenChange={onPreviewOpen} compact />
         <KeepButton anime={anime} title={title} />
       </div>
     </div>

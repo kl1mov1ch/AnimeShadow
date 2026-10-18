@@ -1,8 +1,10 @@
 import { FileTextIcon, LockIcon, MailIcon, ScaleIcon, ShieldCheckIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHero } from "@/components/common/page-hero";
 import { LegalDocView } from "@/components/legal/legal-doc";
 import { OperatorEditor } from "@/components/legal/operator-editor";
+import { LegalEmailEditor } from "@/components/legal/legal-email-editor";
 import { useAuth } from "@/hooks/use-auth";
 import { LEGAL_UPDATED, type LegalDocId, legalDocs, useLegalOperator } from "@/lib/legal";
 import { useDocumentHead } from "@/lib/seo";
@@ -13,6 +15,7 @@ const TABS: Array<{ id: LegalDocId; icon: typeof FileTextIcon }> = [
   { id: "privacy", icon: LockIcon },
   { id: "consent", icon: ShieldCheckIcon },
   { id: "contacts", icon: MailIcon },
+  { id: "copyright", icon: ShieldCheckIcon },
 ];
 
 const isDoc = (v: string | null): v is LegalDocId => TABS.some((t) => t.id === v);
@@ -27,8 +30,26 @@ export function Component() {
   const [params, setParams] = useSearchParams();
   const id: LegalDocId = isDoc(params.get("doc")) ? (params.get("doc") as LegalDocId) : "terms";
   const { user } = useAuth();
-  const docs = legalDocs(useLegalOperator());
+  const operator = useLegalOperator();
+  const docs = legalDocs(operator);
   const doc = docs[id];
+  const activeTab = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const button = activeTab.current;
+    const nav = button?.parentElement;
+    if (!button || !nav) return;
+    const reveal = () => {
+      const item = button.getBoundingClientRect();
+      const strip = nav.getBoundingClientRect();
+      nav.scrollLeft += item.left - strip.left - (nav.clientWidth - item.width) / 2;
+    };
+    reveal();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(reveal);
+    observer.observe(nav);
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [id]);
 
   useDocumentHead({
     title: `${doc.title} — AnimeShadow`,
@@ -40,12 +61,13 @@ export function Component() {
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <PageHero icon={FileTextIcon} eyebrow="Правовая информация" title="Документы" lead={`Условия сервиса, обработка персональных данных и контакты. Редакция от ${LEGAL_UPDATED}`} />
 
-      {user?.role === "ADMIN" && <OperatorEditor />}
+      {user?.role === "ADMIN" && id !== "copyright" && <OperatorEditor />}
 
       <nav aria-label="Документы" className="-mx-1 flex gap-1 overflow-x-auto rounded-xl border border-[var(--accent-line-soft)] bg-background/95 p-1 [scrollbar-width:none]">
         {TABS.map(({ id: tab, icon: Icon }) => (
           <button
             key={tab}
+            ref={tab === id ? activeTab : undefined}
             type="button"
             onClick={() => setParams({ doc: tab }, { replace: true, preventScrollReset: true })}
             aria-current={tab === id ? "page" : undefined}
@@ -65,6 +87,7 @@ export function Component() {
         className="animate-in rounded-2xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-5 duration-300 fade-in-0 slide-in-from-bottom-1 sm:p-8"
       >
         <h2 className="mb-4 font-display text-xl leading-tight sm:text-2xl">{doc.title}</h2>
+        {id === "copyright" && user?.role === "ADMIN" && <LegalEmailEditor />}
         <LegalDocView id={id} />
       </section>
     </div>

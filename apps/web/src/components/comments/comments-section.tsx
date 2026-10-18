@@ -240,7 +240,7 @@ function FilterToggle({
         "rounded-lg border px-2.5 py-1 text-xs transition-all duration-200",
         active
           ? "border-transparent bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm"
-          : "border-border/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
+          : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
       )}
     >
       {label}
@@ -352,7 +352,7 @@ function Composer({
                 "rounded-lg px-2.5 py-1 text-xs transition-all duration-200",
                 mode === m
                   ? "bg-gradient-to-r from-primary via-primary/85 to-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:-translate-y-0.5 hover:bg-secondary/60 hover:text-foreground",
+                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
               )}
             >
               {t(`comments.mode.${modeKey(m)}`)}
@@ -363,7 +363,7 @@ function Composer({
           size="sm"
           onClick={submit}
           disabled={create.isPending || !body.trim()}
-          className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:hover:translate-y-0"
+          className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:shadow-md disabled:hover:translate-y-0"
         >
           {t("comments.submit")}
         </Button>
@@ -439,7 +439,7 @@ function CommentItem({
     vote.mutate({ id: comment.id, value: comment.myVote === v ? 0 : v });
 
   return (
-    <div className={cn("group/comment flex", small ? "gap-2.5" : "gap-3")}>
+    <div className={cn("group/comment flex", small ? "gap-2" : "gap-2 sm:gap-3")}>
       {comment.author.kind === "user" && comment.author.id ? (
         <button
           type="button"
@@ -448,7 +448,7 @@ function CommentItem({
           aria-label={t("comments.viewProfile")}
           className="shrink-0 self-start rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Avatar className={cn("ring-2 ring-border/60 transition-all duration-200 hover:ring-primary/40", small ? "size-6" : "size-9")}>
+          <Avatar className={cn("ring-2 ring-border/60 transition-all duration-200 hover:ring-primary/40", small ? "size-6" : "size-8 sm:size-9")}>
             {comment.author.avatarUrl && (
               <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
             )}
@@ -458,7 +458,7 @@ function CommentItem({
           </Avatar>
         </button>
       ) : (
-        <Avatar className={cn("shrink-0 self-start", small ? "size-6" : "size-9")}>
+        <Avatar className={cn("shrink-0 self-start", small ? "size-6" : "size-8 sm:size-9")}>
           {comment.author.avatarUrl && (
             <AvatarImage src={imageSrc(comment.author.avatarUrl)} alt="" />
           )}
@@ -501,10 +501,10 @@ function CommentItem({
               reading their comments. Icon-only: the full title (and the
               rest of what's pinned) is a hover away, or a click on the
               avatar/name away in the full profile. */}
-          {comment.author.showcaseAchievementIds.map((id) => (
-            <AchievementBadge key={id} id={id} compact />
+          {comment.author.showcaseAchievementIds.slice(0, 3).map((id, index) => (
+            <span key={id} className={index > 0 ? "hidden sm:inline-flex" : "inline-flex"}><AchievementBadge id={id} compact /></span>
           ))}
-          <span className="text-muted-foreground">{when}</span>
+          <span className="basis-full text-[10px] text-muted-foreground sm:basis-auto">{when}</span>
           {comment.editedAt && (
             <span className="text-muted-foreground/70">· {t("comments.edited")}</span>
           )}
@@ -589,7 +589,7 @@ function CommentItem({
                   );
                 }}
                 disabled={edit.isPending || !draft.trim()}
-                className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:hover:translate-y-0"
+                className="rounded-lg bg-gradient-to-r from-primary via-primary/85 to-primary shadow-sm transition-all duration-200 hover:shadow-md disabled:hover:translate-y-0"
               >
                 {t("common.save")}
               </Button>

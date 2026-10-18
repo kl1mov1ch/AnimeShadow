@@ -1,4 +1,7 @@
 import type { AnimeDetail, WatchResponse, WatchSource } from "@animeshadow/shared";
+import type { StudioId } from "@animeshadow/shared";
+import { PartySetupDialog } from "@/components/party/party-setup-dialog";
+import { LoadingMessage } from "@/components/player/loading-message";
 import { useAddMoment } from "@/lib/moments";
 import {
   Volume2Icon,
@@ -37,7 +40,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { useT } from "@/i18n";
-import { ApiRequestError, apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { isKodikUrl, useKodikBridge } from "@/lib/kodik-bridge";
 import { type PlayerPrefs, usePlayerPrefs } from "@/lib/player-prefs";
@@ -55,6 +58,7 @@ import { attachEngine, type EngineHandle, type EngineStatus, type EngineTracks, 
 import { EMPTY_TRACKS, observeNativeTracks, pickNativeTrack, readNativeTracks } from "@/components/player/native-tracks";
 import { useMediaSession } from "@/components/player/use-media-session";
 import { FramePreview } from "@/components/player/frame-preview";
+import { watchMediaResponse, SOURCE_RESPONSE_MS } from "@/components/player/response-watchdog";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
 import { NetStats } from "@/components/player/net-stats";
@@ -73,6 +77,11 @@ import { effectiveQuality, qualityHeights, qualityLevel, qualityName, qualityOut
 import { useIsPro } from "@/components/promo/promo-offer";
 
 interface WatchSectionProps {
+  studio?: StudioId;
+  /** Constrain a contextual preview without changing normal title playback. */
+  sourceFilter?: (source: WatchSource) => boolean;
+  directOnly?: boolean;
+  trackProgress?: boolean;
   anime: Pick<
     AnimeDetail,
     // The image fields are for the facade shown before the player loads;
@@ -113,8 +122,11 @@ export function WatchSection({
   onEpisodeChange,
   onActivate,
   startAt = null,
+  sourceFilter,
+  directOnly = false,
+  trackProgress = true,
+  studio,
 }: WatchSectionProps) {
-  const t = useT();
   // Prepare our video on entry; sound and playback require one user action.
   const [activated, setActivated] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -134,11 +146,12 @@ export function WatchSection({
     releaseDate != null &&
     releaseDate.getTime() > Date.now();
 
-  const { data: rawData, isPending, isError, refreshSources } = useWatchSources(anime.id, active && !notYetOut);
+  const { data: rawData, isPending, refreshSources } = useWatchSources(anime.id, active && !notYetOut);
 
   // The API exposes direct sources only; every dub uses the same controls.
-  const ownSources = OWN_PLAYER_ENABLED ? (rawData?.sources.filter((s) => s.format === "hls" || s.format === "mp4") ?? []) : [];
-  const providerSources: WatchSource[] = (rawData?.sources ?? []).filter((s) => s.providerPlayer && isKodikUrl(s.providerPlayer.url)).map((s) => ({
+  const scopedSources = sourceFilter ? rawData?.sources.filter(sourceFilter) : rawData?.sources;
+  const ownSources = OWN_PLAYER_ENABLED ? (scopedSources?.filter((s) => s.format === "hls" || s.format === "mp4") ?? []) : [];
+  const providerSources: WatchSource[] = (directOnly ? [] : scopedSources ?? []).filter((s) => s.providerPlayer && isKodikUrl(s.providerPlayer.url)).map((s) => ({
     ...s, format: "iframe", embedUrl: s.providerPlayer!.url,
     iframeEpisodes: Object.fromEntries(Object.entries(s.providerPlayer!.episodes).map(([n, url]) => [n, { url, thumbs: [] }])),
     hlsEpisodes: undefined, hlsVariants: undefined,
@@ -158,8 +171,9 @@ export function WatchSection({
   // and threw away whatever had just been clicked, and so did a progress
   // request that simply answered after the click. A choice the viewer made
   // always outranks one we remembered for them.
-  const { status: authStatus } = useAuth();
-  const { data: progress } = useAnimeProgress(anime.id, authStatus === "authenticated");
+  const { status: authStatus, user: progressUser } = useAuth();
+  const { data: savedProgress } = useAnimeProgress(anime.id, authStatus === "authenticated" && trackProgress, progressUser?.id);
+  const progress = trackProgress && authStatus === "authenticated" ? savedProgress : undefined;
   const chosenRef = useRef(false);
   useEffect(() => {
     // A moment's link already chose the episode — saved progress doesn't override it.
@@ -181,7 +195,7 @@ export function WatchSection({
 
   // How many episodes actually exist to play — what the sources can serve,
   // not the planned total the catalogue stores for a show still airing.
-  const catalog = useEpisodeCatalog(anime.id);
+  const catalog = useEpisodeCatalog(anime.id, sourceFilter);
   const total = catalog.available ?? anime.episodes ?? 0;
 
   // An episode past what exists — a stale saved position, a planned-total
@@ -221,7 +235,7 @@ export function WatchSection({
     return <Countdown target={releaseDate} />;
   }
 
-  if ((isPending || (rawData?.sourcesPending && !rawData.available)) && active) {
+  if ((isPending || (rawData?.sourcesPending && !data?.sources.length)) && active) {
     // The title's own pictures while the sources are found — never a black box.
     return <PlayerShell frames={facadeFrames(anime, catalog, episode)} loading />;
   }
@@ -229,9 +243,12 @@ export function WatchSection({
   if (data?.available && data.sources.length > 0) {
     return (
       <Player
+        studio={studio}
+        trackProgress={trackProgress}
         autoStart={activated}
         onStarted={() => { setActivated(true); onActivate?.(); }}
         poster={facadeFrames(anime, catalog, episode)[0]}
+        episodePoster={anime.imageLargeUrl ?? anime.imageUrl}
         // Remounting on the switch is the point: the race, the winner and
         // every player-local bit of state belong to one side or the other,
         // and carrying them across would mean showing the old picture while
@@ -260,16 +277,9 @@ export function WatchSection({
     );
   }
 
-  const notice =
-    isError ? t("watch.providerError") : data?.reason === "not_configured"
-      ? t("watch.notConfigured")
-      : data?.reason === "provider_error"
-        ? t("watch.providerError")
-        : t("watch.notFound");
-
   return (
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/60 bg-card/40 p-4">
-      <Alert><AlertDescription>{notice}</AlertDescription></Alert>
+      <Alert><AlertDescription><LoadingMessage failed /></AlertDescription></Alert>
       <p className="text-xs leading-relaxed text-muted-foreground">Проверяем доступные серии у нескольких источников. У анонсов и редких выпусков видео может ещё не быть.</p>
       <Button variant="secondary" className="w-fit" disabled={refreshing} onClick={() => {
         setRefreshing(true);
@@ -573,105 +583,57 @@ function runtimeMinutes(duration: string | null): number | null {
 const COMPLETE_AT = 0.75;
 
 /**
- * Records roughly where a signed-in user left off on one episode — a
- * third-party embed is a page we can't read a seek position out of, so
- * this measures elapsed time the player was open on this episode instead,
- * added onto whatever was already stored for it. Flushes on visibility
- * hide, unmount and episode change, same triggers as useWatchSession.
- *
- * Once that total passes most of the title's runtime the episode marks
- * itself watched, which is the whole point of measuring: with an embed
- * nothing else will ever say "this one is finished", and ticking every
- * episode by hand is the kind of bookkeeping people simply stop doing.
- * Deliberately generous in one direction only — it can miss an episode
- * someone watched elsewhere, and it will not claim one they left running
- * for two minutes.
+ * Save the signed-in viewer's actual media position, including seeks and pauses.
+ * Flush on hide, unmount and episode change; never measure time spent on a page.
  */
-function useEpisodeTracking({
-  animeId,
-  episode,
-  seedPosition,
-  active,
-  runtime,
-  alreadyDone,
-}: {
-  animeId: number;
-  episode: number;
-  seedPosition: number;
-  active: boolean;
-  /** The title's runtime string, for the "finished" threshold. */
-  runtime: string | null;
-  /** Already ticked — nothing here should re-send that. */
-  alreadyDone: boolean;
+function useEpisodeTracking({ animeId, episode, seedPosition, active, runtime, alreadyDone, readClock }: {
+  animeId: number; episode: number; seedPosition: number; active: boolean;
+  runtime: string | null; alreadyDone: boolean;
+  readClock: () => { position: number; duration: number };
 }): void {
   const t = useT();
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const authed = status === "authenticated";
-  const update = useUpdateProgress(animeId);
-  const baseRef = useRef(seedPosition);
-  // Survives the flush closure, so an episode is only ever announced
-  // finished once per visit to it.
+  const update = useUpdateProgress(animeId, user?.id);
+  const clockRef = useRef(readClock);
+  clockRef.current = readClock;
+  const ownerRef = useRef(user?.id);
+  ownerRef.current = user?.id;
+  const lastSent = useRef(seedPosition);
   const doneRef = useRef(alreadyDone);
+  useEffect(() => { doneRef.current = alreadyDone; }, [episode, alreadyDone, user?.id]);
+  useEffect(() => { lastSent.current = seedPosition; }, [episode, seedPosition, user?.id]);
   useEffect(() => {
-    doneRef.current = alreadyDone;
-  }, [episode, alreadyDone]);
-
-  useEffect(() => {
-    baseRef.current = seedPosition;
-  }, [episode, seedPosition]);
-
-  useEffect(() => {
-    if (!authed || !active) return;
-    let start = Date.now();
-
-    const minutes = runtimeMinutes(runtime);
-    const completeAfter = minutes != null ? minutes * 60 * COMPLETE_AT : null;
-
+    const owner = user?.id;
+    if (!authed || !active || !owner) return;
     const flush = () => {
-      const elapsed = Math.round((Date.now() - start) / 1000);
-      start = Date.now(); // reset so a resume doesn't double-count
-      if (elapsed < 15) return;
-      baseRef.current += elapsed;
-      const finished =
-        !doneRef.current &&
-        completeAfter != null &&
-        baseRef.current >= completeAfter;
-      if (finished) doneRef.current = true;
-      update.mutate(
-        {
-          episode,
-          positionSeconds: baseRef.current,
-          ...(finished ? { completed: true } : {}),
-        },
-        finished
-          ? { onSuccess: () => toast.success(t("watch.autoMarked", { n: episode })) }
-          : undefined,
-      );
+      if (ownerRef.current !== owner) return;
+      const clock = clockRef.current();
+      if (!Number.isFinite(clock.position) || clock.position <= 0) return;
+      const position = Math.min(200_000, Math.floor(clock.position));
+      if (position === lastSent.current) return;
+      const duration = Number.isFinite(clock.duration) && clock.duration > 0
+        ? Math.min(200_000, Math.round(clock.duration)) : (runtimeMinutes(runtime) ?? 0) * 60;
+      const justFinished = !doneRef.current && duration > 0 && position / duration >= COMPLETE_AT;
+      const completed = doneRef.current || justFinished;
+      if (justFinished) doneRef.current = true;
+      lastSent.current = position;
+      update.mutate({ episode, positionSeconds: position, ...(duration > 0 ? { durationSeconds: duration } : {}), completed },
+        justFinished ? { onSuccess: () => toast.success(t("watch.autoMarked", { n: episode })) } : undefined);
     };
-
-    // Without waiting for a flush trigger: someone who watches an episode
-    // straight through and then closes the tab should already be ticked by
-    // the time they do, not ticked by the unload handler racing the close.
-    const tick = completeAfter != null && !doneRef.current
-      ? setInterval(flush, 60_000)
-      : null;
-
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flush();
-      else start = Date.now();
-    };
-
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("beforeunload", flush);
-
+    const timer = window.setInterval(flush, 20_000);
+    const hide = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", hide);
+    window.addEventListener("pagehide", flush);
     return () => {
       flush();
-      if (tick != null) clearInterval(tick);
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("beforeunload", flush);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", hide);
+      window.removeEventListener("pagehide", flush);
     };
+    // The clock is read from a ref so ordinary playback does not restart the interval.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed, active, animeId, episode, runtime]);
+  }, [authed, active, animeId, episode, runtime, user?.id]);
 }
 
 /* ---------- countdown ---------- */
@@ -734,9 +696,9 @@ function Countdown({ target }: { target: Date }) {
 /* ---------- player ---------- */
 
 /** If neither racer has reported `load` by now, assume this batch is dead. */
-const STALL_MS = 6_000;
+const STALL_MS = SOURCE_RESPONSE_MS;
 /** Later batches get less patience — we're already in "keep hunting" mode. */
-const STALL_MS_RETRY = 4_000;
+const STALL_MS_RETRY = SOURCE_RESPONSE_MS;
 
 
 
@@ -1093,8 +1055,7 @@ export function CustomHlsPlayer({
   const [status, setStatus] = useState<EngineStatus>({ kind: "loading" });
   // Bumped by "Повторить": loads the same stream again from where it stopped.
   const [reloadKey, setReloadKey] = useState(0);
-  // Once it has played, a later failure shows "retry" instead of handing
-  // the slot to another source mid-episode.
+  // Preserve the exact position when this stream is replaced or reloaded.
   const playedRef = useRef(false);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
   const [muted, setMuted] = useState(false);
@@ -1155,6 +1116,17 @@ export function CustomHlsPlayer({
   const [activeHeight, setActiveHeight] = useState<number | null>(null);
   // The picture's own height, for a stream that comes in one quality only.
   const [videoHeight, setVideoHeight] = useState(0);
+  const responseRef = useRef<ReturnType<typeof watchMediaResponse> | null>(null);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const monitor = watchMediaResponse(video, () => onFailedRef.current(), format === "hls" && /\/(?:streams\/kodik\/|studios\/hon-kon\/(?:clips|uploads)\/)/.test(src) ? 20_000 : SOURCE_RESPONSE_MS);
+    responseRef.current = monitor;
+    return () => {
+      monitor.destroy();
+      responseRef.current = null;
+    };
+  }, [src, reloadKey, format]);
 
   // Load the manifest — native on Safari, hls.js everywhere else. Resumes
   // playback itself if this load was triggered by switching episodes while
@@ -1256,9 +1228,10 @@ export function CustomHlsPlayer({
               resumeIfWinner();
             },
             onStatus: setStatus,
+            onResponse: () => responseRef.current?.progress(),
             onTracks: setTracks,
             onFatal: () => {
-              if (!playedRef.current) onFailedRef.current();
+              onFailedRef.current();
             },
           });
           engineRef.current = engine;
@@ -1302,20 +1275,22 @@ export function CustomHlsPlayer({
   const bufferingRef = useRef(false);
   const [preview, setPreview] = useState<FramePreview | null>(null);
   useEffect(() => {
-    if (!isWinner || !member) return;
+    if (!isWinner) return;
     // The preview never takes the line from the episode: it waits while the
     // main picture is short of data.
     // On a slow line the preview uses only frames already played — it never fetches.
     const next = new FramePreview(slowLine() ? null : previewSrc, () => {
       const video = videoRef.current;
       return bufferingRef.current || !video || video.readyState < 3;
-    });
+    }, format);
+    const video = videoRef.current;
+    if (video) next.capture(video);
     setPreview(next);
     return () => {
       next.destroy();
       setPreview(null);
     };
-  }, [previewSrc, isWinner, member]);
+  }, [previewSrc, isWinner, format]);
   const previewRef = useRef(preview);
   previewRef.current = preview;
 
@@ -1531,12 +1506,17 @@ export function CustomHlsPlayer({
       setBuffering(false);
       setStatus({ kind: "ok" });
     };
+    const onCanPlay = () => {
+      bufferingRef.current = false;
+      setBuffering(false);
+      previewRef.current?.capture(video);
+    };
     const onError = () => {
       // hls.js owns its retries; Safari's native HLS needs an explicit error path.
       if (engineRef.current || !video.error) return;
       console.warn("[AnimeShadow] Native video failed", format, video.error.code, video.error.message);
       setStatus({ kind: "failed", reason: `media:${video.error.code}` });
-      if (!playedRef.current) onFailedRef.current();
+      onFailedRef.current();
     };
     const onVolumeChange = () => {
       setVolume(video.volume);
@@ -1552,6 +1532,7 @@ export function CustomHlsPlayer({
     video.addEventListener("pause", onPause);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("playing", onPlaying);
+    video.addEventListener("canplay", onCanPlay);
     video.addEventListener("volumechange", onVolumeChange);
     video.addEventListener("ratechange", onRateChange);
     video.addEventListener("resize", onResize);
@@ -1564,6 +1545,7 @@ export function CustomHlsPlayer({
       video.removeEventListener("pause", onPause);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("ratechange", onRateChange);
       video.removeEventListener("resize", onResize);
@@ -2118,7 +2100,7 @@ export function CustomHlsPlayer({
                 <span className="grid size-12 place-items-center rounded-full bg-rose-500/20 text-rose-300">
                   <WifiOffIcon className="size-6" />
                 </span>
-                <p className="text-sm font-semibold text-white">Поток не отвечает</p>
+                <div className="font-semibold text-white"><LoadingMessage failed /></div>
                 <p className="text-xs leading-relaxed text-white/70">
                   Сервер с видео сейчас не отдаёт эту серию. Попробуйте ещё раз — продолжим с того же места — или выберите другой источник.
                 </p>
@@ -2135,7 +2117,8 @@ export function CustomHlsPlayer({
           ) : (playing && buffering) || status.kind === "retrying" ? (
             <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
               <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-4 py-3 backdrop-blur-sm">
-                <Loader2Icon className="size-8 animate-spin text-white/90" />
+                <Loader2Icon className="size-6 animate-spin text-white/90" />
+                <LoadingMessage />
                 <span className="text-[11px] font-medium text-white/85">
                   {status.kind === "retrying"
                     ? `Связь прервалась — пробуем снова (${status.attempt})`
@@ -2284,9 +2267,9 @@ export function CustomHlsPlayer({
                 labels={{ mute: t("watch.mute"), unmute: t("watch.unmute"), volume: t("watch.ctl.volume") }}
               />
 
-              <span className="ml-1 min-w-0 shrink truncate font-display text-[11px] tabular-nums text-white/85 @md/player:text-xs">
+              <span className="ml-1 shrink-0 whitespace-nowrap font-display text-[11px] tabular-nums text-white/85 @md/player:text-xs">
                 {formatTime(shownTime)}
-                <span className="text-white/45"> / {formatTime(duration)}</span>
+                <span className="hidden text-white/45 @sm/player:inline"> / {formatTime(duration)}</span>
               </span>
 
               <span className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -2313,7 +2296,7 @@ export function CustomHlsPlayer({
                   aria-pressed={!netHidden}
                   aria-label={netHidden ? "Показать скорость интернета" : "Скрыть скорость интернета"}
                   title={netHidden ? "Показать скорость интернета" : "Скрыть скорость интернета"}
-                  className={cn(CONTROL_BUTTON, tone.button, !netHidden && "text-emerald-300")}
+                  className={cn(CONTROL_BUTTON, tone.button, "absolute left-12 top-2 bg-black/40 @sm/player:static @sm/player:bg-transparent", !netHidden && "text-emerald-300")}
                 >
                   <SignalIcon className="size-4" />
                 </button>
@@ -2332,7 +2315,7 @@ export function CustomHlsPlayer({
                   <Settings2Icon
                     className={cn("size-4 transition-transform duration-300", menu === "main" && "rotate-90")}
                   />
-                  {speed !== 1 && <span className="tabular-nums">{speedLabel(speed)}</span>}
+                  {speed !== 1 && <span className="hidden tabular-nums @sm/player:inline">{speedLabel(speed)}</span>}
                 </button>
 
                 {canPip && (
@@ -2404,10 +2387,13 @@ function orientation():
 }
 
 function Player({
+  studio,
+  trackProgress = true,
   autoStart,
   onStarted,
   poster,
   data,
+  episodePoster,
   title,
   animeId,
   episodesTotal,
@@ -2423,9 +2409,12 @@ function Player({
   onAllFailed,
   startAt = null,
 }: {
+  studio?: StudioId | undefined;
+  trackProgress?: boolean;
   autoStart: boolean;
   onStarted: () => void;
   poster?: string | undefined;
+  episodePoster?: string | null;
   /** Opened from a moment: seek here once, on that episode. */
   startAt?: { episode: number; seconds: number } | null;
   data: WatchResponse;
@@ -2449,7 +2438,7 @@ function Player({
   onAllFailed?: (() => void) | undefined;
 }) {
   const navigate = useNavigate();
-  const [partyBusy, setPartyBusy] = useState(false);
+  const [partySetup, setPartySetup] = useState(false);
   const [actuallyPlaying, setActuallyPlaying] = useState(false);
   const { picture } = usePlayerSettings();
   // Picture filters are PRO: without it the saved look isn't applied.
@@ -2461,11 +2450,13 @@ function Player({
   // a stall timer count down on a source that was going to fail anyway.
   // Except when the top pick is already confirmed reachable (see
   // initialRacePool) — then it's shown alone, trusted outright.
+  const linkedStudio = new URLSearchParams(window.location.search).get("studio") === "hon-kon"
+    ? data.sources.find(source => /hon[\s-]*kon/i.test(source.title))?.title ?? null : null;
   const [favouriteDub, setFavouriteDub] = useState<string | null>(() =>
-    readFavouriteDub(animeId),
+    linkedStudio ?? readFavouriteDub(animeId),
   );
   const [racePool, setRacePool] = useState<string[]>(() =>
-    initialRacePool(data.sources, readFavouriteDub(animeId) ?? readWorkingDub(animeId)),
+    initialRacePool(data.sources, linkedStudio ?? readFavouriteDub(animeId) ?? readWorkingDub(animeId)),
   );
   const [winnerId, setWinnerId] = useState<string | null>(null);
   const racePoolRef = useRef(racePool);
@@ -2503,11 +2494,13 @@ function Player({
   // last left off. Only signed-in viewers get anywhere with this (nothing
   // persists for an anonymous visit), so the control itself only shows for
   // them — no point offering a stepper that quietly does nothing.
-  const { data: progress } = useAnimeProgress(animeId, authed);
+  const progressOwner = useAuth().user?.id;
+  const { data: savedProgress } = useAnimeProgress(animeId, authed && trackProgress, progressOwner);
+  const progress = trackProgress && authed ? savedProgress : undefined;
   const watchedEpisodes = useMemo(() => {
-    const map = new Map<number, { completed: boolean; position: number }>();
+    const map = new Map<number, { completed: boolean; position: number; duration: number | null }>();
     for (const row of progress?.episodes ?? []) {
-      map.set(row.episode, { completed: row.completed, position: row.positionSeconds });
+      map.set(row.episode, { completed: row.completed, position: row.positionSeconds, duration: row.durationSeconds });
     }
     return map;
   }, [progress]);
@@ -2531,37 +2524,20 @@ function Player({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const watching = winnerId != null && inView && actuallyPlaying;
+  const watching = trackProgress && winnerId != null && inView && actuallyPlaying;
 
-  useEpisodeTracking({
-    animeId,
-    episode,
-    seedPosition: episodeRecord?.positionSeconds ?? 0,
-    active: watching,
-    runtime,
-    alreadyDone: episodeRecord?.completed ?? false,
-  });
   useWatchSession({ animeId, episode, active: watching });
-  const update = useUpdateProgress(animeId);
+  const update = useUpdateProgress(animeId, progressOwner);
 
-  // Stall watch for the current race batch — cleared the instant any of them
-  // loads. If the whole batch times out, retire it and pull the next one; a
-  // shorter fuse each round, since by then we're already in "keep hunting"
-  // mode and every extra second is one the first attempt already spent.
-  // A direct HLS stream legitimately takes longer to answer than an iframe
-  // — hls.js has to load, then fetch and parse the manifest — so judging
-  // both on the same six-second fuse is what kept retiring a perfectly
-  // good custom player in favour of an iframe that merely fired `onLoad`
-  // sooner. Our own player gets a fuse long enough to actually finish.
-  const hlsStallMs = 20_000;
+  // Direct players monitor actual data, including stalls after playback began.
+  // Only iframe sources need this coarse load timeout.
   useEffect(() => {
     if (winnerId != null || racePool.length === 0) return;
     const poolHasHls = racePool.some(
       (id) => { const format = data.sources.find((s) => s.id === id)?.format; return format === "hls" || format === "mp4"; },
     );
-    const timeout = poolHasHls
-      ? hlsStallMs
-      : triedIds.length === 0
+    if (poolHasHls) return;
+    const timeout = triedIds.length === 0
         ? STALL_MS
         : STALL_MS_RETRY;
     const timer = setTimeout(() => {
@@ -2639,6 +2615,11 @@ function Player({
   const lastDuration = useRef(0);
   const handoff = useRef<{ episode: number; seconds: number } | null>(null);
   const resumeAt = useRef<number | null>(null);
+  useEpisodeTracking({
+    animeId, episode, seedPosition: episodeRecord?.positionSeconds ?? 0,
+    active: watching, runtime, alreadyDone: episodeRecord?.completed ?? false,
+    readClock: () => ({ position: lastTime.current, duration: lastDuration.current }),
+  });
 
   // A comment's moment, chosen on the page: same episode — seek; another — switch and start there.
   const [jump, setJump] = useState<JumpDetail | null>(null);
@@ -2701,27 +2682,11 @@ function Player({
   // A guest's speed and quality last for the page; a member's are remembered.
   useEffect(() => persistPlayerSettings(authed), [authed]);
 
-  // Switched to another episode (or left) having watched three quarters of
-  // this one: it's seen — ticked without waiting for the very end, which
-  // nobody sits through with the credits rolling.
-  const watchedRef = useRef(watchedEpisodes);
-  watchedRef.current = watchedEpisodes;
+  // Tracking flushes the previous episode before this effect clears its clock.
   useEffect(() => {
     lastTime.current = 0;
     lastDuration.current = 0;
-    const leaving = episode;
-    return () => {
-      if (!authed) return;
-      const at = lastTime.current;
-      const length = lastDuration.current || (runtimeMinutes(runtime) ?? 0) * 60;
-      if (length <= 0 || at / length < COMPLETE_AT || watchedRef.current.get(leaving)?.completed) return;
-      update.mutate(
-        { episode: leaving, positionSeconds: Math.round(at), completed: true },
-        { onSuccess: () => toast.success(`Серия ${leaving} отмечена просмотренной`, { description: "Досмотрено больше трёх четвертей" }) },
-      );
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [episode, authed]);
+  }, [episode]);
 
   const fold = async () => {
     if (pipWin) {
@@ -3028,6 +2993,7 @@ function Player({
                 resumeExact={handoff.current?.episode === episode || momentStart != null}
                 onEnded={handleEnded}
                 onTime={(time, length) => {
+                  if (!isWinner) return;
                   lastTime.current = time;
                   if (length > 0) lastDuration.current = length;
                   if (isWinner) publishClock(animeId, episode, time);
@@ -3104,7 +3070,7 @@ function Player({
   return (
     <div
       ref={containerRef}
-      className="flex w-full min-w-0 flex-col gap-2.5"
+      className="watch-panel flex w-full min-w-0 flex-col gap-2.5"
     >
       {/* Current pick, one line — the episode control lives right in it
           (only for signed-in viewers: nothing persists otherwise, so a
@@ -3112,7 +3078,7 @@ function Player({
           instead of floating on its own row above the player. One card
           instead of bare text/buttons on the page background, so the whole
           row reads as a single control bar. */}
-      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 px-2 py-2 text-sm sm:px-3">
+      <div className="watch-toolbar flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card/60 p-2 text-sm sm:px-3">
         {(canUseOwn || canUseProvider) && (
           <PlayerSwitch
             useOwn={useOwn}
@@ -3148,29 +3114,24 @@ function Player({
           {winnerId != null && (
             <button
               type="button"
-              disabled={partyBusy}
               onClick={() => {
                 if (!authed) {
                   navigate("/login", { state: { from: window.location.pathname } });
                   return;
                 }
-                setPartyBusy(true);
-                void apiRequest<{ code: string }>("/party", { method: "POST", body: { animeId, episode } })
-                  .then(({ code }) => navigate(`/party/${code}`))
-                  .catch((error: unknown) =>
-                    toast.error(error instanceof ApiRequestError ? error.message : "Не получилось создать комнату", {
-                      action: { label: "PRO", onClick: () => navigate("/support") },
-                    }),
-                  )
-                  .finally(() => setPartyBusy(false));
+                setPartySetup(true);
               }}
               title="Смотреть вместе с друзьями — до 10 человек, с чатом"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] px-3 text-xs font-semibold text-foreground/85 transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60"
+              className="inline-flex size-8 items-center justify-center gap-1.5 rounded-full border border-[var(--accent-line-soft)] text-xs font-semibold text-foreground/85 transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60 sm:w-auto sm:px-3"
             >
-              {partyBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : <UsersIcon className="size-3.5" />}
+              <UsersIcon className="size-3.5" />
               <span className="hidden sm:inline">Вместе</span>
             </button>
           )}
+          {partySetup && <PartySetupDialog
+            open onClose={() => setPartySetup(false)} animeId={animeId} episode={episode} title={title}
+            studio={studio ?? (new URLSearchParams(window.location.search).get("studio") === "hon-kon" ? "hon-kon" : undefined)}
+          />}
           {/* The picture's look — for any player, Kodik's included (the filter sits on its frame). */}
           {winnerId != null && (
             <Popover>
@@ -3257,7 +3218,7 @@ function Player({
           case even this doesn't help. */}
       {exhausted && (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-card/40 p-4 text-center">
-          <p className="text-sm text-muted-foreground">{t("watch.allFailedHint")}</p>
+          <LoadingMessage failed />
           <Button size="sm" onClick={retryAll}>
             <RefreshCwIcon />
             {t("watch.retry")}
@@ -3323,9 +3284,10 @@ function Player({
           onEpisodeChange={onEpisodeChange}
           catalog={catalog}
           fallbackDuration={runtime}
+          fallbackPoster={episodePoster}
           currentEpisodes={episodesOf(displaySource)}
           watched={watchedEpisodes}
-          canMark={authed}
+          canMark={authed && trackProgress}
           onToggleWatched={toggleWatched}
           sources={pickable}
           currentSourceId={displaySource.id}
@@ -3546,7 +3508,7 @@ function PlayerSwitch({ useOwn, canUseOwn, canUseProvider, onChange }: {
 }) {
   return (
     <Select value={useOwn ? "own" : "kodik"} onValueChange={(value) => onChange(value === "own")}>
-      <SelectTrigger aria-label="Выбрать плеер" className="h-9 max-w-full shrink-0 gap-2 bg-primary/5 text-xs">
+      <SelectTrigger aria-label="Выбрать плеер" className="h-9 w-30 max-w-full shrink-0 gap-1 bg-primary/5 px-2 text-[11px] sm:w-auto sm:gap-2 sm:text-xs">
         {useOwn && <LogoGlyph className="size-4 text-primary" />}
         <SelectValue>{useOwn ? "Свой плеер" : "Kodik Player"}</SelectValue>
       </SelectTrigger>

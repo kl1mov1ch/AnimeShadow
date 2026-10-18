@@ -43,9 +43,10 @@ export function Component() {
   // The minute on each card moves on by itself between refreshes.
   const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 1000);
+    if (!(data?.rooms ?? []).some(room => room.playing)) return;
+    const id = setInterval(() => tick((n) => n + 1), 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [data]);
   const fetchedAt = dataUpdatedAt;
 
   const rooms = (data?.rooms ?? []).filter((r) => {
@@ -84,7 +85,7 @@ export function Component() {
           <button
             type="button"
             onClick={create}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-md shadow-primary/25 transition-transform active:scale-95"
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <PlusIcon className="size-4" />
             Создать комнату
@@ -213,13 +214,11 @@ function RoomCard({ room, drift }: { room: PartyListing; drift: number }) {
   const title = room.anime.titleLocalized || room.anime.title;
   const V = VISIBILITY[room.visibility];
   return (
-    <article className="group relative isolate flex flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-card/60 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-primary/40">
-      {room.anime.imageUrl && (
-        <img src={imageSrc(room.anime.imageUrl, 240)} alt="" aria-hidden loading="lazy" decoding="async" className="absolute inset-0 -z-10 size-full scale-125 object-cover opacity-20 blur-2xl" />
-      )}
+    <article className="group relative isolate flex flex-col overflow-hidden rounded-2xl border border-[var(--accent-line-soft)] bg-card/60 transition-colors hover:border-primary/40">
+      {(room.anime.coverUrl || room.anime.imageUrl) && <div className="relative h-32 overflow-hidden bg-secondary"><img src={imageSrc(room.anime.coverUrl || room.anime.imageUrl, 960)} alt="" loading="lazy" decoding="async" className="size-full object-cover" onError={(event) => { const fallback = imageSrc(room.anime.imageUrl, 480); if (fallback && event.currentTarget.getAttribute("src") !== fallback) event.currentTarget.src = fallback; }} /></div>}
       <div className="flex gap-3 p-3">
-        <span className="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-white/10">
-          {room.anime.imageUrl && <img src={imageSrc(room.anime.imageUrl, 240)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
+        <span className="relative aspect-[2/3] w-14 sm:w-16 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-white/10">
+          {room.anime.imageUrl && <img src={imageSrc(room.anime.imageUrl, 480)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
           <span className={cn("absolute left-1 top-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold", room.playing ? "bg-rose-500 text-white" : "bg-black/70 text-white/80")}>
             {room.playing ? <span className="size-1.5 animate-pulse rounded-full bg-white" /> : <PauseIcon className="size-2.5" />}
             {room.playing ? "LIVE" : "пауза"}
@@ -257,7 +256,7 @@ function RoomCard({ room, drift }: { room: PartyListing; drift: number }) {
           ))}
         </span>
         <span className="text-xs tabular-nums text-muted-foreground">
-          <b className="text-foreground">{room.members}</b>/{PARTY_MAX}
+          <b className="text-foreground">{room.members}</b>/{room.capacity ?? PARTY_MAX}
         </span>
         {room.full ? (
           <span className="ml-auto rounded-xl bg-foreground/[0.07] px-3 py-2 text-xs font-semibold text-muted-foreground">Мест нет</span>

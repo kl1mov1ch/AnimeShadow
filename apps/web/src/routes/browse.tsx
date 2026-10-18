@@ -15,7 +15,7 @@ import {
   TrophyIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
 import { BrowseFilters, type FilterPatch } from "@/components/anime/browse-filters";
@@ -187,13 +187,17 @@ export function Component() {
   return (
     <div className="flex min-w-0 flex-col gap-5 sm:gap-6">
       <header className="flex flex-col gap-4 border-b border-border/40 pb-4 sm:pb-5">
-        <div className="flex items-baseline justify-between gap-x-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h1 className="font-display text-xl sm:text-3xl">{t("browse.pageTitle")}</h1>
           {total != null && (!isSearch || searchWithFilters) && (
             <p className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-sm">{titlesCount(total)}</p>
           )}
         </div>
         <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <button type="button" aria-pressed={params.dubbingStudio === "hon-kon"} onClick={() => patch({ dubbingStudio: params.dubbingStudio ? null : "hon-kon" })} className={cn("inline-flex min-h-9 items-center gap-2 rounded-xl border px-3 transition-colors", params.dubbingStudio ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>Озвучка Hon-Kon Studio</button>
+          <Link to="/studio/hon-kon/releases" className="text-muted-foreground underline-offset-4 hover:text-primary hover:underline">Релизы студии</Link>
+        </div>
       </header>
 
       <div className="flex flex-col gap-4">
@@ -201,7 +205,7 @@ export function Component() {
         <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
           {/* The row: filters (on a phone or tablet), the order, and on a
               wider screen "pick one at random" and grid or list. */}
-          <div ref={toolbarRef} className="flex items-center gap-2">
+          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
@@ -219,7 +223,7 @@ export function Component() {
               )}
             </button>
             {isSearch && <h2 className="min-w-0 flex-1 truncate font-display text-lg">«{params.q}»</h2>}
-            <div className={cn("min-w-0", isSearch ? "w-36 shrink-0 sm:w-48" : "flex-1 sm:w-56 sm:flex-none")}>{sort}</div>
+            <div className={cn("min-w-0", isSearch ? "order-3 w-full sm:order-none sm:w-48" : "min-w-32 flex-1 sm:w-56 sm:flex-none")}>{sort}</div>
             {!isSearch && <RandomButton params={params} />}
             <ViewSwitch view={view} onView={changeView} />
           </div>

@@ -33,6 +33,7 @@ export interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined | null>;
   /** Let the request outlive the page — for the last flush on tab close. */
   keepalive?: boolean;
+  cache?: RequestCache;
 }
 
 /** A guest's own birth date (YYYY-MM-DD), typed on an 18+ title's page — sent so the server can open R+. */
@@ -75,6 +76,7 @@ export async function apiRequest<T>(
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
       keepalive: options.keepalive,
+      cache: options.cache,
     });
   } catch {
     throw new ApiRequestError(

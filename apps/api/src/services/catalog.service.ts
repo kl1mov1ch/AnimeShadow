@@ -1781,6 +1781,9 @@ export class CatalogService {
     if (query.studio) {
       where.studios = { has: query.studio };
     }
+    if (query.dubbingStudio === "hon-kon") {
+      where.playerSources = { some: { title: { contains: "hon-kon", mode: "insensitive" } } };
+    }
     if (query.rating) {
       const RATING: Record<string, string[]> = {
         g: ["G"],
@@ -1840,7 +1843,7 @@ function hasBasicFilters(query: AnimeQuery): boolean {
 /** Whether a query uses anything only the local catalogue can answer. */
 function needsLocalFilters(query: AnimeQuery): boolean {
   return Boolean(
-    query.studio ||
+    query.studio || query.dubbingStudio ||
       query.rating ||
       query.hasPlayer ||
       query.hasCustomPlayer ||

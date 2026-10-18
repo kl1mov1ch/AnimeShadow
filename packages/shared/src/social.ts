@@ -104,6 +104,8 @@ export interface NotifySettings {
     /** It tried and was blocked: press Start in the bot again. */
     blocked: boolean;
     enabled: boolean;
+    /** Server diagnostics; sign-in and message delivery are separate. */
+    issue?: "token-rejected" | "unreachable" | "not-configured" | "receiver-disabled" | null;
   };
   push: {
     available: boolean;

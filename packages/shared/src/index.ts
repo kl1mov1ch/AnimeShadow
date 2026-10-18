@@ -25,6 +25,7 @@ export * from "./promo.js";
 export * from "./referral.js";
 export * from "./schedule.js";
 export * from "./party.js";
+export * from "./studios.js";
 export * from "./mobile-navigation.js";
 export * from "./legal.js";
 

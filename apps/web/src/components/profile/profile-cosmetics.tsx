@@ -144,6 +144,18 @@ const TITLE_STYLE: Record<
   string,
   { icon: LucideIcon; c1: string; c2: string; fx: "shimmer" | "neon" | "glitch" | "aurora" }
 > = {
+  "thousand-episodes": { icon: MedalIcon, c1: "#fbbf24", c2: "#e2e8f0", fx: "shimmer" },
+  "three-thousand-episodes": { icon: CrownIcon, c1: "#fb7185", c2: "#e2e8f0", fx: "shimmer" },
+  "ten-series": { icon: CheckCheckIcon, c1: "#34d399", c2: "#e2e8f0", fx: "shimmer" },
+  "twenty-five-series": { icon: LibraryIcon, c1: "#38bdf8", c2: "#e2e8f0", fx: "shimmer" },
+  "fifty-series": { icon: CompassIcon, c1: "#fbbf24", c2: "#e2e8f0", fx: "shimmer" },
+  "review-explorer": { icon: GemIcon, c1: "#fb7185", c2: "#e2e8f0", fx: "shimmer" },
+  "collection-architect": { icon: LibraryIcon, c1: "#34d399", c2: "#e2e8f0", fx: "shimmer" },
+  "collection-library": { icon: GemIcon, c1: "#38bdf8", c2: "#e2e8f0", fx: "shimmer" },
+  "curator-crowd": { icon: SparklesIcon, c1: "#fbbf24", c2: "#e2e8f0", fx: "shimmer" },
+  "century-comments": { icon: CoffeeIcon, c1: "#fb7185", c2: "#e2e8f0", fx: "shimmer" },
+  "guess-century": { icon: TvIcon, c1: "#34d399", c2: "#e2e8f0", fx: "shimmer" },
+  "genre-master": { icon: ZapIcon, c1: "#38bdf8", c2: "#e2e8f0", fx: "shimmer" },
   newcomer: { icon: SproutIcon, c1: "#34d399", c2: "#d1fae5", fx: "shimmer" },
   "first-steps": { icon: FootprintsIcon, c1: "#38bdf8", c2: "#e0f2fe", fx: "shimmer" },
   "night-watch": { icon: MoonStarIcon, c1: "#818cf8", c2: "#e0e7ff", fx: "neon" },
@@ -161,24 +173,6 @@ const TITLE_STYLE: Record<
   benefactor: { icon: HeartHandshakeIcon, c1: "#f472b6", c2: "#fde68a", fx: "aurora" },
 };
 
-/** Where the sparks fly when a title is hovered: x, y in px, delay in s. */
-const SPARKS: Array<[number, number, number]> = [
-  [-14, -12, 0],
-  [12, -14, 0.05],
-  [20, 2, 0.1],
-  [-20, 4, 0.08],
-  [4, -18, 0.12],
-];
-
-/**
- * The line under the name, as a small living badge — each title with its
- * own mark and colours. A light crosses it now and then; under the pointer
- * it lifts and glows, its mark turns, sparks fly off it and its text does
- * its own trick, and a card says what the title is and how it was (or is)
- * earned. Fixed, earned, and hideable: picking nothing is a real choice.
- */
-/** A title as a small round mark — its icon on its own colours — for
- *  places with no room for the whole badge. */
 export function TitleMark({ title, size = 46, className }: { title: string; size?: number; className?: string }) {
   const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
   const Icon = style.icon;
@@ -216,7 +210,7 @@ export function ProfileTitleBadge({
     <span
       data-fx={style.fx}
       className={cn(
-        "ptitle relative isolate inline-flex shrink-0 cursor-default items-center gap-1 overflow-visible rounded-full border font-bold tracking-wide",
+        "inline-flex max-w-full cursor-default items-center gap-1.5 overflow-hidden rounded-lg border font-medium",
         size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
         className,
       )}
@@ -229,24 +223,13 @@ export function ProfileTitleBadge({
         } as React.CSSProperties
       }
     >
-      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-        <span className="ptitle-sheen absolute inset-y-0 left-0 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent" />
-      </span>
-      <Icon className={cn("ptitle-icon relative", size === "md" ? "size-3.5" : "size-3")} style={{ color: style.c1 }} />
+      <Icon className={cn("shrink-0", size === "md" ? "size-3.5" : "size-3")} style={{ color: style.c1 }} />
       <span
-        className="ptitle-text relative"
-        style={{ backgroundImage: `linear-gradient(90deg, ${style.c1}, ${style.c2})`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
+        className="truncate"
+        style={{ color: style.c1 }}
       >
         {label}
       </span>
-      {SPARKS.map(([x, y, d], i) => (
-        <span
-          key={i}
-          aria-hidden
-          className="ptitle-spark pointer-events-none absolute left-1/2 top-1/2 size-1 rounded-full"
-          style={{ "--x": `${x}px`, "--y": `${y}px`, "--d": `${d}s`, background: i % 2 ? style.c1 : style.c2, boxShadow: `0 0 6px ${style.c1}` } as React.CSSProperties}
-        />
-      ))}
     </span>
   );
 

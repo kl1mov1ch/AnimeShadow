@@ -70,6 +70,18 @@ export type AvatarFrame = (typeof AVATAR_FRAMES)[number]["id"];
  * that actually happened.
  */
 export const PROFILE_TITLES = [
+  { id: "thousand-episodes", requires: "thousand-episodes" },
+  { id: "three-thousand-episodes", requires: "three-thousand-episodes" },
+  { id: "ten-series", requires: "ten-series" },
+  { id: "twenty-five-series", requires: "twenty-five-series" },
+  { id: "fifty-series", requires: "fifty-series" },
+  { id: "review-explorer", requires: "review-explorer" },
+  { id: "collection-architect", requires: "collection-architect" },
+  { id: "collection-library", requires: "collection-library" },
+  { id: "curator-crowd", requires: "curator-crowd" },
+  { id: "century-comments", requires: "century-comments" },
+  { id: "guess-century", requires: "guess-century" },
+  { id: "genre-master", requires: "genre-master" },
   { id: "newcomer", requires: null },
   { id: "first-steps", requires: "first-episode" },
   { id: "night-watch", requires: "night-owl" },

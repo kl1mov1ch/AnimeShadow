@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@animeshadow/db";
 import { contentGuardWhere } from "../lib/content-guard.js";
+import { EXTRA_FACTS } from "../data/extra-facts.js";
 
 export type FactKind = "history" | "record" | "drama" | "trivia";
 
@@ -11,6 +12,7 @@ export interface AnimeFact {
   /** A short headline. */
   title: string;
   text: string;
+  source?: string;
   anime: { id: number; slug: string; title: string; image: string | null } | null;
 }
 
@@ -22,6 +24,7 @@ export interface FactsServiceDeps {
 interface Written {
   id: string;
   kind: FactKind;
+  source?: string;
   year: number | null;
   title: string;
   text: string;
@@ -119,8 +122,9 @@ const FACTS: Written[] = [
     id: "spirited-oscar",
     kind: "record",
     year: 2003,
-    title: "Единственный «Оскар» аниме",
-    text: "«Унесённые призраками» получили «Оскар» за лучший анимационный фильм — первый и пока единственный японский рисованный фильм с этой наградой. Миядзаки на церемонию не приехал в знак протеста против войны в Ираке.",
+    title: "Чихиро на «Оскаре»",
+    text: "В 2003 году «Унесённые призраками» получили «Оскар» за лучший анимационный фильм. Ещё одна работа Миядзаки, «Мальчик и птица», победила в этой категории в 2024 году.",
+    source: "https://www.oscars.org/oscars/ceremonies/2003",
     animeId: 199,
   },
   {
@@ -144,7 +148,7 @@ const FACTS: Written[] = [
     kind: "history",
     year: 2009,
     title: "Почему «Стальной алхимик» есть дважды",
-    text: "Аниме 2003 года догнало ещё не законченную мангу и придумало собственный финал. Когда манга завершилась, в 2009 году сняли «Братство» — уже точно по сюжету Хирому Аракавы.",
+    text: "У аниме «Стальной алхимик» 2003 года собственное развитие истории и финал. Вторая экранизация, «Братство», стартовала в 2009 году и следует истории манги Хирому Аракавы.",
     animeId: 5114,
   },
   {
@@ -259,6 +263,7 @@ const FACTS: Written[] = [
     text: "«Гинтама» так часто пародировала другие аниме и рекламу, что в эфире иногда закрывала шутки цензурой и смайликами — и сами эти заплатки стали частью юмора.",
     animeId: 918,
   },
+  ...EXTRA_FACTS,
 ];
 
 /** Everything about the facts is fixed text; only the posters come from the catalogue. */
@@ -286,7 +291,9 @@ export class FactsService {
       select: { id: true, slug: true, title: true, titleLocalized: true, imageUrl: true, imageLargeUrl: true },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
-    this.cache = FACTS.filter((fact) => fact.animeId == null || byId.has(fact.animeId)).map(({ animeId, ...fact }) => {
+    // Facts remain useful before their anime is imported. Only attach artwork
+    // and a watch link when an accessible catalogue entry actually exists.
+    this.cache = FACTS.map(({ animeId, ...fact }) => {
       const a = animeId != null ? byId.get(animeId) : undefined;
       return {
         ...fact,

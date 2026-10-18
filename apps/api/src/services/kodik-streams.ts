@@ -117,9 +117,14 @@ export function kodikCustomSource(
 ): WatchSource | null {
   const translationId = source.id.replace(/^kodik:/, "");
   if (!/^\d+$/.test(translationId)) return null;
-  const episodes = Object.keys(source.iframeEpisodes ?? {}).filter((key) =>
-    /^[1-9]\d*$/.test(key),
-  );
+  const seen = new Set<string>();
+  const episodes = Object.entries(source.iframeEpisodes ?? {})
+    .filter(([key, entry]) => {
+      if (!/^[1-9]\d*$/.test(key) || !entry.url || seen.has(entry.url)) return false;
+      seen.add(entry.url);
+      return true;
+    })
+    .map(([key]) => key);
   if (
     episodes.length === 0 &&
     (source.episodesCount == null || source.episodesCount <= 1)
@@ -134,7 +139,11 @@ export function kodikCustomSource(
     stable: null,
     providerPlayer: {
       url: source.embedUrl,
-      episodes: Object.fromEntries(Object.entries(source.iframeEpisodes ?? {}).map(([n, e]) => [n, e.url])),
+      episodes: Object.fromEntries(
+        Object.entries(source.iframeEpisodes ?? {})
+          .filter(([n]) => episodes.includes(n))
+          .map(([n, e]) => [n, e.url]),
+      ),
     },
     hlsEpisodes: Object.fromEntries(
       episodes.map((episode) => [
@@ -143,6 +152,18 @@ export function kodikCustomSource(
       ]),
     ),
     hlsVariants: undefined,
+    episodeMeta: Object.fromEntries(
+      episodes.map((episode) => [
+        episode,
+        {
+          ...source.episodeMeta?.[episode],
+          thumb:
+            source.episodeMeta?.[episode]?.thumb ??
+            source.iframeEpisodes?.[episode]?.thumbs[0] ??
+            null,
+        },
+      ]),
+    ),
     iframeEpisodes: undefined,
   };
 }

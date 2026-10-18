@@ -22,6 +22,7 @@ import { useServerHeadHandoff } from "@/hooks/use-server-head-handoff";
 export function AppShell() {
   // Re-key the outlet per top-level path so the .route-fade animation replays.
   const { pathname } = useLocation();
+  const studioPage = /^\/studio\/hon-kon(?:\/(?:releases|workspace))?\/?$/.test(pathname);
   const routeKey = pathname.split("/").slice(0, 3).join("/");
   usePageviewBeacon();
   useExternalAnalytics();
@@ -40,6 +41,7 @@ export function AppShell() {
   return (
     <TooltipProvider delayDuration={300} skipDelayDuration={500}>
       <div className="flex min-h-dvh flex-col pb-[var(--mobile-nav-space)]">
+        <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-50 h-[env(safe-area-inset-top)] bg-background" />
         <SiteHeader />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:py-10">
           <div key={routeKey} className="route-fade">
@@ -54,8 +56,8 @@ export function AppShell() {
       <SearchCommandMount />
       <Toaster position="bottom-right" />
       <AchievementWatcher />
-      <GuestNudge />
-      <PushOffer />
+      {!studioPage && <GuestNudge />}
+      {!studioPage && <PushOffer />}
       <CookieConsent />
       <NavProgress />
       <ReferralWatcher />

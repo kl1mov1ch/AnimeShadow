@@ -6,6 +6,7 @@ import type { PrismaClient } from "@animeshadow/db";
 import type { NotifySettings, ScheduleItem } from "@animeshadow/shared";
 import type { FastifyBaseLogger } from "fastify";
 import webpush from "web-push";
+import { UpstreamUnavailableError } from "../lib/errors.js";
 import { type BotAnswer, BOT_COMMANDS, commandOf, REPLY_KEYBOARD, TelegramCommands } from "./telegram-commands.js";
 
 /** A new-episode line just written for someone (see NotificationService.observe). */
@@ -88,6 +89,9 @@ function episodeLine(n: { episode: number; fromEpisode: number | null }): string
  */
 export class DeliveryService {
   private botName: string | null = null;
+  private botLookup: Promise<string | null> | null = null;
+  private botRetryAt = 0;
+  private botIssue: NotifySettings["telegram"]["issue"] = null;
   private lastNetWarn = 0;
   private polling = false;
   private stopPolling: AbortController | null = null;
@@ -129,20 +133,22 @@ export class DeliveryService {
   // ---- settings ------------------------------------------------------------
 
   async settings(userId: string): Promise<NotifySettings> {
-    const [user, devices] = await Promise.all([
+    const [user, devices, bot] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
         select: { telegramId: true, telegramChatId: true, telegramBlockedAt: true, notifyTelegram: true, notifyPush: true },
       }),
       this.prisma.pushSubscription.count({ where: { userId } }),
+      this.botUsername(),
     ]);
     return {
       telegram: {
-        available: this.telegramReady,
-        bot: this.telegramReady ? await this.botUsername() : null,
-        connected: Boolean(user?.telegramChatId ?? user?.telegramId),
+        available: Boolean(bot),
+        bot,
+        connected: Boolean(user?.telegramChatId),
         blocked: user?.telegramBlockedAt != null,
         enabled: user?.notifyTelegram ?? true,
+        issue: !this.telegramReady ? "not-configured" : !bot ? this.botIssue ?? "unreachable" : !this.config.telegramPolling ? "receiver-disabled" : null,
       },
       push: {
         available: this.pushReady,
@@ -169,8 +175,9 @@ export class DeliveryService {
   /** "Подключить Telegram": a link that opens the bot with a one-time code. */
   async telegramLink(userId: string): Promise<{ url: string }> {
     const bot = await this.botUsername();
-    if (!bot) throw new Error("Telegram bot is not configured");
-    const code = randomBytes(9).toString("base64url");
+    if (!bot) throw new UpstreamUnavailableError(this.botIssue === "token-rejected" ? "Telegram отклонил токен бота. Администратору нужно обновить его на сервере." : "Не удалось связаться с Telegram-ботом. Попробуйте позже.");
+    if (!this.config.telegramPolling) throw new UpstreamUnavailableError("Приём команд Telegram отключён на этом сервере. Привязка станет доступна после его включения администратором.");
+    const code = randomBytes(24).toString("base64url");
     await this.prisma.$transaction([
       this.prisma.telegramLinkCode.deleteMany({ where: { OR: [{ userId }, { expiresAt: { lt: new Date() } }] } }),
       this.prisma.telegramLinkCode.create({ data: { code, userId, expiresAt: new Date(Date.now() + LINK_TTL_MS) } }),
@@ -208,6 +215,15 @@ export class DeliveryService {
   async unsubscribe(userId: string, endpoint: string) {
     await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
     return this.settings(userId);
+  }
+
+  /** A browser subscription alone does not prove it is registered to this account. */
+  async pushStatus(userId: string, endpoint: string): Promise<{ registered: boolean; enabled: boolean }> {
+    const [count, user] = await Promise.all([
+      this.prisma.pushSubscription.count({ where: { userId, endpoint } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { notifyPush: true } }),
+    ]);
+    return { registered: count > 0, enabled: this.pushReady && Boolean(user?.notifyPush) };
   }
 
   /** A guest agreed: this browser hears about new episodes of what it watched. */
@@ -272,15 +288,24 @@ export class DeliveryService {
   }
 
   /** "Проверить": one message by every channel that is on. */
-  async test(userId: string): Promise<{ telegram: boolean; push: number }> {
+  async test(userId: string, channel: "all" | "telegram" | "push" = "all"): Promise<{ telegram: boolean; push: number; telegramError?: string }> {
     const url = `${this.config.appUrl}/library#new-episodes`;
-    const telegram = await this.sendTelegramTo(
+    const telegram = channel !== "push" && await this.sendTelegramTo(
       userId,
       "🔔 <b>Проверка уведомлений AnimeShadow</b>\n\nВсё работает: сюда придут новые серии из «Смотрю», «В планах» и «Отложено».",
       [{ text: "Мой список", url }],
     );
-    const push = await this.pushTo(userId, { title: "AnimeShadow", body: "Уведомления работают — новые серии придут сюда.", url, tag: "test" });
-    return { telegram, push };
+    const push = channel === "telegram" ? 0 : await this.pushTo(userId, { title: "AnimeShadow", body: "Уведомления работают — новые серии придут сюда.", url, tag: "test" });
+    if (channel === "push" || telegram) return { telegram, push };
+    const settings = await this.settings(userId);
+    const tg = settings.telegram;
+    const telegramError = tg.issue === "token-rejected" ? "Telegram отклонил токен бота на сервере (401). Нужен действующий токен из BotFather."
+      : !tg.available ? "Сервер не может подключиться к Telegram-боту."
+      : tg.blocked ? "Разблокируйте бота в Telegram и нажмите Start."
+      : !tg.connected ? "Вход через Telegram выполнен, но чат для уведомлений ещё не подключён. Нажмите «Привязать свой Telegram» и Start."
+      : !tg.enabled ? "Уведомления Telegram выключены в настройках профиля."
+      : "Telegram не принял сообщение. Откройте бота и нажмите Start, затем повторите проверку.";
+    return { telegram, push, telegramError };
   }
 
   /** One message to one person, by every channel they have on (a watch-together invite). */
@@ -441,9 +466,15 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
 
   async botUsername(): Promise<string | null> {
     if (this.botName || !this.telegramReady) return this.botName;
-    const me = await this.call("getMe", {});
-    this.botName = me.ok ? ((me.result as { username?: string }).username ?? null) : null;
-    return this.botName;
+    if (this.botLookup) return this.botLookup;
+    if (Date.now() < this.botRetryAt) return null;
+    this.botLookup = this.call("getMe", {}).then((me) => {
+      this.botName = me.ok ? ((me.result as { username?: string }).username ?? null) : null;
+      this.botIssue = this.botName ? null : me.error_code === 401 ? "token-rejected" : "unreachable";
+      if (!this.botName) this.botRetryAt = Date.now() + 60_000;
+      return this.botName;
+    }).finally(() => { this.botLookup = null; });
+    return this.botLookup;
   }
 
   /** Reads the bot's chats (/start CODE, /start, /stop, /status) until stopped. */
@@ -507,22 +538,29 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
     // "/stats@AnimeShadowBot" is "/stats".
     const command = raw?.replace(/@\w+$/, "").toLowerCase();
     const settingsUrl = `${this.config.appUrl}/profile?studio=notify`;
-    const owner = () =>
-      this.prisma.user.findFirst({ where: { OR: [{ telegramChatId: chat }, { telegramId: chat }] }, select: { id: true, displayName: true, notifyTelegram: true } });
+    const owner = async () => {
+      const select = { id: true, displayName: true, notifyTelegram: true } as const;
+      return await this.prisma.user.findFirst({ where: { telegramChatId: chat }, select })
+        ?? this.prisma.user.findUnique({ where: { telegramId: chat }, select });
+    };
 
     if (command === "/start" && arg) {
-      const link = await this.prisma.telegramLinkCode.findUnique({ where: { code: arg } });
-      if (!link || link.expiresAt < new Date()) {
+      const linkedUserId = await this.prisma.$transaction(async (tx) => {
+        const link = await tx.telegramLinkCode.findUnique({ where: { code: arg } });
+        if (!link || link.expiresAt < new Date()) return null;
+        // Consume once in the same transaction as the binding. Two simultaneous
+        // Start messages cannot both claim a link or bind different chats.
+        const consumed = await tx.telegramLinkCode.deleteMany({ where: { code: arg, expiresAt: { gte: new Date() } } });
+        if (consumed.count !== 1) return null;
+        await tx.user.updateMany({ where: { telegramChatId: chat, id: { not: link.userId } }, data: { telegramChatId: null, notifyTelegram: false } });
+        await tx.user.update({ where: { id: link.userId }, data: { telegramChatId: chat, telegramBlockedAt: null, notifyTelegram: true } });
+        return link.userId;
+      });
+      if (!linkedUserId) {
         await this.reply(chat, "Ссылка устарела. Откройте настройки уведомлений на сайте и нажмите «Подключить Telegram» ещё раз.", [{ text: "Настройки", url: settingsUrl }]);
         return;
       }
-      // One chat, one account.
-      await this.prisma.$transaction([
-        this.prisma.user.updateMany({ where: { telegramChatId: chat, id: { not: link.userId } }, data: { telegramChatId: null } }),
-        this.prisma.user.update({ where: { id: link.userId }, data: { telegramChatId: chat, telegramBlockedAt: null, notifyTelegram: true } }),
-        this.prisma.telegramLinkCode.delete({ where: { code: arg } }),
-      ]);
-      const user = await this.prisma.user.findUnique({ where: { id: link.userId }, select: { displayName: true } });
+      const user = await this.prisma.user.findUnique({ where: { id: linkedUserId }, select: { displayName: true } });
       await this.send(chat, {
         text: `✅ Готово, <b>${escapeHtml(user?.displayName ?? "")}</b>!\n\nСюда будут приходить новые серии аниме из «Смотрю», «В планах» и «Отложено».\n\nА ещё я покажу вашу статистику, избранное, где вы остановились и когда выйдут серии — кнопки внизу или просто напишите словами, например «что посмотреть».\n\nУведомления включаются и выключаются в «⚙️ Настройках».`,
       });
@@ -531,7 +569,7 @@ ${escapeHtml(msg.body)}`, [{ text: msg.button, url: msg.url }]);
     if (command === "/start") {
       const user = await owner();
       if (user) {
-        await this.prisma.user.update({ where: { id: user.id }, data: { telegramBlockedAt: null, notifyTelegram: true } });
+        await this.prisma.user.update({ where: { id: user.id }, data: { telegramChatId: chat, telegramBlockedAt: null, notifyTelegram: true } });
         const help = await this.commands.help(user.id);
         await this.send(chat, help);
       } else {

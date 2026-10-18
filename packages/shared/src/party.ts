@@ -1,7 +1,14 @@
 import { z } from "zod";
+import type { StudioId } from "./studios.js";
 
 /** Watching together: one room, up to this many people at once. */
 export const PARTY_MAX = 10;
+export const PARTY_PUBLIC_ROOMS = [
+  { code: "main-live", name: "Общий зал", seed: null },
+  { code: "lounge-live", name: "Вечерний зал", seed: 35062 },
+  { code: "cinema-live", name: "Кино-зал", seed: 57555 },
+] as const;
+export const isPublicPartyCode = (code: string) => PARTY_PUBLIC_ROOMS.some((room) => room.code === code);
 
 export interface PartyMember {
   id: string;
@@ -78,12 +85,14 @@ export const PARTY_DEFAULT_SETTINGS: PartySettings = {
 
 /** "What to watch next": an anime proposed in the room, with its votes. */
 export interface PartyQueueItem {
-  anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; episodes: number | null };
+  episode?: number;
+  anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; coverUrl?: string | null; episodes: number | null };
   by: string;
   votes: string[];
 }
 
 export interface PartySnapshot {
+  studio?: StudioId | null;
   official?: boolean;
   name?: string | null;
   durationSeconds?: number | null;
@@ -92,7 +101,7 @@ export interface PartySnapshot {
   availableEpisodes?: number[];
   code: string;
   settings: PartySettings;
-  anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; episodes: number | null };
+  anime: { id: number; slug: string; title: string; titleLocalized: string | null; imageUrl: string | null; coverUrl?: string | null; episodes: number | null };
   hostId: string;
   members: PartyMember[];
   playback: PartyPlayback;
@@ -153,11 +162,17 @@ export const adminPartyActionSchema = z.discriminatedUnion("action", [
 export type AdminPartyAction = z.infer<typeof adminPartyActionSchema>;
 
 export const createPartyInputSchema = z.object({
+  studio: z.literal("hon-kon").optional(),
+  capacity: z.number().int().min(2).max(PARTY_MAX).default(PARTY_MAX),
+  allControl: z.boolean().default(false),
+  waitForSlow: z.boolean().default(true),
+  autoNext: z.boolean().default(true),
   name: z.string().trim().max(80).nullable().optional(),
   animeId: z.number().int().positive(),
   episode: z.number().int().min(1).max(5000).default(1),
   visibility: z.enum(PARTY_VISIBILITY).default("public"),
 });
+export type CreatePartyInput = z.infer<typeof createPartyInputSchema>;
 
 export const partySettingsInputSchema = z.object({
   visibility: z.enum(PARTY_VISIBILITY).optional(),
@@ -172,12 +187,14 @@ export const partySettingsInputSchema = z.object({
 });
 
 export const partyLoadingInputSchema = z.object({ loading: z.boolean() });
-export const partyQueueInputSchema = z.object({ animeId: z.number().int().positive() });
+export const partyQueueInputSchema = z.object({ animeId: z.number().int().positive(), episode: z.number().int().min(1).max(5000).default(1) });
 
 export const partyMuteInputSchema = z.object({ userId: z.string().min(1).max(40), muted: z.boolean() });
 
 /** A room in the list of rooms ("Совместный просмотр"). */
 export interface PartyListing {
+  studio?: StudioId | null;
+  capacity?: number;
   name?: string | null;
   code: string;
   anime: PartySnapshot["anime"];

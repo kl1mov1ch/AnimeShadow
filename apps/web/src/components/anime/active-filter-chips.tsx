@@ -79,6 +79,9 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ studio: null }),
     });
   }
+  if (params.dubbingStudio) {
+    chips.push({ key: "dubbingStudio", label: "Озвучка Hon-Kon Studio", onRemove: () => onChange({ dubbingStudio: null }) });
+  }
   for (const id of params.genres ?? []) {
     const genre = genres.find((g) => g.id === id);
     if (!genre) continue;
@@ -150,6 +153,7 @@ export function ActiveFilterChips({
       hasPlayer: null,
       hasCustomPlayer: null,
       studio: null,
+      dubbingStudio: null,
       rating: null,
       genres: null,
       excludeGenres: null,

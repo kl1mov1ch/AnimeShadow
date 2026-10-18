@@ -2,7 +2,6 @@ import { type PublicProfile, type QuestKey, type QuestState, questStates } from 
 import { AtSignIcon, BookmarkPlusIcon, CheckIcon, ChevronRightIcon, CrownIcon, FlagIcon, GiftIcon, HandshakeIcon, HeartIcon, ImageIcon, InfinityIcon, LockIcon, type LucideIcon, MessageCircleIcon, PenLineIcon, PinIcon, SparklesIcon, StarIcon, TrophyIcon, TvIcon, UserRoundIcon, UsersIcon, ZapIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { LogoWatermark } from "@/components/brand/logo-watermark";
 import { cn } from "@/lib/utils";
 import { LevelBadge, LevelBar } from "./level-visuals";
 import { RewardRoad } from "./reward-road";
@@ -84,11 +83,10 @@ export function LevelCard({
   return (
     <section
       className={cn(
-        "relative isolate flex flex-col overflow-hidden rounded-3xl border border-[var(--accent-line-soft)] bg-[linear-gradient(180deg,var(--accent-surface),transparent_140%)] p-4 sm:p-5",
+        "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-3 sm:p-5",
         className,
       )}
     >
-      <LogoWatermark className="-right-10 -top-12 size-52 rotate-12 text-foreground/[0.04]" />
       {compact ? (
         // The level itself and its bar are in the strip above the tabs —
         // here only what this card is for.
@@ -97,8 +95,8 @@ export function LevelCard({
             <SparklesIcon className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-base leading-tight sm:text-lg">Прокачка</p>
-            <p className="truncate text-[11px] text-muted-foreground">
+            <p className="font-display text-base leading-tight sm:text-lg">Развитие профиля</p>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
               {stages > 0
                 ? `${stages} ${plural(stages, "этап", "этапа", "этапов")} заданий пройдено · +${questXp.toLocaleString("ru-RU")} опыта`
                 : own
@@ -109,7 +107,7 @@ export function LevelCard({
         </div>
       ) : (
         <div className="flex items-center gap-4">
-          <span className="grid shrink-0 place-items-center p-2 pt-3">
+          <span className="grid shrink-0 place-items-center">
             <LevelBadge info={info} size={72} />
           </span>
           <div className="min-w-0 flex-1">
@@ -150,7 +148,7 @@ export function LevelCard({
         })}
       </div>
 
-      <div key={tab} className="mt-4 min-h-0 flex-1 animate-in duration-300 fade-in-0 slide-in-from-bottom-1">
+      <div key={tab} className="mt-4 min-h-0 flex-1">
         {tab === "tasks" && actions && (
           <div className="flex flex-col gap-4">
             {doneCount < tasks.length && (
@@ -164,14 +162,14 @@ export function LevelCard({
                         <button
                           type="button"
                           onClick={task.run}
-                          className="group flex w-full items-center gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-background/40 px-3 py-2 text-left transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.06] active:scale-[0.99]"
+                          className="group flex w-full items-center gap-3 rounded-xl border border-[var(--accent-line-soft)] bg-background/40 px-3 py-2 text-left transition-[border-color,background-color,transform] duration-200 hover:border-primary/40 hover:bg-primary/[0.06]"
                         >
                           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
                             <task.icon className="size-4" />
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-medium">{task.title}</span>
-                            <span className="block truncate text-[11px] text-muted-foreground">{task.hint}</span>
+                            <span className="block text-[11px] leading-snug text-muted-foreground">{task.hint}</span>
                           </span>
                           {task.xp > 0 && (
                             <span className="shrink-0 rounded-md bg-primary/12 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">+{task.xp}</span>

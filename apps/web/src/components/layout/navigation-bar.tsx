@@ -1,5 +1,4 @@
 import type { MobileNavigationItem } from "@animeshadow/shared";
-import { SearchIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { NAVIGATION_ITEMS } from "@/lib/navigation-items";
 import { cn } from "@/lib/utils";
@@ -10,17 +9,15 @@ export function NavigationBar({ buttons, active, onSearch, onSelect, renderItem,
   renderItem?: (id: MobileNavigationItem, selected: boolean, className: string, children: ReactNode) => ReactNode;
   label?: string;
 }) {
-  const buttonClass = (selected: boolean) => cn("group relative inline-flex h-11 min-w-10 items-center justify-center rounded-xl px-2.5 outline-none transition-[background-color,color,transform] duration-150 active:scale-95 focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none", selected ? "min-w-0 bg-primary/10 text-primary" : "shrink-0 text-muted-foreground hover:bg-secondary hover:text-foreground");
+  const buttonClass = (selected: boolean) => cn("flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-xl outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary active:bg-secondary", selected ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground");
   const item = (id: MobileNavigationItem) => {
     const { icon: Icon, label, short } = NAVIGATION_ITEMS[id];
     const selected = active === id;
     const className = buttonClass(selected);
-    const children = <><Icon aria-hidden className="size-[18px] shrink-0 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none" strokeWidth={selected ? 2.2 : 1.8} /><span aria-hidden className={cn("overflow-hidden text-left text-[11px] font-semibold transition-[max-width,opacity,margin] duration-200 ease-out motion-reduce:transition-none", selected ? "ml-1.5 max-w-16 opacity-100" : "ml-0 max-w-0 opacity-0")}><span className="block truncate whitespace-nowrap">{short}</span></span></>;
-    return <span key={id} className={cn("flex", selected ? "min-w-0" : "shrink-0")}>{renderItem ? renderItem(id, selected, className, children) : <button type="button" aria-label={label} aria-pressed={selected} className={className} onClick={() => onSelect?.(id)}>{children}</button>}</span>;
+    const children = <><Icon aria-hidden className="size-5 shrink-0" strokeWidth={selected ? 2.2 : 1.8} /><span className="block max-w-full truncate px-0.5 text-[10px] font-medium leading-3">{short}</span></>;
+    return <div key={id} className="min-w-0">{id === "search" ? <button type="button" aria-label="Поиск аниме" aria-haspopup="dialog" onClick={onSearch} className={className}>{children}</button> : renderItem ? renderItem(id, selected, className, children) : <button type="button" aria-label={label} aria-pressed={selected} className={className} onClick={() => onSelect?.(id)}>{children}</button>}</div>;
   };
-  return <nav aria-label={label} className="mx-auto flex h-14 w-max max-w-full items-center justify-center gap-1 px-1.5">
-    {buttons.slice(0, 2).map(item)}
-    <button type="button" aria-label="Поиск аниме" aria-haspopup="dialog" onClick={onSearch} className={buttonClass(active === "search")}><SearchIcon aria-hidden className="size-[18px] shrink-0 transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none" /><span aria-hidden className={cn("overflow-hidden text-[11px] font-semibold transition-[max-width,opacity,margin] duration-200 ease-out motion-reduce:transition-none", active === "search" ? "ml-1.5 max-w-12 opacity-100" : "ml-0 max-w-0 opacity-0")}>Поиск</span></button>
-    {buttons.slice(2).map(item)}
+  return <nav aria-label={label} className="grid h-16 w-full grid-cols-5 items-stretch gap-1 px-2 py-1">
+    {buttons.map(item)}
   </nav>;
 }

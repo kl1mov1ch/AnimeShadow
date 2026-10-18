@@ -6,6 +6,7 @@ import type {
   KodikResult,
   KodikSearchParams,
 } from "./types.js";
+import { KODIK_EPISODE_IDENTITIES } from "./episode-identities.js";
 
 export interface KodikClientOptions {
   token?: string;
@@ -78,7 +79,27 @@ export class KodikClient {
       limit: 100,
     });
     const groups = groupByShikimori(results);
-    return groups.get(shikimoriId) ?? null;
+    const exact = groups.get(shikimoriId);
+    if (exact) return exact;
+    const identity = KODIK_EPISODE_IDENTITIES[shikimoriId];
+    if (!identity) return null;
+    const parent = await this.getByShikimoriId(identity.parentId);
+    if (!parent) return null;
+    const translations = parent.translations.flatMap(row => {
+      const episodes = row.seasons?.[identity.season]?.episodes;
+      // A complete, explicit set is required; never fall back to the series URL.
+      if (!episodes || !identity.episodes.every(key => {
+        const entry = episodes[key];
+        return typeof entry === "string" ? Boolean(entry) : Boolean(entry?.link);
+      })) return [];
+      const mapped = Object.fromEntries(identity.episodes.map((key, index) => [String(index + 1), episodes[key]!]));
+      const first = mapped["1"]!;
+      return [{ ...row, shikimori_id: shikimoriId, kinopoisk_id: null,
+        link: typeof first === "string" ? first : first.link!,
+        episodes_count: identity.episodes.length, last_episode: identity.episodes.length,
+        seasons: { "1": { episodes: mapped } } }];
+    });
+    return translations[0] ? { shikimoriId, primary: translations[0], translations } : null;
   }
 
   async searchByTitle(
@@ -117,7 +138,9 @@ export class KodikClient {
         if (Number.isInteger(sid) && sid > 0 && sid !== shikimoriId) return false;
         if (year != null && r.year != null && Math.abs(r.year - year) > 1) return false;
         const names = [r.title, r.title_orig, r.other_title].map(norm);
-        return names.some((n) => n.length >= 3 && (wanted.has(n) || [...wanted].some((w) => n.includes(w) || w.includes(n))));
+        // A partial name is not an identity: it can be another season or an OVA.
+        // Explicit matching IDs are authoritative; unlinked rows need an exact alias.
+        return sid === shikimoriId || names.some((n) => n.length >= 3 && wanted.has(n));
       });
       if (rows.length === 0) continue;
       let primary = rows[0]!;
@@ -125,6 +148,18 @@ export class KodikClient {
       return { shikimoriId, primary, translations: rows };
     }
     return null;
+  }
+
+  /** A page of the catalogue. Returns groups plus the next-page cursor. */
+  async listByTranslation(translationId: number, cursorUrl?: string): Promise<{ rows: KodikResult[]; total: number; nextCursor: string | null }> {
+    if (!Number.isSafeInteger(translationId) || translationId <= 0) throw new Error("Invalid translation id");
+    const response = cursorUrl
+      ? await this.get<KodikResponse<KodikResult>>(cursorUrl)
+      : await this.post<KodikResponse<KodikResult>>("/list", {
+        translation_id: translationId, with_material_data: true, with_episodes_data: true,
+        sort: "updated_at", order: "desc", limit: 100,
+      });
+    return { rows: response.results.filter((row) => row.translation.id === translationId), total: response.total, nextCursor: response.next_page ?? null };
   }
 
   /** A page of the catalogue. Returns groups plus the next-page cursor. */

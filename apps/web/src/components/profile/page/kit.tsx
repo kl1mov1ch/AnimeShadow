@@ -25,12 +25,12 @@ export function Panel({
   return (
     <section
       className={cn(
-        "relative isolate flex flex-col overflow-hidden rounded-3xl border border-[var(--accent-line-soft)] bg-[linear-gradient(180deg,var(--accent-surface),transparent_140%)] p-4 sm:p-5",
+        "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card p-3 sm:p-5",
         className,
       )}
     >
       {title && (
-        <header className="mb-4 flex items-center justify-between gap-3">
+        <header className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
           <h2 className="flex min-w-0 items-center gap-2.5 font-display text-base tracking-tight sm:text-lg">
             {Icon && (
               <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[var(--accent-surface-strong)] text-[var(--accent-ink)] ring-1 ring-[var(--accent-line-soft)]">

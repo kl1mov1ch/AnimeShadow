@@ -51,6 +51,7 @@ export function parseBrowseParams(search: URLSearchParams): Required<
     genres: genres.length > 0 ? genres : undefined,
     hasPlayer: search.get("hasPlayer") === "1" ? true : undefined,
     studio: search.get("studio")?.trim() || undefined,
+    dubbingStudio: search.get("dubbingStudio") === "hon-kon" ? "hon-kon" : undefined,
     rating: ["g", "pg", "pg13", "r17", "rplus"].includes(search.get("rating") ?? "") ? (search.get("rating") as string) : undefined,
     maxScore: num("maxScore"),
     excludeGenres: excludeGenres.length > 0 ? excludeGenres : undefined,
@@ -74,6 +75,7 @@ export function hasActiveFilters(params: BrowseParams): boolean {
       params.hasPlayer ||
       params.hasCustomPlayer ||
       params.studio ||
+      params.dubbingStudio ||
       params.rating ||
       params.maxScore != null ||
       params.yearFrom != null ||
@@ -96,6 +98,7 @@ export function activeFilterCount(params: BrowseParams): number {
     Boolean(params.minScore || params.maxScore != null),
     params.episodesMin != null || params.episodesMax != null,
     Boolean(params.studio),
+    Boolean(params.dubbingStudio),
     Boolean(params.rating),
     (params.genres?.length ?? 0) + (params.excludeGenres?.length ?? 0) > 0,
     params.hasPlayer === true,

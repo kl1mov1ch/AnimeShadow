@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { useAuth } from "@/hooks/use-auth";
+import { AccountPreview } from "./account-preview";
 import { cn } from "@/lib/utils";
 
 
@@ -11,7 +12,7 @@ export const ACCOUNT_PERKS = [
   { icon: HistoryIcon, text: "Серии отмечаются сами — продолжишь с той же минуты на любом устройстве" },
   { icon: BookmarkIcon, text: "Свой список: смотрю, в планах, просмотрено — и оценки" },
   { icon: FolderHeartIcon, text: "Свои подборки, лайки и избранное" },
-  { icon: TrophyIcon, text: "Уровни, достижения, рамки и профиль, который хочется показать" },
+  { icon: TrophyIcon, text: "Уровни, достижения, приписки и свой профиль" },
 ] as const;
 
 type Variant = "home" | "browse" | "collections";
@@ -139,6 +140,7 @@ export function GuestNudge() {
         <li>Свои списки, оценки и подборки</li>
         <li>Уведомления о новых доступных сериях</li>
       </ul>
+      <details className="my-3"><summary className="cursor-pointer text-xs text-primary">Попробовать возможности</summary><div className="mt-2 max-h-[45dvh] overflow-y-auto"><AccountPreview compact /></div></details>
       <div className="flex gap-2">
         <Link to="/register" state={{ from: pathname }} onClick={close} className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/85">Создать аккаунт</Link>
         <Link to="/login" state={{ from: pathname }} onClick={close} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border px-4 text-sm hover:bg-secondary">Войти</Link>

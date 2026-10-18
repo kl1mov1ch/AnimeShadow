@@ -37,8 +37,8 @@ export function Component() {
             Подборки
           </Link>
         </nav>
-        <div className="flex items-baseline justify-between gap-x-4">
-          <h1 className="flex items-center gap-2 font-display text-xl leading-tight sm:text-3xl">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+          <h1 className="flex min-w-0 items-center gap-2 font-display text-xl leading-tight sm:text-3xl">
             {Icon && <Icon className="size-5 shrink-0 text-muted-foreground sm:size-6" />}
             {data?.title ?? "…"}
           </h1>

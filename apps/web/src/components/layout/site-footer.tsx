@@ -78,6 +78,7 @@ export function SiteFooter() {
         </div>
 
         <nav aria-label={t("footer.nav")} className="grid grid-cols-2 gap-1 text-xs sm:flex sm:flex-wrap sm:gap-x-4 sm:text-sm">
+          <a href="/tv" className="rounded-lg px-2 py-2 text-muted-foreground transition-colors duration-150 hover:bg-secondary hover:text-foreground">Версия для ТВ</a>
           {links.map(({ to, label }) => (
             <Link key={to} to={to} className="rounded-lg px-2 py-2 text-muted-foreground transition-colors duration-200 hover:bg-secondary hover:text-foreground">
               {label}
@@ -89,6 +90,7 @@ export function SiteFooter() {
           <div className="flex flex-col gap-1">
             <span>{t("footer.rights", { year })}</span>
             <span className="max-w-3xl leading-relaxed text-muted-foreground/60">{t("footer.disclaimer")}</span>
+            <Link to="/copyright" className="mt-1 w-fit text-xs text-muted-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">Правообладателям</Link>
             <details className="mt-2 rounded-lg border border-border/50 px-3 py-2"><summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">Документы и контакты</summary><span className="mt-2 grid gap-2 pb-1 leading-relaxed sm:grid-cols-2">
               <Link to="/legal?doc=terms" className="transition-colors hover:text-foreground">
                 Пользовательское соглашение

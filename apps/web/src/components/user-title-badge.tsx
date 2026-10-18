@@ -52,6 +52,7 @@ export function UserTitleBadge({
 }) {
   if (!prefix) return null;
   const Icon = icon ? TITLE_ICON_COMPONENT[icon] : null;
+  const tone = icon === "flame" || icon === "sword" ? "text-rose-300 border-rose-400/25 bg-rose-400/10" : icon === "moon" || icon === "ghost" ? "text-violet-300 border-violet-400/25 bg-violet-400/10" : icon === "crown" || icon === "gem" ? "text-amber-300 border-amber-400/25 bg-amber-400/10" : "text-sky-300 border-sky-400/25 bg-sky-400/10";
 
   if (compact) {
     return (
@@ -60,7 +61,7 @@ export function UserTitleBadge({
           <span
             className={cn(
               "inline-flex size-4 shrink-0 items-center justify-center rounded-md border border-primary/40 bg-primary/10 text-primary",
-              className,
+              tone, className,
             )}
           >
             {Icon ? <Icon className="size-2.5" /> : prefix.charAt(0)}
@@ -74,12 +75,12 @@ export function UserTitleBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary",
+        "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium", tone,
         className,
       )}
     >
-      {Icon && <Icon className="size-3" />}
-      {prefix}
+      {Icon && <Icon className="size-3 shrink-0" />}
+      <span className="truncate" title={prefix}>{prefix}</span>
     </span>
   );
 }

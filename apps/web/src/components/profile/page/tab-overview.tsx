@@ -1,4 +1,5 @@
 import type { FeedEvent, PublicProfile } from "@animeshadow/shared";
+import { AnimePoster } from "@/components/anime/anime-poster";
 import { useMoments } from "@/lib/moments";
 import { MomentsStrip } from "./moments";
 import { InviteTeaser } from "./invite-teaser";
@@ -82,15 +83,15 @@ export function OverviewTab({
   if (!wide) {
     return (
       <div className="flex flex-col gap-4">
-        {invite}
+        {watching}
         {top}
         {level}
+        {feed}
         {compare}
-        {watching}
-        {friends}
         {genres}
         {list}
-        {feed}
+        {friends}
+        {invite}
         {wall}
       </div>
     );
@@ -182,23 +183,16 @@ function TopFive({ profile, own }: { profile: PublicProfile; own: boolean }) {
         </div>
       )}
       {(favorites.length > 0 || own) && (
-        <ol className="grid grid-cols-5 gap-1.5 sm:gap-4">
+        <ol className="flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-5 sm:gap-4">
           {favorites.map((anime, i) => (
             <li
               key={anime.id}
-              className="min-w-0 animate-in fade-in-0 slide-in-from-bottom-2"
+              className="w-24 min-w-0 shrink-0 sm:w-auto"
               style={{ animationDelay: `${i * 60}ms`, animationFillMode: "backwards" }}
             >
               <Link to={animeHref(anime)} viewTransition className="group block">
                 <span className="relative block aspect-[2/3] overflow-hidden rounded-2xl bg-muted shadow-lg shadow-black/30 ring-1 ring-white/5 transition-[transform,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-primary/20">
-                  {anime.imageUrl && (
-                    <img
-                      src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)}
-                      alt=""
-                      loading="lazy"
-                      className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                  )}
+                  <AnimePoster anime={anime} title={labels.title(anime)} />
                   <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
                   {anime.score != null && (
                     <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-[9.5px] font-semibold tabular-nums text-white sm:right-1.5 sm:top-1.5 sm:px-1.5 sm:text-[11px]">

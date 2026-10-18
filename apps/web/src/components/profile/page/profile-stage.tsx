@@ -16,7 +16,6 @@ import { levelOf } from "../profile-level";
 import { BannerEditButtons } from "../profile-media-editor";
 import { ProfileBanner } from "../profile-banner";
 import { LevelBadge, LevelBar } from "../level-visuals";
-import { CountUp } from "../profile-progression";
 import { ShareProfileButton } from "../share-profile";
 import type { ProfileMedia } from "../use-profile-media";
 import { plural } from "./format";
@@ -142,7 +141,7 @@ export function ProfileStage({
       </div>
 
       <div className="relative z-10 -mt-16 flex flex-col gap-4 sm:-mt-20 xl:flex-row xl:items-end xl:gap-6">
-        <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <div className="flex min-w-0 flex-1 flex-row items-start gap-3 sm:gap-5">
         <div className="w-fit shrink-0 self-start sm:self-auto">
           {avatar}
         </div>
@@ -199,16 +198,16 @@ export function ProfileStage({
             profile={profile}
             own={own}
             onNeedUsername={onNeedUsername}
-            className="order-3 h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-14 max-sm:flex-col max-sm:gap-1 max-sm:text-[11px]"
+            className="order-3 h-11 min-w-0 flex-1 justify-center gap-1.5 rounded-xl px-2 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-10 max-sm:text-xs"
           />
           {own ? (
             <button
               type="button"
               onClick={onCustomise}
-              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:-translate-y-0.5 active:scale-95 lg:flex-none"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/20 lg:flex-none"
             >
               <Settings2Icon className="size-4" />
-              {t("profile.studio.open")}
+              Настройки
             </button>
           ) : (
             <>
@@ -218,7 +217,7 @@ export function ProfileStage({
                   type="button"
                   onClick={onWrite}
                   title="Написать на стене"
-                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-14 max-sm:flex-col max-sm:gap-1 max-sm:text-[11px]"
+                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-card/90 px-3 text-sm font-medium text-foreground transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-10 max-sm:text-xs"
                 >
                   <MessageSquarePlusIcon className="size-4 shrink-0" />
                   <span className="truncate">Написать</span>
@@ -229,7 +228,7 @@ export function ProfileStage({
                   type="button"
                   onClick={onCompare}
                   title="Сравнить вкусы"
-                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-14 max-sm:flex-col max-sm:gap-1 max-sm:text-[11px]"
+                  className="order-3 inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-black/35 px-2 text-sm font-medium text-foreground backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-black/50 sm:order-none sm:gap-2 sm:px-4 lg:flex-none max-sm:h-10 max-sm:text-xs"
                 >
                   <GitCompareArrowsIcon className="size-4 shrink-0" />
                   <span className="truncate">Сравнить</span>
@@ -305,24 +304,24 @@ export function PlayerStrip({ profile }: { profile: PublicProfile }) {
   const hours = Math.floor(s.hoursWatched);
   const minutes = Math.round(s.hoursWatched * 60);
   const cells = [
-    { label: plural(s.episodesWatched, "серия", "серии", "серий"), value: <CountUp value={s.episodesWatched} /> },
+    { label: plural(s.episodesWatched, "серия", "серии", "серий"), value: s.episodesWatched.toLocaleString("ru-RU") },
     {
       label: hours > 0 ? plural(hours, "час", "часа", "часов") : plural(minutes, "минута", "минуты", "минут"),
-      value: <CountUp value={hours > 0 ? hours : minutes} />,
+      value: (hours > 0 ? hours : minutes).toLocaleString("ru-RU"),
     },
-    { label: "досмотрено", value: <CountUp value={s.titlesCompleted} /> },
-    { label: "оценка", value: s.meanScore != null ? <CountUp value={s.meanScore} decimals={1} /> : "—" },
+    { label: "досмотрено", value: s.titlesCompleted.toLocaleString("ru-RU") },
+    { label: "оценка", value: s.meanScore != null ? s.meanScore.toFixed(1) : "—" },
   ];
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)] gap-3 rounded-3xl border border-[var(--accent-line-soft)] bg-[var(--accent-surface)] p-3 sm:p-4 lg:items-center",
+        "grid grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-border bg-card p-3 sm:p-4 lg:items-center",
         !profile.hidden.stats && "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
       )}
     >
       <div className="flex min-w-0 items-center gap-3 px-0.5 py-1 sm:gap-4 sm:px-1">
         {/* Room around the medallion for its rays and crown. */}
-        <span className="grid shrink-0 place-items-center p-1 pt-2.5 sm:p-2.5 sm:pt-4">
+        <span className="grid shrink-0 place-items-center">
           <LevelBadge info={level} size={56} />
         </span>
         <div className="min-w-0 flex-1">

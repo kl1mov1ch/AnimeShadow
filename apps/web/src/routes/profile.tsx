@@ -59,6 +59,7 @@ import { cn } from "@/lib/utils";
 
 import { useSettingsMatch } from "@/components/profile/profile-settings-extras";
 import { ProfileStudio } from "@/components/profile/profile-studio";
+import { AccountPreview } from "@/components/auth/account-preview";
 import { ProfileView } from "@/components/profile/page/profile-view";
 import { FEATURES } from "@/lib/features";
 import type { StudioTab } from "@/components/profile/profile-studio";
@@ -83,6 +84,7 @@ export function Component() {
             </Button>
           }
         />
+        <AccountPreview />
       </div>
     );
   }

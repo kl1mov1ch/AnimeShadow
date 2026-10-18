@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { pushSupport, useNotifyActions, useNotifySettings, useThisBrowserPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
+import { pushErrorHint } from "@/lib/push-registration";
 
 /**
  * Where new episodes are told: the bell on the site (always), the site's
@@ -49,7 +50,7 @@ export function NotifySettingsSection() {
             : error.message === "dismissed"
               ? "Вы закрыли запрос браузера"
               : "Не получилось включить push-уведомления",
-          error.message === "denied" ? { description: "Разрешите их в настройках сайта (значок замка слева от адреса)" } : undefined,
+          { description: pushErrorHint(error) },
         ),
     });
   };
@@ -57,7 +58,7 @@ export function NotifySettingsSection() {
   return (
     <div id="notifications" className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Когда выходит новая серия аниме из «Смотрю», «В планах» или «Отложено», мы сообщаем об этом — здесь можно выбрать, куда.
+        Когда новая серия становится доступна на сайте, сообщим о ней по аниме из «Смотрю», «В планах» и «Отложено».
       </p>
 
       {/* The bell: always. */}
@@ -73,15 +74,15 @@ export function NotifySettingsSection() {
       <Row
         tone="sky"
         icon={<TelegramGlyph className="size-5" />}
-        title="Telegram"
+        title="Telegram-аккаунт"
         hint={
           !tg.available
-            ? "Бот ещё не настроен на сервере"
+            ? tg.issue === "token-rejected" ? "Telegram отклонил токен бота на сервере. Вход на сайт и отправка сообщений проверяются отдельно." : "Сервер не может подключиться к боту"
             : tg.blocked
               ? "Бот не может вам написать: он заблокирован или вы не нажали Start"
               : tg.connected
-                ? `Сообщения от @${tg.bot ?? "бота"} — отключить можно и командой /stop`
-                : "Сообщение от нашего бота со ссылкой на серию"
+                ? `Аккаунт привязан. Новые серии присылает @${tg.bot ?? "бот"}.`
+                : "Привяжите свой Telegram к текущему аккаунту AnimeShadow — бесплатно, без разрешения push."
         }
         right={
           tg.available && tg.connected && !tg.blocked ? (
@@ -94,15 +95,17 @@ export function NotifySettingsSection() {
           ) : null
         }
       >
+        {tg.available && tg.issue === "receiver-disabled" && <p role="status" className="text-xs leading-relaxed text-amber-600 dark:text-amber-300">Приём команд бота отключён на этом сервере. Привязка через Start пока не завершится.</p>}
+        {!tg.connected && tg.available && <p className="text-xs leading-relaxed text-muted-foreground">Откроется Telegram с вашим текущим аккаунтом. Выберите нужный аккаунт и нажмите «Start» в боте. Пароль и номер телефона на сайте вводить не нужно.</p>}
         {tg.available && (!tg.connected || tg.blocked) && (
           <button
             type="button"
             onClick={connectTelegram}
             disabled={linking}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#2AABEE] px-4 text-sm font-semibold text-white shadow-lg shadow-sky-500/25 transition-transform active:scale-95 disabled:opacity-60"
+            className="inline-flex min-h-10 w-fit max-w-full items-center justify-center gap-2 rounded-xl bg-[#2AABEE] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-500 disabled:opacity-60"
           >
             {linking ? <Loader2Icon className="size-4 animate-spin" /> : <TelegramGlyph className="size-4" />}
-            {tg.blocked ? "Открыть бота и нажать Start" : "Подключить Telegram"}
+            {tg.blocked ? "Открыть бота и нажать Start" : "Привязать свой Telegram"}
           </button>
         )}
         {waitingBot && (
@@ -121,6 +124,12 @@ export function NotifySettingsSection() {
             Отвязать чат
           </button>
         )}
+        <button type="button" disabled={actions.test.isPending} onClick={() => actions.test.mutate("telegram", {
+          onSuccess: result => result.telegram ? toast.success("Telegram принял проверочное сообщение", { description: "Откройте чат с ботом." }) : toast.error("Сообщение Telegram не отправлено", { description: result.telegramError ?? "Откройте бота и нажмите Start." }),
+          onError: error => toast.error("Не удалось проверить Telegram", { description: error.message }),
+        })} className="inline-flex min-h-9 w-fit items-center gap-2 rounded-lg border border-sky-400/25 px-3 text-xs font-medium text-sky-600 disabled:opacity-50 dark:text-sky-300">
+          {actions.test.isPending ? <Loader2Icon className="size-3.5 animate-spin" /> : <SendIcon className="size-3.5" />} Проверить сообщения Telegram
+        </button>
       </Row>
 
       {/* Browser push. */}
@@ -131,6 +140,8 @@ export function NotifySettingsSection() {
         hint={
           !push.available
             ? "Ещё не настроено на сервере"
+            : support === "insecure"
+              ? "Откройте сайт по HTTPS, чтобы включить уведомления"
             : support === "ios-home-screen"
               ? "На iPhone: «Поделиться» → «На экран Домой», затем откройте сайт с иконки и включите здесь"
               : support === "unsupported"
@@ -176,7 +187,8 @@ export function NotifySettingsSection() {
                   ? toast.success("Отправили проверку", {
                       description: [r.telegram && "в Telegram", r.push > 0 && "push-уведомлением"].filter(Boolean).join(" и "),
                     })
-                  : toast.error("Не дошло", { description: "Проверьте, что бот не заблокирован и уведомления разрешены" }),
+                  : toast.error("Не дошло", { description: r.telegramError ?? "Проверьте разрешение уведомлений в браузере и устройстве" }),
+              onError: error => toast.error("Проверка не выполнена", { description: error.message }),
             })
           }
           className="inline-flex h-10 w-fit items-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-60"

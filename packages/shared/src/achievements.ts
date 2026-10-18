@@ -27,7 +27,95 @@ export interface AchievementDef {
  * `achievements.items.<id>.title` / `.desc`. Auto-award logic lives in the API's
  * achievement service; `manual` ones are only granted by an explicit event.
  */
+export const ACHIEVEMENT_MILESTONES = [
+  {
+    "id": "thousand-episodes",
+    "counter": "episodesWatched",
+    "target": 1000,
+    "rarity": "epic",
+    "category": "watch"
+  },
+  {
+    "id": "three-thousand-episodes",
+    "counter": "episodesWatched",
+    "target": 3000,
+    "rarity": "legendary",
+    "category": "watch"
+  },
+  {
+    "id": "ten-series",
+    "counter": "completedSeries",
+    "target": 10,
+    "rarity": "rare",
+    "category": "watch"
+  },
+  {
+    "id": "twenty-five-series",
+    "counter": "completedSeries",
+    "target": 25,
+    "rarity": "epic",
+    "category": "watch"
+  },
+  {
+    "id": "fifty-series",
+    "counter": "completedSeries",
+    "target": 50,
+    "rarity": "legendary",
+    "category": "watch"
+  },
+  {
+    "id": "review-explorer",
+    "counter": "reviewCount",
+    "target": 25,
+    "rarity": "rare",
+    "category": "community"
+  },
+  {
+    "id": "collection-architect",
+    "counter": "collections",
+    "target": 10,
+    "rarity": "epic",
+    "category": "curator"
+  },
+  {
+    "id": "collection-library",
+    "counter": "collectionsRead",
+    "target": 50,
+    "rarity": "rare",
+    "category": "community"
+  },
+  {
+    "id": "curator-crowd",
+    "counter": "collectionViews",
+    "target": 5000,
+    "rarity": "legendary",
+    "category": "curator"
+  },
+  {
+    "id": "century-comments",
+    "counter": "commentCount",
+    "target": 100,
+    "rarity": "epic",
+    "category": "community"
+  },
+  {
+    "id": "guess-century",
+    "counter": "guessPlayed",
+    "target": 100,
+    "rarity": "rare",
+    "category": "game"
+  },
+  {
+    "id": "genre-master",
+    "counter": "topGenreEpisodes",
+    "target": 200,
+    "rarity": "epic",
+    "category": "watch"
+  }
+] as const;
+
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
+  ...ACHIEVEMENT_MILESTONES,
   // Watching
   { id: "first-episode", rarity: "common", category: "watch" },
   { id: "first-series", rarity: "common", category: "watch" },

@@ -101,6 +101,35 @@ test("the master playlist preserves real source qualities without inventing 1080
   });
 });
 
+test("Kodik direct playback retains episode frames and metadata without reviving duplicate episodes", () => {
+  const mapped = kodikCustomSource(63293, {
+    id: "kodik:4167", title: "hon-kon studio", kind: "voice", format: "iframe", embedUrl: "https://kodikplayer.com/serial/1/hash",
+    iframeEpisodes: {
+      "1": { url: "https://kodikplayer.com/seria/one/hash", thumbs: ["https://cdn.example/frame.jpg"] },
+      "2": { url: "https://kodikplayer.com/seria/one/hash", thumbs: ["https://cdn.example/duplicate.jpg"] },
+      "3": { url: "https://kodikplayer.com/seria/three/hash", thumbs: ["https://cdn.example/other.jpg"] },
+    },
+    episodeMeta: { "3": { title: "Серия с названием", thumb: "https://cdn.example/preferred.jpg", durationSeconds: 1400 } },
+    episodesCount: 3, quality: null, stable: null,
+  });
+  assert.equal(mapped?.episodeMeta?.["1"]?.thumb, "https://cdn.example/frame.jpg");
+  assert.equal(mapped?.episodeMeta?.["2"], undefined);
+  assert.deepEqual(mapped?.episodeMeta?.["3"], { title: "Серия с названием", thumb: "https://cdn.example/preferred.jpg", durationSeconds: 1400 });
+});
+
+test("legacy cached Kodik rows never expose duplicate video as another episode, in either player", () => {
+  const source = kodikCustomSource(20, {
+    id: "4167", title: "hon-kon studio", kind: "voice", format: "iframe", embedUrl: "https://kodikplayer.com/serial/1/hash",
+    iframeEpisodes: {
+      "1": { url: "https://kodikplayer.com/seria/one/hash", thumbs: [] },
+      "2": { url: "https://kodikplayer.com/seria/one/hash", thumbs: [] },
+      "3": { url: "https://kodikplayer.com/seria/three/hash", thumbs: [] },
+    }, episodesCount: 3,
+  });
+  assert.deepEqual(Object.keys(source!.hlsEpisodes!), ["1", "3"]);
+  assert.deepEqual(Object.keys(source!.providerPlayer!.episodes), ["1", "3"]);
+});
+
 const source: WatchSource = {
   id: "studio:a", title: "Studio", kind: "voice", format: "hls", embedUrl: "",
   hlsEpisodes: { "1": "https://video.example/1.m3u8", "3": "https://video.example/3.m3u8" },
@@ -147,7 +176,7 @@ test("a failed provider does not hide a second provider, and simultaneous lookup
 });
 
 class FakeHls {
-  static Events = { MANIFEST_PARSED: "manifest", LEVEL_SWITCHED: "level", FRAG_BUFFERED: "buffered", ERROR: "error", AUDIO_TRACKS_UPDATED: "audio", AUDIO_TRACK_SWITCHED: "audioSwitch", SUBTITLE_TRACKS_UPDATED: "subtitles", SUBTITLE_TRACK_SWITCH: "subSwitch" };
+  static Events = { MANIFEST_PARSED: "manifest", LEVEL_LOADED: "playlist", FRAG_LOADED: "fragment", LEVEL_SWITCHED: "level", FRAG_BUFFERED: "buffered", ERROR: "error", AUDIO_TRACKS_UPDATED: "audio", AUDIO_TRACK_SWITCHED: "audioSwitch", SUBTITLE_TRACKS_UPDATED: "subtitles", SUBTITLE_TRACK_SWITCH: "subSwitch" };
   static ErrorTypes = { NETWORK_ERROR: "network", MEDIA_ERROR: "media" };
   static instance: FakeHls;
   handlers = new Map<string, (...args: unknown[]) => void>();
@@ -175,7 +204,7 @@ class FakeHls {
 
 test("page entry buffers five seconds, stays paused and resumes loading on one play", () => {
   let end = 3;
-  const video = { currentTime: 0, buffered: { length: 1, start: () => 0, end: () => end } } as unknown as HTMLVideoElement;
+  const video = Object.assign(new EventTarget(), { currentTime: 0, buffered: { length: 1, start: () => 0, end: () => end } }) as unknown as HTMLVideoElement;
   const handle = attachEngine(FakeHls as unknown as typeof Hls, video, "https://video.example/master.m3u8", {
     preloadOnly: true, onLevels() {}, onLevelSwitched() {}, onManifest() {}, onStatus() {}, onFatal() {},
   });
@@ -186,17 +215,23 @@ test("page entry buffers five seconds, stays paused and resumes loading on one p
   end = 6; // Provider segments are indivisible; the boundary can exceed 5s.
   engine.emit("buffered");
   assert.equal(engine.stopped, true);
-  handle.setPreloadOnly(false);
+  video.currentTime = 120;
+  video.dispatchEvent(new Event("seeking"));
   assert.equal(engine.starts, 1);
+  assert.equal(engine.config.maxBufferLength, 5);
+  handle.setPreloadOnly(false);
+  assert.equal(engine.starts, 2);
   assert.ok(engine.config.maxBufferLength! > 5);
   handle.setPreloadOnly(false);
-  assert.equal(engine.starts, 1);
+  assert.equal(engine.starts, 2);
   handle.destroy();
+  video.dispatchEvent(new Event("seeking"));
+  assert.equal(engine.starts, 2);
 });
 
 test("a missing master manifest is fetched again, and destroying cancels retries", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const handle = attachEngine(FakeHls as unknown as typeof Hls, { currentTime: 0 } as HTMLVideoElement, "https://video.example/master.m3u8", {
+  const handle = attachEngine(FakeHls as unknown as typeof Hls, Object.assign(new EventTarget(), { currentTime: 0 }) as unknown as HTMLVideoElement, "https://video.example/master.m3u8", {
     onLevels() {}, onLevelSwitched() {}, onManifest() {}, onStatus() {}, onFatal() {},
   });
   const engine = FakeHls.instance;
@@ -211,7 +246,7 @@ test("a missing master manifest is fetched again, and destroying cancels retries
 });
 
 test("audio and subtitle choices drive the stream and allow subtitles to be disabled", () => {
-  const handle = attachEngine(FakeHls as unknown as typeof Hls, { currentTime: 0 } as HTMLVideoElement, "https://video.example/master.m3u8", {
+  const handle = attachEngine(FakeHls as unknown as typeof Hls, Object.assign(new EventTarget(), { currentTime: 0 }) as unknown as HTMLVideoElement, "https://video.example/master.m3u8", {
     onLevels() {}, onLevelSwitched() {}, onManifest() {}, onStatus() {}, onFatal() {},
   });
   const engine = FakeHls.instance;

@@ -5,7 +5,7 @@ import { z } from "zod";
  * consent to data processing) in force — recorded with every account's
  * consent. Raise it (the date) whenever a document's meaning changes.
  */
-export const LEGAL_VERSION = "2026-10-15";
+export const LEGAL_VERSION = "2026-10-19";
 
 const text = (max: number) => z.string().trim().max(max).default("");
 

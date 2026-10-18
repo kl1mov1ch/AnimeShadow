@@ -2,6 +2,7 @@ import { useState } from "react";
 import { imageSrc } from "@/lib/format";
 import { useReactionGif } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 /**
  * A reaction gif from nekos.best (through our own image proxy) — for a
@@ -10,8 +11,10 @@ import { cn } from "@/lib/utils";
  */
 export function ReactionGif({ category, className }: { category: string; className?: string }) {
   const { data } = useReactionGif(category);
+  const still = useMediaQuery("(pointer: coarse), (prefers-reduced-motion: reduce)");
   const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
-  const url = data?.url && data.url !== brokenUrl ? imageSrc(data.url) : null;
+  const original = data?.url && data.url !== brokenUrl ? data.url : null;
+  const url = original ? imageSrc(still && original.includes("/api/gifs/") ? `${original}${original.includes("?") ? "&" : "?"}still=1` : original) : null;
   return (
     <span className={cn("relative block overflow-hidden rounded-2xl bg-foreground/[0.06]", className)}>
       {url ? (

@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, FileTextIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { LEGAL_UPDATED, type LegalDocId, legalDocs, useLegalOperator } from "@/lib/legal";
@@ -7,7 +7,25 @@ import { cn } from "@/lib/utils";
 
 /** One document: its lead, then numbered sections (1, 1.1, 1.2…). */
 export function LegalDocView({ id, className }: { id: LegalDocId; className?: string }) {
-  const doc = legalDocs(useLegalOperator())[id];
+  const operator = useLegalOperator();
+  const doc = legalDocs(operator)[id];
+  if (doc.plain) {
+    const text = (value: string) => value.split(operator.email).map((part, index) => (
+      <Fragment key={index}>{index > 0 && <a href={`mailto:${operator.email}`} className="break-all text-primary underline underline-offset-4">{operator.email}</a>}{part}</Fragment>
+    ));
+    return (
+      <article className={cn("flex flex-col gap-5 text-sm leading-relaxed text-foreground/85 [overflow-wrap:anywhere]", className)}>
+        <p>{text(doc.lead)}</p>
+        {doc.sections.map((section, index) => section.list ? (
+          <ul key={index} className="list-disc space-y-2 pl-5 marker:text-muted-foreground">
+            {section.items.map((item) => <li key={item}>{text(item)}</li>)}
+          </ul>
+        ) : (
+          <div key={index} className="flex flex-col gap-5">{section.items.map((item) => <p key={item}>{text(item)}</p>)}</div>
+        ))}
+      </article>
+    );
+  }
   return (
     <article className={cn("flex flex-col gap-5 text-sm leading-relaxed", className)}>
       <p className="text-muted-foreground">{doc.lead}</p>

@@ -34,7 +34,7 @@ interface QuickLink {
  */
 // The same tile on every screen: the icon beside the name and what is in it.
 const TILE =
-  "group relative flex min-w-0 flex-row items-center gap-2.5 rounded-xl border border-border/50 bg-card/40 p-2.5 text-left outline-none transition-colors duration-200 hover:border-foreground/20 hover:bg-card/70 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring";
+  "group relative flex min-w-0 flex-col items-center justify-start gap-2 rounded-xl border border-border/50 bg-card/60 p-2 text-center outline-none transition-colors duration-150 hover:border-primary/35 hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:p-2.5 sm:text-left";
 const CHIP =
   "grid size-9 shrink-0 place-items-center rounded-lg bg-foreground/[0.06] text-foreground/75 transition-colors duration-200 group-hover:text-foreground";
 
@@ -80,7 +80,7 @@ export function HomeQuickLinks() {
   };
 
   return (
-    <nav aria-label="Разделы" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5 lg:grid-cols-8">
+    <nav aria-label="Разделы" className="grid grid-cols-4 gap-2 sm:gap-2.5 lg:grid-cols-8">
       {links.map(({ to, title, hint, Icon, curated: slug }) => {
         const collection = slug ? byslug.get(slug) : undefined;
         return (
@@ -105,8 +105,8 @@ export function HomeQuickLinks() {
 function TileText({ title, hint }: { title: string; hint: string }) {
   return (
     <span className="relative z-10 flex w-full min-w-0 flex-col">
-      <span className="truncate text-[13px] font-semibold leading-tight text-foreground sm:text-sm">{title}</span>
-      <span className="truncate text-[11px] text-muted-foreground">{hint}</span>
+      <span className="min-h-8 text-[11px] font-semibold leading-4 text-foreground [overflow-wrap:anywhere] sm:min-h-0 sm:truncate sm:text-sm">{title}</span>
+      <span className="hidden truncate text-[11px] text-muted-foreground sm:block">{hint}</span>
     </span>
   );
 }

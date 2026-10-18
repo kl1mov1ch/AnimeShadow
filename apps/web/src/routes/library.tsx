@@ -372,6 +372,7 @@ export function Component() {
                 count={counts[s]}
                 active={activeStatus === s}
                 dot={STATUS_META[s].dot}
+                tone={{ WATCHING: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30", PLANNED: "bg-sky-400/10 text-sky-300 ring-sky-400/30", COMPLETED: "bg-primary/10 text-primary", ON_HOLD: "bg-amber-400/10 text-amber-300 ring-amber-400/30", DROPPED: "bg-zinc-400/10 text-zinc-300 ring-zinc-400/30" }[s]}
                 onClick={() => setStatus(activeStatus === s ? "" : s)}
               />
             ))}
@@ -388,7 +389,7 @@ export function Component() {
         </div>
 
         {total > 0 && (
-          <div className={cn(SIDE_CARD, "lg:flex-1")}>
+          <details className={cn(SIDE_CARD, "group lg:flex-1")}><summary className="cursor-pointer text-xs font-medium text-foreground">Фильтры и отображение</summary><div className="mt-3 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <SlidersHorizontalIcon className="size-3.5" />
@@ -424,7 +425,7 @@ export function Component() {
               <SideToggle icon={StarIcon} label={t("library.side.scored")} on={scoredOnly} onClick={() => setScoredOnly((v) => !v)} />
               <SideToggle icon={NotebookPenIcon} label={t("library.side.withNotes")} on={withNotes} onClick={() => setWithNotes((v) => !v)} />
             </div>
-          </div>
+          </div></details>
         )}
       </aside>
 
@@ -528,7 +529,7 @@ export function Component() {
             }
           />
         ) : view === "grid" ? (
-          <div className="grid grid-cols-3 gap-x-2.5 gap-y-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+          <div className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-x-2.5 gap-y-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
             {pageItems.map((entry, i) => (
               <LibraryTile key={entry.anime.id} entry={entry} edit={edit} index={i} />
             ))}

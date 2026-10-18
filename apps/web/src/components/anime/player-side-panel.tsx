@@ -22,8 +22,13 @@ import { useDragScroll } from "@/lib/drag-scroll";
 import { type EpisodeCatalog, type EpisodeInfo, formatClock } from "@/lib/episodes";
 import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  episodeProgress,
+  runtimeSeconds,
+  type SavedEpisodeState,
+} from "@/lib/episode-progress";
 
-export type EpisodeState = { completed: boolean; position: number };
+export type EpisodeState = SavedEpisodeState;
 
 /**
  * Everything you change while watching, in one column beside the picture.
@@ -44,6 +49,7 @@ export function PlayerSidePanel({
   onEpisodeChange,
   catalog,
   fallbackDuration,
+  fallbackPoster,
   currentEpisodes,
   watched,
   canMark,
@@ -64,6 +70,7 @@ export function PlayerSidePanel({
   catalog: EpisodeCatalog;
   /** The title-wide runtime, for episodes no provider measured. */
   fallbackDuration: string | null;
+  fallbackPoster?: string | null;
   /** What the dub on screen can play; null when it doesn't say. */
   currentEpisodes: Set<number> | null;
   watched: Map<number, EpisodeState>;
@@ -107,7 +114,9 @@ export function PlayerSidePanel({
             aria-hidden
             className={cn(
               "absolute inset-y-1 w-[calc(50%-0.3125rem)] rounded-lg bg-primary/15 transition-transform duration-300 ease-out",
-              tab === "episodes" ? "translate-x-0" : "translate-x-[calc(100%+0.125rem)]",
+              tab === "episodes"
+                ? "translate-x-0"
+                : "translate-x-[calc(100%+0.125rem)]",
             )}
           />
           <PanelTab
@@ -137,6 +146,7 @@ export function PlayerSidePanel({
           onEpisodeChange={onEpisodeChange}
           catalog={catalog}
           fallbackDuration={fallbackDuration}
+          fallbackPoster={fallbackPoster}
           currentEpisodes={currentEpisodes}
           watched={watched}
           canMark={canMark}
@@ -154,7 +164,9 @@ export function PlayerSidePanel({
           sourceLabel={sourceLabel}
         />
       )}
-      {footer && <div className="shrink-0 border-t border-border/60 p-1.5">{footer}</div>}
+      {footer && (
+        <div className="shrink-0 border-t border-border/60 p-1.5">{footer}</div>
+      )}
     </aside>
   );
 }
@@ -185,7 +197,12 @@ function PanelTab({
         active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className={cn("size-3.5 transition-transform duration-300", active && "scale-110")} />
+      <Icon
+        className={cn(
+          "size-3.5 transition-transform duration-300",
+          active && "scale-110",
+        )}
+      />
       {label}
       <span className="tabular-nums opacity-60">{count}</span>
     </button>
@@ -213,6 +230,7 @@ function EpisodeList({
   onEpisodeChange,
   catalog,
   fallbackDuration,
+  fallbackPoster,
   currentEpisodes,
   watched,
   canMark,
@@ -223,6 +241,7 @@ function EpisodeList({
   onEpisodeChange: (episode: number) => void;
   catalog: EpisodeCatalog;
   fallbackDuration: string | null;
+  fallbackPoster?: string | null;
   currentEpisodes: Set<number> | null;
   watched: Map<number, EpisodeState>;
   canMark: boolean;
@@ -324,11 +343,16 @@ function EpisodeList({
       >
         <div className="relative" style={{ height: total * ROW }}>
           {rows.map((n) => (
-            <div key={n} className="absolute inset-x-0" style={{ top: (n - 1) * ROW, height: ROW - 4 }}>
+            <div
+              key={n}
+              className="absolute inset-x-0"
+              style={{ top: (n - 1) * ROW, height: ROW - 4 }}
+            >
               <EpisodeRow
                 n={n}
                 info={catalog.info.get(n)}
                 fallbackDuration={fallbackDuration}
+                fallbackPoster={fallbackPoster}
                 current={n === episode}
                 inDub={currentEpisodes == null || currentEpisodes.has(n)}
                 state={watched.get(n)}
@@ -359,6 +383,7 @@ const EpisodeRow = memo(function EpisodeRow({
   n,
   info,
   fallbackDuration,
+  fallbackPoster,
   current,
   inDub,
   state,
@@ -369,6 +394,7 @@ const EpisodeRow = memo(function EpisodeRow({
   n: number;
   info: EpisodeInfo | undefined;
   fallbackDuration: string | null;
+  fallbackPoster?: string | null;
   current: boolean;
   inDub: boolean;
   state: EpisodeState | undefined;
@@ -378,18 +404,26 @@ const EpisodeRow = memo(function EpisodeRow({
 }) {
   const t = useT();
   const [failedImages, setFailedImages] = useState<string[]>([]);
-  const still = [info?.thumb, ...(info?.thumbs ?? [])].find((url): url is string => Boolean(url) && !failedImages.includes(url!));
-  const art = still ? imageSrc(still, 240) : null;
-  const done = state?.completed ?? false;
+  const still = [info?.thumb, ...(info?.thumbs ?? [])].find(
+    (url): url is string => Boolean(url) && !failedImages.includes(url!),
+  );
+  const artwork =
+    still ??
+    (fallbackPoster && !failedImages.includes(fallbackPoster) ? fallbackPoster : null);
+  const art = artwork ? imageSrc(artwork, 240) : null;
+  const personalState = canMark ? state : undefined;
+  const saved = episodeProgress(
+    personalState,
+    canMark,
+    info?.durationSeconds ?? runtimeSeconds(fallbackDuration),
+  );
+  const done = saved.completed;
   const numberLabel = t("detail.episodeNumber", { n });
   const length =
-    info?.durationSeconds != null ? formatClock(info.durationSeconds) : fallbackDuration;
-  const started = !done && state != null && state.position > 0;
-  // How far in, for the thin bar on the still: against the episode's own
-  // length when a provider gave one, else against a typical 24 minutes.
-  const startedShare = started
-    ? Math.min(0.95, Math.max(0.05, state.position / (info?.durationSeconds ?? 1440)))
-    : 0;
+    info?.durationSeconds != null
+      ? formatClock(info.durationSeconds)
+      : fallbackDuration;
+  const started = !done && saved.position > 0;
   const hint = [
     info?.title ? `${numberLabel} · ${info.title}` : numberLabel,
     current
@@ -397,7 +431,7 @@ const EpisodeRow = memo(function EpisodeRow({
       : done
         ? t("watch.episodeWatched")
         : started
-          ? t("watch.tip.episodeStarted", { at: formatClock(state.position) })
+          ? t("watch.tip.episodeStarted", { at: formatClock(saved.position) })
           : null,
     inDub ? null : t("watch.episodeNotInDub"),
   ]
@@ -408,15 +442,22 @@ const EpisodeRow = memo(function EpisodeRow({
     <div
       data-episode={n}
       className={cn(
-        "group flex h-full items-center gap-2 rounded-lg border p-1 pr-1.5 transition-colors duration-150",
+        "group relative isolate flex h-full items-center gap-2 overflow-hidden rounded-lg border p-1 pr-1.5 transition-colors duration-150 [&>button]:relative [&>button]:z-10",
         current
-          ? "border-primary bg-primary/10 shadow-sm"
+          ? "border-primary bg-card/50 shadow-sm"
           : done
-            ? "border-emerald-500/30 bg-emerald-500/[0.06] hover:border-emerald-500/60"
+            ? "border-primary/20 hover:border-primary/40"
             : "border-transparent hover:border-primary/40 hover:bg-secondary/40",
         !inDub && !current && "opacity-45 hover:opacity-100",
       )}
     >
+      {saved.fraction > 0 && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 bg-primary/[0.12]"
+          style={{ width: `${saved.fraction * 100}%` }}
+        />
+      )}
       <button
         type="button"
         onClick={() => onOpen(n)}
@@ -428,10 +469,10 @@ const EpisodeRow = memo(function EpisodeRow({
           {art ? (
             <img
               src={art}
-              alt={`Кадр ${n}-й серии`}
+              alt={still ? `Кадр ${n}-й серии` : "Постер аниме"}
               loading="lazy"
               decoding="async"
-              onError={() => still && setFailedImages((urls) => [...urls, still])}
+              onError={() => artwork && setFailedImages((urls) => [...urls, artwork])}
               className="size-full object-cover"
             />
           ) : (
@@ -442,12 +483,6 @@ const EpisodeRow = memo(function EpisodeRow({
           {art && (
             <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 font-display text-[9px] leading-tight tabular-nums text-white">
               {n}
-            </span>
-          )}
-          {/* Started but not finished — how far in they got. */}
-          {started && (
-            <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black/40">
-              <span className="block h-full bg-primary" style={{ width: `${Math.round(startedShare * 100)}%` }} />
             </span>
           )}
         </span>
@@ -465,21 +500,37 @@ const EpisodeRow = memo(function EpisodeRow({
           >
             {info?.title ? (
               <>
-                <span className="tabular-nums text-muted-foreground">{n}.</span> {info.title}
+                <span className="tabular-nums text-muted-foreground">{n}.</span>{" "}
+                {info.title}
               </>
             ) : (
               numberLabel
             )}
           </span>
           <span className="flex items-center gap-1 truncate text-[10px] leading-tight text-muted-foreground">
-            {length && <span className="tabular-nums">{length}</span>}
-            {info?.synopsis && length && <span aria-hidden>·</span>}
-            {info?.synopsis && <span className="truncate">{info.synopsis}</span>}
+            {saved.position > 0 ? (
+              <span className="tabular-nums text-primary">
+                {formatClock(saved.position)}
+                {length ? ` / ${length}` : ""}
+              </span>
+            ) : (
+              <>
+                {length && <span className="tabular-nums">{length}</span>}
+                {info?.synopsis && length && <span aria-hidden>·</span>}
+                {info?.synopsis && <span className="truncate">{info.synopsis}</span>}
+              </>
+            )}
           </span>
         </span>
       </button>
 
-      <EpisodeInfoButton n={n} info={info} length={length} inDub={inDub} state={state} />
+      <EpisodeInfoButton
+        n={n}
+        info={info}
+        length={length}
+        inDub={inDub}
+        state={personalState}
+      />
 
       {canMark && (
         <button
@@ -548,9 +599,13 @@ function EpisodeInfoButton({
           <span className="font-display text-[11px] uppercase tracking-wide text-primary">
             {t("detail.episodeNumber", { n })}
           </span>
-          {info?.title && <span className="text-[13px] font-semibold leading-snug">{info.title}</span>}
+          {info?.title && (
+            <span className="text-[13px] font-semibold leading-snug">{info.title}</span>
+          )}
           {info?.titleEn && (
-            <span className="text-[11px] italic leading-snug text-muted-foreground">{info.titleEn}</span>
+            <span className="text-[11px] italic leading-snug text-muted-foreground">
+              {info.titleEn}
+            </span>
           )}
           {info?.synopsis && (
             <span className="line-clamp-6 text-[11px] font-normal leading-relaxed text-foreground/80">
@@ -558,9 +613,7 @@ function EpisodeInfoButton({
             </span>
           )}
           <span className="mt-0.5 flex flex-col gap-1 text-[11px] font-normal text-muted-foreground">
-            {length && (
-              <InfoLine icon={ClockIcon}>{length}</InfoLine>
-            )}
+            {length && <InfoLine icon={ClockIcon}>{length}</InfoLine>}
             {info?.airdate && (
               <InfoLine icon={CalendarIcon}>
                 {new Date(info.airdate).toLocaleDateString(undefined, {
@@ -579,7 +632,9 @@ function EpisodeInfoButton({
               </InfoLine>
             )}
             {info && info.dubs > 0 && (
-              <InfoLine icon={LayersIcon}>{t("watch.episodeDubs", { n: info.dubs })}</InfoLine>
+              <InfoLine icon={LayersIcon}>
+                {t("watch.episodeDubs", { n: info.dubs })}
+              </InfoLine>
             )}
             {!inDub && <InfoLine icon={MicIcon}>{t("watch.episodeNotInDub")}</InfoLine>}
             {done && (
@@ -685,35 +740,38 @@ function DubList({
                 </span>
               )}
               {active && (
-                <DrawnCheck key={currentSourceId} className="size-3.5 shrink-0 text-primary" />
+                <DrawnCheck
+                  key={currentSourceId}
+                  className="size-3.5 shrink-0 text-primary"
+                />
               )}
             </button>
 
             {canFavourite && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => onToggleFavourite(source.title)}
-                  aria-pressed={starred}
-                  aria-label={t("watch.dubFavourite")}
-                  className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-full transition-all duration-200 active:scale-90",
-                    starred
-                      ? "text-amber-400"
-                      : "text-muted-foreground/40 hover:text-amber-400",
-                  )}
-                >
-                  <StarIcon
-                    key={String(starred)}
-                    className={cn("size-3.5", starred && "morph-pop fill-current")}
-                  />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="left" className="max-w-56">
-                {starred ? t("watch.dubFavouriteOn") : t("watch.tip.dubStar")}
-              </TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => onToggleFavourite(source.title)}
+                    aria-pressed={starred}
+                    aria-label={t("watch.dubFavourite")}
+                    className={cn(
+                      "grid size-6 shrink-0 place-items-center rounded-full transition-all duration-200 active:scale-90",
+                      starred
+                        ? "text-amber-400"
+                        : "text-muted-foreground/40 hover:text-amber-400",
+                    )}
+                  >
+                    <StarIcon
+                      key={String(starred)}
+                      className={cn("size-3.5", starred && "morph-pop fill-current")}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-56">
+                  {starred ? t("watch.dubFavouriteOn") : t("watch.tip.dubStar")}
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
         );

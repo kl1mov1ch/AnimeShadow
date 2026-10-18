@@ -24,6 +24,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useT } from "@/i18n";
 import { useCollections, useCuratedCollections, useMyCollectionsStats } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { StudioFeatureCard } from "@/components/studio/studio-feature-card";
 
 const ANY_TAG = "__any";
 
@@ -101,12 +102,12 @@ export function Component() {
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col gap-1">
             <h1 className="font-display text-2xl sm:text-3xl">{t("collections.eyebrow")}</h1>
             <p className="max-w-2xl text-sm text-muted-foreground">{t("collections.lead")}</p>
           </div>
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-start gap-1 sm:items-end">
             {authed ? (
               <Link
                 to={atLimit ? "/support" : "/collections/new"}
@@ -134,7 +135,7 @@ export function Component() {
         </div>
       </header>
 
-      {page === 1 && !q && !tag && !saved && <CuratedHub data={curated.data} pending={curated.isPending} />}
+      {page === 1 && !q && !tag && !saved && <><StudioFeatureCard /><CuratedHub data={curated.data} pending={curated.isPending} /></>}
 
       <section className="flex flex-col gap-3">
         <h2 className="font-display text-lg sm:text-xl">{t("collections.fromViewers")}</h2>
@@ -242,7 +243,7 @@ export function Component() {
 
       <div className="flex min-w-0 flex-col gap-4">
         {isPending ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }, (_, i) => (
               <Skeleton key={i} className={cn("h-80 rounded-2xl", i === 0 && "sm:col-span-2")} />
             ))}
@@ -298,7 +299,7 @@ function CuratedHub({
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-64 rounded-2xl" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-56 rounded-2xl" />
           ))}
@@ -313,7 +314,7 @@ function CuratedHub({
       {daily && <DailyCurated collection={daily} />}
       <section className="flex flex-col gap-3">
         <h2 className="font-display text-lg sm:text-xl">{t("collections.themed")}</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {data.items.map((c) => (
             <CuratedCard key={c.slug} collection={c} />
           ))}

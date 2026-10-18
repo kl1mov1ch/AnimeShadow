@@ -47,7 +47,7 @@ const SECTIONS: Array<{ id: StudioTab; icon: typeof PaletteIcon; title: string; 
   { id: "showcase", icon: TrophyIcon, title: "Витрина", hint: "Достижения под вашим именем" },
   { id: "taste", icon: HeartIcon, title: "Вкусы", hint: "Любимые жанры для рекомендаций" },
   { id: "privacy", icon: LockIcon, title: "Приватность", hint: "Кто что видит в профиле" },
-  { id: "notify", icon: BellRingIcon, title: "Уведомления", hint: "Новые серии в Telegram и браузере" },
+  { id: "notify", icon: BellRingIcon, title: "Telegram и уведомления", hint: "Привязка аккаунта и новые серии" },
   { id: "navigation", icon: PanelBottomIcon, title: "Нижнее меню", hint: "Свои кнопки и интерактивный предпросмотр" },
   { id: "list", icon: UploadIcon, title: "Список", hint: "Импорт из MAL и Shikimori, экспорт" },
   { id: "account", icon: UserCogIcon, title: "Аккаунт", hint: "Почта, возраст, удаление" },

@@ -28,6 +28,7 @@ import { activeFilterCount, AIRING_VALUES, TYPE_VALUES } from "@/lib/browse-para
 import { useLabels } from "@/lib/labels";
 import type { BrowseParams } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { HonkonGlyph } from "@/components/brand/honkon-glyph";
 
 export type FilterPatch = Record<string, string | null>;
 
@@ -183,6 +184,10 @@ export function BrowseFilters({
         )}
       </div>
 
+      <button type="button" aria-pressed={params.dubbingStudio === "hon-kon"} onClick={() => onChange({ dubbingStudio: params.dubbingStudio ? null : "hon-kon" })}
+        className={cn("flex min-h-11 items-center gap-2 rounded-xl border px-3 text-left text-xs transition-colors", params.dubbingStudio ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>
+        <HonkonGlyph className="size-6" /><span>Озвучка Hon-Kon Studio</span>
+      </button>
       <Fold title="Тип и выход" defaultOpen active={Boolean(params.type || params.airing)}>
         <ChipGroup
           label="Тип"

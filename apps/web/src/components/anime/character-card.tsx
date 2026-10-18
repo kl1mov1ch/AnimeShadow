@@ -60,7 +60,7 @@ export function CharacterCard({
           onClick={() => onSelect?.(character)}
           {...prefetch}
           title={roleLabel}
-          className="group flex w-full flex-col items-center gap-1.5 rounded-xl p-1 text-center outline-none transition-colors hover:bg-primary/[0.06] focus-visible:ring-2 focus-visible:ring-ring"
+          className="group flex min-h-16 w-full min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-card/60 p-2 text-left outline-none transition-colors hover:border-primary/35 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {/* A round avatar that fills its grid cell (w-full + aspect-square,
               not a fixed pixel size) — so it's exactly the grid's own column
@@ -69,16 +69,16 @@ export function CharacterCard({
               juggling here. The main-character mark is a small corner star
               instead of a text pill, so it stays out of the way of the name
               below at any size. */}
-          <div className="relative w-full">
+          <div className="relative w-11 shrink-0 sm:w-12">
             <div
               className={cn(
-                "aspect-square w-full overflow-hidden rounded-full border-2 bg-muted transition-colors",
+                "aspect-square w-full overflow-hidden rounded-xl border bg-muted",
                 isMain ? "border-primary" : "border-border/60 group-hover:border-primary/40",
               )}
             >
               {character.imageUrl ? (
                 <img
-                  src={imageSrc(character.imageUrl)}
+                  src={imageSrc(character.imageUrl, 240)}
                   alt=""
                   loading="lazy"
                   decoding="async"
@@ -95,7 +95,7 @@ export function CharacterCard({
             )}
           </div>
 
-          <p className="line-clamp-2 w-full text-[11px] font-medium leading-tight sm:text-xs">
+          <div className="flex min-w-0 flex-1 flex-col gap-1"><p className="line-clamp-2 w-full text-[11px] font-medium leading-snug sm:text-xs">
             {character.name}
           </p>
           {/* Who plays them, when we know it — the reason "who voices this
@@ -103,7 +103,7 @@ export function CharacterCard({
               one of a dozen names. */}
           <p className={cn("line-clamp-1 w-full text-[10px]", isMain ? "font-semibold text-primary" : "text-muted-foreground")}>
             {roleLabel}
-          </p>
+          </p></div>
         </button>
     );
   }

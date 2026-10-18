@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { OPEN_SEARCH_EVENT } from "@/lib/search-events";
+import { OPEN_SEARCH_EVENT, SEARCH_STATE_EVENT } from "@/lib/search-events";
 
 /**
  * Owns the ⌘K shortcut; loads the palette itself only once it is asked for.
@@ -21,6 +21,10 @@ export function SearchCommandMount() {
   // unload it, and re-importing on every close would be worse than useless.
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(SEARCH_STATE_EVENT, { detail: open }));
+    return () => { if (open) window.dispatchEvent(new CustomEvent(SEARCH_STATE_EVENT, { detail: false })); };
+  }, [open]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

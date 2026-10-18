@@ -40,6 +40,9 @@ export const router = createBrowserRouter([
         children: [
           { index: true, lazy: () => import("@/routes/discover") },
           { path: "browse", lazy: () => import("@/routes/browse") },
+          { path: "studio/hon-kon", lazy: () => import("@/routes/studio-honkon") },
+          { path: "studio/hon-kon/releases", lazy: () => import("@/routes/studio-workspace") },
+          { path: "studio/hon-kon/workspace", loader: () => redirect("/studio/hon-kon/releases") },
           // Landing pages for what people search for — one clean address each.
           { path: "genre/:slug", lazy: () => import("@/routes/landing") },
           { path: "top", lazy: () => import("@/routes/landing") },
@@ -70,6 +73,7 @@ export const router = createBrowserRouter([
           { path: "admin", lazy: () => import("@/routes/admin") },
           { path: "about", lazy: () => import("@/routes/about") },
           { path: "legal", lazy: () => import("@/routes/legal") },
+          { path: "copyright", loader: () => redirect("/legal?doc=copyright") },
           { path: "privacy", loader: () => redirect("/legal?doc=privacy") },
           { path: "terms", loader: () => redirect("/legal?doc=terms") },
           { path: "offer", loader: () => redirect("/legal?doc=terms") },

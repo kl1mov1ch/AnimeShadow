@@ -8,6 +8,7 @@ import { NotFoundError } from "../lib/errors.js";
 import { parse } from "../lib/validation.js";
 import { SITE } from "../seo/html.js";
 import { PAGE_CSP } from "../seo/csp.js";
+import { isTvBrowser, tvDestination } from "../lib/tv-mode.js";
 
 /** Anime per sitemap file (the limit is 50 000; smaller files regenerate faster). */
 const ANIME_PER_SITEMAP = 10_000;
@@ -24,6 +25,11 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/seo/page/*", async (request, reply) => {
     const url = request.url.slice("/api/seo/page".length) || "/";
+    reply.header("vary", "User-Agent, Cookie");
+    if (/(?:\?|&)tv=0(?:&|$)/.test(url)) reply.header("set-cookie", "as_full_site=1; Path=/; Max-Age=2592000; SameSite=Lax");
+    else if (isTvBrowser(request.headers["user-agent"] ?? "") && !/(?:^|;\s*)as_full_site=1(?:;|$)/.test(request.headers.cookie ?? "")) {
+      return reply.header("cache-control", "private, no-store").header("vary", "User-Agent, Cookie").redirect(tvDestination(url), 302);
+    }
     const page = await seo.render(url.startsWith("/") ? url : `/${url}`);
     if (page.redirect) {
       reply.header("cache-control", "public, max-age=3600");

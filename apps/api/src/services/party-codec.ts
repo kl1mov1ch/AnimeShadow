@@ -6,6 +6,7 @@ export function encodeRoom(room: Room) {
   const playback = { ...room.playback, position: room.playback.position + (room.playback.playing ? (now - room.playback.updatedAt) / 1000 : 0), updatedAt: now };
   return {
     version: 1 as const, code: room.code, settings: room.settings, anime: room.anime,
+    studio: room.studio ?? null, capacity: room.capacity,
     hostId: room.hostId, creatorId: room.creatorId, connectedOnce: room.connectedOnce,
     official: room.official, name: room.name, durationSeconds: room.durationSeconds, nextVotes: [...room.nextVotes],
     availableEpisodes: room.availableEpisodes,
@@ -29,12 +30,14 @@ export function decodeRoom(value: unknown): Room | null {
     const now = Date.now();
     return {
       ...saved, settings: { ...PARTY_DEFAULT_SETTINGS, ...saved.settings },
+      studio: saved.studio === "hon-kon" ? "hon-kon" : null,
+      capacity: Number.isInteger(saved.capacity) && saved.capacity! >= 2 && saved.capacity! <= 10 ? saved.capacity : 10,
       official: saved.official === true, name: saved.name ?? null, durationSeconds: saved.durationSeconds ?? null,
-      playback: saved.official ? saved.playback : { ...saved.playback, playing: false, updatedAt: now, waitingFor: null },
+      playback: { ...saved.playback, playing: false, updatedAt: now, waitingFor: null },
       nextVotes: new Set(saved.nextVotes ?? []),
       availableEpisodes: saved.availableEpisodes ?? [],
       people: new Map(saved.people.map((person) => [person.id, person])),
-      streams: new Map(), emptySince: saved.official ? null : saved.emptySince ?? now,
+      streams: new Map(), emptySince: saved.emptySince ?? now,
       hostGoneAt: saved.official ? null : now, muted: new Set(saved.muted), banned: new Set(saved.banned),
       queue: new Map(saved.queue.map(({ id, ...item }) => [id, { ...item, votes: new Set(item.votes) }])),
       titles: new Map(saved.titles), chat: saved.chat.slice(-120),

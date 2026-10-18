@@ -22,18 +22,18 @@ export function CuratedCard({ collection, className }: { collection: CuratedColl
       to={`/collections/c/${collection.slug}`}
       viewTransition
       className={cn(
-        "group/cc relative isolate flex min-h-[17rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-card transition-[border-color] duration-300 hover:border-foreground/20",
+        "group/cc relative isolate flex min-h-[15rem] sm:min-h-[17rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-card transition-[border-color] duration-300 hover:border-foreground/20",
         className,
       )}
     >
       {backdrop && (
-        <img aria-hidden src={imageSrc(backdrop)} alt="" loading="lazy" decoding="async" className="absolute inset-0 -z-20 size-full object-cover opacity-20" />
+        <img aria-hidden src={imageSrc(backdrop, 640)} alt="" loading="lazy" decoding="async" className="absolute inset-0 -z-20 size-full object-cover opacity-20" />
       )}
       <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/85 to-card/20" />
       <span className="absolute right-2.5 top-2.5 z-20 rounded-md bg-black/65 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
         {titlesCount(collection.total)}
       </span>
-      <div className="relative mx-3 mt-3 min-h-36 flex-1">
+      <div className="relative mx-3 mt-3 min-h-28 flex-1 sm:min-h-36">
         {fan.map((anime, i) => {
           const offset = i - mid;
           return (
@@ -51,7 +51,7 @@ export function CuratedCard({ collection, className }: { collection: CuratedColl
                 } as CSSProperties
               }
             >
-              <img src={imageSrc(anime.imageUrl)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+              <img src={imageSrc(anime.imageUrl, 480)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
             </span>
           );
         })}
@@ -59,7 +59,7 @@ export function CuratedCard({ collection, className }: { collection: CuratedColl
       <div className="relative flex min-w-0 flex-col gap-1 p-3 pt-2">
         <span className="flex items-center gap-2 font-display text-base leading-tight">
           <Icon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{collection.title}</span>
+          <span className="line-clamp-2">{collection.title}</span>
         </span>
         <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">{collection.pitch}</span>
       </div>
@@ -98,7 +98,7 @@ export function DailyCurated({ collection }: { collection: CuratedCollection }) 
       <img
         key={anime.id}
         aria-hidden
-        src={imageSrc(anime.imageUrl)}
+        src={imageSrc(anime.imageUrl, 480)}
         alt=""
         decoding="async"
         className="pointer-events-none absolute inset-y-0 left-0 -z-10 h-full w-full animate-in object-cover opacity-[0.12] duration-700 fade-in-0 [mask-image:linear-gradient(to_right,#000_40%,transparent)] lg:w-2/3"
@@ -115,7 +115,7 @@ export function DailyCurated({ collection }: { collection: CuratedCollection }) 
             Все {titlesCount(collection.total)} →
           </Link>
         </div>
-        <div key={anime.id} className="flex min-w-0 animate-in gap-4 duration-500 fade-in-0 slide-in-from-left-2">
+        <div key={anime.id} className="flex min-w-0 flex-col gap-3 sm:flex-row sm:gap-4">
           <Link to={`/anime/${anime.slug || anime.id}`} className="shrink-0">
             <img src={imageSrc(anime.imageLargeUrl ?? anime.imageUrl)} alt="" decoding="async" className="aspect-[2/3] w-28 rounded-xl object-cover ring-1 ring-white/10 sm:w-36" />
           </Link>

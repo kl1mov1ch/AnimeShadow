@@ -1,11 +1,12 @@
+import { AccountPreview } from "@/components/auth/account-preview";
 import { LibraryBigIcon, type LucideIcon, MonitorPlayIcon, RefreshCwIcon, SlidersHorizontalIcon } from "lucide-react";
 import { GlyphWatermark, HomeButton, HomeContainer, Reveal, Shine } from "./home-ui";
 
 const FEATURES: Array<{ icon: LucideIcon; title: string; note: string }> = [
-  { icon: LibraryBigIcon, title: "Огромная библиотека", note: "Сотни тайтлов на любой вкус" },
-  { icon: MonitorPlayIcon, title: "Высокое качество", note: "HD и FullHD, без потерь" },
+  { icon: LibraryBigIcon, title: "Огромная библиотека", note: "Поиск, жанры и тематические подборки" },
+  { icon: MonitorPlayIcon, title: "Высокое качество", note: "Автокачество, 1080p и 2K с PRO" },
   { icon: SlidersHorizontalIcon, title: "Удобный плеер", note: "Настрой просмотр под себя" },
-  { icon: RefreshCwIcon, title: "Регулярные обновления", note: "Новые серии каждый день" },
+  { icon: RefreshCwIcon, title: "Регулярные обновления", note: "Уведомления о доступных сериях" },
 ];
 
 /** Artwork on the left, the pitch and a 2×2 grid of reasons on the right. */
@@ -68,6 +69,7 @@ export function FeatureSection() {
               ))}
             </div>
 
+            <div className="mt-5"><AccountPreview compact /></div>
             <HomeButton to="/browse" className="mt-7">
               Начать просмотр →
             </HomeButton>

@@ -1,0 +1,19 @@
+{
+  "generatedAt": "2026-10-18T20:36:54.884Z",
+  "scope": "Local database snapshot, all catalogue rows, no public or contractual rights verification",
+  "operatorCountry": "BY",
+  "audience": "CIS (territories require separate verification)",
+  "basis": "Owner states no video exhibition licences; schema contains no video-rights registry",
+  "titles": 20004,
+  "cachedPlayerTitles": 9004,
+  "cachedCustomPlayerTitles": 8957,
+  "honkonTitles": 12,
+  "confirmedSiteVideoGrants": 0,
+  "status": "UNCONFIRMED",
+  "providerTitleCounts": {
+    "alloha": 3107,
+    "anilibria": 1781,
+    "kodik": 8989
+  },
+  "runtimeChanged": false
+}

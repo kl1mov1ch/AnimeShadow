@@ -1,3 +1,4 @@
+import { ACHIEVEMENT_MILESTONES } from "@animeshadow/shared";
 import type { PrismaClient } from "@animeshadow/db";
 import { SECRET_RULES } from "../lib/secret-achievements.js";
 import { ACHIEVEMENTS, type EarnedAchievement } from "@animeshadow/shared";
@@ -142,6 +143,8 @@ export class AchievementService {
       earned: current >= target,
       progress: current >= target ? null : { current: Math.floor(current), target },
     });
+    const milestone = ACHIEVEMENT_MILESTONES.find((entry) => entry.id === id);
+    if (milestone) return p(s[milestone.counter], milestone.target);
     // Secret: earned or not, never a progress bar (it would give the rule away).
     const secret = SECRET_RULES.find((r) => r.id === id);
     if (secret) return { earned: (s.episodesByAnime.get(secret.animeId) ?? 0) >= secret.episodes, progress: null };

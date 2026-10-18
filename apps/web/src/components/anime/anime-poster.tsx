@@ -32,38 +32,39 @@ export function AnimePoster({
   priority?: boolean;
   className?: string;
 }) {
-  const [status, setStatus] = useState<"loading" | "ok" | "failed">(
-    anime.imageUrl ? "loading" : "failed",
-  );
+  const [failed, setFailed] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const candidates = [anime.imageLargeUrl, anime.imageUrl].filter((url): url is string => !!url);
+  const current = candidates.find((url) => !failed.includes(url));
+  const ready = loaded === current;
 
-  if (!anime.imageUrl || status === "failed") {
+  if (!current) {
     return <PosterFallback title={title} seed={anime.id} />;
   }
 
   return (
     <>
-      {status === "loading" && (
+      {!ready && (
         <span
           aria-hidden
           className="absolute inset-0 bg-gradient-to-br from-muted via-muted/60 to-muted"
         />
       )}
       <picture>
-        {/* Two variants, picked by the browser before anything is fetched.
-            The large one is what a 2:3 poster needs on a desktop grid; the
-            small one is half the bytes and is all a phone can use. */}
-        <source media="(max-width: 639px)" srcSet={imageSrc(anime.imageUrl)} />
+        {/* Keep the selected URL on img so a picture source cannot override
+            the fallback when the preferred poster fails. */}
         <img
-          src={imageSrc(small ? anime.imageUrl : (anime.imageLargeUrl ?? anime.imageUrl))}
+          key={current}
+          src={imageSrc(current, small ? 240 : 480)}
           alt=""
           loading={priority ? "eager" : "lazy"}
           decoding="async"
           fetchPriority={priority ? "high" : "auto"}
-          onLoad={() => setStatus("ok")}
-          onError={() => setStatus("failed")}
+          onLoad={() => setLoaded(current)}
+          onError={() => setFailed((urls) => [...urls, current])}
           className={cn(
             "size-full object-cover transition-[transform,opacity] duration-500 motion-reduce:transition-none",
-            status === "ok" ? "opacity-100" : "opacity-0",
+            ready ? "opacity-100" : "opacity-0",
             className,
           )}
         />

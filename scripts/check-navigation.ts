@@ -20,7 +20,7 @@ try {
   await prisma.user.createMany({ data: ids.map(id => ({ id, email: `${id}@example.invalid`, displayName: "Navigation QA", passwordHash, notifyPush: false, notifyTelegram: false })) });
   const a = await signIn(ids[0]!), b = await signIn(ids[1]!);
   assert.equal((await fetch(`${base}/me/navigation`)).status, 401);
-  const buttons = ["catalog", "notifications", "library", "settings"];
+  const buttons = ["search", "catalog", "notifications", "library", "support"];
   const save = await fetch(`${base}/me/navigation`, { method: "PUT", headers: headers(a), body: JSON.stringify({ buttons, userId: ids[1] }) });
   assert.equal(save.status, 200);
   assert.deepEqual(await save.json(), { buttons });
@@ -28,12 +28,12 @@ try {
   assert.deepEqual(await reload.json(), { buttons });
   const other = await fetch(`${base}/me/navigation`, { headers: headers(b) });
   assert.deepEqual(await other.json(), { buttons: DEFAULT_MOBILE_NAVIGATION });
-  for (const bad of [["home", "home", "rooms", "profile"], ["home", "search", "rooms", "profile"], ["home", "frameSearch", "rooms", "profile"]]) {
+  for (const bad of [["home", "home", "search", "rooms", "profile"], ["home", "catalog", "library", "rooms", "profile"], ["home", "frameSearch", "search", "rooms", "profile"]]) {
     assert.equal((await fetch(`${base}/me/navigation`, { method: "PUT", headers: headers(a), body: JSON.stringify({ buttons: bad }) })).status, 422);
   }
   assert.deepEqual((await prisma.mobileNavigationPreference.findUnique({ where: { userId: ids[0]! } }))?.buttons, buttons);
   assert.equal(await prisma.mobileNavigationPreference.findUnique({ where: { userId: ids[1]! } }), null);
-  console.log("PASS: authentication, persistent menu, account isolation, duplicate/search rejection");
+  console.log("PASS: authentication, persistent movable search, account isolation, invalid menu rejection");
 } finally {
   await prisma.user.deleteMany({ where: { id: { in: ids }, email: { endsWith: "@example.invalid" } } });
   await prisma.$disconnect();

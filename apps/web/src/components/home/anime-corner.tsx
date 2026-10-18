@@ -572,6 +572,7 @@ function dayNumber(): number {
 const FACT_KIND = { history: "История создания", record: "Рекорд", drama: "Поворот судьбы", trivia: "Любопытно" } as const;
 
 interface ApiFact {
+  source?: string;
   id: string;
   kind?: "history" | "record" | "drama" | "trivia";
   year?: number | null;
@@ -679,6 +680,7 @@ function FactsStrip() {
               </div>
               <p className="max-w-3xl text-sm leading-relaxed text-foreground/85 sm:text-[15px]">{fact.text}</p>
 
+              {fact.source && <a href={fact.source} target="_blank" rel="noopener noreferrer" className="w-fit text-[11px] text-muted-foreground underline underline-offset-4 hover:text-primary">Источник факта</a>}
               {/* Which fact of how many, as dots. */}
               <div className="flex items-center gap-1.5" aria-label={`Факт ${at + 1} из ${count}`}>
                 {Array.from({ length: count }, (_, i) => (

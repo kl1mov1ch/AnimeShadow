@@ -36,7 +36,7 @@ import {
   VenetianMaskIcon,
   ZapIcon,
 } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
@@ -62,6 +62,18 @@ interface HoloAchievementBadgeProps {
 
 /** Every achievement has its own mark — what it is for, not what tier it is. */
 const ICONS: Record<string, LucideIcon> = {
+  "thousand-episodes": LayersIcon,
+  "three-thousand-episodes": CrownIcon,
+  "ten-series": CheckCheckIcon,
+  "twenty-five-series": LibraryIcon,
+  "fifty-series": CompassIcon,
+  "review-explorer": StarIcon,
+  "collection-architect": BookCopyIcon,
+  "collection-library": GemIcon,
+  "curator-crowd": EyeIcon,
+  "century-comments": MessagesSquareIcon,
+  "guess-century": Gamepad2Icon,
+  "genre-master": FlameIcon,
   "first-episode": PlayIcon,
   "first-review": PenLineIcon,
   "first-series": TvIcon,
@@ -134,172 +146,31 @@ const TIER: Record<
   legendary: { from: "#fff5bf", via: "#f5b400", to: "#b3560a", ink: "#3a1a00", glow: "rgba(255,170,30,0.75)", clip: "circle(50% at 50% 50%)" },
 };
 
-/** A stable number per achievement — its hue, teeth and timing come from it. */
-function seed(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i += 1) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
-  return Math.abs(h);
-}
-
-/**
- * An achievement as a living medallion, different for every achievement:
- * its own hue glowing in the face, its own count of teeth on a turning bezel,
- * its own dashed sigil turning the other way, its mark floating in the
- * middle and a holographic light crossing it now and then — and on top, the
- * rarity's motion: a breathing glow on bronze, an orbiting spark on rare, a
- * turning aura and twinkles on epic, rays, flame and embers on legendary.
- * Hovered, it tilts toward the pointer. Locked ones are dark iron with the
- * mark as a silhouette and the progress as a ring.
- *
- * Hovering (or focusing) it shows what it is for and how to earn it.
- */
-export function HoloAchievementBadge({
-  id,
-  rarity,
-  earned,
-  earnedAt,
-  progress,
-  variant = "badge",
-  animated = true,
-  tip = true,
-  onClick,
-  className,
-}: HoloAchievementBadgeProps) {
+/** A static SVG medal: a distinct silhouette by rarity, with no animation layers. */
+export function HoloAchievementBadge({ id, rarity, earned, earnedAt, progress, variant = "badge", tip = true, onClick, className }: HoloAchievementBadgeProps) {
   const t = useT();
+  const gradient = useId().replace(/:/g, "");
   const tier = TIER[rarity];
   const Icon = ICONS[id] ?? SparklesIcon;
   const title = t(`achievements.items.${id}.title` as "achievements.items.critic.title");
-  const rarityLabel = t(`achievements.rarity.${rarity}` as "achievements.rarity.common");
-  const percent =
-    !earned && progress && progress.target > 0 ? Math.min(100, Math.round((progress.current / progress.target) * 100)) : null;
-  const n = seed(id);
-  const hue = n % 360;
-  const teeth = 8 + (n % 7);
-  const delay = `${(n % 40) / 10}s`;
-
-  const medallion = (
-    <span className="achx-medal relative block aspect-square w-full">
-      {earned && <Aura rarity={rarity} glow={tier.glow} hue={hue} />}
-
-      {/* The bezel, with this achievement's own teeth, turning slowly. */}
-      <span
-        aria-hidden
-        className="absolute inset-[3%]"
-        style={{
-          clipPath: tier.clip,
-          background: earned ? `linear-gradient(145deg, ${tier.from}, ${tier.via} 45%, ${tier.to})` : "linear-gradient(145deg, #3a3d48, #16181f)",
-        }}
-      />
-      {earned && (
-        <span
-          aria-hidden
-          className="achx-spin absolute inset-[3%]"
-          style={
-            {
-              clipPath: tier.clip,
-              "--dur": `${18 + (n % 10)}s`,
-              background: `repeating-conic-gradient(from ${n % 30}deg, rgba(255,255,255,0.45) 0deg 2.5deg, transparent 2.5deg ${360 / teeth}deg)`,
-              maskImage: "radial-gradient(circle, transparent 60%, #000 64%)",
-              WebkitMaskImage: "radial-gradient(circle, transparent 60%, #000 64%)",
-            } as CSSProperties
-          }
-        />
-      )}
-
-      {/* The face, in the tier's metal with this achievement's own hue. */}
-      <span
-        aria-hidden
-        className="absolute inset-[12%] overflow-hidden"
-        style={{
-          clipPath: tier.clip,
-          background: earned
-            ? `radial-gradient(circle at 72% 82%, hsl(${hue} 95% 62% / 0.45), transparent 58%), radial-gradient(circle at 30% 24%, ${tier.from}, ${tier.via} 50%, ${tier.to} 100%)`
-            : "radial-gradient(circle at 32% 26%, #2c2f39, #1a1c24 55%, #101117 100%)",
-          boxShadow: "inset 0 2px 6px rgba(255,255,255,0.35), inset 0 -6px 12px rgba(0,0,0,0.45)",
-        }}
-      >
-        {earned && (
-          <span
-            className="achx-sheen absolute inset-y-[-20%] left-0 w-[45%] -skew-x-12 bg-gradient-to-r from-transparent via-white/65 to-transparent"
-            style={{ animationDelay: delay }}
-          />
-        )}
-      </span>
-
-      {/* A sigil ring, dashed in its own rhythm, turning the other way. */}
-      {earned && (
-        <span
-          aria-hidden
-          className="achx-spin-back absolute inset-[20%] rounded-full"
-          style={
-            {
-              "--dur": `${26 + (n % 12)}s`,
-              border: `1.5px dashed color-mix(in srgb, ${tier.ink} 45%, transparent)`,
-              opacity: 0.7,
-            } as CSSProperties
-          }
-        />
-      )}
-
-      {/* The mark, floating in the middle. */}
-      <span className={cn("absolute inset-0 grid place-items-center", earned && "achx-float")} style={{ animationDelay: delay }}>
-        <Icon
-          aria-hidden
-          strokeWidth={2.2}
-          className="h-[38%] w-[38%] drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]"
-          style={{ color: earned ? tier.ink : "rgba(160,165,180,0.45)" }}
-        />
-      </span>
-
-      {!earned && (
-        <span className="absolute bottom-[6%] right-[6%] grid size-[26%] place-items-center rounded-full border border-white/10 bg-[#0d0e13] text-white/60">
-          <LockIcon className="size-[55%]" />
-        </span>
-      )}
-
-      {percent != null && <ProgressRing percent={percent} />}
-    </span>
-  );
-
-  const Root = onClick ? "button" : "span";
-  const body =
-    variant === "circle" ? (
-      <Root
-        type={onClick ? "button" : undefined}
-        onClick={onClick}
-        aria-label={title}
-        className={cn("achx block size-14 shrink-0 select-none", !animated && "achx-still", className)}
-      >
-        {medallion}
-      </Root>
-    ) : (
-      <Root
-        type={onClick ? "button" : undefined}
-        onClick={onClick}
-        className={cn("achx group flex w-[200px] select-none flex-col items-center gap-2 text-center", !animated && "achx-still", className)}
-      >
-        <span className="block w-[64%]">{medallion}</span>
-        <span className="flex flex-col items-center gap-0.5">
-          <span
-            className={cn("text-[10px] font-bold uppercase tracking-[0.14em]", !earned && "text-muted-foreground")}
-            style={earned ? { color: tier.via } : undefined}
-          >
-            {percent != null ? `${percent}%` : rarityLabel}
-          </span>
-          <span className={cn("line-clamp-2 text-sm font-semibold leading-tight", !earned && "text-muted-foreground")}>{title}</span>
-        </span>
-      </Root>
-    );
-
-  if (!tip) return body;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{body}</TooltipTrigger>
-      <TooltipContent side="top" className="max-w-64 p-0">
-        <AchievementTip id={id} rarity={rarity} earned={earned} earnedAt={earnedAt} progress={progress} />
-      </TooltipContent>
-    </Tooltip>
-  );
+  const percent = progress && progress.target > 0 ? Math.max(0, Math.min(100, progress.current / progress.target * 100)) : 0;
+  const shape = rarity === "rare" ? "50,4 90,27 90,73 50,96 10,73 10,27" : rarity === "epic" ? "30,5 70,5 95,30 95,70 70,95 30,95 5,70 5,30" : "50,3 63,13 80,11 86,27 98,39 91,55 92,73 76,82 65,97 48,91 31,96 21,80 5,71 9,53 3,37 18,26 24,10 42,12";
+  const medal = <span className="relative block aspect-square w-full max-w-24">
+    <svg viewBox="0 0 100 100" className="size-full" aria-hidden>
+      <defs><linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1"><stop stopColor={earned ? tier.from : "#64748b"}/><stop offset="1" stopColor={earned ? tier.to : "#1e293b"}/></linearGradient></defs>
+      {rarity === "common" ? <circle cx="50" cy="50" r="45" fill={`url(#${gradient})`}/> : <polygon points={shape} fill={`url(#${gradient})`}/>}
+      <circle cx="50" cy="50" r="33" fill="black" fillOpacity=".24" stroke={earned ? tier.from : "#94a3b8"} strokeOpacity=".5" strokeWidth="1.5"/>
+      {!earned && percent > 0 && <circle cx="50" cy="50" r="43" fill="none" stroke={tier.from} strokeWidth="3" pathLength="100" strokeDasharray={`${percent} 100`} transform="rotate(-90 50 50)"/>}
+    </svg>
+    <Icon aria-hidden className="absolute left-1/2 top-1/2 size-[38%] -translate-x-1/2 -translate-y-1/2" strokeWidth={1.6} style={{ color: earned ? tier.ink : "#94a3b8" }}/>
+    {!earned && <LockIcon aria-hidden className="absolute bottom-[10%] right-[10%] size-[18%] rounded bg-card p-0.5 text-muted-foreground"/>}
+  </span>;
+  const content = <span className={cn("inline-flex min-w-0 flex-col items-center gap-1.5 text-center", variant === "circle" ? "w-10" : "w-full", !earned && "opacity-65", className)}>
+    {medal}
+    {variant === "badge" && <><span className="line-clamp-2 min-h-8 text-[11px] font-semibold leading-snug">{title}</span><span className="text-[10px]" style={{ color: earned ? tier.from : undefined }}>{t(`achievements.rarity.${rarity}` as "achievements.rarity.common")}</span></>}
+  </span>;
+  const trigger = onClick ? <button type="button" aria-label={title} onClick={onClick} className="min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">{content}</button> : content;
+  return tip ? <Tooltip><TooltipTrigger asChild>{trigger}</TooltipTrigger><TooltipContent className="max-w-72 p-0"><AchievementTip id={id} rarity={rarity} earned={earned} earnedAt={earnedAt} progress={progress}/></TooltipContent></Tooltip> : trigger;
 }
 
 /**
@@ -354,121 +225,5 @@ export function AchievementTip({
       )}
       {children}
     </span>
-  );
-}
-
-/** What moves behind an earned medallion, by tier. */
-function Aura({ rarity, glow, hue }: { rarity: AchievementRarity; glow: string; hue: number }) {
-  const halo = <span aria-hidden className="achx-breathe absolute inset-[4%] rounded-full blur-md" style={{ background: glow }} />;
-  if (rarity === "common") return halo;
-
-  if (rarity === "rare") {
-    return (
-      <>
-        {halo}
-        <span aria-hidden className="achx-spin absolute inset-[-4%]" style={{ "--dur": "4.5s" } as CSSProperties}>
-          <span className="absolute left-1/2 top-0 size-[9%] -translate-x-1/2 rounded-full bg-cyan-100 shadow-[0_0_10px_3px_rgba(120,220,255,0.9)]" />
-        </span>
-      </>
-    );
-  }
-
-  if (rarity === "epic") {
-    return (
-      <>
-        {halo}
-        <span
-          aria-hidden
-          className="achx-spin absolute inset-[-12%] rounded-full"
-          style={
-            {
-              "--dur": "7s",
-              background: `conic-gradient(from 0deg, transparent, rgba(200,110,255,0.85), transparent 30%, hsl(${hue} 90% 70% / 0.7), transparent 60%, rgba(140,90,255,0.85), transparent)`,
-              maskImage: "radial-gradient(circle, transparent 46%, #000 52%, transparent 70%)",
-              WebkitMaskImage: "radial-gradient(circle, transparent 46%, #000 52%, transparent 70%)",
-            } as CSSProperties
-          }
-        />
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            aria-hidden
-            className="lvl-twinkle absolute size-[6%] rounded-full bg-fuchsia-50"
-            style={
-              {
-                left: `${[8, 86, 18][i]}%`,
-                top: `${[16, 30, 84][i]}%`,
-                "--dur": `${1.8 + i * 0.5}s`,
-                "--delay": `${i * 0.4}s`,
-                boxShadow: "0 0 7px 2px rgba(240,160,255,0.85)",
-              } as CSSProperties
-            }
-          />
-        ))}
-      </>
-    );
-  }
-
-  // legendary
-  return (
-    <>
-      <span
-        aria-hidden
-        className="achx-spin absolute inset-[-20%]"
-        style={
-          {
-            "--dur": "12s",
-            background: "repeating-conic-gradient(from 0deg, rgba(255,200,60,0.6) 0deg 6deg, transparent 6deg 18deg)",
-            maskImage: "radial-gradient(circle, transparent 38%, #000 46%, transparent 70%)",
-            WebkitMaskImage: "radial-gradient(circle, transparent 38%, #000 46%, transparent 70%)",
-          } as CSSProperties
-        }
-      />
-      <span
-        aria-hidden
-        className="achx-breathe absolute inset-[-6%] rounded-full blur-lg"
-        style={{ background: "radial-gradient(circle, rgba(255,160,30,0.9), rgba(255,80,0,0.35) 55%, transparent 72%)" }}
-      />
-      {[0, 1, 2, 3, 4].map((i) => (
-        <span
-          key={i}
-          aria-hidden
-          className="lvl-ember absolute bottom-[12%] size-[6%] rounded-full"
-          style={
-            {
-              left: `${[22, 36, 50, 64, 78][i]}%`,
-              background: i % 2 ? "#ffd65a" : "#ff8a1f",
-              boxShadow: "0 0 8px 2px rgba(255,150,30,0.9)",
-              "--dur": `${1.8 + (i % 3) * 0.5}s`,
-              "--delay": `${i * 0.35}s`,
-              "--dx": `${i % 2 ? 1 : -1}`,
-            } as CSSProperties
-          }
-        />
-      ))}
-    </>
-  );
-}
-
-/** How far toward a locked achievement, as a ring around the medallion. */
-function ProgressRing({ percent }: { percent: number }) {
-  const r = 47;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
-      <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="3" className="text-white/10" />
-      <circle
-        cx="50"
-        cy="50"
-        r={r}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        className="text-primary transition-[stroke-dashoffset] duration-700"
-        strokeDasharray={c}
-        strokeDashoffset={c * (1 - percent / 100)}
-      />
-    </svg>
   );
 }

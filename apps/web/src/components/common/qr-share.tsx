@@ -25,6 +25,8 @@ function inkFrom(rgb: string | undefined): string {
 }
 
 export interface QrShareCardProps {
+  /** Optional co-branded center badge. Same-origin SVG or a data URI. */
+  badgeImage?: string;
   /** Absolute address the code opens. */
   url: string;
   title: string;
@@ -59,6 +61,7 @@ export function QrShareCard({
   filename,
   shareText,
   children,
+  badgeImage,
 }: QrShareCardProps) {
   const palette = useImagePalette(poster);
   const holder = useRef<HTMLDivElement>(null);
@@ -80,7 +83,7 @@ export function QrShareCard({
         // The highest correction: the badge covers the middle and the code
         // still reads.
         qrOptions: { errorCorrectionLevel: "H" },
-        image: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(badgeSvg())}`,
+        image: badgeImage ?? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(badgeSvg())}`,
         imageOptions: { margin: 10, imageSize: 0.3, hideBackgroundDots: true },
         dotsOptions: {
           type: "rounded",
@@ -107,7 +110,7 @@ export function QrShareCard({
     return () => {
       cancelled = true;
     };
-  }, [url, ink]);
+  }, [url, ink, badgeImage]);
 
   const pngFile = async (): Promise<File | null> => {
     const data = await qr.current?.getRawData("png");

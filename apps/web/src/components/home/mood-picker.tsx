@@ -34,8 +34,8 @@ export function HomeMoodPicker() {
 
   return (
     <section className="group/panel relative isolate overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card/90 via-card/50 to-card/20 p-4 sm:p-6">
-      <LogoWatermark className="-right-10 -top-14 size-60 rotate-[10deg] sm:-right-4 sm:-top-20 sm:size-80" />
-      <div className="flex items-end justify-between gap-3">
+      <LogoWatermark className="-right-4 -top-20 hidden size-80 rotate-[10deg] sm:block" />
+      <div className="flex flex-wrap items-start justify-between gap-2 sm:items-end">
         <div className="min-w-0">
           <h2 className="font-display text-lg tracking-tight sm:text-xl">Под настроение</h2>
           <p className="line-clamp-1 text-xs text-muted-foreground">
@@ -63,13 +63,13 @@ export function HomeMoodPicker() {
                   to={`/collections/c/${slug}`}
                   viewTransition
                   title={collection.title}
-                  className="group relative flex h-[4.25rem] items-center gap-2.5 overflow-hidden rounded-xl border border-border/50 bg-background/55 px-3 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-background/80 active:scale-[0.98]"
+                  className="group relative flex min-h-24 min-w-0 flex-col items-start gap-2 rounded-xl border border-border/60 bg-background/65 p-3 transition-colors duration-150 hover:border-primary/40 hover:bg-background/80 sm:min-h-17 sm:flex-row sm:items-center sm:gap-2.5"
                 >
                   <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6">
                     <Icon className="size-[18px]" />
                   </span>
                   <span className="relative z-10 flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-semibold">{label}</span>
+                    <span className="text-[13px] font-semibold leading-5 [overflow-wrap:anywhere] sm:text-sm">{label}</span>
                     <span className="truncate text-[11px] text-muted-foreground">{titlesCount(collection.total)}</span>
                   </span>
                   <Fan covers={collection.covers} />

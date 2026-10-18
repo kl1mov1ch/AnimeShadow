@@ -39,7 +39,8 @@ export const funRoutes: FastifyPluginAsync = async (fastify) => {
   // The site's own gif library (see lib/gif-library.ts): what is on disk
   // now, then filled in the background — never in the way of a request.
   const gifs = new GifLibrary(join(env.IMAGE_CACHE_DIR ?? join(process.cwd(), "cache", "img"), "..", "gifs"));
-  await gifs.load();
+  // Decorative media must not keep the entire API from starting on a slow disk.
+  void gifs.load().catch((error: unknown) => fastify.log.warn({ err: error }, "gif library load deferred"));
   const firstBuild = setTimeout(() => void gifs.build().catch(() => undefined), 20_000);
   const weekly = setInterval(() => void gifs.build().catch(() => undefined), 24 * 60 * 60_000);
   firstBuild.unref();

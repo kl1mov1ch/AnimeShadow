@@ -11,7 +11,6 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
-  PanelBottomIcon,
   MoonStarIcon,
   SearchIcon,
   ShieldCheckIcon,
@@ -30,6 +29,7 @@ import { useTheme } from "next-themes";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
+import { HonkonGlyph } from "@/components/brand/honkon-glyph";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { RandomRoll } from "@/components/layout/random-roll";
@@ -139,9 +139,9 @@ export function SiteHeader() {
   return (
     <HeaderOverlayContext value={acquireOverlay}><header data-site-header data-hidden={tuckAway}
       className={cn(
-        "sticky top-0 z-40 border-b bg-background/95 transition-[translate,box-shadow,border-color] duration-200 ease-out motion-reduce:transition-none",
+          "sticky top-0 z-40 border-b bg-background pt-[env(safe-area-inset-top)] transition-transform duration-200 ease-out motion-reduce:transition-none",
         scrolled ? "border-border/60 shadow-lg shadow-black/20" : "border-border/40",
-        tuckAway && "-translate-y-full shadow-none [&:has(:focus-visible)]:translate-y-0",
+          tuckAway && "-translate-y-full shadow-none",
       )}
     >
       <span aria-hidden className={cn("header-line pointer-events-none absolute inset-x-0 -bottom-px h-px transition-opacity duration-500", scrolled ? "opacity-100" : "opacity-0")} />
@@ -195,12 +195,23 @@ export function SiteHeader() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5 md:ml-0">
+          <NavLink
+            to="/studio/hon-kon"
+            aria-label="Hon-Kon Studio — студия озвучки"
+            title="Hon-Kon Studio — студия озвучки"
+            className={({ isActive }) => cn(
+              "inline-flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              isActive ? "bg-foreground/[0.07] text-foreground" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
+            )}
+          >
+            <HonkonGlyph className="size-[18px]" />
+          </NavLink>
           {/* A guest's phone header has the invite in this spot instead. */}
           {/* Watching together: pick an anime, get a room. */}
           <HeaderIcon label="Совместный просмотр" to="/party" className="hidden md:grid">
             <UsersIcon />
           </HeaderIcon>
-          <div className={cn("flex", status === "anonymous" && "max-md:hidden")}>
+          <div className="hidden md:flex">
             <span className="hdr-dice contents">
               <RandomRoll />
             </span>
@@ -219,14 +230,16 @@ export function SiteHeader() {
           {status === "anonymous" && (
             <Link
               to="/register"
-              className="mr-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2.5 text-[12px] font-semibold text-foreground md:hidden"
+              aria-label="Зарегистрироваться"
+              title="Зарегистрироваться"
+              className="mr-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2 text-[12px] font-semibold text-foreground min-[440px]:px-2.5 md:hidden"
             >
               <LogoGlyph className="size-4 text-primary" />
-              Вступить
+              <span className="hidden min-[440px]:inline">Вступить</span>
             </Link>
           )}
           <NotificationBell className="md:hidden" />
-          <HeaderIcon label={t("common.search")} onClick={openSearch} className="md:hidden">
+          <HeaderIcon label={t("common.search")} onClick={openSearch} className="hidden min-[380px]:grid md:hidden">
             <SearchIcon />
           </HeaderIcon>
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -329,7 +342,7 @@ function MobileMenu({ active, nav, onNavigate, onParty }: { active: boolean; nav
   const banner = profile?.bannerUrl ? imageSrc(profile.bannerUrl) : undefined;
 
   return (
-    <SheetContent side="right" className="flex w-[min(20rem,88vw)] flex-col gap-0 overflow-hidden border-l border-[var(--accent-line-soft)] p-0">
+    <SheetContent side="right" className="flex w-[min(20rem,88vw)] flex-col gap-0 overflow-hidden border-l border-[var(--accent-line-soft)] p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <SheetHeader className="sr-only">
         <SheetTitle>AnimeShadow</SheetTitle>
       </SheetHeader>
@@ -445,7 +458,6 @@ function MobileMenu({ active, nav, onNavigate, onParty }: { active: boolean; nav
             <ShuffleIcon className="size-4 shrink-0 text-muted-foreground" />
             {t("footer.randomAnime")}
           </button>
-          <Link to={authed ? "/profile?studio=navigation" : "/register"} state={authed ? undefined : { from: "/profile?studio=navigation" }} onClick={onNavigate} className={row}><PanelBottomIcon className="size-4 shrink-0 text-muted-foreground" />Настроить нижнее меню</Link>
           <InstallAppMenuRow />
           {FEATURES.englishLocale && <MobileLanguage />}
           {FEATURES.lightTheme && <MobileTheme />}

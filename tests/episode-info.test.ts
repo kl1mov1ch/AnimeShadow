@@ -92,3 +92,21 @@ test("Kitsu outage falls back to the exact MAL id through Jikan, without fabrica
   assert.ok(urls.includes("https://api.jikan.moe/v4/anime/5114/episodes?page=1"));
   assert.ok(saved);
 });
+
+test("number-only Kitsu labels do not suppress real Jikan episode names or erase Kitsu frames", async () => {
+  const urls: string[] = [];
+  const prisma = { anime: {
+    findUnique: async () => ({ episodeInfo: null, episodeInfoAt: null, airing: "AIRING", type: "TV", screenshots: [] }),
+    update: async () => undefined,
+  } } as unknown as PrismaClient;
+  const service = new EpisodeInfoService({ prisma, translateEnabled: false, translator: { translate: async () => null }, logger: { warn() {} }, fetchImpl: async (input) => {
+    const url = String(input); urls.push(url);
+    if (url.includes("/mappings?")) return Response.json({ included: [{ id: "verified", type: "anime" }] });
+    if (url.includes("kitsu.io")) return Response.json({ data: [{ attributes: { number: 1, canonicalTitle: "Episode 1", titles: { en: "Episode 1" }, thumbnail: { original: "https://media.kitsu.io/episode-1.jpg" } } }], meta: { count: 1 } });
+    return Response.json({ data: [{ mal_id: 1, title: "A real episode name" }], pagination: { has_next_page: false } });
+  } });
+  const result = await service.get(5114, "en");
+  assert.equal(result[0]?.title, "A real episode name");
+  assert.equal(result[0]?.thumb, "https://media.kitsu.io/episode-1.jpg");
+  assert.ok(urls.includes("https://api.jikan.moe/v4/anime/5114/episodes?page=1"));
+});

@@ -9,6 +9,7 @@ import { apiRequest, ApiRequestError } from "@/lib/api";
 import { imageSrc } from "@/lib/format";
 import { useGifLibrary } from "@/lib/gifs";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const gifUrl = (name: string) => `${API_BASE}/api/gifs/${name}`;
@@ -253,10 +254,11 @@ export function PartyChat({
 const ChatLog = memo(function ChatLog({ chat, myId }: { chat: PartyChatMessage[]; myId: string | null }) {
   const listRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const lastMessageId = chat.at(-1)?.id;
   useEffect(() => {
     const el = listRef.current;
-    if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [chat.length]);
+    if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
+  }, [lastMessageId]);
   return (
     <div
       ref={listRef}
@@ -265,6 +267,7 @@ const ChatLog = memo(function ChatLog({ chat, myId }: { chat: PartyChatMessage[]
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
       }}
       className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-3 py-2"
+      aria-label="История чата комнаты"
     >
       {chat.map((m, i) => {
         if (!m.author || m.kind === "system") {
@@ -332,10 +335,11 @@ function LiveImg({
   fit: "object-contain" | "object-cover";
 }) {
   const [ready, setReady] = useState(false);
+  const stillOnly = useMediaQuery("(pointer: coarse), (prefers-reduced-motion: reduce)");
   return (
     <span className={cn("relative block", className)}>
-      <img src={still} alt="" decoding="async" className={cn("block", imgClassName ?? "size-full", fit)} />
-      {live && (
+      <img src={still} alt="" loading="lazy" decoding="async" className={cn("block", imgClassName ?? "size-full", fit)} />
+      {live && !stillOnly && (
         <img
           src={live}
           alt=""

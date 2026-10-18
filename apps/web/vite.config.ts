@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from "node:url";
+import { readFileSync } from "node:fs";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig, loadEnv } from "vite";
@@ -13,6 +14,29 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      {
+        name: "tv-compatibility",
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            if (req.url === "/tv-hls.js") {
+              res.setHeader("Content-Type", "application/javascript");
+              res.end(readFileSync(new URL("./node_modules/hls.js/dist/hls.light.min.js", import.meta.url)));
+              return;
+            }
+            if (/(?:\?|&)tv=0(?:&|$)/.test(req.url ?? "")) res.setHeader("Set-Cookie", "as_full_site=1; Path=/; Max-Age=2592000; SameSite=Lax");
+            else if (/SmartTV|Smart-TV|SMART TV|Tizen|Web0S|WebOS|HbbTV|NetCast|Viera/i.test(req.headers["user-agent"] ?? "") && !/(?:^|;\s*)as_full_site=1(?:;|$)/.test(req.headers.cookie ?? "") && /^\/(?:$|anime\/|browse(?:\?|$))/.test(req.url ?? "")) {
+              const id = /^\/anime\/(\d+)/.exec(req.url ?? "")?.[1];
+              res.statusCode = 302;
+              res.setHeader("Location", id ? `/tv/anime/${id}` : "/tv");
+              res.end(); return;
+            }
+            next();
+          });
+        },
+        generateBundle() {
+          this.emitFile({ type: "asset", fileName: "tv-hls.js", source: readFileSync(new URL("./node_modules/hls.js/dist/hls.light.min.js", import.meta.url)) });
+        },
+      },
       react(),
       tailwindcss(),
       VitePWA({
@@ -172,6 +196,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       // Proxy /api during dev so the browser talks to one origin (no CORS dance).
       proxy: {
+        "^/tv(?:/|\\?|$)": { target: apiUrl, changeOrigin: true, rewrite: (path) => `/api${path}` },
         "/api": { target: apiUrl, changeOrigin: true },
         "/uploads": { target: apiUrl, changeOrigin: true },
       },

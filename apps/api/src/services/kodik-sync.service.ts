@@ -105,6 +105,12 @@ export class KodikCatalogSync {
   }
 
   /** One page of groups into the catalogue. */
+  async storeStudioGroups(groups: KodikGroup[]): Promise<void> {
+    this.genreIds ??= await this.loadGenres();
+    await this.store(groups);
+  }
+
+  /** One page of groups into the catalogue. */
   private async store(groups: KodikGroup[]): Promise<{ created: number; filled: number; skipped: number }> {
     const wanted = groups.filter((g) => !this.isHentai(g));
     const skipped = groups.length - wanted.length;

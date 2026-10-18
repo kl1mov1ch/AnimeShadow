@@ -1,6 +1,6 @@
 import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { useHeaderOverlay } from "@/hooks/use-header-overlay";
-import { ChevronRightIcon, CrownIcon, FolderHeartIcon, GiftIcon, HeartIcon, LibraryIcon, LogInIcon, LogOutIcon, Settings2Icon, PanelBottomIcon, ShieldCheckIcon, SparklesIcon, WandSparklesIcon } from "lucide-react";
+import { ChevronRightIcon, CrownIcon, FolderHeartIcon, GiftIcon, HeartIcon, LibraryIcon, LogInIcon, LogOutIcon, Settings2Icon, ShieldCheckIcon, SparklesIcon, WandSparklesIcon } from "lucide-react";
 import { TelegramGlyph, useTelegramConnect } from "@/components/telegram-connect";
 import { usePromo } from "@/components/promo/promo-offer";
 import { useReferrals } from "@/lib/referral";
@@ -134,7 +134,6 @@ export function UserMenu() {
         <div className="flex flex-col p-1.5">
           <Row to="/library" icon={LibraryIcon}>{t("userMenu.list")}</Row>
           <Row to="/collections" icon={FolderHeartIcon}>{t("userMenu.collections")}</Row>
-          <Row to="/profile?studio=navigation" icon={PanelBottomIcon}>Нижнее меню</Row>
           <Row to="/recommendations" icon={WandSparklesIcon}>{t("userMenu.forYou")}</Row>
           <Row to="/profile?tab=invite" icon={GiftIcon}>
             Пригласить друга

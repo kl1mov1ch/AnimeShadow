@@ -94,6 +94,8 @@ try {
   // then every six hours. Weekly passes are full, the rest read only the
   // most recently updated rows.
   if (env.KODIK_CATALOG_SYNC) {
+    setTimeout(() => void app.services.honkon.refresh(), 30_000).unref();
+    setInterval(() => void app.services.honkon.refresh(), 10 * 60_000).unref();
     setTimeout(() => void app.services.kodikSync.runScheduled(), 120_000).unref();
     setInterval(() => void app.services.kodikSync.runScheduled(), 6 * 60 * 60_000).unref();
     setInterval(() => void app.services.notifications.prune().catch(() => 0), 24 * 60 * 60_000).unref();
