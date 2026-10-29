@@ -2,6 +2,8 @@ import type { PrismaClient } from "@animeshadow/db";
 import {
   type AnimeSummary,
   genreSlug,
+  isStudioName,
+  studioSlug,
   type LandingPage,
   landingPath,
   parseLandingPath,
@@ -13,6 +15,7 @@ import { env } from "../config/env.js";
 import { contentGuardWhere } from "../lib/content-guard.js";
 import { TtlCache } from "../lib/cache.js";
 import type { LandingService } from "../services/landing.service.js";
+import { dubStudios, STUDIO_MIN_TITLES } from "../services/dub-studios.js";
 import { BRAND, SITE, absolute, clip, esc, jsonLd, plural } from "./html.js";
 import { fillShell } from "./template.js";
 
@@ -61,7 +64,7 @@ interface PageModel {
   keywords?: string[];
   /** The main picture's size, when known — lets a preview draw it at once. */
   imageSize?: { width: number; height: number };
-  ogType?: "website" | "video.tv_show" | "video.movie" | "article" | "profile";
+  ogType?: "website" | "video.tv_show" | "video.movie" | "video.episode" | "article" | "profile";
   jsonLd?: unknown[];
   /** Fetched before the app's script asks for them: the page's data, its first big picture. */
   preloads?: Array<{ href: string; as: "fetch" | "image"; media?: string; high?: boolean }>;
@@ -172,6 +175,8 @@ export class SeoRenderer {
     // every update of it — people kept the old site for good.
     if (path === "/" || path === "/index.html") return this.home();
 
+    const episodePage = /^\/anime\/([^/]+)\/episode\/(\d{1,4})$/.exec(path);
+    if (episodePage) return this.episode(episodePage[1]!, Number(episodePage[2]), path);
     const anime = /^\/anime\/([^/]+)(?:\/[^/]+)?$/.exec(path);
     if (anime) return this.anime(anime[1]!, path);
 
@@ -207,6 +212,17 @@ export class SeoRenderer {
       body: layout("<h1>Hon-Kon Studio × AnimeShadow</h1><p>Любительская озвучка аниме. Релизы, команда и новости студии.</p><a href='/studio/hon-kon/releases'>Все релизы</a>"),
     };
     if (path === "/support") return this.support();
+    if (path === "/studios") return this.studios();
+    if (path === "/schedule") return this.schedule();
+    if (path === "/party") return {
+      title: `Смотреть аниме вместе с друзьями онлайн — комнаты совместного просмотра | ${BRAND}`,
+      description: "Совместный просмотр аниме: создайте комнату, позовите друзей по ссылке и смотрите синхронно — с чатом, реакциями и общей паузой. Бесплатно.",
+      keywords: ["смотреть аниме вместе", "совместный просмотр аниме", "аниме с друзьями онлайн", "watch party аниме"],
+      canonical: "/party",
+      body: layout(`${crumbs([["Главная", "/"]], "Смотреть вместе")}<h1>Смотреть аниме вместе</h1><p>Комнаты совместного просмотра: одна серия на всех экранах, чат и реакции. Создайте комнату на странице любого аниме и отправьте ссылку друзьям.</p>`),
+    };
+    const studio = /^\/studios\/([a-z0-9-]{1,60})$/.exec(path);
+    if (studio) return /^hon-?kon/.test(studio[1]!) ? { redirect: "/studio/hon-kon" } : this.studio(studio[1]!, search);
     return this.notFound();
   }
 
@@ -302,7 +318,7 @@ export class SeoRenderer {
     const adult = /^rx/i.test(row.rating ?? "");
     const r18 = /^r\+/i.test(row.rating ?? "");
     const genres = row.genres.map((g) => g.genre.name);
-    const altNames = [...new Set([row.title, row.titleEnglish, row.titleJapanese].filter((t): t is string => !!t && t !== name))];
+    const altNames = altNamesOf(row, name);
     const kind = row.type === "MOVIE" ? "аниме-фильм" : row.type === "TV" ? "аниме-сериал" : "аниме";
     const typeRu = TYPE_RU[row.type] ?? "Аниме";
     const yearPart = row.year ? ` (${row.year})` : "";
@@ -318,10 +334,13 @@ export class SeoRenderer {
       };
     }
 
-    const [dubs, similar, comments, ourRating, availability] = await Promise.all([
+    const [[dubs, released], similar, comments, ourRating, availability] = await Promise.all([
       this.prisma.playerSource
-        .findMany({ where: { animeId: row.id }, select: { title: true, kind: true }, take: 40 })
-        .then((rows) => [...new Set(rows.filter((r) => r.kind !== "subtitles").map((r) => dubName(r.title)).filter((n): n is string => n != null))].slice(0, 15)),
+        .findMany({ where: { animeId: row.id }, select: { title: true, kind: true, episodesCount: true }, take: 40 })
+        .then((rows) => [
+          [...new Set(rows.filter((r) => r.kind !== "subtitles").map((r) => dubName(r.title)).filter((n): n is string => n != null))].slice(0, 15),
+          Math.min(EPISODE_PAGES_MAX, Math.max(0, ...rows.map((r) => r.episodesCount ?? 0))),
+        ] as const),
       this.similar(row.id, row.genres.map((g) => g.genreId)),
       this.prisma.comment.findMany({
         where: { animeId: row.id, deletedAt: null, mode: "PUBLIC", parentId: null },
@@ -373,6 +392,8 @@ export class SeoRenderer {
       190,
     );
     const ratingCount = ourRating._count.score;
+    const showEpisodes = canWatch && row.type !== "MOVIE" && released > 1;
+    const faq = animeFaq({ name, type: row.type, airing: row.airing, episodes, released, dubs, canWatch, year: row.year, genres, studios: row.studios });
     // A wide frame of the show (with the site's mark, 1280 px) leads previews
     // in search and messengers — a poster is cut to a square there.
     const frames = row.screenshots.slice(0, 6);
@@ -381,7 +402,13 @@ export class SeoRenderer {
     const watchUrl = `${SITE}${canonical}#watch`;
 
     return {
-      title: `${name}${yearPart}${canWatch ? " — смотреть аниме онлайн" : " — описание и информация"} | ${BRAND}`,
+      // The way the first page of results reads: the name, then exactly what
+      // people type after it — "смотреть онлайн", "все серии", "бесплатно".
+      title: canWatch
+        ? row.type === "MOVIE"
+          ? `${name}${yearPart} — смотреть аниме-фильм онлайн бесплатно | ${BRAND}`
+          : `${name}${yearPart} смотреть онлайн все серии бесплатно | ${BRAND}`
+        : `${name}${yearPart} — дата выхода, описание, серии | ${BRAND}`,
       description: clip(`${r18 ? "18+ · " : ""}${row.score != null && row.score > 0 ? `★ ${row.score.toFixed(1)}/10 · ` : ""}${description}`, 200),
       canonical,
       image: lead,
@@ -434,6 +461,7 @@ export class SeoRenderer {
           ["Каталог", "/browse"],
           [name, canonical],
         ]),
+        ...(faq.length ? [faqLd(faq)] : []),
       ],
       body: layout(`
         ${crumbs([["Главная", "/"], ["Каталог", "/browse"]], name)}
@@ -442,12 +470,14 @@ export class SeoRenderer {
           <div>
             <h1>${esc(name)}${esc(yearPart)}</h1>
             ${altNames.length ? `<p class="ssr-muted">${esc(altNames.join(" · "))}</p>` : ""}
-            <p>${canWatch ? `Доступен просмотр на ${esc(BRAND)}.` : "Информация об аниме. Доступность видео уточняется в плеере."}${dubs.length && canWatch ? ` Озвучки: ${esc(dubs.join(", "))}.` : ""}</p>
+            <p>${canWatch ? `Доступен просмотр на ${esc(BRAND)}.` : "Информация об аниме. Доступность видео уточняется в плеере."}${dubs.length && canWatch ? ` Озвучки: ${dubs.map((d) => { const slug = studioSlug(d); return slug && isStudioName(d) ? `<a href="/studios/${esc(slug)}">${esc(d)}</a>` : esc(d); }).join(", ")}.` : ""}</p>
             <dl class="ssr-facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>
           </div>
         </article>
         ${row.synopsis ? `<h2>Сюжет</h2><p>${esc(row.synopsis)}</p>` : ""}
         ${row.background ? `<p>${esc(clip(row.background, 800))}</p>` : ""}
+        ${showEpisodes ? `<h2>Смотреть «${esc(name)}» по сериям</h2>${episodeLinks(row.slug, released)}` : ""}
+        ${faqHtml(name, faq)}
         ${comments.length ? `<h2>Отзывы зрителей</h2>${comments.map((c) => `<blockquote><p>${esc(clip(c.body, 400))}</p><footer>— ${esc(c.user.displayName)}</footer></blockquote>`).join("")}` : ""}
         ${similar.length ? section("Похожие аниме", null, similar) : ""}
       `),
@@ -653,6 +683,185 @@ export class SeoRenderer {
     };
   }
 
+  private async schedule(): Promise<PageModel> {
+    const ongoing = await this.landing.page({ kind: "ongoing" }, false);
+    return {
+      title: `Расписание выхода аниме на неделю — новые серии онгоингов | ${BRAND}`,
+      description: "Расписание выхода новых серий аниме по дням недели: когда выйдет следующая серия онгоинга, по московскому времени. Подпишитесь — пришлём уведомление о новой серии.",
+      keywords: ["расписание аниме", "расписание выхода аниме", "когда выйдет новая серия аниме", "онгоинги расписание"],
+      canonical: "/schedule",
+      jsonLd: [breadcrumbs([["Главная", "/"], ["Расписание", "/schedule"]])],
+      body: layout(`
+        ${crumbs([["Главная", "/"]], "Расписание")}
+        <h1>Расписание выхода аниме</h1>
+        <p>Новые серии онгоингов по дням недели, по московскому времени.</p>
+        ${section("Сейчас выходят", "/ongoing", ongoing?.items.slice(0, 24) ?? [])}
+      `),
+    };
+  }
+
+  /**
+   * One episode's own page — /anime/<slug>/episode/<n>. "<название> 5 серия"
+   * is how most people search once a show is running, and the sites at the
+   * top of those results answer each episode at its own address. Only
+   * episodes some player has; past that, there is no page.
+   */
+  private async episode(param: string, n: number, path: string): Promise<PageModel | { redirect: string }> {
+    const id = /^(\d+)/.exec(param)?.[1];
+    const row = await this.prisma.anime.findFirst({
+      where: { AND: [id ? { OR: [{ slug: param }, { id: Number(id) }] } : { slug: param }, contentGuardWhere(false)] },
+    });
+    if (!row) return this.notFound();
+    const base = `/anime/${row.slug}`;
+    if (row.type === "MOVIE") return { redirect: base };
+    const canonical = `${base}/episode/${n}`;
+    if (path !== canonical) return { redirect: canonical };
+    const sources = await this.prisma.playerSource.findMany({
+      where: { animeId: row.id, kind: { not: "subtitles" } },
+      select: { title: true, episodesCount: true, episodeMeta: true },
+      take: 40,
+    });
+    const released = Math.min(EPISODE_PAGES_MAX, Math.max(0, ...sources.map((s) => s.episodesCount ?? 0)));
+    if (n < 1 || n > released) return this.notFound();
+
+    const name = row.titleLocalized ?? row.title;
+    const meta = sources
+      .map((s) => (s.episodeMeta as Record<string, { title?: string | null; durationSeconds?: number | null }> | null)?.[String(n)])
+      .find((m) => m?.title || m?.durationSeconds);
+    const episodeTitle = meta?.title?.trim() || null;
+    const minutes = meta?.durationSeconds ? Math.round(meta.durationSeconds / 60) : null;
+    const dubs = [...new Set(sources.filter((s) => (s.episodesCount ?? 0) >= n).map((s) => dubName(s.title)).filter((d): d is string => d != null))].slice(0, 8);
+    const altNames = altNamesOf(row, name);
+    const poster = row.imageLargeUrl ?? row.imageUrl;
+    const frame = row.screenshots.length ? row.screenshots[(n - 1) % row.screenshots.length] : undefined;
+    const image = frame ? `${SITE}/api/img?u=${encodeURIComponent(frame)}&w=1280&wm=1&f=jpg` : poster;
+    const total = row.episodes && row.episodes >= released ? row.episodes : released;
+    const isLast = n === released;
+    const dubLinks = dubs.map((d) => { const slug = studioSlug(d); return slug && isStudioName(d) ? `<a href="/studios/${esc(slug)}">${esc(d)}</a>` : esc(d); }).join(", ");
+
+    return {
+      title: `${name} ${n} серия — смотреть онлайн бесплатно${row.year ? ` (${row.year})` : ""} | ${BRAND}`,
+      description: clip(
+        `Смотрите ${n} серию аниме «${name}» онлайн бесплатно в хорошем качестве${dubs.length ? ` в озвучке ${dubs.slice(0, 3).join(", ")}` : ""}.${episodeTitle ? ` Серия «${episodeTitle}».` : ""} ${row.airing === "AIRING" && isLast ? "Новая серия — уже на сайте. " : ""}Всего ${plural(total, "серия", "серии", "серий")}.`,
+        200,
+      ),
+      canonical,
+      image,
+      imageSize: frame ? { width: 1280, height: 720 } : undefined,
+      keywords: [
+        `${name} ${n} серия`,
+        `${name} ${n} серия смотреть онлайн`,
+        `${name} ${n} серия смотреть бесплатно`,
+        ...altNames.slice(0, 2).map((alt) => `${alt} ${n} серия`),
+        ...altNames.slice(0, 1).map((alt) => `${alt} episode ${n}`),
+        ...dubs.slice(0, 2).map((dub) => `${name} ${n} серия ${dub}`),
+      ],
+      ogType: "video.episode",
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "TVEpisode",
+          name: episodeTitle ? `${n} серия — ${episodeTitle}` : `${name} — ${n} серия`,
+          episodeNumber: n,
+          url: `${SITE}${canonical}`,
+          ...(image ? { image: absolute(image) } : {}),
+          ...(minutes ? { timeRequired: `PT${minutes}M` } : {}),
+          inLanguage: "ja",
+          partOfSeries: { "@type": "TVSeries", name, url: `${SITE}${base}`, ...(altNames.length ? { alternateName: altNames } : {}) },
+          potentialAction: { "@type": "WatchAction", target: `${SITE}${canonical}#watch` },
+        },
+        breadcrumbs([["Главная", "/"], [name, base], [`${n} серия`, canonical]]),
+      ],
+      body: layout(`
+        ${crumbs([["Главная", "/"], [name, base]], `${n} серия`)}
+        <h1>${esc(name)} — ${n} серия</h1>
+        ${episodeTitle ? `<p><strong>«${esc(episodeTitle)}»</strong>${minutes ? ` · ${minutes} мин.` : ""}</p>` : ""}
+        <p>Смотрите ${n} серию аниме «${esc(name)}» онлайн бесплатно${dubs.length ? ` в озвучке ${dubLinks}` : ""}. Вышло ${esc(plural(released, "серия", "серии", "серий"))}${row.episodes && row.episodes > released ? ` из ${row.episodes}` : ""}.</p>
+        ${altNames.length ? `<p class="ssr-muted">${esc(altNames.join(" · "))}</p>` : ""}
+        <nav class="ssr-pager" aria-label="Серии">${n > 1 ? `<a href="${esc(base)}/episode/${n - 1}" rel="prev">← ${n - 1} серия</a>` : ""}<a href="${esc(base)}">Об аниме</a>${n < released ? `<a href="${esc(base)}/episode/${n + 1}" rel="next">${n + 1} серия →</a>` : ""}</nav>
+        ${row.synopsis ? `<h2>О чём аниме «${esc(name)}»</h2><p>${esc(clip(row.synopsis, 600))}</p>` : ""}
+        <h2>Все серии</h2>
+        ${episodeLinks(row.slug, released, n)}
+      `),
+    };
+  }
+
+  private async studios(): Promise<PageModel> {
+    const { list } = await dubStudios(this.prisma);
+    const studios = list.filter((studio) => studio.count >= STUDIO_MIN_TITLES);
+    const top = studios.slice(0, 8).map((studio) => studio.name);
+    return {
+      title: `Студии озвучки аниме — ${top.slice(0, 3).join(", ")} и другие | ${BRAND}`,
+      description: `Аниме с русской озвучкой по студиям: ${top.join(", ")}. Выберите студию и смотрите всё аниме в её озвучке онлайн бесплатно.`,
+      keywords: ["студии озвучки аниме", "аниме с русской озвучкой", ...top.slice(0, 6).map((name) => `аниме в озвучке ${name}`)],
+      canonical: "/studios",
+      jsonLd: [breadcrumbs([["Главная", "/"], ["Студии озвучки", "/studios"]])],
+      body: layout(`
+        ${crumbs([["Главная", "/"]], "Студии озвучки")}
+        <h1>Студии озвучки аниме</h1>
+        <p>Всё аниме по студиям озвучки: выберите, чьими голосами смотреть.</p>
+        <ul class="ssr-list">${studios
+          .map((studio) => `<li><a href="/studios/${esc(studio.slug)}"><strong>${esc(studio.name)}</strong></a> — ${esc(plural(studio.count, "аниме", "аниме", "аниме"))}</li>`)
+          .join("")}<li><a href="/studio/hon-kon"><strong>Hon-Kon Studio</strong></a> — команда и релизы студии</li></ul>
+      `),
+    };
+  }
+
+  private async studio(slug: string, search: string): Promise<PageModel> {
+    const { list, names } = await dubStudios(this.prisma);
+    const studio = list.find((entry) => entry.slug === slug);
+    const titles = names.get(slug);
+    if (!studio || !titles) return this.notFound();
+    const params = new URLSearchParams(search);
+    const page = Math.min(500, Math.max(1, Number(params.get("page")) || 1));
+    const where = { AND: [contentGuardWhere(false), { playerSources: { some: { title: { in: titles } } } }] };
+    const [total, rows] = await Promise.all([
+      this.prisma.anime.count({ where }),
+      this.prisma.anime.findMany({
+        where,
+        orderBy: [{ members: { sort: "desc", nulls: "last" } }, { id: "desc" }],
+        skip: (page - 1) * 48,
+        take: 48,
+        select: { slug: true, title: true, titleLocalized: true, year: true, imageUrl: true },
+      }),
+    ]);
+    const pages = Math.max(1, Math.ceil(total / 48));
+    if (page > pages) return this.notFound();
+    const name = studio.name;
+    const examples = rows.slice(0, 4).map((a) => a.titleLocalized ?? a.title);
+    const base = `/studios/${slug}`;
+    return {
+      title: `Аниме в озвучке ${name} — смотреть онлайн${page > 1 ? `, страница ${page}` : ""} | ${BRAND}`,
+      description: `Все аниме в озвучке ${name}: ${plural(total, "тайтл", "тайтла", "тайтлов")} — ${examples.join(", ")} и другие. Смотрите онлайн бесплатно в хорошем качестве.`,
+      keywords: [`аниме в озвучке ${name}`, `${name} озвучка`, `${name} аниме смотреть онлайн`, ...examples.slice(0, 3).map((title) => `${title} ${name}`)],
+      canonical: page > 1 ? `${base}?page=${page}` : base,
+      robots: /filtered=1/.test(search) ? "noindex" : "index",
+      image: studio.posters[0] ?? null,
+      jsonLd: [
+        breadcrumbs([["Главная", "/"], ["Студии озвучки", "/studios"], [name, base]]),
+        {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: `Аниме в озвучке ${name}`,
+          url: `${SITE}${base}`,
+          about: { "@type": "Organization", name },
+          mainEntity: {
+            "@type": "ItemList",
+            numberOfItems: total,
+            itemListElement: rows.slice(0, 24).map((a, i) => ({ "@type": "ListItem", position: (page - 1) * 48 + i + 1, url: `${SITE}/anime/${a.slug}`, name: a.titleLocalized ?? a.title })),
+          },
+        },
+      ],
+      body: layout(`
+        ${crumbs([["Главная", "/"], ["Студии озвучки", "/studios"]], name)}
+        <h1>Аниме в озвучке ${esc(name)}</h1>
+        <p>${esc(plural(total, "аниме", "аниме", "аниме"))} с русской озвучкой студии ${esc(name)}: сериалы, фильмы и онгоинги. Смотрите онлайн бесплатно.</p>
+        ${grid(rows)}
+        ${pager(base, page, pages)}
+      `),
+    };
+  }
+
   private privatePage(): PageModel {
     return { title: BRAND, description: "", robots: "noindex-nofollow", body: "" };
   }
@@ -758,6 +967,64 @@ function dubName(title: string): string | null {
   return name;
 }
 
+/** Episode pages beyond this are not made (no show is longer; a bad count would be). */
+export const EPISODE_PAGES_MAX = 3000;
+
+/** Every name the show is searched by: original, English, Japanese, synonyms. */
+function altNamesOf(row: { title: string; titleEnglish: string | null; titleJapanese: string | null; titleSynonyms?: string[] }, name: string): string[] {
+  return [...new Set([row.title, row.titleEnglish, row.titleJapanese, ...(row.titleSynonyms ?? []).slice(0, 4)]
+    .map((t) => t?.trim())
+    .filter((t): t is string => !!t && t.toLowerCase() !== name.toLowerCase()))].slice(0, 7);
+}
+
+/** Links to every episode page — on a long show, the first ones, the ones around `current`, every fiftieth and the last ones. */
+function episodeLinks(slug: string, released: number, current?: number): string {
+  const shown = new Set<number>();
+  if (released <= 120) for (let i = 1; i <= released; i++) shown.add(i);
+  else {
+    for (let i = 1; i <= 20; i++) shown.add(i);
+    if (current) for (let i = Math.max(1, current - 15); i <= Math.min(released, current + 15); i++) shown.add(i);
+    for (let i = Math.max(1, released - 20); i <= released; i++) shown.add(i);
+    for (let i = 50; i < released; i += 50) shown.add(i);
+  }
+  return `<ul class="ssr-links">${[...shown]
+    .sort((a, b) => a - b)
+    .map((i) => (i === current ? `<li><strong>${i} серия</strong></li>` : `<li><a href="/anime/${esc(slug)}/episode/${i}">${i} серия</a></li>`))
+    .join("")}</ul>`;
+}
+
+type FaqItem = [question: string, answer: string];
+
+/** The questions people actually type about a show, answered from what we know. */
+function animeFaq(a: { name: string; type: string; airing: string; episodes: number | null; released: number; dubs: readonly string[]; canWatch: boolean; year: number | null; genres: string[]; studios: string[] }): FaqItem[] {
+  const items: FaqItem[] = [];
+  const movie = a.type === "MOVIE";
+  if (a.canWatch) items.push([`Где смотреть аниме «${a.name}» онлайн бесплатно?`, `«${a.name}» можно смотреть онлайн бесплатно на ${BRAND}${movie ? "" : " — все вышедшие серии подряд"}, в хорошем качестве, с телефона, компьютера и телевизора.`]);
+  if (!movie && (a.episodes || a.released)) {
+    items.push([`Сколько серий в аниме «${a.name}»?`, a.airing === "AIRING"
+      ? `Аниме ещё выходит: вышло ${plural(a.released, "серия", "серии", "серий")}${a.episodes ? `, всего планируется ${a.episodes}` : ""}. Новые серии появляются на сайте по мере выхода.`
+      : `В аниме «${a.name}» ${plural(a.episodes ?? a.released, "серия", "серии", "серий")}.`]);
+  }
+  if (a.dubs.length) items.push([`В какой озвучке можно посмотреть «${a.name}»?`, `На ${BRAND} есть озвучки: ${a.dubs.slice(0, 8).join(", ")}. Озвучку можно сменить прямо в плеере.`]);
+  if (a.airing === "UPCOMING") items.push([`Когда выйдет аниме «${a.name}»?`, a.year ? `Выход запланирован на ${a.year} год. Добавьте аниме в список — пришлём уведомление о первой серии.` : "Дата выхода пока не объявлена. Добавьте аниме в список — пришлём уведомление о первой серии."]);
+  if (a.genres.length || a.studios.length) items.push([`Что за аниме «${a.name}»?`, `${movie ? "Аниме-фильм" : "Аниме-сериал"}${a.year ? ` ${a.year} года` : ""}${a.genres.length ? ` в жанрах: ${a.genres.slice(0, 4).join(", ").toLowerCase()}` : ""}${a.studios.length ? `. Студия-производитель — ${a.studios.join(", ")}` : ""}.`]);
+  return items;
+}
+
+/** Shown on the page, not only in the markup: a search engine trusts answers people can read. */
+function faqHtml(name: string, faq: FaqItem[]): string {
+  if (faq.length === 0) return "";
+  return `<h2>Вопросы об аниме «${esc(name)}»</h2>${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}`;
+}
+
+function faqLd(faq: FaqItem[]): unknown {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+  };
+}
+
 const AIRING_RU: Record<string, string> = { AIRING: "Выходит", FINISHED: "Вышел", UPCOMING: "Анонс", UNKNOWN: "—" };
 
 /** The readable page, kept visually quiet: the app replaces it on start. */
@@ -790,6 +1057,7 @@ function layout(inner: string): string {
     { href: landingPath({ kind: "season", ...now }), label: `Аниме ${seasonNameRu(now.season, "gen")} ${now.year}` },
     { href: landingPath({ kind: "year", year: now.year }), label: `Аниме ${now.year} года` },
     { href: "/collections", label: "Подборки" },
+    { href: "/studios", label: "Студии озвучки" },
   ])}</footer></main>`;
 }
 

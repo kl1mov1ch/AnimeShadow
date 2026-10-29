@@ -106,8 +106,8 @@ export function hlsConfig(extra: Partial<HlsConfig> = {}): Partial<HlsConfig> {
     abrBandWidthUpFactor: slow ? 0.5 : 0.65,
     // Ahead: enough to ride out a slow segment. A slow line keeps loading
     // further while paused (up to two minutes), so a pause buys smooth play.
-    maxBufferLength: slow ? 40 : 24,
-    maxMaxBufferLength: slow ? 120 : 60,
+    maxBufferLength: slow ? 45 : 30,
+    maxMaxBufferLength: slow ? 120 : 90,
     backBufferLength: slow ? 15 : 30,
     maxBufferHole: 0.5,
     nudgeMaxRetry: 6,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ResponseWatchdog, SOURCE_RESPONSE_MS, watchMediaResponse } from "../apps/web/src/components/player/response-watchdog.ts";
+import { ResponseWatchdog, SOURCE_RESPONSE_MS, STREAM_STALL_MS, STREAM_START_MS, watchMediaResponse } from "../apps/web/src/components/player/response-watchdog.ts";
 import { FramePreview, seekTo } from "../apps/web/src/components/player/frame-preview.ts";
 
 function globalStub(t: { after: (fn: () => void) => void }, key: string, value: unknown) {
@@ -61,7 +61,7 @@ test("ready, hidden, offline and destroyed players cannot trigger false switches
   assert.equal(failures, 0);
 });
 
-test("a mid-episode stall switches sources, but a deliberate pause does not", (t) => {
+test("a stall after playback began reloads the same stream instead of switching dubs", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const doc = Object.assign(new EventTarget(), { visibilityState: "visible" });
   globalStub(t, "document", doc);
@@ -69,22 +69,42 @@ test("a mid-episode stall switches sources, but a deliberate pause does not", (t
   globalStub(t, "navigator", { onLine: true });
   const video = Object.assign(new EventTarget(), { paused: false, seeking: false, readyState: 4 });
   let failures = 0;
-  const watch = watchMediaResponse(video as unknown as HTMLVideoElement, () => failures++);
+  let stalls = 0;
+  const watch = watchMediaResponse(video as unknown as HTMLVideoElement, () => failures++, STREAM_START_MS, () => stalls++);
   video.dispatchEvent(new Event("loadeddata"));
   t.mock.timers.tick(10_000);
   video.dispatchEvent(new Event("waiting"));
   t.mock.timers.tick(2_000);
   video.paused = true;
   video.dispatchEvent(new Event("pause"));
-  t.mock.timers.tick(10_000);
-  assert.equal(failures, 0);
+  t.mock.timers.tick(60_000);
+  assert.equal(stalls, 0);
+  // A seek on a slow line is ordinary buffering, not a dead source.
+  video.paused = false;
   video.seeking = true;
   video.dispatchEvent(new Event("seeking"));
-  t.mock.timers.tick(10_000);
-  assert.equal(failures, 0);
-  video.paused = false;
   video.dispatchEvent(new Event("waiting"));
-  t.mock.timers.tick(3_000);
+  t.mock.timers.tick(STREAM_STALL_MS - 1);
+  video.dispatchEvent(new Event("progress"));
+  t.mock.timers.tick(STREAM_STALL_MS - 1);
+  assert.equal(stalls, 0);
+  t.mock.timers.tick(1);
+  assert.equal(stalls, 1);
+  assert.equal(failures, 0);
+  watch.destroy();
+});
+
+test("a source that never answers fails after its startup window", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  globalStub(t, "document", Object.assign(new EventTarget(), { visibilityState: "visible" }));
+  globalStub(t, "window", new EventTarget());
+  globalStub(t, "navigator", { onLine: true });
+  const video = Object.assign(new EventTarget(), { paused: false, seeking: false, readyState: 0 });
+  let failures = 0;
+  const watch = watchMediaResponse(video as unknown as HTMLVideoElement, () => failures++);
+  t.mock.timers.tick(STREAM_START_MS - 1);
+  assert.equal(failures, 0);
+  t.mock.timers.tick(1);
   assert.equal(failures, 1);
   watch.destroy();
 });

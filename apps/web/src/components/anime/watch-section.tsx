@@ -48,6 +48,7 @@ import { dubName, hasEpisode, nativeVariantsFromMaster, resumePosition, sourcesF
 import { persistPlayerSettings, pictureFilter, setPlayerSetting, speedLabel, usePlayerSettings } from "@/lib/player-settings";
 import { useNavigate } from "react-router-dom";
 import { useAnimeProgress, useUpdateProgress, useWatchSources } from "@/lib/query";
+import { markLocalEpisode, mergeProgress, recordLocalProgress, useLocalProgress } from "@/lib/local-progress";
 import { type EpisodeCatalog, episodesOf, formatClock, useEpisodeCatalog } from "@/lib/episodes";
 import { PicturePanel, PlayerSettingsMenu, type QualityChoice, type SettingsPage } from "@/components/anime/player-settings-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -58,7 +59,7 @@ import { attachEngine, type EngineHandle, type EngineStatus, type EngineTracks, 
 import { EMPTY_TRACKS, observeNativeTracks, pickNativeTrack, readNativeTracks } from "@/components/player/native-tracks";
 import { useMediaSession } from "@/components/player/use-media-session";
 import { FramePreview } from "@/components/player/frame-preview";
-import { watchMediaResponse, SOURCE_RESPONSE_MS } from "@/components/player/response-watchdog";
+import { watchMediaResponse, STREAM_START_MS } from "@/components/player/response-watchdog";
 import { SkipButton, VolumeControl } from "@/components/player/player-controls";
 import { formatTime, SeekBar } from "@/components/player/seek-bar";
 import { NetStats } from "@/components/player/net-stats";
@@ -621,7 +622,9 @@ function useEpisodeTracking({ animeId, episode, seedPosition, active, runtime, a
       update.mutate({ episode, positionSeconds: position, ...(duration > 0 ? { durationSeconds: duration } : {}), completed },
         justFinished ? { onSuccess: () => toast.success(t("watch.autoMarked", { n: episode })) } : undefined);
     };
-    const timer = window.setInterval(flush, 20_000);
+    // The list on screen moves from this device's own record (local-progress);
+    // the server only needs a save every half minute.
+    const timer = window.setInterval(flush, 30_000);
     const hide = () => { if (document.visibilityState === "hidden") flush(); };
     document.addEventListener("visibilitychange", hide);
     window.addEventListener("pagehide", flush);
@@ -695,10 +698,12 @@ function Countdown({ target }: { target: Date }) {
 
 /* ---------- player ---------- */
 
-/** If neither racer has reported `load` by now, assume this batch is dead. */
-const STALL_MS = SOURCE_RESPONSE_MS;
+/** If the embed page hasn't loaded by now, assume it's dead. A Kodik page
+ * is megabytes of its own scripts: three seconds was not enough on a phone,
+ * and a page that was about to work got replaced by the next one. */
+const STALL_MS = 12_000;
 /** Later batches get less patience — we're already in "keep hunting" mode. */
-const STALL_MS_RETRY = SOURCE_RESPONSE_MS;
+const STALL_MS_RETRY = 8_000;
 
 
 
@@ -1011,9 +1016,16 @@ export function CustomHlsPlayer({
     resumedSrcRef.current = null;
   }, [src]);
 
+  // "Ready" is said once per load: canplay fires again after every seek, and
+  // a watch-together room answered each one with another seek — a loop.
+  const readySentRef = useRef<string | null>(null);
   const applyResume = () => {
     const video = videoRef.current;
-    if (video && (video.readyState >= 2 || format === "mp4" || video.canPlayType("application/vnd.apple.mpegurl"))) onReady();
+    const loadId = `${src}#${reloadKey}`;
+    if (video && readySentRef.current !== loadId && (video.readyState >= 2 || format === "mp4" || video.canPlayType("application/vnd.apple.mpegurl"))) {
+      readySentRef.current = loadId;
+      onReady();
+    }
     const at = resumeRef.current;
     if (!video || resumedSrcRef.current === src) return;
     const duration = video.duration;
@@ -1117,10 +1129,32 @@ export function CustomHlsPlayer({
   // The picture's own height, for a stream that comes in one quality only.
   const [videoHeight, setVideoHeight] = useState(0);
   const responseRef = useRef<ReturnType<typeof watchMediaResponse> | null>(null);
+  // A stream that already played and then stood still for long is reloaded
+  // in place — same dub, same second — twice at most; only then is it handed
+  // back to the page as failed. Switching dubs over a slow line restarted the
+  // episode from nothing and was the "it keeps reloading" people saw.
+  const stallReloadsRef = useRef(0);
+  useEffect(() => {
+    stallReloadsRef.current = 0;
+  }, [src]);
+  const reloadInPlaceRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const monitor = watchMediaResponse(video, () => onFailedRef.current(), format === "hls" && /\/(?:streams\/kodik\/|studios\/hon-kon\/(?:clips|uploads)\/)/.test(src) ? 20_000 : SOURCE_RESPONSE_MS);
+    const proxied = format === "hls" && /\/(?:streams\/kodik\/|studios\/hon-kon\/(?:clips|uploads)\/)/.test(src);
+    const monitor = watchMediaResponse(
+      video,
+      () => onFailedRef.current(),
+      proxied ? 20_000 : STREAM_START_MS,
+      () => {
+        if (stallReloadsRef.current >= 2) {
+          onFailedRef.current();
+          return;
+        }
+        stallReloadsRef.current += 1;
+        reloadInPlaceRef.current();
+      },
+    );
     responseRef.current = monitor;
     return () => {
       monitor.destroy();
@@ -1372,6 +1406,7 @@ export function CustomHlsPlayer({
   }, [isWinner]);
 
   // Watching together: commands from the room, and the viewer's own actions reported to it.
+  const roomSeekRef = useRef<number | null>(null);
   const onUserActionRef = useRef(onUserAction);
   onUserActionRef.current = onUserAction;
   useEffect(() => {
@@ -1387,12 +1422,22 @@ export function CustomHlsPlayer({
       const play = d.play === true && video.paused;
       const pause = d.play === false && !video.paused;
       if (!seek && !play && !pause) return;
-      suppressUntilRef.current = performance.now() + 1200;
-      if (seek) video.currentTime = d.seconds!;
+      suppressUntilRef.current = performance.now() + 1500;
+      if (seek) {
+        // Its "seeked" can come many seconds later on a slow line — long
+        // after any time window — and reported back it moved the whole room.
+        roomSeekRef.current = d.seconds!;
+        video.currentTime = d.seconds!;
+      }
       if (play) startPlayback(video);
       if (pause) video.pause();
     };
     const report = (type: "play" | "pause" | "seek") => () => {
+      if (type === "seek" && roomSeekRef.current != null) {
+        const target = roomSeekRef.current;
+        roomSeekRef.current = null;
+        if (Math.abs(video.currentTime - target) < 1.5) return;
+      }
       if (!onUserActionRef.current || performance.now() < suppressUntilRef.current) return;
       onUserActionRef.current({ type, time: video.currentTime });
     };
@@ -1444,6 +1489,16 @@ export function CustomHlsPlayer({
     }
     setStatus({ kind: "loading" });
     await onRefreshSource?.().catch(() => undefined);
+    setReloadKey((k) => k + 1);
+  };
+  reloadInPlaceRef.current = () => {
+    const video = videoRef.current;
+    if (video && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+      resumeRef.current = video.currentTime;
+      exactResumeRef.current = true;
+      resumedSrcRef.current = null;
+    }
+    playRequestedRef.current = true;
     setReloadKey((k) => k + 1);
   };
 
@@ -2116,10 +2171,11 @@ export function CustomHlsPlayer({
             </div>
           ) : (playing && buffering) || status.kind === "retrying" ? (
             <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-              <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/55 px-4 py-3 backdrop-blur-sm">
-                <Loader2Icon className="size-6 animate-spin text-white/90" />
-                <LoadingMessage />
-                <span className="text-[11px] font-medium text-white/85">
+              {/* A phone gets the spinner and one line; the joke is for a big screen. */}
+              <div className="flex max-w-[70%] flex-col items-center gap-1.5 rounded-2xl bg-black/55 px-3 py-2 backdrop-blur-sm @md/player:max-w-xs @md/player:gap-2 @md/player:px-4 @md/player:py-3">
+                <Loader2Icon className="size-5 animate-spin text-white/90 @md/player:size-6" />
+                <span className="hidden @md/player:block"><LoadingMessage /></span>
+                <span className="block max-w-full truncate text-[10px] font-medium text-white/85 @md/player:text-[11px]">
                   {status.kind === "retrying"
                     ? `Связь прервалась — пробуем снова (${status.attempt})`
                     : loadingLine}
@@ -2497,13 +2553,17 @@ function Player({
   const progressOwner = useAuth().user?.id;
   const { data: savedProgress } = useAnimeProgress(animeId, authed && trackProgress, progressOwner);
   const progress = trackProgress && authed ? savedProgress : undefined;
+  // The server's rows, and what this device played since — the list moves
+  // while the episode plays, for guests too, without asking the server.
+  const localProgress = useLocalProgress(trackProgress ? animeId : 0);
   const watchedEpisodes = useMemo(() => {
-    const map = new Map<number, { completed: boolean; position: number; duration: number | null }>();
+    const map = new Map<number, { completed: boolean; position: number; duration: number | null; at: number }>();
     for (const row of progress?.episodes ?? []) {
-      map.set(row.episode, { completed: row.completed, position: row.positionSeconds, duration: row.durationSeconds });
+      map.set(row.episode, { completed: row.completed, position: row.positionSeconds, duration: row.durationSeconds, at: Date.parse(row.updatedAt) || 0 });
     }
-    return map;
-  }, [progress]);
+    return mergeProgress(map, localProgress);
+  }, [progress, localProgress]);
+  const localResume = watchedEpisodes.get(episode);
 
   const episodeRecord = progress?.episodes.find((e) => e.episode === episode);
   // Recording "watched" needs real evidence, not just "this page was open":
@@ -2734,6 +2794,7 @@ function Player({
     onTime: (time) => {
       lastTime.current = time;
       publishClock(animeId, episode, time);
+      if (trackProgress) recordLocalProgress(animeId, episode, time, lastDuration.current);
       if (resumeAt.current != null) {
         const at = resumeAt.current;
         resumeAt.current = null;
@@ -2876,6 +2937,7 @@ function Player({
   /** Ticking an episode by hand — the counterpart to the automatic mark. */
   const toggleWatched = (n: number) => {
     const state = watchedEpisodes.get(n);
+    markLocalEpisode(animeId, n, !(state?.completed ?? false));
     update.mutate({
       episode: n,
       positionSeconds: state?.position ?? 0,
@@ -2989,14 +3051,15 @@ function Player({
                 isWinner={isWinner}
                 onReady={() => handleLoad(id)}
                 onFailed={() => handleFailed(id)}
-                resumeFrom={handoff.current?.episode === episode ? handoff.current.seconds : momentStart ?? (authed ? (episodeRecord?.positionSeconds ?? 0) : 0)}
+                resumeFrom={handoff.current?.episode === episode ? handoff.current.seconds : momentStart ?? (localResume && !localResume.completed ? localResume.position : authed ? (episodeRecord?.positionSeconds ?? 0) : 0)}
                 resumeExact={handoff.current?.episode === episode || momentStart != null}
                 onEnded={handleEnded}
                 onTime={(time, length) => {
                   if (!isWinner) return;
                   lastTime.current = time;
                   if (length > 0) lastDuration.current = length;
-                  if (isWinner) publishClock(animeId, episode, time);
+                  publishClock(animeId, episode, time);
+                  if (trackProgress) recordLocalProgress(animeId, episode, time, length);
                 }}
                 marks={markData?.marks}
                 opening={source.episodeMeta?.[String(episode)]?.opening ?? null}
@@ -3287,6 +3350,7 @@ function Player({
           fallbackPoster={episodePoster}
           currentEpisodes={episodesOf(displaySource)}
           watched={watchedEpisodes}
+          showProgress={trackProgress}
           canMark={authed && trackProgress}
           onToggleWatched={toggleWatched}
           sources={pickable}

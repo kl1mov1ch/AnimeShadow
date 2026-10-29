@@ -30,6 +30,8 @@ export function SiteFooter() {
     { to: "/ongoing", label: "Онгоинги" },
     { to: "/top", label: "Топ аниме" },
     { to: "/collections", label: t("nav.collections") },
+    { to: "/studios", label: "Студии озвучки" },
+    { to: "/schedule", label: "Расписание" },
     { to: "/party", label: "Комнаты" },
     { to: "/about", label: t("footer.about") },
   ];

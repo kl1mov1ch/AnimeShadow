@@ -11,6 +11,7 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
+  MicVocalIcon,
   MoonStarIcon,
   SearchIcon,
   ShieldCheckIcon,
@@ -29,7 +30,6 @@ import { useTheme } from "next-themes";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Wordmark } from "@/components/brand/wordmark";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
-import { HonkonGlyph } from "@/components/brand/honkon-glyph";
 import { InstallAppButton, InstallAppMenuRow } from "@/components/layout/install-app-button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { RandomRoll } from "@/components/layout/random-roll";
@@ -124,6 +124,7 @@ export function SiteHeader() {
     { to: "/", label: t("nav.discover"), end: true, Icon: HouseIcon },
     { to: "/browse", label: t("nav.browse"), end: false, Icon: LayoutGridIcon },
     { to: "/collections", label: t("nav.collections"), end: false, Icon: LibraryBigIcon },
+    { to: "/studios", label: "Студии", end: false, Icon: MicVocalIcon },
     { to: "/schedule", label: "Расписание", end: false, Icon: CalendarClockIcon },
     ...(status === "authenticated"
       ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]
@@ -195,16 +196,17 @@ export function SiteHeader() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5 md:ml-0">
+          {/* Studios sit among the sections on a computer; on a phone, here. */}
           <NavLink
-            to="/studio/hon-kon"
-            aria-label="Hon-Kon Studio — студия озвучки"
-            title="Hon-Kon Studio — студия озвучки"
+            to="/studios"
+            aria-label="Студии озвучки"
+            title="Студии озвучки"
             className={({ isActive }) => cn(
-              "inline-flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              isActive ? "bg-foreground/[0.07] text-foreground" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
+              "inline-flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:hidden",
+              isActive ? "bg-foreground/[0.07] text-primary" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
             )}
           >
-            <HonkonGlyph className="size-[18px]" />
+            <MicVocalIcon className="size-[18px]" />
           </NavLink>
           {/* A guest's phone header has the invite in this spot instead. */}
           {/* Watching together: pick an anime, get a room. */}

@@ -520,13 +520,20 @@ export function useUpdateProgress(animeId: number, ownerId?: string) {
         body: input,
         keepalive: true,
       }),
-    onSuccess: (data) => {
+    onSuccess: (data, input) => {
+      const before = client.getQueryData<AnimeProgress>(episodeProgressKey(animeId, ownerId));
+      const wasDone = before?.episodes.find((row) => row.episode === input.episode)?.completed ?? false;
       client.setQueryData(episodeProgressKey(animeId, ownerId), data);
-      void client.invalidateQueries({ queryKey: ["me", "progress"] });
-      void client.invalidateQueries({ queryKey: ["me", "continue"] });
+      // A periodic save while watching only marks these stale — they reload
+      // when next shown. Refetching all three every twenty seconds per viewer
+      // was most of the server's traffic. An episode becoming watched (or
+      // unwatched) changes the lists themselves, so that refreshes them now.
+      const refetchType = (input.completed ?? false) !== wasDone ? "active" : "none";
+      void client.invalidateQueries({ queryKey: ["me", "progress"], refetchType });
+      void client.invalidateQueries({ queryKey: ["me", "continue"], refetchType });
       // The server moves the list entry along with the episodes — progress,
       // and "watching"/"completed" — so every view of the list refreshes.
-      void client.invalidateQueries({ queryKey: ["library"] });
+      void client.invalidateQueries({ queryKey: ["library"], refetchType });
     },
   });
 }
@@ -1748,5 +1755,41 @@ export function useFriendsActivity(enabled = true) {
         (r) => r.items,
       ),
     staleTime: 60_000,
+  });
+}
+
+/* ---------------- dub studios ---------------- */
+
+import type { AnimeSummary as StudioAnimeSummary, DubStudio } from "@animeshadow/shared";
+
+export type DubStudioSort = "popular" | "score" | "new" | "title";
+export type DubStudioStatus = "all" | "airing" | "finished" | "upcoming";
+export type DubStudioType = "all" | "TV" | "MOVIE" | "OVA" | "ONA" | "SPECIAL";
+export interface DubStudioPage {
+  studio: DubStudio;
+  total: number;
+  page: number;
+  pages: number;
+  items: Array<StudioAnimeSummary & { dubEpisodes: number | null }>;
+}
+
+/** Every dub studio with enough titles to be worth a page — one cached list. */
+export function useDubStudios() {
+  return useQuery({
+    queryKey: ["dubs"],
+    queryFn: ({ signal }) => apiRequest<{ studios: DubStudio[] }>("/dubs", { signal }).then((r) => r.studios),
+    staleTime: 30 * 60_000,
+  });
+}
+
+export function useDubStudio(
+  slug: string,
+  params: { q: string; sort: DubStudioSort; status: DubStudioStatus; type: DubStudioType; page: number },
+) {
+  return useQuery({
+    queryKey: ["dubs", slug, params],
+    queryFn: ({ signal }) => apiRequest<DubStudioPage>(`/dubs/${slug}`, { signal, query: { ...params, q: params.q.trim() || undefined } }),
+    placeholderData: (previous) => (previous?.studio.slug === slug ? previous : undefined),
+    staleTime: 5 * 60_000,
   });
 }

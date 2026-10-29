@@ -294,6 +294,12 @@ function PartyRoom({ code }: { code: string }) {
    * until it's there (no jump), beyond that it seeks.
    */
   const rateRef = useRef(1);
+  // A seek on a slow line takes a while to land. Seeking again every second
+  // while the last one is still loading (the room's clock keeps running)
+  // never let it land at all: the picture froze and jumped in a loop. One
+  // seek, then wait until this screen plays again (or ten seconds pass).
+  const lastSeekAt = useRef(0);
+  const bufferingRef = useRef(false);
   const align = useCallback((force = false) => {
     const p = playbackRef.current;
     if (!p || !joined || !ownUrl) return;
@@ -301,17 +307,31 @@ function PartyRoom({ code }: { code: string }) {
     const diff = localTime.current - want;
     const drift = Math.abs(diff);
     const playChange = p.playing !== localPlaying.current;
-    const seek = force || drift > 2 ? want : undefined;
-    const rate = !p.playing || seek != null || drift < 0.3 ? 1 : diff < 0 ? 1.08 : 0.92;
+    const settling = bufferingRef.current || Date.now() - lastSeekAt.current < 4000;
+    const settled = Date.now() - lastSeekAt.current > 10_000;
+    const due = drift > 2.5 && (!settling || (settled && drift > 8));
+    // Landing a little ahead while playing covers the time the seek itself takes.
+    const seek = force || due ? want + (p.playing && drift > 2.5 ? 0.6 : 0) : undefined;
+    const rate = !p.playing || seek != null || drift < 0.3 || drift > 2.5 || bufferingRef.current ? 1 : diff < 0 ? 1.08 : 0.92;
     if (seek == null && !playChange && rate === rateRef.current) return;
     rateRef.current = rate;
     window.dispatchEvent(new CustomEvent("as:player-cmd", { detail: { seconds: seek, play: p.playing, rate } }));
     localPlaying.current = p.playing;
-    if (seek != null) localTime.current = seek;
+    if (seek != null) {
+      localTime.current = seek;
+      lastSeekAt.current = Date.now();
+    }
   }, [joined, expected, ownUrl]);
 
+  // Someone in the room jumped (a seek, not the clock running on): that
+  // lands here at once, even mid-load — waiting would play the wrong scene.
+  const prevPlayback = useRef(playback);
   useEffect(() => {
-    align();
+    const prev = prevPlayback.current;
+    prevPlayback.current = playback;
+    const at = (p: NonNullable<typeof playback>, time: number) => (p.playing ? p.position + (time - p.updatedAt) / 1000 : p.position);
+    const jumped = prev != null && playback != null && prev.episode === playback.episode && Math.abs(at(prev, playback.updatedAt) - playback.position) > 2.5;
+    align(jumped);
   }, [playback, align]);
   useEffect(() => {
     if (!joined) return;
@@ -339,13 +359,19 @@ function PartyRoom({ code }: { code: string }) {
     void apiRequest(`/party/${code}/loading`, { method: "POST", body: { loading } }).catch(() => undefined);
   };
   const onBuffering = (buffering: boolean) => {
+    bufferingRef.current = buffering;
     if (stallTimer.current) clearTimeout(stallTimer.current);
-    // Short of data for over a second while the room plays: the room waits for this screen.
-    if (buffering && playbackRef.current?.playing) stallTimer.current = setTimeout(() => sendLoading(true), 1200);
-    else if (!buffering) sendLoading(false);
+    // Short of data for a couple of seconds while the room plays: the room
+    // waits for this screen. It goes on once a few seconds are loaded ahead —
+    // not at the first frame, which only stalled again and paused everyone
+    // in a loop.
+    if (buffering && playbackRef.current?.playing) stallTimer.current = setTimeout(() => sendLoading(true), 2500);
+    else if (!buffering && loadingSent.current) stallTimer.current = setTimeout(() => sendLoading(false), 8000);
   };
   const onAhead = (seconds: number) => {
-    if (loadingSent.current && seconds >= 6) sendLoading(false);
+    if (!loadingSent.current || seconds < 6) return;
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    sendLoading(false);
   };
   // A new episode or title: whatever this screen was loading no longer holds anyone.
   useEffect(() => {

@@ -69,29 +69,28 @@ export function NetStats({
 
   return (
     <>
-    {/* A small player (a phone): one line — the state, the speed, what's needed, the reserve. */}
-    <div
-      className={cn(
-        "flex max-w-[calc(100cqw-1rem)] flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-black/65 py-1 pl-2 pr-1 text-[10px] text-white shadow-lg backdrop-blur-md @md/player:hidden",
-        className,
-      )}
-      role="status"
-      aria-label="Скорость интернета"
-    >
-      <span className={cn("size-1.5 shrink-0 rounded-full", h.dot, health !== "good" && "animate-pulse")} />
-      <span className="font-semibold tabular-nums">{speed != null ? `${fmt(speed)} Мбит/с` : "—"}</span>
-      <span className="text-white/70">{output ? `Вывод ${qualityName(output)}` : height ? qualityName(height) : "Авто"}</span>
-      {needed != null && <span className="text-white/55 tabular-nums">/ нужно {fmt(needed)}</span>}
-      <span className="text-white/55 tabular-nums">· {Math.round(bufferAhead)} с</span>
-      {health === "short" && lowerQuality && (
+    {/* A small player (a phone): nothing over the picture unless there is
+        something to do — the line is short and a lower quality would help.
+        Then one short pill, never wrapping onto a second row. */}
+    {health === "short" && lowerQuality ? (
+      <div
+        className={cn(
+          "flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-black/70 py-0.5 pl-2 pr-0.5 text-[10px] text-white shadow-lg backdrop-blur-md @md/player:hidden",
+          className,
+        )}
+        role="status"
+        aria-label="Скорость интернета"
+      >
+        <span className={cn("size-1.5 shrink-0 rounded-full animate-pulse", h.dot)} />
+        <span className="font-semibold tabular-nums">{speed != null ? `${fmt(speed)} Мбит/с` : "Мало скорости"}</span>
         <button type="button" onClick={onLower} className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-black">
           {lowerQuality}p
         </button>
-      )}
-      <button type="button" onClick={onClose} aria-label="Скрыть" className="grid size-5 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white">
-        <XIcon className="size-3" />
-      </button>
-    </div>
+        <button type="button" onClick={onClose} aria-label="Скрыть" className="grid size-5 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white">
+          <XIcon className="size-3" />
+        </button>
+      </div>
+    ) : null}
 
     <div
       className={cn(

@@ -804,6 +804,8 @@ model PlayerSource {
 
   @@id([animeId, provider, sourceKey])
   @@index([animeId])
+  /// The studios section: every title one dub studio voiced.
+  @@index([title])
 }
 
 /// Machine translations of free-text anime fields, cached forever (source text

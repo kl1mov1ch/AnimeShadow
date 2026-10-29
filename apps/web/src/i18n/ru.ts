@@ -2326,7 +2326,7 @@ export const ru: Dict = {
     shareTwitter: "Twitter",
     copyLink: "Скопировать ссылку",
     linkCopied: "Ссылка скопирована",
-    titleTemplate: "{title} — смотреть аниме онлайн бесплатно | AnimeShadow",
+    titleTemplate: "{title} смотреть онлайн все серии бесплатно | AnimeShadow",
     descriptionTemplate:
       "{title} — {type}, {year}. Рейтинг {score}. Жанры: {genres}. Смотрите онлайн.",
     homeTitle: "AnimeShadow — смотреть аниме онлайн бесплатно в хорошем качестве",

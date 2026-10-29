@@ -1992,3 +1992,12 @@ body:has([role="dialog"][data-state="open"]) main * {
   .pic-range::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -9px; }
   .pic-range::-moz-range-thumb { width: 22px; height: 22px; }
 }
+
+/* An episode's progress under its still: grows smoothly as the episode plays. */
+.ep-progress-fill {
+  box-shadow: 0 0 6px color-mix(in oklab, var(--primary) 70%, transparent);
+  transition: width 0.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ep-progress-fill { transition: none; }
+}

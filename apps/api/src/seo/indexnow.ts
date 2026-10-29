@@ -13,8 +13,8 @@ const BATCH = 10_000;
  * IndexNow: tells Yandex (and Bing, Seznam, Naver…) which pages are new or
  * changed, instead of waiting for them to come and look. Off until
  * INDEXNOW_KEY is set. The first run, a minute after start, sends the main
- * pages and every title touched in the last two days; then once a day,
- * whatever changed since.
+ * pages and every title touched in the last two days (with its newest
+ * episode's page); then every three hours, whatever changed since.
  */
 export function startIndexNow(prisma: PrismaClient, log: FastifyBaseLogger): void {
   const key = env.INDEXNOW_KEY;
@@ -28,9 +28,20 @@ export function startIndexNow(prisma: PrismaClient, log: FastifyBaseLogger): voi
       const anime = await prisma.anime.findMany({
         where: { AND: [{ updatedAt: { gte: since } }, contentGuardWhere(true)] },
         orderBy: { members: { sort: "desc", nulls: "last" } },
-        select: { slug: true },
+        select: { id: true, slug: true, type: true },
         take: 40_000,
       });
+      // A running show's newest episode has its own page — and that page is
+      // what people look for on the day it comes out.
+      const series = anime.filter((a) => a.type !== "MOVIE");
+      const latest = series.length
+        ? await prisma.playerSource.groupBy({
+            by: ["animeId"],
+            where: { animeId: { in: series.map((a) => a.id) }, kind: { not: "subtitles" }, episodesCount: { gt: 0 } },
+            _max: { episodesCount: true },
+          })
+        : [];
+      const newest = new Map(latest.map((row) => [row.animeId, row._max.episodesCount ?? 0]));
       const now = seasonOf(new Date());
       const urls = [
         "/",
@@ -43,7 +54,13 @@ export function startIndexNow(prisma: PrismaClient, log: FastifyBaseLogger): voi
         landingPath({ kind: "season", ...now }),
         landingPath({ kind: "season", ...shiftSeason(now, 1) }),
         landingPath({ kind: "year", year: now.year }),
+        "/schedule",
+        "/studios",
         ...anime.map((a) => `/anime/${a.slug}`),
+        ...series.flatMap((a) => {
+          const n = Math.min(3000, newest.get(a.id) ?? 0);
+          return n > 0 ? [`/anime/${a.slug}/episode/${n}`] : [];
+        }),
       ].map((p) => `${SITE}${p}`);
       let sent = 0;
       for (let i = 0; i < urls.length; i += BATCH) {
@@ -71,5 +88,6 @@ export function startIndexNow(prisma: PrismaClient, log: FastifyBaseLogger): voi
   };
 
   setTimeout(() => void run(), 60_000).unref();
-  setInterval(() => void run(), 24 * 60 * 60_000).unref();
+  // Every three hours: a new episode is searched for most in its first day.
+  setInterval(() => void run(), 3 * 60 * 60_000).unref();
 }

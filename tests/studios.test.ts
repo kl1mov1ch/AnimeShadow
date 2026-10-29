@@ -130,3 +130,14 @@ test("studio management routes authenticate and require admin before calling ser
     await app.close();
   }
 });
+
+test("dub studio addresses merge provider spellings and skip non-studio labels", async () => {
+  const { isStudioName, studioSlug } = await import("../packages/shared/src/studios.ts");
+  assert.equal(studioSlug("AniLibria.TV"), "anilibria");
+  assert.equal(studioSlug("AniLibria"), "anilibria");
+  assert.equal(studioSlug("Студийная Банда"), "studiynaya-banda");
+  assert.equal(studioSlug("Hon-Kon Studio"), "hon-kon-studio");
+  assert.equal(isStudioName("Субтитры"), false);
+  assert.equal(isStudioName("Многоголосый закадровый"), false);
+  assert.equal(isStudioName("AniDUB"), true);
+});

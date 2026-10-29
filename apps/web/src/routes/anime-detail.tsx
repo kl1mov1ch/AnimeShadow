@@ -103,11 +103,14 @@ function AnimeDetailView({ param }: { param: string }) {
   // title would open on whatever episode number the last one left behind.
   // A moment's link (?ep=3&t=754): that episode, from that second.
   const [query] = useSearchParams();
+  // An episode's own address (/anime/<slug>/episode/5) opens on that episode.
+  const { episode: episodeParam } = useParams();
+  const episodePage = Number(episodeParam) > 0 ? Math.floor(Number(episodeParam)) : null;
   const startAt = useMemo(() => {
-    const ep = Number(query.get("ep"));
+    const ep = Number(query.get("ep")) || episodePage;
     const at = Number(query.get("t"));
-    return Number.isInteger(ep) && ep > 0 ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 } : null;
-  }, [query]);
+    return ep && Number.isInteger(ep) && ep > 0 ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 } : null;
+  }, [query, episodePage]);
   // Opening a title reads its "new episode" lines.
   const markRead = useMarkNotificationsRead();
   const { data: unreadCount = 0 } = useUnreadNotifications();
@@ -153,9 +156,26 @@ function AnimeDetailView({ param }: { param: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id]);
 
+  // Opened at an episode's address, the address follows the episode picked
+  // in the player — what is on screen is what the link says. Replaced in
+  // place, outside the router: the page (and the player) stay mounted.
+  useEffect(() => {
+    if (!data || episodePage == null || data.type === "MOVIE") return;
+    const next = `/anime/${data.slug}/episode/${episode}`;
+    if (window.location.pathname !== next) window.history.replaceState(window.history.state, "", `${next}${window.location.search}${window.location.hash}`);
+  }, [data, episode, episodePage]);
+
   const seoTitle = data ? labels.title(data) : "AnimeShadow";
   useDocumentHead(
-    data
+    data && episodePage != null && data.type !== "MOVIE"
+      ? {
+          title: `${seoTitle} ${episode} серия — смотреть онлайн бесплатно | AnimeShadow`,
+          description: `Смотрите ${episode} серию аниме «${seoTitle}» онлайн бесплатно в хорошем качестве.${data.episodes ? ` Всего ${data.episodes} серий.` : ""}`,
+          image: data.imageLargeUrl ?? data.imageUrl,
+          path: `/anime/${data.slug}/episode/${episode}`,
+          type: "video.tv_show",
+        }
+      : data
       ? {
           title: t("seo.titleTemplate", { title: seoTitle }),
           description: t("seo.descriptionTemplate", {

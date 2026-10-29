@@ -40,6 +40,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, lazy: () => import("@/routes/discover") },
           { path: "browse", lazy: () => import("@/routes/browse") },
+          { path: "studios", lazy: () => import("@/routes/studios") },
+          { path: "studios/:slug", lazy: () => import("@/routes/dub-studio") },
           { path: "studio/hon-kon", lazy: () => import("@/routes/studio-honkon") },
           { path: "studio/hon-kon/releases", lazy: () => import("@/routes/studio-workspace") },
           { path: "studio/hon-kon/workspace", loader: () => redirect("/studio/hon-kon/releases") },
@@ -55,6 +57,8 @@ export const router = createBrowserRouter([
           // The loader starts every request the page needs while its code
           // is still downloading — nothing waits for anything else.
           { path: "anime/:id", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
+          // One address per episode ("<название> 5 серия" is what people search).
+          { path: "anime/:id/episode/:episode", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
           { path: "anime/:id/:slug", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
           { path: "library", lazy: () => import("@/routes/library") },
           { path: "recommendations", lazy: () => import("@/routes/recommendations") },

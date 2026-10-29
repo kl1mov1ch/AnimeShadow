@@ -9,10 +9,15 @@ import { parse } from "../lib/validation.js";
 import { SITE } from "../seo/html.js";
 import { PAGE_CSP } from "../seo/csp.js";
 import { isTvBrowser, tvDestination } from "../lib/tv-mode.js";
+import { dubStudios, STUDIO_MIN_TITLES } from "../services/dub-studios.js";
+import { EPISODE_PAGES_MAX } from "../seo/render.js";
 
 /** Anime per sitemap file (the limit is 50 000; smaller files regenerate faster). */
 const ANIME_PER_SITEMAP = 10_000;
 const files = new TtlCache<string>(60 * 60_000, 64);
+/** Episode pages per sitemap file. */
+const EPISODES_PER_SITEMAP = 40_000;
+const episodeIndex = new TtlCache<Array<{ slug: string; released: number; updatedAt: Date }>>(60 * 60_000, 1);
 
 /**
  * Search-engine plumbing. Caddy sends every page request here
@@ -111,12 +116,35 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
     reply.header("cache-control", "public, max-age=3600");
   };
 
+  /** Every series the site can play, with how many episodes are out — one row per title. */
+  const episodeTitles = () =>
+    episodeIndex.wrap("all", async () => {
+      const counts = await fastify.prisma.playerSource.groupBy({
+        by: ["animeId"],
+        where: {
+          kind: { not: "subtitles" },
+          episodesCount: { gt: 0 },
+          anime: { AND: [contentGuardWhere(false), { type: { not: "MOVIE" } }, { watchAvailability: { is: { hasPlayer: true } } }] },
+        },
+        _max: { episodesCount: true },
+      });
+      const released = new Map(counts.map((c) => [c.animeId, Math.min(EPISODE_PAGES_MAX, c._max.episodesCount ?? 0)]));
+      const rows = await fastify.prisma.anime.findMany({
+        where: { id: { in: [...released.keys()] } },
+        select: { id: true, slug: true, updatedAt: true },
+        orderBy: { id: "asc" },
+      });
+      return rows.map((r) => ({ slug: r.slug, released: released.get(r.id) ?? 0, updatedAt: r.updatedAt })).filter((r) => r.released > 0);
+    });
+
   fastify.get("/seo-files/sitemap.xml", async (_request, reply) => {
     xml(reply);
     return files.wrap("index", async () => {
       const count = await fastify.prisma.anime.count({ where: contentGuardWhere(true) });
       const parts = ["sitemap-pages.xml", "sitemap-collections.xml"];
       for (let i = 1; i <= Math.max(1, Math.ceil(count / ANIME_PER_SITEMAP)); i++) parts.push(`sitemap-anime-${i}.xml`);
+      const episodes = (await episodeTitles()).reduce((sum, t) => sum + t.released, 0);
+      for (let i = 1; i <= Math.ceil(episodes / EPISODES_PER_SITEMAP); i++) parts.push(`sitemap-episodes-${i}.xml`);
       const now = new Date().toISOString();
       return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${parts
         .map((p) => `<sitemap><loc>${SITE}/${p}</loc><lastmod>${now}</lastmod></sitemap>`)
@@ -127,7 +155,7 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/seo-files/sitemap-pages.xml", async (_request, reply) => {
     xml(reply);
     return files.wrap("pages", async () => {
-      const genres = await landing.genres();
+      const [genres, studios] = await Promise.all([landing.genres(), dubStudios(fastify.prisma)]);
       const years = await fastify.prisma.$queryRaw<Array<{ year: number; count: number }>>`
         SELECT year, COUNT(*)::int AS count FROM "Anime"
         WHERE year IS NOT NULL AND (rating IS NULL OR (rating NOT ILIKE 'rx%'))
@@ -145,6 +173,13 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
         ["/movies", "0.8"],
         ["/announced", "0.7"],
         ["/collections", "0.6"],
+        ["/schedule", "0.7"],
+        ["/studios", "0.7"],
+        ["/studio/hon-kon", "0.6"],
+        ["/party", "0.4"],
+        ...studios.list
+          .filter((studio) => studio.count >= STUDIO_MIN_TITLES && !/^hon-?kon/.test(studio.slug))
+          .map((studio): [string, string] => [`/studios/${studio.slug}`, studio.count >= 200 ? "0.7" : "0.5"]),
         ["/about", "0.3"],
         ["/support", "0.3"],
         ...seasons.map((s): [string, string] => [landingPath({ kind: "season", ...s }), "0.7"]),
@@ -194,6 +229,33 @@ export const seoRoutes: FastifyPluginAsync = async (fastify) => {
         }),
         true,
       );
+    });
+  });
+
+  // "<название> 5 серия": one address per episode, in files of 40 000.
+  fastify.get("/seo-files/sitemap-episodes-:n.xml", async (request, reply) => {
+    const { n } = parse(z.object({ n: z.coerce.number().int().min(1).max(500) }), request.params);
+    xml(reply);
+    return files.wrap(`episodes-${n}`, async () => {
+      const from = (n - 1) * EPISODES_PER_SITEMAP;
+      const to = from + EPISODES_PER_SITEMAP;
+      const urls: string[] = [];
+      let at = 0;
+      for (const title of await episodeTitles()) {
+        if (at + title.released <= from) {
+          at += title.released;
+          continue;
+        }
+        for (let e = 1; e <= title.released && at < to; e++, at++) {
+          if (at < from) continue;
+          // The newest episode of a show is what people look for this week.
+          const priority = e === title.released ? "0.7" : "0.5";
+          urls.push(`<url><loc>${SITE}/anime/${esc(title.slug)}/episode/${e}</loc>${e === title.released ? `<lastmod>${title.updatedAt.toISOString()}</lastmod>` : ""}<priority>${priority}</priority></url>`);
+        }
+        if (at >= to) break;
+      }
+      if (urls.length === 0) throw new NotFoundError("Нет такого файла");
+      return urlset(urls);
     });
   });
 

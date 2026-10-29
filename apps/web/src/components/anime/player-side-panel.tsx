@@ -1,4 +1,5 @@
-import type { WatchSource } from "@animeshadow/shared";
+import { isStudioName, studioSlug, type WatchSource } from "@animeshadow/shared";
+import { Link } from "react-router-dom";
 import {
   CalendarIcon,
   CheckIcon,
@@ -52,6 +53,7 @@ export function PlayerSidePanel({
   fallbackPoster,
   currentEpisodes,
   watched,
+  showProgress,
   canMark,
   onToggleWatched,
   sources,
@@ -74,6 +76,8 @@ export function PlayerSidePanel({
   /** What the dub on screen can play; null when it doesn't say. */
   currentEpisodes: Set<number> | null;
   watched: Map<number, EpisodeState>;
+  /** Draw the progress in `watched` (this device's too) even without an account. */
+  showProgress?: boolean;
   canMark: boolean;
   onToggleWatched: (episode: number) => void;
   sources: WatchSource[];
@@ -149,6 +153,7 @@ export function PlayerSidePanel({
           fallbackPoster={fallbackPoster}
           currentEpisodes={currentEpisodes}
           watched={watched}
+          showProgress={showProgress ?? canMark}
           canMark={canMark}
           onToggleWatched={onToggleWatched}
         />
@@ -233,6 +238,7 @@ function EpisodeList({
   fallbackPoster,
   currentEpisodes,
   watched,
+  showProgress,
   canMark,
   onToggleWatched,
 }: {
@@ -244,6 +250,7 @@ function EpisodeList({
   fallbackPoster?: string | null;
   currentEpisodes: Set<number> | null;
   watched: Map<number, EpisodeState>;
+  showProgress: boolean;
   canMark: boolean;
   onToggleWatched: (episode: number) => void;
 }) {
@@ -316,6 +323,7 @@ function EpisodeList({
 
   return (
     <>
+      {showProgress && <SeriesProgress total={total} episode={episode} watched={watched} onOpen={(n) => { onEpisodeChange(n); scrollTo(n, "smooth"); }} />}
       {total > 12 && (
         <div className="relative shrink-0 p-2">
           <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
@@ -355,7 +363,7 @@ function EpisodeList({
                 fallbackPoster={fallbackPoster}
                 current={n === episode}
                 inDub={currentEpisodes == null || currentEpisodes.has(n)}
-                state={watched.get(n)}
+                state={showProgress ? watched.get(n) : undefined}
                 canMark={canMark}
                 onOpen={open}
                 onToggleWatched={toggle}
@@ -411,10 +419,10 @@ const EpisodeRow = memo(function EpisodeRow({
     still ??
     (fallbackPoster && !failedImages.includes(fallbackPoster) ? fallbackPoster : null);
   const art = artwork ? imageSrc(artwork, 240) : null;
-  const personalState = canMark ? state : undefined;
+  const personalState = state;
   const saved = episodeProgress(
     personalState,
-    canMark,
+    true,
     info?.durationSeconds ?? runtimeSeconds(fallbackDuration),
   );
   const done = saved.completed;
@@ -454,7 +462,7 @@ const EpisodeRow = memo(function EpisodeRow({
       {saved.fraction > 0 && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 bg-primary/[0.12]"
+          className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-primary/[0.04] to-primary/[0.12]"
           style={{ width: `${saved.fraction * 100}%` }}
         />
       )}
@@ -481,8 +489,21 @@ const EpisodeRow = memo(function EpisodeRow({
             </span>
           )}
           {art && (
-            <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 font-display text-[9px] leading-tight tabular-nums text-white">
+            <span className="absolute bottom-1 left-0.5 rounded bg-black/70 px-1 font-display text-[9px] leading-tight tabular-nums text-white">
               {n}
+            </span>
+          )}
+          {done ? (
+            <span aria-hidden className="absolute inset-0 grid place-items-center bg-black/45">
+              <CheckIcon className="size-4 text-emerald-300 drop-shadow" strokeWidth={3} />
+            </span>
+          ) : null}
+          {saved.fraction > 0 && (
+            <span aria-hidden className="ep-progress absolute inset-x-0 bottom-0 h-[3px] bg-black/50">
+              <span
+                className={cn("block h-full rounded-r-full", done ? "bg-emerald-400" : "ep-progress-fill bg-primary")}
+                style={{ width: `${Math.max(4, saved.fraction * 100)}%` }}
+              />
             </span>
           )}
         </span>
@@ -776,6 +797,112 @@ function DubList({
           </div>
         );
       })}
+      {(() => {
+        // The studio on screen, everything else it voiced — one tap away.
+        const current = sources.find((source) => source.id === currentSourceId);
+        const slug = current && isStudioName(current.title) ? studioSlug(current.title) : "";
+        if (!current || !slug) return null;
+        return (
+          <Link
+            to={/^hon-?kon/.test(slug) ? "/studio/hon-kon" : `/studios/${slug}`}
+            className="mt-1 flex shrink-0 items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary/40 hover:text-foreground"
+          >
+            <MicIcon className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Всё аниме в озвучке {current.title}</span>
+            <span aria-hidden>→</span>
+          </Link>
+        );
+      })()}
+    </div>
+  );
+}
+
+/**
+ * Where you are in the whole show, over the list: how many episodes are
+ * watched, one segment per episode (a continuous bar past sixty), and the
+ * episode you left half-way through — one tap back into it. Drawn from the
+ * same map as the rows, so it moves while the episode plays.
+ */
+function SeriesProgress({
+  total,
+  episode,
+  watched,
+  onOpen,
+}: {
+  total: number;
+  episode: number;
+  watched: Map<number, EpisodeState>;
+  onOpen: (n: number) => void;
+}) {
+  let done = 0;
+  let resume: number | null = null;
+  let resumeFraction = 0;
+  for (const [n, state] of watched) {
+    if (n < 1 || n > total) continue;
+    if (state.completed) done += 1;
+    else if (state.position > 30 && n !== episode && (resume == null || n > resume)) {
+      resume = n;
+      resumeFraction = state.duration ? Math.min(1, state.position / state.duration) : 0;
+    }
+  }
+  if (done === 0 && resume == null && !watched.get(episode)?.position) return null;
+  const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+  const segments = total <= 60;
+  const current = watched.get(episode);
+  const currentFraction = current?.duration ? Math.min(1, current.position / current.duration) : 0;
+
+  return (
+    <div className="series-progress shrink-0 border-b border-border/60 px-3 py-2.5">
+      <div className="flex items-center gap-2 text-[11px]">
+        <span className="font-semibold text-foreground">Просмотрено</span>
+        <span className="tabular-nums text-muted-foreground">
+          {done} из {total}
+        </span>
+        <span className="ml-auto rounded-full bg-primary/12 px-1.5 py-0.5 font-display text-[10px] tabular-nums text-primary">
+          {percent}%
+        </span>
+      </div>
+      {segments ? (
+        <div className="mt-1.5 flex h-1.5 gap-[2px]" aria-hidden>
+          {Array.from({ length: total }, (_, i) => {
+            const n = i + 1;
+            const state = watched.get(n);
+            const fraction = state?.completed ? 1 : state?.duration ? Math.min(1, state.position / state.duration) : 0;
+            return (
+              <span key={n} className={cn("relative flex-1 overflow-hidden rounded-full bg-foreground/10", n === episode && "ring-1 ring-primary/70")}>
+                {fraction > 0 && (
+                  <span
+                    className={cn("absolute inset-y-0 left-0 rounded-full", state?.completed ? "bg-emerald-400/90" : "bg-primary")}
+                    style={{ width: `${fraction * 100}%` }}
+                  />
+                )}
+              </span>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-foreground/10" aria-hidden>
+          <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 to-primary" style={{ width: `${percent}%` }} />
+        </div>
+      )}
+      {resume != null ? (
+        <button
+          type="button"
+          onClick={() => onOpen(resume)}
+          className="mt-2 flex w-full items-center gap-2 rounded-lg bg-primary/10 px-2 py-1.5 text-left text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
+        >
+          <ClockIcon className="size-3.5 shrink-0" />
+          <span className="flex-1 truncate">Продолжить {resume}-ю серию</span>
+          <span className="h-1 w-10 overflow-hidden rounded-full bg-primary/20">
+            <span className="block h-full bg-primary" style={{ width: `${resumeFraction * 100}%` }} />
+          </span>
+        </button>
+      ) : current && !current.completed && currentFraction > 0 ? (
+        <p className="mt-1.5 text-[10px] tabular-nums text-muted-foreground">
+          Серия {episode}: {formatClock(current.position)}
+          {current.duration ? ` из ${formatClock(current.duration)}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
