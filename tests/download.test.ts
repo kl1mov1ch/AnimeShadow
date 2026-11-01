@@ -5,6 +5,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { downloadRange } from "../apps/api/src/lib/download-file.ts";
 import {
   downloadAssetUrl,
   downloadFilename,
@@ -18,6 +19,23 @@ const requireApi = createRequire(new URL("../apps/api/package.json", import.meta
 const Fastify = requireApi("fastify");
 
 test("downloads keep a real quality and sanitize filenames and nested URLs", () => {
+  assert.deepEqual(downloadRange("bytes=10-19", 100), {
+    start: 10,
+    end: 19,
+    partial: true,
+  });
+  assert.deepEqual(downloadRange("bytes=90-", 100), {
+    start: 90,
+    end: 99,
+    partial: true,
+  });
+  assert.deepEqual(downloadRange("bytes=-10", 100), {
+    start: 90,
+    end: 99,
+    partial: true,
+  });
+  for (const value of ["bytes=100-", "bytes=5-3", "bytes=0-1,5-6", "bytes=-0"])
+    assert.equal(downloadRange(value, 100), null);
   assert.equal(
     downloadVariant(
       {
@@ -206,6 +224,7 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
     app.get(
       "/api/anime/1/streams/alloha/session/aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa/:asset",
       async (req, reply) => {
+        if (req.headers.range === "bytes=0-") return reply.code(416).send();
         const asset = (req.params as { asset: string }).asset;
         if (asset === "aaaaaaaaaaaaaaaaaaaaaaaa")
           return reply.type("application/vnd.apple.mpegurl").send(
@@ -240,7 +259,7 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
       "PRO is checked again at download time",
     );
     paid = true;
-    assert.equal((await app.inject(stale)).statusCode, 404, "links cannot be reused");
+    // A denied PRO check does not start the converter or consume another download slot.
     assert.equal(
       (
         await app.inject({
@@ -255,6 +274,9 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
     const address = app.server.address();
     assert(address && typeof address !== "string");
     const ticket = (await post()).json();
+    assert(ticket.statusUrl.endsWith("/status"));
+    const preparing = (await app.inject(ticket.statusUrl)).json();
+    assert.equal(preparing.state, "preparing");
     const response = await savedFetch(`http://127.0.0.1:${address.port}${ticket.url}`);
     assert.equal(
       response.status,
@@ -269,6 +291,17 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
     const mp4 = Buffer.from(await response.arrayBuffer());
     assert.equal(mp4.toString("ascii", 4, 8), "ftyp");
     assert(mp4.length > 4000, "actual audio/video media was streamed");
+    assert.equal(Number(response.headers.get("content-length")), mp4.length);
+    assert.equal((await app.inject(ticket.statusUrl)).json().state, "ready");
+    const resumed = await savedFetch(`http://127.0.0.1:${address.port}${ticket.url}`, {
+      headers: { range: "bytes=1024-2047" },
+    });
+    assert.equal(resumed.status, 206);
+    assert.equal(resumed.headers.get("content-range"), `bytes 1024-2047/${mp4.length}`);
+    assert.deepEqual(
+      Buffer.from(await resumed.arrayBuffer()),
+      mp4.subarray(1024, 2048),
+    );
     assert.equal((await app.inject(ticket.url)).statusCode, 404);
     sources[0] = { ...source, id: "alloha:7" };
     const allohaTicket = (await post()).json();
@@ -298,6 +331,18 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
     );
     const directMp4 = Buffer.from(await directResponse.arrayBuffer());
     assert.equal(directMp4.toString("ascii", 4, 8), "ftyp");
+    assets.delete("master0.ts");
+    sources[0] = source;
+    const brokenTicket = (await post()).json();
+    const broken = await savedFetch(
+      `http://127.0.0.1:${address.port}${brokenTicket.url}`,
+    );
+    assert.equal(
+      broken.status,
+      503,
+      "a missing fragment must never become a partial successful MP4",
+    );
+    assert.equal((await app.inject(brokenTicket.statusUrl)).json().state, "failed");
   } finally {
     globalThis.fetch = savedFetch;
     await app.close();

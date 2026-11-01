@@ -156,6 +156,7 @@ model User {
   commentVotes  CommentVote[]
   commentReports CommentReport[]
   sessions      WatchSession[]
+  weeklyWatchRewards WeeklyWatchReward[]
   achievements  UserAchievement[]
   genrePrefs    UserGenrePreference[]
   likedAnime    UserLikedAnime[]
@@ -424,6 +425,29 @@ model WatchSession {
   // groupBy(animeId) filtered to a recent window over the whole table, with
   // no animeId filter to narrow it first, so the range needs its own index.
   @@index([startedAt])
+}
+
+/// Next calendar week to settle. Created on activation, advanced with the grants atomically.
+model LeaderboardRewardCursor {
+  id       String   @id
+  nextWeek DateTime
+}
+
+/// Receipt: one place and one prize per account per Moscow calendar week.
+model WeeklyWatchReward {
+  weekStart     DateTime
+  place         Int
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days          Int
+  seconds       BigInt
+  titles        Int
+  proUntilAfter DateTime?
+  awardedAt     DateTime @default(now())
+
+  @@id([weekStart, place])
+  @@unique([weekStart, userId])
+  @@index([userId, awardedAt])
 }
 
 /// Time with the player open, from someone who isn't signed in. Kept apart

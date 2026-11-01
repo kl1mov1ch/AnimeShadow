@@ -1,7 +1,7 @@
 import { PROMO } from "@animeshadow/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { DownloadIcon, GiftIcon, Loader2Icon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useClaimPromo, useIsPro, usePromo } from "@/components/promo/promo-offer";
@@ -29,6 +29,9 @@ export function EpisodeDownload({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preparedBytes, setPreparedBytes] = useState(0);
+  const preparation = useRef<AbortController | null>(null);
+  useEffect(() => () => preparation.current?.abort(), []);
   const guest = status !== "authenticated";
   const download = async () => {
     if (!available) {
@@ -36,33 +39,68 @@ export function EpisodeDownload({
       return;
     }
     setBusy(true);
+    setPreparedBytes(0);
+    const controller = new AbortController();
+    preparation.current = controller;
     try {
-      const file = await apiRequest<{ url: string; filename: string }>(
-        `/anime/${animeId}/download`,
-        {
-          method: "POST",
-          body: {
-            sourceId,
-            episode,
-            ...(quality !== "auto" ? { height: Number(quality) } : {}),
-          },
+      const file = await apiRequest<{
+        url: string;
+        statusUrl: string;
+        filename: string;
+      }>(`/anime/${animeId}/download`, {
+        method: "POST",
+        signal: controller.signal,
+        body: {
+          sourceId,
+          episode,
+          ...(quality !== "auto" ? { height: Number(quality) } : {}),
         },
-      );
+      });
+      const started = Date.now();
+      while (true) {
+        const progress = await apiRequest<{
+          state: "preparing" | "ready" | "failed";
+          bytes: number;
+          message?: string;
+        }>(file.statusUrl.replace(/^\/api/, ""), { signal: controller.signal });
+        setPreparedBytes(progress.bytes);
+        if (progress.state === "failed")
+          throw new Error(progress.message ?? "Не удалось подготовить серию.");
+        if (progress.state === "ready") break;
+        if (Date.now() - started > 21 * 60_000)
+          throw new Error(
+            "Подготовка заняла слишком много времени. Повторите попытку.",
+          );
+        await new Promise<void>((resolve, reject) => {
+          const cancelled = () => {
+            clearTimeout(timer);
+            reject(new Error("Cancelled"));
+          };
+          const timer = setTimeout(() => {
+            controller.signal.removeEventListener("abort", cancelled);
+            resolve();
+          }, 3000);
+          controller.signal.addEventListener("abort", cancelled, { once: true });
+          if (controller.signal.aborted) cancelled();
+        });
+      }
+      controller.signal.throwIfAborted();
       const link = document.createElement("a");
       link.href = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "") + file.url;
       link.download = file.filename;
       document.body.append(link);
       link.click();
       link.remove();
-      toast.success("Готовим серию. Скачивание начнётся автоматически.");
+      toast.success("Серия готова. Скачивание началось.");
     } catch (error) {
+      if (controller.signal.aborted) return;
       toast.error(
         error instanceof Error ? error.message : "Не удалось начать скачивание",
       );
       if (error instanceof ApiRequestError && error.status === 403)
         void queryClient.invalidateQueries({ queryKey: ["me", "promo"] });
     } finally {
-      setBusy(false);
+      if (!controller.signal.aborted) setBusy(false);
     }
   };
   return (
@@ -86,7 +124,7 @@ export function EpisodeDownload({
             ) : (
               <DownloadIcon className="size-3.5" />
             )}
-            <span>Скачать серию</span>
+            <span>{busy ? "Готовим серию…" : "Скачать серию"}</span>
             {!pro && (
               <span className="rounded bg-primary/15 px-1 py-0.5 text-[9px] leading-none text-primary">
                 PRO
@@ -157,6 +195,13 @@ export function EpisodeDownload({
           )}
         </PopoverContent>
       </Popover>
+      {busy && (
+        <span className="text-[10px] leading-tight text-muted-foreground" role="status">
+          {preparedBytes > 0
+            ? `Подготовлено ${Math.ceil(preparedBytes / 1024 / 1024)} МБ`
+            : "Проверяем источник…"}
+        </span>
+      )}
       {guest && (
         <Link
           to="/register"

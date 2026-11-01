@@ -2,14 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowUpRightIcon,
-  Clock3Icon,
+  CalendarClockIcon,
   CrownIcon,
   InfoIcon,
   PlayIcon,
   RefreshCwIcon,
-  ShieldIcon,
-  SparklesIcon,
-  StarIcon,
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
@@ -19,69 +16,26 @@ import { ErrorState } from "@/components/common/states";
 import {
   PodiumCard,
   RankSeal,
-  ViewerAvatar,
   WatchRankingRow,
 } from "@/components/leaderboards/watch-rank";
 import { watchTimeLabel, type WatchBoard } from "@/lib/watch-leaderboard";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/api";
 import { useDocumentHead } from "@/lib/seo";
-import { LogoGlyph } from "@/components/brand/logo-glyph";
 import "./leaderboards.css";
 
 const PERIODS = {
-  all: "За всё время",
-  month: "За последние 30 дней",
-  week: "За последние 7 дней",
+  week: "Эта неделя",
+  month: "Последние 30 дней",
+  all: "Всё время",
 } as const;
 type Period = keyof typeof PERIODS;
-
-function HallTrophy() {
-  return (
-    <div className="hall-hero-art" aria-hidden>
-      <div className="hall-hero-halo" />
-      <LogoGlyph className="hall-hero-mark" />
-      <svg viewBox="0 0 240 220" fill="none">
-        <path
-          d="M83 48h74v32c0 34-16 55-37 55S83 114 83 80V48Z"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <path
-          d="M82 60H61v18c0 23 12 37 30 38m67-56h21v18c0 23-12 37-30 38m-29 19v29m-26 10h52m-60 10h68"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <path
-          d="m120 70 5 12 13 1-10 9 3 13-11-7-11 7 3-13-10-9 13-1Z"
-          fill="currentColor"
-          fillOpacity=".8"
-        />
-        <path
-          d="M73 170C37 149 23 110 36 73m131 97c36-21 50-60 37-97"
-          stroke="currentColor"
-          strokeOpacity=".3"
-        />
-        <path
-          d="m44 128-16-9 9 20 15 8m-13-42-14-9 7 18 10 9m5-40-8-13 2 19 5 10m150 29 16-9-9 20-15 8m13-42 14-9-7 18-10 9m-5-40 8-13-2 19-5 10"
-          fill="currentColor"
-          fillOpacity=".35"
-        />
-        <path
-          d="m55 39 2 7 7 2-7 2-2 7-2-7-7-2 7-2Zm129-15 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"
-          fill="currentColor"
-          fillOpacity=".7"
-        />
-      </svg>
-    </div>
-  );
-}
 
 export function Component() {
   const [params, setParams] = useSearchParams();
   const candidate = params.get("period");
   const period: Period =
-    candidate === "week" || candidate === "month" ? candidate : "all";
+    candidate === "all" || candidate === "month" ? candidate : "week";
   const { user, status } = useAuth();
   const board = useQuery({
     queryKey: ["watch-board", period, user?.id],
@@ -92,88 +46,89 @@ export function Component() {
     refetchIntervalInBackground: false,
   });
   useDocumentHead({
-    title: "Зал легенд — топ зрителей | AnimeShadow",
+    title: "Топ зрителей — недельные награды PRO | AnimeShadow",
     description:
-      "Лидеры AnimeShadow: подиум лучших зрителей и рейтинг по времени просмотра за неделю, месяц и всё время.",
+      "Лучшие зрители AnimeShadow. Каждую неделю тройка лидеров получает 7, 5 и 3 дня PRO.",
     path: "/leaderboards",
   });
   const data = board.data;
   const remaining = data?.top.slice(3) ?? [];
-  const leaderSeconds = data?.top[0]?.seconds ?? 1;
-  const empty = Boolean(data && data.top.length === 0);
   const fatal = board.isError && !data;
+  const deadline =
+    data?.week &&
+    new Intl.DateTimeFormat("ru-RU", {
+      day: "numeric",
+      month: "long",
+      timeZone: "Europe/Moscow",
+    }).format(new Date(data.week.endsAt));
   return (
-    <div className="watch-hall mx-auto flex w-full max-w-6xl flex-col gap-7 sm:gap-9">
-      <header className="hall-hero">
-        <div className="relative z-10 max-w-2xl">
-          <p className="hall-hero-label">
-            <TrophyIcon className="size-4" />
-            Топ зрителей AnimeShadow
-          </p>
-          <h1 className="mt-4 font-display text-3xl leading-[1.12] tracking-tight sm:text-5xl lg:text-6xl">
-            Зал легенд
-          </h1>
-          <p className="mt-4 max-w-[37rem] text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Рейтинг тех, кто провёл больше всего времени в мирах аниме. Любимые истории
-            становятся частью твоего пути к вершине.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <UsersIcon className="size-3.5" />
-              {data ? (
-                <>
-                  <strong className="font-semibold tabular-nums text-foreground">
-                    {data.participants.toLocaleString("ru-RU")}
-                  </strong>{" "}
-                  в рейтинге
-                </>
-              ) : (
-                "Сообщество зрителей"
-              )}
-            </span>
-            <span className="flex items-center gap-2">
-              <Clock3Icon className="size-3.5" />
-              По времени просмотра
-            </span>
+    <div className="watch-hall mx-auto w-full max-w-6xl">
+      <header className="hall-heading">
+        <div>
+          <div className="hall-heading-icon">
+            <TrophyIcon className="size-5" />
           </div>
+          <h1 className="font-display text-3xl tracking-tight sm:text-4xl">
+            Топ зрителей
+          </h1>
+          <p>Любимые истории. Время просмотра. Твоё место среди лучших.</p>
         </div>
-        <HallTrophy />
+        <div className="hall-community">
+          <UsersIcon className="size-4" />
+          <span>
+            <strong>{data?.participants.toLocaleString("ru-RU") ?? "—"}</strong>{" "}
+            зрителей в рейтинге
+          </span>
+        </div>
       </header>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="hall-weekly-reward" aria-label="Недельные награды PRO">
+        <div className="hall-reward-intro">
+          <span className="hall-gift-icon">
+            <CrownIcon className="size-5" />
+          </span>
+          <div>
+            <h2>Неделя просмотра — дни PRO в подарок</h2>
+            <p>Тройке лидеров каждую неделю. Награда прибавляется к твоему PRO.</p>
+          </div>
+        </div>
+        <div className="hall-reward-places" aria-label="Призы за места">
+          <span>
+            <b>1</b>
+            <strong>7</strong> дней
+          </span>
+          <span>
+            <b>2</b>
+            <strong>5</strong> дней
+          </span>
+          <span>
+            <b>3</b>
+            <strong>3</strong> дня
+          </span>
+        </div>
+      </section>
+
+      <div className="hall-toolbar">
         <Tabs
           value={period}
           onValueChange={(value) =>
-            setParams(value === "all" ? {} : { period: value }, {
+            setParams(value === "week" ? {} : { period: value }, {
               replace: true,
               preventScrollReset: true,
             })
           }
         >
-          <TabsList
-            aria-label="Период рейтинга"
-            className="hall-periods w-full sm:w-fit"
-          >
-            <TabsTrigger value="all">Всё время</TabsTrigger>
-            <TabsTrigger value="month">Месяц</TabsTrigger>
+          <TabsList aria-label="Период рейтинга" className="hall-periods">
             <TabsTrigger value="week">Неделя</TabsTrigger>
+            <TabsTrigger value="month">Месяц</TabsTrigger>
+            <TabsTrigger value="all">Всё время</TabsTrigger>
           </TabsList>
         </Tabs>
-        <span className="hall-refresh-label">
-          {board.isError && data ? (
-            <button
-              className="flex min-h-8 items-center gap-1.5 text-primary"
-              onClick={() => void board.refetch()}
-            >
-              <RefreshCwIcon className="size-3" />
-              Повторить обновление
-            </button>
-          ) : (
-            <>
-              <span className="hall-live-dot" />
-              Обновляется каждую минуту
-            </>
-          )}
+        <span className="hall-deadline">
+          <CalendarClockIcon className="size-3.5" />
+          {period === "week"
+            ? `Итоги ${deadline ?? "в понедельник"}, 00:00 МСК`
+            : PERIODS[period]}
         </span>
       </div>
 
@@ -181,19 +136,31 @@ export function Component() {
         aria-label="Подиум лидеров"
         aria-busy={board.isPending}
         className="hall-stage"
-        key={`podium-${period}`}
       >
         <div className="hall-section-heading">
-          <div>
-            <p className="text-xs text-muted-foreground">{PERIODS[period]}</p>
-            <h2 className="mt-1 flex items-center gap-2 font-display text-lg sm:text-xl">
-              <CrownIcon className="size-5 text-[var(--hall-gold)]" />
-              На вершине рейтинга
-            </h2>
-          </div>
-          <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
-            <ShieldIcon className="size-3.5" />
-            Три места. Три истории.
+          <h2 className="font-display text-lg">
+            Лидеры{" "}
+            {period === "week"
+              ? "недели"
+              : period === "month"
+                ? "месяца"
+                : "за всё время"}
+          </h2>
+          <span className="hall-refresh-label">
+            {board.isError && data ? (
+              <button
+                onClick={() => void board.refetch()}
+                className="flex items-center gap-1.5 text-primary"
+              >
+                <RefreshCwIcon className="size-3" />
+                Обновить
+              </button>
+            ) : (
+              <>
+                <span className="hall-live-dot" />
+                Обновление раз в минуту
+              </>
+            )}
           </span>
         </div>
         {fatal ? (
@@ -201,38 +168,20 @@ export function Component() {
             <ErrorState onRetry={() => void board.refetch()} />
           </div>
         ) : (
-          <div className="hall-podium-grid">
+          <div className="hall-podium-grid" key={period}>
             {board.isPending
-              ? Array.from({ length: 3 }, (_, index) => (
-                  <Skeleton key={index} className="hall-podium-skeleton" />
+              ? Array.from({ length: 3 }, (_, i) => (
+                  <Skeleton key={i} className="hall-podium-skeleton" />
                 ))
               : Array.from({ length: 3 }, (_, slot) => (
                   <PodiumCard
-                    key={data?.top[slot]?.userId ?? `vacant-${slot}`}
+                    key={data?.top[slot]?.userId ?? slot}
                     slot={slot}
                     row={data?.top[slot]}
                     currentUserId={user?.id}
+                    proDays={period === "week" ? data?.week?.proDays[slot] : undefined}
                   />
                 ))}
-          </div>
-        )}
-        {empty && (
-          <div className="hall-empty">
-            <SparklesIcon className="size-5 text-primary" />
-            <div>
-              <h3 className="text-sm font-semibold">Вершина пока свободна</h3>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                За этот период ещё нет публичных просмотров. Включи любимое аниме — и
-                начни свою историю в рейтинге.
-              </p>
-            </div>
-            <Link
-              className="hall-action"
-              to={status === "authenticated" ? "/browse" : "/register"}
-            >
-              {status === "authenticated" ? "Выбрать аниме" : "Занять своё место"}
-              <ArrowUpRightIcon className="size-3.5" />
-            </Link>
           </div>
         )}
       </section>
@@ -242,36 +191,28 @@ export function Component() {
           {data.me ? (
             <>
               <RankSeal rank={data.me.rank} />
-              <ViewerAvatar row={data.me} className="size-10" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">Твоё место</p>
-                <p className="mt-0.5 truncate text-sm font-semibold">
+                <p className="mt-1 truncate text-sm font-semibold">
                   {data.me.displayName}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="font-display text-sm tabular-nums text-primary sm:text-base">
-                  {watchTimeLabel(data.me.seconds)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {data.me.titles} аниме за этот период
-                </p>
-              </div>
+              <strong className="text-sm tabular-nums text-primary">
+                {watchTimeLabel(data.me.seconds)}
+              </strong>
             </>
           ) : (
             <>
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                <StarIcon className="size-5" />
-              </div>
+              <PlayIcon className="size-5 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">Здесь может быть твоё имя</p>
+                <p className="text-sm font-semibold">Начни неделю с любимого аниме</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Смотри аниме и открой статистику профиля для участия в топе.
+                  Смотри в плеере сайта и открой статистику профиля для участия.
                 </p>
               </div>
-              <Link className="hall-action shrink-0" to="/browse">
-                <PlayIcon className="size-3.5" />
-                <span className="hidden sm:inline">Выбрать аниме</span>
+              <Link to="/browse" className="hall-action">
+                В каталог
+                <ArrowUpRightIcon className="size-3.5" />
               </Link>
             </>
           )}
@@ -280,42 +221,35 @@ export function Component() {
 
       {(remaining.length > 0 || board.isPending) && (
         <section aria-label="Рейтинг зрителей" className="hall-list-surface">
-          <div className="hall-section-heading px-4 pb-4 pt-5 sm:px-6">
-            <div>
-              <h2 className="font-display text-lg">Путь к вершине</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Каждая история приближает к лидерам
-              </p>
-            </div>
-            {data && (
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {data.participants > 50
+          <div className="hall-section-heading px-4 py-5 sm:px-6">
+            <h2 className="font-display text-lg">В погоне за лидерами</h2>
+            <span className="text-xs text-muted-foreground">
+              {data &&
+                (data.participants > 50
                   ? "Лучшие 50"
-                  : `${data.participants} в рейтинге`}
-              </span>
-            )}
+                  : `${data.participants} участников`)}
+            </span>
           </div>
           <div className="hall-table-head">
             <span>Место</span>
             <span>Зритель</span>
             <span className="hidden text-right sm:block">Аниме</span>
-            <span className="text-right">Время</span>
+            <span className="text-right">Просмотрено</span>
           </div>
           {board.isPending ? (
-            <div className="flex flex-col gap-2 p-3">
-              {Array.from({ length: 4 }, (_, i) => (
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 3 }, (_, i) => (
                 <Skeleton key={i} className="h-16 rounded-xl" />
               ))}
             </div>
           ) : (
-            <ol className="hall-ranking-list" key={`list-${period}`}>
-              {remaining.map((row, index) => (
+            <ol className="hall-ranking-list">
+              {remaining.map((row) => (
                 <WatchRankingRow
                   key={row.userId}
                   row={row}
-                  leaderSeconds={leaderSeconds}
+                  leaderSeconds={data?.top[0]?.seconds ?? 1}
                   mine={row.userId === user?.id}
-                  index={index}
                 />
               ))}
             </ol>
@@ -323,29 +257,23 @@ export function Component() {
         </section>
       )}
 
-      {status === "anonymous" && !empty && (
+      {status === "anonymous" && (
         <section className="hall-join">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-              <TrophyIcon className="size-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold sm:text-base">
-                Твоя следующая история — в этом рейтинге
-              </h2>
-              <p className="mt-1 max-w-lg text-xs leading-relaxed text-muted-foreground">
-                Войди, чтобы сохранять время просмотра и следить за своим местом среди
-                зрителей AnimeShadow.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-sm font-semibold">
+              Смотри аниме. Поднимайся в рейтинге.
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Войди, чтобы сохранять просмотренное время и участвовать в недельном топе.
+            </p>
           </div>
           <Link
             to="/register"
             state={{ from: "/leaderboards" }}
             className="hall-action shrink-0"
           >
-            Занять своё место
-            <ArrowUpRightIcon className="size-4" />
+            Участвовать
+            <ArrowUpRightIcon className="size-3.5" />
           </Link>
         </section>
       )}
@@ -353,14 +281,23 @@ export function Component() {
       <details className="hall-rules">
         <summary>
           <InfoIcon className="size-3.5" />
-          Как устроен рейтинг
+          Правила рейтинга и наград
         </summary>
         <p>
-          Учитывается время просмотра в плеере: за последние 7 дней, 30 дней или весь
-          период. Данные обновляются в течение минуты. В общий топ попадают профили с
-          публичной статистикой; изменить доступ можно в настройках приватности. Число
-          аниме означает тайтлы с просмотром, а не количество завершённых сериалов. При
-          одинаковом времени зрители делят место.
+          Неделя длится с понедельника 00:00 до следующего понедельника 00:00 по Москве.
+          В первые минуты после окончания недели первое место получает 7 дней PRO,
+          второе — 5, третье — 3. Награда продлевает действующий PRO или пробный срок;
+          бессрочный PRO сохраняется. При отсутствии PRO срок начинается с момента
+          выдачи. За пропущенные во время обслуживания недели награды выдаются после
+          восстановления сайта.
+        </p>
+        <p>
+          Учитывается время просмотра в плеере сайта. Участие доступно незаблокированным
+          аккаунтам с публичным профилем и публичной статистикой. При равном времени
+          выше тот, кто посмотрел больше разных аниме; далее порядок определяется
+          постоянным идентификатором аккаунта. Месячный рейтинг охватывает последние 30
+          дней. Награды предусмотрены только за календарную неделю. Каждая награда
+          выдаётся один раз.
         </p>
       </details>
     </div>

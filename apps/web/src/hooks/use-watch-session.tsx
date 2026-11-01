@@ -27,13 +27,13 @@ export function useWatchSession({
   useEffect(() => {
     if (!active || status === "loading") return;
 
-    startRef.current = Date.now();
+    startRef.current = document.visibilityState === "hidden" ? null : Date.now();
 
     const flush = () => {
       const start = startRef.current;
       if (start == null) return;
       const seconds = Math.round((Date.now() - start) / 1000);
-      startRef.current = Date.now(); // reset so a resume doesn't double-count
+      startRef.current = document.visibilityState === "hidden" ? null : Date.now();
       if (seconds < 15) return;
       const input = {
         animeId,
@@ -42,21 +42,28 @@ export function useWatchSession({
         startedAt: new Date(start).toISOString(),
       };
       if (authed) log.mutate(input);
-      else void logGuestSession({ ...input, visitorId: getVisitorId() }).catch(() => undefined);
+      else
+        void logGuestSession({ ...input, visitorId: getVisitorId() }).catch(
+          () => undefined,
+        );
     };
 
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") flush();
-      else startRef.current = Date.now();
+      if (document.visibilityState === "hidden") {
+        flush();
+        startRef.current = null;
+      } else startRef.current = Date.now();
     };
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("beforeunload", flush);
+    const heartbeat = setInterval(flush, 60_000);
 
     return () => {
       flush();
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", flush);
+      clearInterval(heartbeat);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed, status, active, animeId, episode]);

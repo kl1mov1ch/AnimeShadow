@@ -1,6 +1,8 @@
 import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@animeshadow/db";
 import { canSeePart, readPrivacy, visibleParts } from "../lib/privacy.js";
 import { proActive } from "../lib/pro.js";
+import { boundedWatchSession } from "../lib/watch-session.js";
+import { watchWeek } from "../lib/watch-week.js";
 import type {
   GuestSessionInput,
   MyProfile,
@@ -414,20 +416,33 @@ export class ProfileService {
     input: { animeId: number; episode: number; seconds: number; startedAt: string },
   ): Promise<void> {
     if (input.seconds < 15) return;
-    await this.prisma.watchSession.create({
-      data: {
-        userId,
-        animeId: input.animeId,
-        episode: input.episode,
-        seconds: input.seconds,
-        startedAt: new Date(input.startedAt),
-        endedAt: new Date(),
-      },
+    const counted = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      let previous = await tx.watchSession.findFirst({ where: { userId, endedAt: { not: null } }, orderBy: { startedAt: "desc" }, select: { id: true, startedAt: true, endedAt: true, animeId: true, episode: true } });
+      const bounded = boundedWatchSession(input, previous?.endedAt ?? null);
+      if (!bounded) return 0;
+      // A session crossing Monday belongs partly to each week, not entirely to its start.
+      let start = bounded.startedAt;
+      while (start < bounded.endedAt) {
+        const end = new Date(Math.min(watchWeek(start).end.getTime(), bounded.endedAt.getTime()));
+        const seconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+        if (seconds > 0) {
+          const merge = previous?.endedAt && previous.animeId === input.animeId && previous.episode === input.episode &&
+            start.getTime() - previous.endedAt.getTime() <= 5000 && watchWeek(previous.startedAt).start.getTime() === watchWeek(start).start.getTime();
+          // The heartbeat updates the current session, instead of adding a row every minute.
+          if (merge) await tx.watchSession.update({ where: { id: previous!.id }, data: { seconds: { increment: seconds }, endedAt: end } });
+          else await tx.watchSession.create({ data: { userId, animeId: input.animeId, episode: input.episode, seconds, startedAt: start, endedAt: end } });
+          previous = null;
+        }
+        start = end;
+      }
+      return bounded.seconds;
     });
+    if (!counted) return;
     // Same numbers, mirrored into an in-memory counter — Prometheus scrapes
     // this later at no extra DB cost, so "total minutes watched right now"
     // is a Grafana panel instead of an aggregate query against Postgres.
-    watchSecondsTotal.inc({ audience: "registered" }, input.seconds);
+    watchSecondsTotal.inc({ audience: "registered" }, counted);
     watchSessionsTotal.inc({ audience: "registered" });
   }
 

@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { parse } from "../lib/validation.js";
 import { TtlCache } from "../lib/cache.js";
+import { watchWeek, WEEKLY_PRO_DAYS } from "../lib/watch-week.js";
 
 interface WatchRow {
   userId: string;
@@ -21,20 +22,24 @@ export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
       z.object({ period: z.enum(["week", "month", "all"]).default("week") }),
       request.query,
     );
-    const rows = await cache.wrap(period, async () => {
+    const week = watchWeek();
+    const rows = await cache.wrap(`${period}:${week.start.toISOString()}`, async () => {
       const since =
         period === "all"
           ? new Date(0)
-          : new Date(Date.now() - (period === "week" ? 7 : 30) * 86_400_000);
+          : period === "week"
+            ? week.start
+            : new Date(Date.now() - 30 * 86_400_000);
+      const until = period === "week" ? week.end : new Date();
       return app.prisma.$queryRaw<WatchRow[]>`
         SELECT u.id AS "userId", u."displayName", u.username, u."avatarUrl",
           SUM(w.seconds)::bigint AS seconds, COUNT(DISTINCT w."animeId") AS titles,
-          RANK() OVER (ORDER BY SUM(w.seconds) DESC) AS rank
+          ROW_NUMBER() OVER (ORDER BY SUM(w.seconds) DESC, COUNT(DISTINCT w."animeId") DESC, u.id ASC) AS rank
         FROM "WatchSession" w JOIN "User" u ON u.id = w."userId"
-        WHERE w."startedAt" >= ${since} AND w.seconds > 0 AND u."isBanned" = false
+        WHERE w."startedAt" >= ${since} AND w."startedAt" < ${until} AND w.seconds > 0 AND u."isBanned" = false
           AND COALESCE(u."profilePrivacy"->>'profile', 'public') = 'public'
           AND COALESCE(u."profilePrivacy"->>'stats', 'public') = 'public'
-        GROUP BY u.id ORDER BY seconds DESC, u.id ASC
+        GROUP BY u.id ORDER BY seconds DESC, titles DESC, u.id ASC
       `;
     });
     const dto = (r: WatchRow) => ({
@@ -49,6 +54,11 @@ export const leaderboardRoutes: FastifyPluginAsync = async (app) => {
       top: rows.slice(0, 50).map(dto),
       me: mine ? dto(mine) : null,
       participants: rows.length,
+      week: {
+        startsAt: week.start.toISOString(),
+        endsAt: week.end.toISOString(),
+        proDays: WEEKLY_PRO_DAYS,
+      },
     };
   });
 };

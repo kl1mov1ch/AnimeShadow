@@ -11,6 +11,7 @@ export interface WatchBoard {
   top: WatchRank[];
   me: WatchRank | null;
   participants: number;
+  week: { startsAt: string; endsAt: string; proDays: number[] };
 }
 
 export function watchTimeParts(seconds: number) {

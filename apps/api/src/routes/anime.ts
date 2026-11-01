@@ -331,7 +331,9 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get(
     "/anime/:id/streams/alloha/session/:session/:asset",
-    { config: { rateLimit: { max: 600, timeWindow: "1 minute" } } },
+    { config: { rateLimit: { max: 600, timeWindow: "1 minute",
+      allowList: (req) => ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.ip),
+    } } },
     async (request, reply) => {
       const { id, session, asset } = parse(
         z.object({

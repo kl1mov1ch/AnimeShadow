@@ -1,5 +1,5 @@
 import { PROMO } from "@animeshadow/shared";
-import type { PrismaClient } from "@animeshadow/db";
+import type { Prisma, PrismaClient } from "@animeshadow/db";
 import type { FastifyBaseLogger } from "fastify";
 
 /**
@@ -34,17 +34,21 @@ export function trialEnd(from = new Date()): Date {
  * Adds days of PRO to an account: from the end of the PRO it has now (so
  * months stack), or from today. PRO for good stays for good.
  */
-export async function addProDays(prisma: PrismaClient, userId: string, days: number): Promise<{ proUntil: Date | null }> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { proSince: true, proUntil: true } });
-  const now = new Date();
-  if (user.proSince && !user.proUntil) return { proUntil: null };
-  const from = user.proSince && user.proUntil && user.proUntil > now ? user.proUntil : now;
-  const proUntil = new Date(from.getTime() + days * DAY);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { proSince: user.proSince && user.proUntil && user.proUntil > now ? user.proSince : now, proUntil },
-  });
-  return { proUntil };
+export async function addProDays(
+  prisma: PrismaClient | Prisma.TransactionClient, userId: string, days: number, now = new Date(),
+): Promise<{ proUntil: Date | null }> {
+  if (!Number.isInteger(days) || days < 1 || days > 36500) throw new Error("Invalid PRO days");
+  // A single UPDATE locks the user row. Simultaneous grants add rather than overwrite;
+  // both paid PRO and the remaining trial count, permanent PRO stays permanent.
+  const [updated] = await prisma.$queryRaw<{ proUntil: Date | null }[]>`
+    UPDATE "User" SET
+      "proUntil" = CASE WHEN "proSince" IS NOT NULL AND "proUntil" IS NULL THEN NULL
+        ELSE GREATEST(${now}::timestamp, "proUntil", "trialUntil") + ${days} * INTERVAL '1 day' END,
+      "proSince" = COALESCE("proSince", ${now}::timestamp)
+    WHERE id = ${userId} RETURNING "proUntil"
+  `;
+  if (!updated) throw new Error("PRO account not found");
+  return updated;
 }
 
 /**

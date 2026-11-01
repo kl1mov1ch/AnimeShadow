@@ -1,4 +1,4 @@
-import { type CSSProperties, useId } from "react";
+import { type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { CrownIcon, MedalIcon, ShieldIcon, StarIcon, TvIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -47,107 +47,80 @@ export function ViewerAvatar({
   );
 }
 
-function Laurel() {
-  const id = useId();
-  return (
-    <svg className="hall-laurel" viewBox="0 0 180 180" fill="none" aria-hidden>
-      <defs>
-        <g id={id}>
-          <path
-            d="M72 151C37 136 21 103 30 64"
-            stroke="currentColor"
-            strokeWidth="1.4"
-          />
-          <path
-            d="M58 143c-13 2-25-5-27-14 12-1 23 5 27 14Zm-13-14c-13-2-22-12-21-21 11 3 19 10 21 21Zm-9-19c-12-6-17-17-13-25 10 5 14 14 13 25Zm-4-21c-9-8-10-20-4-27 7 8 8 18 4 27Zm2-23c-5-10-2-21 6-25 4 10 1 20-6 25Zm8-21c-1-11 5-20 14-21-1 11-7 18-14 21Z"
-            fill="currentColor"
-            fillOpacity=".65"
-          />
-          <path
-            d="M59 139c2-10 0-16-6-20-6 7-4 14 6 20Zm-13-20c5-7 5-15 0-21-7 6-7 14 0 21Zm-7-23c7-5 9-12 6-19-8 4-10 11-6 19Zm0-23c8-3 12-9 11-17-9 1-13 7-11 17Z"
-            fill="currentColor"
-            fillOpacity=".38"
-          />
-        </g>
-      </defs>
-      <use href={`#${id}`} />
-      <use href={`#${id}`} transform="translate(180 0) scale(-1 1)" />
-      <path d="m89 22 1-5 1 5 5 1-5 1-1 5-1-5-5-1Z" fill="currentColor" />
-    </svg>
-  );
-}
-
 export function PodiumCard({
   row,
   slot,
   currentUserId,
+  proDays,
 }: {
   row?: WatchRank;
   slot: number;
   currentUserId?: string;
+  proDays?: number;
 }) {
-  const rank = row?.rank ?? slot + 1;
-  const metal = rankMetal(rank);
+  const rank = slot + 1;
   const time = row ? watchTimeParts(row.seconds) : null;
   const mine = Boolean(row && currentUserId && row.userId === currentUserId);
-  const label =
-    rank === 1 ? "На вершине" : rank === 2 ? "Серебряный призёр" : "Бронзовый призёр";
   return (
     <article
       className={cn("hall-podium-card", !row && "hall-podium-vacant")}
-      data-metal={metal}
-      data-slot={slot}
-      style={{ "--hall-delay": `${slot * 90}ms` } as CSSProperties}
+      data-metal={rankMetal(rank)}
     >
-      <div className="hall-podium-backdrop" aria-hidden />
-      <span className="hall-podium-label">
-        {rank === 1 ? (
-          <CrownIcon className="size-3.5" />
-        ) : (
-          <MedalIcon className="size-3.5" />
+      <div className="hall-podium-top">
+        <RankSeal rank={rank} />
+        <span>{rank === 1 ? "Лидер рейтинга" : rank === 2 ? "Серебро" : "Бронза"}</span>
+        {proDays && (
+          <span className="hall-prize">
+            <CrownIcon className="size-3" />+{proDays} {proDays === 3 ? "дня" : "дней"}{" "}
+            PRO
+          </span>
         )}
-        {label}
-      </span>
-      <div className="hall-emblem">
-        <Laurel />
-        {rank === 1 && <CrownIcon aria-hidden className="hall-crown" />}
-        <span className="hall-avatar-orbit" aria-hidden />
+      </div>
+      <div className="hall-podium-identity">
         <div className="hall-podium-avatar">
           {row ? (
             <ViewerAvatar row={row} className="size-full" />
           ) : (
-            <ShieldIcon className="size-9 opacity-35" aria-hidden />
+            <ShieldIcon className="size-7 opacity-40" aria-hidden />
           )}
         </div>
-        <RankSeal rank={rank} className="hall-podium-seal" />
+        <div className="min-w-0">
+          <h3 className="hall-podium-name">{row?.displayName ?? "Место свободно"}</h3>
+          <p className="hall-podium-handle">
+            {mine
+              ? "Это ты"
+              : row?.username
+                ? "@" + row.username
+                : row
+                  ? "Зритель AnimeShadow"
+                  : "Стань одним из первых"}
+          </p>
+        </div>
       </div>
-      <h3 className="hall-podium-name">{row?.displayName ?? "Место свободно"}</h3>
-      {mine && <span className="hall-you-tag">Это ты</span>}
-      {time ? (
-        <>
-          <p className="hall-podium-time">
-            <strong>{time.value.toLocaleString("ru-RU")}</strong>
-            <span>{time.unit}</span>
-            {time.detail && <small>{time.detail}</small>}
+      <div className="hall-podium-stats">
+        {time ? (
+          <>
+            <p className="hall-podium-time">
+              <strong>{time.value.toLocaleString("ru-RU")}</strong>
+              <span>{time.unit}</span>
+              {time.detail && <small>{time.detail}</small>}
+            </p>
+            <p className="hall-podium-titles">
+              <TvIcon className="size-3.5" />
+              {row!.titles.toLocaleString("ru-RU")} аниме
+            </p>
+          </>
+        ) : (
+          <p className="hall-podium-invitation">
+            Смотри любимые истории и поднимайся в топе
           </p>
-          <p className="hall-podium-titles">
-            <TvIcon className="size-3.5" />
-            {row!.titles.toLocaleString("ru-RU")} аниме
-          </p>
-        </>
-      ) : (
-        <p className="hall-podium-invitation">Твоя история может начаться здесь</p>
-      )}
-      <div className="hall-podium-foot" aria-hidden>
-        <span />
-        <StarIcon className="size-3" />
-        <span />
+        )}
       </div>
       {row?.username && (
         <Link
-          to={`/profile/${encodeURIComponent(row.username)}`}
+          to={"/profile/" + encodeURIComponent(row.username)}
           className="hall-profile-link"
-          aria-label={`Профиль: ${row.displayName}`}
+          aria-label={"Профиль: " + row.displayName}
         />
       )}
     </article>

@@ -31,7 +31,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\"",
-    "test:download": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/download.test.ts"
+    "test:download": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/download.test.ts ../../tests/download-redirects.test.ts",
+    "test:weekly": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/weekly-watch-rewards.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
