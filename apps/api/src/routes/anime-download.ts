@@ -47,6 +47,7 @@ type Job = {
   assets: Map<string, string>;
   manifests: Map<string, string>;
   roots: Set<string>;
+  directFiles: Set<string>;
   localOrigin: string;
   active: boolean;
   height?: number;
@@ -352,7 +353,7 @@ export async function registerAnimeDownloads(
       const abort = new AbortController();
       const close = () => abort.abort(new Error("Converter closed fragment request"));
       reply.raw.once("close", close);
-      const directFile = new URL(target!).pathname.endsWith(".mp4");
+      const directFile = job.directFiles.has(target!);
       const timeout = setTimeout(
         () => abort.abort(new Error("Fragment request timeout")),
         directFile ? 2 * 60 * 60_000 : 90_000,
@@ -567,6 +568,7 @@ export async function registerAnimeDownloads(
       assets: new Map(),
       manifests: new Map(),
       roots: new Set(),
+      directFiles: new Set(),
       localOrigin: origin,
       active: true,
       height: selection.height,
@@ -627,6 +629,7 @@ export async function registerAnimeDownloads(
             parts.join(":"),
             selection.episode,
           );
+        if (source.format === "mp4") job.directFiles.add(media);
         if (!media.startsWith(`${origin}/api/anime/${id}/download-assets/${jobKey}/`)) {
           if (!safeExternalUrl(media))
             throw new UpstreamUnavailableError(

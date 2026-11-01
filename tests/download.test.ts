@@ -208,7 +208,8 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
     globalThis.fetch = (async (url, options) => {
       const target = new URL(String(url));
       if (target.origin !== "https://cdn.example.org") return savedFetch(url, options);
-      const file = target.pathname.slice(1),
+      const file =
+          target.pathname === "/stream" ? "video.mp4" : target.pathname.slice(1),
         data = assets.get(file);
       return new Response(data ? new Uint8Array(data) : null, {
         status: data ? 200 : 404,
@@ -318,7 +319,7 @@ test("PRO download authorization, one-use links and real HLS to MP4 streaming", 
     sources[0] = {
       id: "fixture:mp4",
       format: "mp4",
-      mediaEpisodes: { "1": "https://cdn.example.org/video.mp4" },
+      mediaEpisodes: { "1": "https://cdn.example.org/stream?episode=1" },
     };
     const directTicket = (await post()).json();
     const directResponse = await savedFetch(
