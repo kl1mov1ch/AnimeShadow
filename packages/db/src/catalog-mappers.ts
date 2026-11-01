@@ -6,6 +6,7 @@ import type {
   Prisma,
   WatchAvailability,
 } from "./generated/client/index.js";
+import { animeArtwork } from "./anime-artwork.js";
 
 export type AnimeWithGenres = Anime & {
   genres: Array<GenreOnAnime & { genre: Genre }>;
@@ -64,6 +65,7 @@ export function toAnimeRow(dto: AnimeDetail | AnimeSummary): AnimeRow {
     screenshots: detail?.screenshots ?? [],
     syncedAt: new Date(),
     ...(detail ? { detailSyncedAt: new Date() } : {}),
+    ...animeArtwork(dto.id),
   };
 }
 
@@ -93,6 +95,7 @@ export function toAnimeListRow(dto: AnimeSummary): AnimeRow {
     season: dto.season,
     airedFrom: toDate(dto.airedFrom),
     syncedAt: new Date(),
+    ...animeArtwork(dto.id),
   };
 }
 
@@ -118,6 +121,7 @@ function cardSynopsis(text: string | null): string | null {
 }
 
 export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
+  const art = animeArtwork(row.id);
   return {
     id: row.id,
     slug: row.slug,
@@ -125,8 +129,8 @@ export function toSummaryDto(row: AnimeWithGenres): AnimeSummary {
     titleEnglish: row.titleEnglish,
     titleJapanese: row.titleJapanese,
     titleLocalized: row.titleLocalized ?? null,
-    imageUrl: row.imageUrl,
-    imageLargeUrl: row.imageLargeUrl,
+    imageUrl: art?.imageUrl ?? row.imageUrl,
+    imageLargeUrl: art?.imageLargeUrl ?? row.imageLargeUrl,
     type: row.type,
     airing: row.airing,
     episodes: row.episodes,
@@ -161,7 +165,7 @@ export function toDetailDto(row: AnimeWithGenres): AnimeDetail {
     airedTo: row.airedTo?.toISOString() ?? null,
     studios: row.studios,
     screenshots: row.screenshots ?? [],
-    bannerImage: row.bannerImage ?? null,
+    bannerImage: animeArtwork(row.id)?.bannerImage ?? row.bannerImage ?? null,
     accentColor: row.accentColor ?? null,
     genresDetailed: row.genres.map((link) => ({
       id: link.genre.id,

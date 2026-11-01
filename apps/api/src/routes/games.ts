@@ -4,6 +4,7 @@ import { z } from "zod";
 import { contentGuardWhere, resolveAllowAdult } from "../lib/content-guard.js";
 import { BadRequestError, NotFoundError, TooManyRequestsError } from "../lib/errors.js";
 import { parse } from "../lib/validation.js";
+import { playerQueue } from "../lib/arcade.js";
 
 /** A round can be answered for this long after it was dealt. */
 const ROUND_TTL_MS = 10 * 60_000;
@@ -32,6 +33,8 @@ interface Round {
   userId: string;
   expiresAt: number;
   dealtAt: number;
+  frame: string;
+  options: Title[];
 }
 
 interface Title {
@@ -107,6 +110,7 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
   const openRound = new Map<string, string>();
   const decks = new Map<boolean, Deck>();
   const replacements = new Map<string, number[]>();
+  const queue = playerQueue();
 
   const loadDeck = async (allowAdult: boolean): Promise<Deck> => {
     const cached = decks.get(allowAdult);
@@ -115,7 +119,12 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
       where: {
         AND: [
           POOL_WHERE,
-          { OR: [{ screenshots: { isEmpty: false } }, { gameFrames: { isEmpty: false } }] },
+          {
+            OR: [
+              { screenshots: { isEmpty: false } },
+              { gameFrames: { isEmpty: false } },
+            ],
+          },
           contentGuardWhere(false),
         ],
       },
@@ -131,8 +140,11 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
     });
     const frames: Deck["frames"] = [];
     for (const row of rows) {
-      const urls = [...new Set(row.gameFrames.length > 0 ? row.gameFrames : row.screenshots)];
-      for (const url of urls.slice(0, FRAMES_PER_TITLE)) frames.push({ animeId: row.id, url });
+      const urls = [
+        ...new Set(row.gameFrames.length > 0 ? row.gameFrames : row.screenshots),
+      ];
+      for (const url of urls.slice(0, FRAMES_PER_TITLE))
+        frames.push({ animeId: row.id, url });
     }
     // Stable order first, then one seeded shuffle.
     frames.sort((x, y) => x.animeId - y.animeId || (x.url < y.url ? -1 : 1));
@@ -142,19 +154,33 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
       [frames[i], frames[j]] = [frames[j]!, frames[i]!];
     }
     const titles: Title[] = rows.map(({ screenshots: _s, gameFrames: _g, ...t }) => t);
-    const deck: Deck = { at: Date.now(), titles, byId: new Map(titles.map((t) => [t.id, t])), frames };
+    const deck: Deck = {
+      at: Date.now(),
+      titles,
+      byId: new Map(titles.map((t) => [t.id, t])),
+      frames,
+    };
     decks.set(allowAdult, deck);
     return deck;
   };
 
   const sweep = () => {
     const now = Date.now();
-    for (const [id, round] of rounds) if (round.expiresAt < now) rounds.delete(id);
+    for (const [id, round] of rounds)
+      if (round.expiresAt < now) {
+        rounds.delete(id);
+        if (openRound.get(round.userId) === id) openRound.delete(round.userId);
+      }
     while (rounds.size > MAX_ROUNDS) {
       const oldest = rounds.keys().next().value;
       if (oldest === undefined) break;
+      const userId = rounds.get(oldest)?.userId;
       rounds.delete(oldest);
+      if (userId && openRound.get(userId) === oldest) openRound.delete(userId);
     }
+    for (const [userId, timestamps] of replacements)
+      if (!timestamps.some((time) => time > now - 3_600_000))
+        replacements.delete(userId);
   };
 
   /** Ends a player's run. */
@@ -205,107 +231,156 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
     sweep();
     const roundId = randomUUID();
     const now = Date.now();
-    rounds.set(roundId, { answerId: answer.id, userId, expiresAt: now + ROUND_TTL_MS, dealtAt: now });
+    rounds.set(roundId, {
+      answerId: answer.id,
+      userId,
+      expiresAt: now + ROUND_TTL_MS,
+      dealtAt: now,
+      frame: smallFrame(frame.url),
+      options: shuffled,
+    });
     openRound.set(userId, roundId);
     return { roundId, frame: smallFrame(frame.url), options: shuffled };
   };
 
-  fastify.get("/games/guess/round", { preHandler: fastify.authenticate }, async (request) => {
-    const userId = request.userId!;
-    const allowAdult = await resolveAllowAdult(fastify.prisma, userId, request.headers["x-adult-dob"]);
-    // Walking away from an open round is giving it up.
-    const previous = openRound.get(userId);
-    if (previous && rounds.has(previous)) {
-      rounds.delete(previous);
-      await breakRun(userId);
-    }
-    return deal(userId, allowAdult);
-  });
+  fastify.get("/games/guess/round", { preHandler: fastify.authenticate }, (request) =>
+    queue(request.userId!, async () => {
+      const userId = request.userId!;
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        userId,
+        request.headers["x-adult-dob"],
+      );
+      // Duplicate requests and page reloads resume the open question.
+      const previous = openRound.get(userId);
+      const current = previous ? rounds.get(previous) : null;
+      if (current && current.expiresAt > Date.now())
+        return { roundId: previous, frame: current.frame, options: current.options };
+      if (previous) {
+        rounds.delete(previous);
+        await breakRun(userId);
+      }
+      return deal(userId, allowAdult);
+    }),
+  );
 
   // The frame of an open, unanswered round failed to load: deal another
   // without costing the run. Limited, so it can't be used to skip hard ones.
-  fastify.post("/games/guess/replace", { preHandler: fastify.authenticate }, async (request) => {
-    const userId = request.userId!;
-    const { roundId } = parse(replaceBody, request.body);
-    const round = rounds.get(roundId);
-    if (!round || round.userId !== userId || round.expiresAt < Date.now()) {
-      throw new BadRequestError("Раунд устарел — возьмите новый.");
-    }
-    const hourAgo = Date.now() - 60 * 60_000;
-    const used = (replacements.get(userId) ?? []).filter((t) => t > hourAgo);
-    if (used.length >= REPLACEMENTS_PER_HOUR) {
-      throw new TooManyRequestsError("Слишком много замен — попробуйте позже.");
-    }
-    replacements.set(userId, [...used, Date.now()]);
-    rounds.delete(roundId);
-    const allowAdult = await resolveAllowAdult(fastify.prisma, userId, request.headers["x-adult-dob"]);
-    return deal(userId, allowAdult);
-  });
+  fastify.post(
+    "/games/guess/replace",
+    { preHandler: fastify.authenticate },
+    (request) =>
+      queue(request.userId!, async () => {
+        const userId = request.userId!;
+        const { roundId } = parse(replaceBody, request.body);
+        const round = rounds.get(roundId);
+        if (!round || round.userId !== userId || round.expiresAt < Date.now()) {
+          throw new BadRequestError("Раунд устарел — возьмите новый.");
+        }
+        const hourAgo = Date.now() - 60 * 60_000;
+        const used = (replacements.get(userId) ?? []).filter((t) => t > hourAgo);
+        if (used.length >= REPLACEMENTS_PER_HOUR) {
+          throw new TooManyRequestsError("Слишком много замен — попробуйте позже.");
+        }
+        replacements.set(userId, [...used, Date.now()]);
+        rounds.delete(roundId);
+        const allowAdult = await resolveAllowAdult(
+          fastify.prisma,
+          userId,
+          request.headers["x-adult-dob"],
+        );
+        return deal(userId, allowAdult);
+      }),
+  );
 
-  fastify.post("/games/guess/answer", { preHandler: fastify.authenticate }, async (request) => {
-    const userId = request.userId!;
-    const { roundId, optionId } = parse(answerBody, request.body);
-    const round = rounds.get(roundId);
-    if (!round || round.expiresAt < Date.now()) {
-      throw new BadRequestError("Раунд устарел — возьмите новый.");
-    }
-    if (round.userId !== userId) throw new BadRequestError("Это не ваш раунд.");
-    rounds.delete(roundId);
-    if (openRound.get(userId) === roundId) openRound.delete(userId);
+  fastify.post("/games/guess/answer", { preHandler: fastify.authenticate }, (request) =>
+    queue(request.userId!, async () => {
+      const userId = request.userId!;
+      const { roundId, optionId } = parse(answerBody, request.body);
+      const round = rounds.get(roundId);
+      if (!round || round.expiresAt < Date.now()) {
+        throw new BadRequestError("Раунд устарел — возьмите новый.");
+      }
+      if (round.userId !== userId) throw new BadRequestError("Это не ваш раунд.");
+      if (!round.options.some((option) => option.id === optionId))
+        throw new BadRequestError("Выберите один из предложенных ответов.");
+      rounds.delete(roundId);
+      if (openRound.get(userId) === roundId) openRound.delete(userId);
 
-    const correct = optionId === round.answerId;
-    const row = await fastify.prisma.guessScore.findUnique({ where: { userId } });
-    const current = correct ? (row?.current ?? 0) + 1 : 0;
-    const newBest = Math.max(row?.best ?? 0, current);
-    const saved = await fastify.prisma.guessScore.upsert({
-      where: { userId },
-      create: { userId, current, best: newBest, played: 1, bestAt: newBest > 0 ? new Date() : null },
-      update: {
-        current,
-        best: newBest,
-        played: { increment: 1 },
-        ...(newBest > (row?.best ?? 0) ? { bestAt: new Date() } : {}),
-      },
-    });
-    // A new record or the 25th round can unlock a game achievement.
-    if (newBest > (row?.best ?? 0) || saved.played === 25) {
-      fastify.services.achievements.recomputeSoon(userId);
-    }
-    return { correct, answerId: round.answerId, streak: saved.current, best: saved.best };
-  });
+      const correct = optionId === round.answerId;
+      const row = await fastify.prisma.guessScore.findUnique({ where: { userId } });
+      const current = correct ? (row?.current ?? 0) + 1 : 0;
+      const newBest = Math.max(row?.best ?? 0, current);
+      const saved = await fastify.prisma.guessScore.upsert({
+        where: { userId },
+        create: {
+          userId,
+          current,
+          best: newBest,
+          played: 1,
+          bestAt: newBest > 0 ? new Date() : null,
+        },
+        update: {
+          current,
+          best: newBest,
+          played: { increment: 1 },
+          ...(newBest > (row?.best ?? 0) ? { bestAt: new Date() } : {}),
+        },
+      });
+      // A new record or the 25th round can unlock a game achievement.
+      if (newBest > (row?.best ?? 0) || saved.played === 25) {
+        fastify.services.achievements.recomputeSoon(userId);
+      }
+      return {
+        correct,
+        answerId: round.answerId,
+        streak: saved.current,
+        best: saved.best,
+      };
+    }),
+  );
 
-  fastify.get("/games/guess/leaderboard", { preHandler: fastify.optionalAuth }, async (request) => {
-    const top = await fastify.prisma.guessScore.findMany({
-      where: { best: { gt: 0 } },
-      orderBy: [{ best: "desc" }, { bestAt: "asc" }],
-      take: BOARD_SIZE,
-      select: {
-        best: true,
-        user: { select: { id: true, displayName: true, username: true, avatarUrl: true } },
-      },
-    });
-    const me = request.userId
-      ? await fastify.prisma.guessScore.findUnique({
-          where: { userId: request.userId },
-          select: { best: true, current: true, played: true },
-        })
-      : null;
-    let myRank: number | null = null;
-    if (me && me.best > 0) {
-      myRank = (await fastify.prisma.guessScore.count({ where: { best: { gt: me.best } } })) + 1;
-    }
-    return {
-      top: top.map((row, i) => ({
-        rank: i + 1,
-        best: row.best,
-        userId: row.user.id,
-        displayName: row.user.displayName,
-        username: row.user.username,
-        avatarUrl: row.user.avatarUrl,
-      })),
-      me: me ? { ...me, rank: myRank } : null,
-    };
-  });
+  fastify.get(
+    "/games/guess/leaderboard",
+    { preHandler: fastify.optionalAuth },
+    async (request) => {
+      const top = await fastify.prisma.guessScore.findMany({
+        where: { best: { gt: 0 }, user: { isBanned: false } },
+        orderBy: [{ best: "desc" }, { bestAt: "asc" }, { userId: "asc" }],
+        take: BOARD_SIZE,
+        select: {
+          best: true,
+          user: {
+            select: { id: true, displayName: true, username: true, avatarUrl: true },
+          },
+        },
+      });
+      const me = request.userId
+        ? await fastify.prisma.guessScore.findUnique({
+            where: { userId: request.userId },
+            select: { best: true, current: true, played: true },
+          })
+        : null;
+      let myRank: number | null = null;
+      if (me && me.best > 0) {
+        myRank =
+          (await fastify.prisma.guessScore.count({
+            where: { best: { gt: me.best }, user: { isBanned: false } },
+          })) + 1;
+      }
+      return {
+        top: top.map((row) => ({
+          rank: top.findIndex((other) => other.best === row.best) + 1,
+          best: row.best,
+          userId: row.user.id,
+          displayName: row.user.displayName,
+          username: row.user.username,
+          avatarUrl: row.user.avatarUrl,
+        })),
+        me: me ? { ...me, rank: myRank } : null,
+      };
+    },
+  );
 
   /**
    * Backfill: the catalogue keeps about two screenshots per title, which
@@ -323,7 +398,11 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
     while (!stopped) {
       const batch = await fastify.prisma.anime
         .findMany({
-          where: { ...POOL_WHERE, gameFrames: { isEmpty: true }, id: { notIn: [...tried] } },
+          where: {
+            ...POOL_WHERE,
+            gameFrames: { isEmpty: true },
+            id: { notIn: [...tried] },
+          },
           orderBy: { scoredBy: "desc" },
           take: 20,
           select: { id: true },
@@ -336,7 +415,10 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
         const shots = await catalog.fetchScreenshots(id);
         if (shots.length > 0) {
           await fastify.prisma.anime
-            .update({ where: { id }, data: { gameFrames: shots.slice(0, FRAMES_PER_TITLE) } })
+            .update({
+              where: { id },
+              data: { gameFrames: shots.slice(0, FRAMES_PER_TITLE) },
+            })
             .catch(() => undefined);
         }
         await new Promise((r) => setTimeout(r, BACKFILL_GAP_MS));
@@ -346,7 +428,9 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
   };
   if (process.env.NODE_ENV !== "test") {
     const timer = setTimeout(() => {
-      void backfill().catch((error) => fastify.log.warn({ error }, "guess frame backfill stopped"));
+      void backfill().catch((error) =>
+        fastify.log.warn({ error }, "guess frame backfill stopped"),
+      );
     }, 20_000);
     timer.unref();
   }

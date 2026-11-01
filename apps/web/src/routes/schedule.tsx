@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { HonkonGlyph } from "@/components/brand/honkon-glyph";
 import { useStudioCatalog } from "@/components/studio/studio-data";
 import { PageHero } from "@/components/common/page-hero";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,7 +77,7 @@ function relative(target: number, now: number): string {
  * keep only their own list.
  */
 export function Component() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const studioOnly = searchParams.get("studio") === "hon-kon";
   const studioCatalog = useStudioCatalog();
   const studioIds = useMemo(
@@ -154,58 +153,6 @@ export function Component() {
           </Link>
         </p>
       </PageHero>
-      <div
-        role="tablist"
-        aria-label="Студия в расписании"
-        className="flex flex-wrap gap-2"
-      >
-        {[
-          { value: "all", label: "Все аниме" },
-          { value: "hon-kon", label: "Hon-Kon Studio" },
-        ].map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            aria-selected={studioOnly === (tab.value === "hon-kon")}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              if (tab.value === "hon-kon") next.set("studio", "hon-kon");
-              else next.delete("studio");
-              setSearchParams(next, { replace: true });
-              setPicked(null);
-            }}
-            className={cn(
-              "inline-flex min-h-10 items-center gap-2 rounded-xl border px-4 text-xs font-medium transition-colors",
-              studioOnly === (tab.value === "hon-kon")
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {tab.value === "hon-kon" && <HonkonGlyph className="size-5" />}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      {studioOnly && (
-        <div
-          role="tabpanel"
-          className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs leading-relaxed text-muted-foreground"
-        >
-          {studioCatalog.isPending
-            ? "Загружаем тайтлы студии…"
-            : studioCatalog.isError
-              ? "Не удалось загрузить тайтлы студии."
-              : "Показано расписание оригинального эфира тайтлов Hon-Kon. Точное время озвучки студия объявляет отдельно."}
-          <Link
-            to="/studio/hon-kon/releases"
-            className="ml-2 inline-flex min-h-9 items-center font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Серии, доступные в озвучке Hon-Kon
-          </Link>
-        </div>
-      )}
-
       {next && week === 0 && <NextUp item={next} />}
 
       {/* The week and the filter. */}

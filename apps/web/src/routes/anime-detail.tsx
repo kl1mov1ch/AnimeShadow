@@ -1,7 +1,7 @@
 import { genreHref } from "@/lib/format";
 import { useMarkNotificationsRead, useUnreadNotifications } from "@/lib/notifications";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpenIcon,
   CalendarIcon,
@@ -69,6 +69,7 @@ import { animeUrl, useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { WhenNear } from "@/components/common/when-near";
+import { AnimeOpenings } from "@/components/music/anime-openings";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -94,6 +95,9 @@ function AnimeDetailView({ param }: { param: string }) {
   // player can jump it to any episode without threading a ref through. Must
   // sit above every early return below — hooks can't be conditional.
   const [episode, setEpisode] = useState(1);
+  const [openingsAvailable, setOpeningsAvailable] = useState<{ id: number; available: boolean } | null>(null);
+  const hasOpenings = openingsAvailable?.id === data?.id && openingsAvailable?.available;
+  const onOpeningsAvailable = useCallback((available: boolean) => setOpeningsAvailable({ id: data?.id ?? 0, available }), [data?.id]);
   // An 18+ title asks "are you 18?" once per browser — above the early returns too.
   const [adultOk, setAdultOk] = useState(adultConfirmed);
   // Above every early return below — hooks can't be conditional.
@@ -105,11 +109,14 @@ function AnimeDetailView({ param }: { param: string }) {
   const [query] = useSearchParams();
   // An episode's own address (/anime/<slug>/episode/5) opens on that episode.
   const { episode: episodeParam } = useParams();
-  const episodePage = Number(episodeParam) > 0 ? Math.floor(Number(episodeParam)) : null;
+  const episodePage =
+    Number(episodeParam) > 0 ? Math.floor(Number(episodeParam)) : null;
   const startAt = useMemo(() => {
     const ep = Number(query.get("ep")) || episodePage;
     const at = Number(query.get("t"));
-    return ep && Number.isInteger(ep) && ep > 0 ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 } : null;
+    return ep && Number.isInteger(ep) && ep > 0
+      ? { episode: ep, seconds: Number.isFinite(at) && at > 0 ? Math.floor(at) : 0 }
+      : null;
   }, [query, episodePage]);
   // Opening a title reads its "new episode" lines.
   const markRead = useMarkNotificationsRead();
@@ -130,7 +137,10 @@ function AnimeDetailView({ param }: { param: string }) {
       void client
         .fetchQuery({
           queryKey: queryKeys.characters(id),
-          queryFn: ({ signal }) => apiRequest<{ items: Character[] }>(`/anime/${id}/characters`, { signal }).then((r) => r.items),
+          queryFn: ({ signal }) =>
+            apiRequest<{ items: Character[] }>(`/anime/${id}/characters`, {
+              signal,
+            }).then((r) => r.items),
           staleTime: 30 * 60_000,
         })
         .then((items) => {
@@ -143,10 +153,15 @@ function AnimeDetailView({ param }: { param: string }) {
         })
         .catch(() => undefined);
     };
-    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    const idle = (
+      window as unknown as {
+        requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      }
+    ).requestIdleCallback;
     const handle = idle ? idle(run, { timeout: 2500 }) : window.setTimeout(run, 1200);
     return () => {
-      const cancel = (window as unknown as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+      const cancel = (window as unknown as { cancelIdleCallback?: (h: number) => void })
+        .cancelIdleCallback;
       if (idle && cancel) cancel(handle);
       else window.clearTimeout(handle);
     };
@@ -162,7 +177,12 @@ function AnimeDetailView({ param }: { param: string }) {
   useEffect(() => {
     if (!data || episodePage == null || data.type === "MOVIE") return;
     const next = `/anime/${data.slug}/episode/${episode}`;
-    if (window.location.pathname !== next) window.history.replaceState(window.history.state, "", `${next}${window.location.search}${window.location.hash}`);
+    if (window.location.pathname !== next)
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${next}${window.location.search}${window.location.hash}`,
+      );
   }, [data, episode, episodePage]);
 
   const seoTitle = data ? labels.title(data) : "AnimeShadow";
@@ -176,43 +196,44 @@ function AnimeDetailView({ param }: { param: string }) {
           type: "video.tv_show",
         }
       : data
-      ? {
-          title: t("seo.titleTemplate", { title: seoTitle }),
-          description: t("seo.descriptionTemplate", {
-            title: seoTitle,
-            type: labels.typeLabel(data.type),
-            year: data.year ?? "—",
-            score: data.score != null ? data.score.toFixed(2) : "—",
-            genres: data.genresDetailed
-              .slice(0, 3)
-              .map((g) => labels.genreLabel(g.name))
-              .join(", "),
-          }),
-          image: data.imageLargeUrl ?? data.imageUrl,
-          path: animeUrl(data),
-          type: data.type === "MOVIE" ? "video.movie" : "video.tv_show",
-          jsonLd: {
-            "@context": "https://schema.org",
-            "@type": data.type === "MOVIE" ? "Movie" : "TVSeries",
-            name: seoTitle,
-            image: data.imageLargeUrl ?? data.imageUrl ?? undefined,
-            description: data.synopsis ?? undefined,
-            numberOfEpisodes: data.type !== "MOVIE" ? data.episodes ?? undefined : undefined,
-            genre: data.genresDetailed.map((g) => g.name),
-            // Overall score hidden for now:
-            // ...(data.score != null && data.scoredBy != null
-            //   ? {
-            //       aggregateRating: {
-            //         "@type": "AggregateRating",
-            //         ratingValue: data.score,
-            //         ratingCount: data.scoredBy,
-            //         bestRating: 10,
-            //       },
-            //     }
-            //   : {}),
-          },
-        }
-      : { title: "AnimeShadow" },
+        ? {
+            title: t("seo.titleTemplate", { title: seoTitle }),
+            description: t("seo.descriptionTemplate", {
+              title: seoTitle,
+              type: labels.typeLabel(data.type),
+              year: data.year ?? "—",
+              score: data.score != null ? data.score.toFixed(2) : "—",
+              genres: data.genresDetailed
+                .slice(0, 3)
+                .map((g) => labels.genreLabel(g.name))
+                .join(", "),
+            }),
+            image: data.imageLargeUrl ?? data.imageUrl,
+            path: animeUrl(data),
+            type: data.type === "MOVIE" ? "video.movie" : "video.tv_show",
+            jsonLd: {
+              "@context": "https://schema.org",
+              "@type": data.type === "MOVIE" ? "Movie" : "TVSeries",
+              name: seoTitle,
+              image: data.imageLargeUrl ?? data.imageUrl ?? undefined,
+              description: data.synopsis ?? undefined,
+              numberOfEpisodes:
+                data.type !== "MOVIE" ? (data.episodes ?? undefined) : undefined,
+              genre: data.genresDetailed.map((g) => g.name),
+              // Overall score hidden for now:
+              // ...(data.score != null && data.scoredBy != null
+              //   ? {
+              //       aggregateRating: {
+              //         "@type": "AggregateRating",
+              //         ratingValue: data.score,
+              //         ratingCount: data.scoredBy,
+              //         bestRating: 10,
+              //       },
+              //     }
+              //   : {}),
+            },
+          }
+        : { title: "AnimeShadow" },
   );
 
   if (isPending) return <DetailSkeleton />;
@@ -231,7 +252,9 @@ function AnimeDetailView({ param }: { param: string }) {
   const title = labels.title(data);
   const cardCover = data.imageLargeUrl ?? data.imageUrl;
   if (isAdultRating(data.rating) && !adultOk) {
-    return <AgeConfirm poster={cardCover} title={title} onYes={() => setAdultOk(true)} />;
+    return (
+      <AgeConfirm poster={cardCover} title={title} onYes={() => setAdultOk(true)} />
+    );
   }
   // One poster, shown large: worth the full-size file on a decent connection,
   // not on a slow one.
@@ -249,9 +272,17 @@ function AnimeDetailView({ param }: { param: string }) {
   const heroMeta = (
     [
       data.year != null
-        ? { icon: CalendarIcon, value: String(data.year), hint: t("detail.facts.aired") }
+        ? {
+            icon: CalendarIcon,
+            value: String(data.year),
+            hint: t("detail.facts.aired"),
+          }
         : null,
-      { icon: TvIcon, value: labels.typeLabel(data.type), hint: t("detail.facts.format") },
+      {
+        icon: TvIcon,
+        value: labels.typeLabel(data.type),
+        hint: t("detail.facts.format"),
+      },
       data.episodes
         ? {
             icon: ListVideoIcon,
@@ -266,7 +297,9 @@ function AnimeDetailView({ param }: { param: string }) {
         ? { icon: ShieldIcon, value: data.rating, hint: t("detail.facts.rating") }
         : null,
     ] as Array<{ icon: LucideIcon; value: string; hint: string } | null>
-  ).filter((item): item is { icon: LucideIcon; value: string; hint: string } => item != null);
+  ).filter(
+    (item): item is { icon: LucideIcon; value: string; hint: string } => item != null,
+  );
   const oneLiner = t("detail.oneLiner", {
     type: labels.typeLabel(data.type),
     year: data.year ?? "—",
@@ -290,10 +323,21 @@ function AnimeDetailView({ param }: { param: string }) {
     // teal on the next — and none of them looked like the rest of the site.
     <article className="relative isolate flex min-w-0 flex-col gap-5 sm:gap-6 [&>.full-bleed:first-child]:-mt-6 sm:[&>.full-bleed:first-child]:-mt-10">
       <TitleHeader
+        key={data.id}
         // The widescreen banner is decoration behind the header, and one of
         // the largest images on the page. On a slow link the header keeps its
         // tinted surface instead.
-        banner={!slow && data.bannerImage ? imageSrc(data.bannerImage) ?? null : null}
+        banner={
+          !slow && data.bannerImage ? (imageSrc(data.bannerImage, 1280) ?? null) : null
+        }
+        fallbackBanner={
+          !slow
+            ? (imageSrc(
+                data.screenshots.find((src) => src !== data.bannerImage),
+                1280,
+              ) ?? null)
+            : null
+        }
       >
         {/* Poster alongside everything else, not stacked in a separate
             sidebar below — the header is the one place all of a title's
@@ -301,11 +345,23 @@ function AnimeDetailView({ param }: { param: string }) {
             It sits a little higher than the text column from sm up and
             crosses the panel's top edge, which is what stops it reading as
             a stray thumbnail parked in the bottom-left corner. */}
-        <div data-anime-hero className="grid min-w-0 grid-cols-1 items-start gap-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+        <div
+          data-anime-hero
+          className="grid min-w-0 grid-cols-1 items-start gap-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8"
+        >
           {/* The poster leads, at a size worth looking at. Everything else
               is a column beside it that wraps under on a phone. */}
-          <div data-anime-poster className="group mx-auto w-[min(60vw,14rem)] overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 sm:w-full">
-            <PosterImage src={poster} title={title} seed={data.id} />
+          <div
+            data-anime-poster
+            className="group mx-auto w-[min(60vw,14rem)] overflow-hidden rounded-2xl bg-muted shadow-2xl shadow-black/40 ring-1 ring-border/60 sm:w-full"
+          >
+            <PosterImage
+              key={poster}
+              src={poster}
+              fallbackSrc={imageSrc(cardCover)}
+              title={title}
+              seed={data.id}
+            />
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-2.5 sm:gap-3">
@@ -372,7 +428,9 @@ function AnimeDetailView({ param }: { param: string }) {
                   <TooltipTrigger asChild>
                     <span className="flex cursor-default items-center gap-1.5 text-sm">
                       <StarIcon className="size-4 fill-amber-400 text-amber-400" />
-                      <span className="font-semibold tabular-nums">{data.score.toFixed(1)}</span>
+                      <span className="font-semibold tabular-nums">
+                        {data.score.toFixed(1)}
+                      </span>
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
@@ -387,7 +445,9 @@ function AnimeDetailView({ param }: { param: string }) {
                   aria-hidden
                   className={cn(
                     "size-1.5 rounded-full",
-                    data.airing === "AIRING" ? "bg-emerald-500" : "bg-muted-foreground/60",
+                    data.airing === "AIRING"
+                      ? "bg-emerald-500"
+                      : "bg-muted-foreground/60",
                   )}
                 />
                 {labels.airingLabel(data.airing)}
@@ -416,7 +476,10 @@ function AnimeDetailView({ param }: { param: string }) {
                     const target = document.getElementById("watch");
                     if (!target) return;
                     event.preventDefault();
-                    glideTo(target, window.matchMedia("(min-width: 768px)").matches ? 80 : 8);
+                    glideTo(
+                      target,
+                      window.matchMedia("(min-width: 768px)").matches ? 80 : 8,
+                    );
                     window.history.replaceState(window.history.state, "", "#watch");
                   }}
                 >
@@ -424,16 +487,35 @@ function AnimeDetailView({ param }: { param: string }) {
                   {t("detail.sections.watch")}
                 </a>
               </Button>
-              <TrailerButton animeId={data.id} url={data.trailerEmbedUrl} title={title} />
+              <TrailerButton
+                animeId={data.id}
+                url={data.trailerEmbedUrl}
+                title={title}
+              />
               <ShareQrButton anime={data} prominent />
             </div>
           </div>
         </div>
       </TitleHeader>
 
-      <nav aria-label="Разделы аниме" className="flex min-w-0 gap-1 overflow-x-auto border-b border-border/60 pb-2 text-sm [scrollbar-width:none]">
-        {[["watch", "Смотреть"], ["about", "Об аниме"], ["characters", "Персонажи"], ["discussion", "Обсуждение"]].map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">{label}</a>
+      <nav
+        aria-label="Разделы аниме"
+        className="flex min-w-0 gap-1 overflow-x-auto border-b border-border/60 pb-2 text-sm [scrollbar-width:none]"
+      >
+        {[
+          ["watch", "Смотреть"],
+          ["about", "Об аниме"],
+          ...(hasOpenings ? [["openings", "Опенинги"]] : []),
+          ["characters", "Персонажи"],
+          ["discussion", "Обсуждение"],
+        ].map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="shrink-0 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            {label}
+          </a>
         ))}
       </nav>
 
@@ -449,14 +531,7 @@ function AnimeDetailView({ param }: { param: string }) {
         title={t("detail.sections.watch")}
         className="min-w-0 max-sm:p-2.5"
       >
-        <WatchSection
-          anime={data}
-          title={title}
-          active
-          episode={episode}
-          onEpisodeChange={setEpisode}
-          startAt={startAt}
-        />
+        <WatchSection anime={data} title={title} active episode={episode} onEpisodeChange={setEpisode} startAt={startAt} />
       </Panel>
 
       <GuestPlayerBanner />
@@ -466,31 +541,33 @@ function AnimeDetailView({ param }: { param: string }) {
           screen); on the right, one column of the viewer's own things — the
           list and score, how long it takes, and the facts. On a phone it is
           all one column: the list first, then the rest. */}
-      {/* Every card stretches to its neighbours, so the block is one solid
-          rectangle with no holes: the columns end on the same line. */}
-      <DetailsGrid anime={data} title={title} oneLiner={oneLiner} />
+      {/* Each column flows independently; lower sections fill the main column. */}
+      <DetailsGrid anime={data} title={title} oneLiner={oneLiner} onOpeningsAvailable={onOpeningsAvailable}>
 
-      {/* Everything below the player loads when it's about to be seen —
-          its requests included — not all at once when the page opens. */}
-      <div id="characters" className="min-w-0 scroll-mt-20"><WhenNear>
-        <CharactersPanelM animeId={data.id} />
-      </WhenNear></div>
+        {/* Everything below the player loads when it's about to be seen —
+            its requests included — not all at once when the page opens. */}
+        <div id="characters" className="min-w-0 scroll-mt-20">
+          <WhenNear>
+            <CharactersPanelM animeId={data.id} />
+          </WhenNear>
+        </div>
 
-      <WhenNear minHeight={200}>
-        <FranchisePanelM anime={data} />
-      </WhenNear>
+        <WhenNear minHeight={200}>
+          <FranchisePanelM anime={data} />
+        </WhenNear>
 
-      <WhenNear>
-        <RelatedSectionM anime={data} />
-      </WhenNear>
+        <WhenNear>
+          <RelatedSectionM anime={data} />
+        </WhenNear>
 
-      <div id="discussion" className="min-w-0 scroll-mt-20"><WhenNear minHeight={400}>
-        <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
-          <CommentsSectionM animeId={data.id} />
-        </Panel>
-      </WhenNear></div>
-
-
+        <div id="discussion" className="min-w-0 scroll-mt-20">
+          <WhenNear minHeight={400}>
+            <Panel icon={MessagesSquareIcon} title={t("comments.heading")}>
+              <CommentsSectionM animeId={data.id} />
+            </Panel>
+          </WhenNear>
+        </div>
+      </DetailsGrid>
     </article>
   );
 }
@@ -509,24 +586,35 @@ function AnimeDetailView({ param }: { param: string }) {
  */
 function TitleHeader({
   banner,
+  fallbackBanner,
   children,
 }: {
   /** AniList's own widescreen key visual, when the title has one. */
   banner: string | null;
+  fallbackBanner: string | null;
   children: React.ReactNode;
 }) {
+  const [failed, setFailed] = useState<string[]>([]);
+  const image = [banner, fallbackBanner].find((src) => src && !failed.includes(src));
 
   return (
     <div className="full-bleed relative isolate overflow-hidden border-b border-border/60 bg-card">
       <div aria-hidden className="absolute inset-0 -z-10">
-        {banner ? (
+        {image ? (
           // A real landscape key visual, framed as one — not a portrait
           // poster stretched across a 16:5 box, which is what made the old
           // backdrop read as broken rather than cinematic.
           <img
-            src={banner}
+            key={image}
+            src={image}
             alt=""
             fetchPriority="high"
+            onError={() => setFailed((items) => [...items, image])}
+            onLoad={(event) => {
+              const img = event.currentTarget;
+              if (img.naturalWidth < img.naturalHeight)
+                setFailed((items) => [...items, image]);
+            }}
             className="absolute inset-0 size-full object-cover object-center"
           />
         ) : (
@@ -537,7 +625,6 @@ function TitleHeader({
             <PulseRings className="absolute -left-24 -bottom-24 size-[26rem] text-[var(--accent-line)]" />
           </>
         )}
-
 
         {/* The same fade the homepage hero uses — the page's own background
             colour, not the card's, so the header dissolves into the page
@@ -628,14 +715,20 @@ function FranchisePanel({ anime }: { anime: AnimeDetail }) {
 
 function PosterImage({
   src,
+  fallbackSrc,
   title,
   seed,
 }: {
   src: string | undefined;
+  fallbackSrc?: string;
   title: string;
   seed: number;
 }) {
-  if (!src) {
+  const [failed, setFailed] = useState<string[]>([]);
+  const image = [src, fallbackSrc].find(
+    (candidate) => candidate && !failed.includes(candidate),
+  );
+  if (!image) {
     return (
       <div className="aspect-[2/3]">
         <PosterFallback title={title} seed={seed} />
@@ -644,10 +737,17 @@ function PosterImage({
   }
   return (
     <img
-      src={src}
+      key={image}
+      src={image}
       alt={title}
       className="aspect-[2/3] size-full object-cover"
       fetchPriority="high"
+      onError={() => setFailed((items) => [...items, image])}
+      onLoad={(event) => {
+        const img = event.currentTarget;
+        if (img.naturalWidth >= img.naturalHeight)
+          setFailed((items) => [...items, image]);
+      }}
     />
   );
 }
@@ -749,18 +849,34 @@ const AUDIENCE_KEYS = [
  * No viewers' marks yet: description and facts share the width. No running
  * time: the list card takes the whole column. Never an empty cell.
  */
-function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: string; oneLiner: string }) {
+function DetailsGrid({
+  anime,
+  title,
+  oneLiner,
+  onOpeningsAvailable,
+  children,
+}: {
+  anime: AnimeDetail;
+  title: string;
+  oneLiner: string;
+  onOpeningsAvailable: (available: boolean) => void;
+  children: React.ReactNode;
+}) {
   const { data: stats } = useAnimeStats(anime.id);
   const audience = stats != null && AUDIENCE_KEYS.some(({ key }) => stats[key] != null);
   const frames = useAnimeFrames(anime.id);
   const hasFrames = (frames.data?.length ?? 0) > 0;
   const watchTime = hasWatchTime(anime);
   return (
-    <div id="about" className="grid min-w-0 scroll-mt-20 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div
+      id="about"
+      className="grid min-w-0 scroll-mt-20 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]"
+    >
       {/* Two columns on a wide screen: the description beside the frames,
           the facts beside the viewers' marks. Whatever is missing, its
           neighbour takes the whole row — no empty cells. */}
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+        <div className="order-1 flex min-w-0 flex-col gap-4">
         <div className="min-w-0">
           <AboutBlockM anime={anime} oneLiner={oneLiner} />
         </div>
@@ -774,8 +890,13 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
             <AudiencePanel animeId={anime.id} />
           </div>
         )}
+        </div>
+        <div className="order-3 flex min-w-0 flex-col gap-4">{children}</div>
       </div>
-      <aside className="flex min-w-0 flex-col gap-4">
+      <aside className="order-2 flex min-w-0 flex-col gap-4 self-start lg:order-none">
+        <WhenNear minHeight={0} margin={700}>
+          <AnimeOpenings key={anime.id} animeId={anime.id} title={title} href={animeUrl(anime)} poster={anime.imageLargeUrl ?? anime.imageUrl} onAvailable={onOpeningsAvailable} />
+        </WhenNear>
         <TitleTracker anime={anime} title={title} />
         <InfoSidebarM anime={anime} />
         <TitleNames anime={anime} />
@@ -787,12 +908,48 @@ function DetailsGrid({ anime, title, oneLiner }: { anime: AnimeDetail; title: st
 
 /** Existing metadata only: useful for finding an edit or discussing a title elsewhere. */
 function TitleNames({ anime }: { anime: AnimeDetail }) {
-  const names = [...new Set([anime.titleLocalized, anime.title, anime.titleJapanese].filter((name): name is string => Boolean(name?.trim())))];
-  return <details className="rounded-xl border border-border/60 bg-card/30 p-3">
-    <summary className="cursor-pointer text-sm font-medium">Названия для поиска</summary>
-    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Удобно искать обсуждения, мангу или поделиться названием с другом.</p>
-    <ul className="mt-2 flex flex-col gap-1">{names.map((name) => <li key={name} className="flex min-w-0 items-center gap-2 rounded-lg bg-secondary/30 px-2 py-1"><span className="min-w-0 flex-1 break-words text-xs leading-relaxed">{name}</span><button type="button" aria-label={`Скопировать название: ${name}`} onClick={() => { void navigator.clipboard?.writeText(name).then(() => toast.success("Название скопировано")).catch(() => toast.error("Не удалось скопировать название")); }} className="grid size-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary"><CopyIcon className="size-4" /></button></li>)}</ul>
-  </details>;
+  const names = [
+    ...new Set(
+      [anime.titleLocalized, anime.title, anime.titleJapanese].filter(
+        (name): name is string => Boolean(name?.trim()),
+      ),
+    ),
+  ];
+  return (
+    <details className="rounded-xl border border-border/60 bg-card/30 p-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Названия для поиска
+      </summary>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        Удобно искать обсуждения, мангу или поделиться названием с другом.
+      </p>
+      <ul className="mt-2 flex flex-col gap-1">
+        {names.map((name) => (
+          <li
+            key={name}
+            className="flex min-w-0 items-center gap-2 rounded-lg bg-secondary/30 px-2 py-1"
+          >
+            <span className="min-w-0 flex-1 break-words text-xs leading-relaxed">
+              {name}
+            </span>
+            <button
+              type="button"
+              aria-label={`Скопировать название: ${name}`}
+              onClick={() => {
+                void navigator.clipboard
+                  ?.writeText(name)
+                  .then(() => toast.success("Название скопировано"))
+                  .catch(() => toast.error("Не удалось скопировать название"));
+              }}
+              className="grid size-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-primary"
+            >
+              <CopyIcon className="size-4" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /** A frame with the site's mark burned in (made once on the server, see lib/watermark). */
@@ -806,7 +963,10 @@ function useAnimeFrames(animeId: number) {
   return useQuery({
     queryKey: ["hero-frames", animeId],
     staleTime: Infinity,
-    queryFn: ({ signal }) => apiRequest<{ frames: string[] }>(`/anime/${animeId}/frames?v=2`, { signal }).then((r) => r.frames),
+    queryFn: ({ signal }) =>
+      apiRequest<{ frames: string[] }>(`/anime/${animeId}/frames?v=2`, { signal }).then(
+        (r) => r.frames,
+      ),
   });
 }
 
@@ -817,7 +977,8 @@ function useAnimeFrames(animeId: number) {
 function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
   const shown = frames.slice(0, 6);
   const [open, setOpen] = useState<number | null>(null);
-  const step = (d: number) => setOpen((i) => (i == null ? i : (i + d + shown.length) % shown.length));
+  const step = (d: number) =>
+    setOpen((i) => (i == null ? i : (i + d + shown.length) % shown.length));
   return (
     <Panel icon={ImageIcon} title="Кадры">
       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
@@ -828,7 +989,13 @@ function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
             onClick={() => setOpen(i)}
             className="aspect-video overflow-hidden rounded-lg border border-[var(--accent-line-soft)] bg-muted transition-colors hover:border-primary/60"
           >
-            <img src={framed(src, 360)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+            <img
+              src={framed(src, 360)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="size-full object-cover"
+            />
           </button>
         ))}
       </div>
@@ -837,13 +1004,27 @@ function FramesPanel({ frames, title }: { frames: string[]; title: string }) {
           <DialogTitle className="sr-only">Кадр из «{title}»</DialogTitle>
           {open != null && (
             <div className="relative bg-black">
-              <img src={framed(shown[open]!)} alt="" className="max-h-[80dvh] w-full object-contain" />
+              <img
+                src={framed(shown[open]!)}
+                alt=""
+                className="max-h-[80dvh] w-full object-contain"
+              />
               {shown.length > 1 && (
                 <>
-                  <button type="button" aria-label="Предыдущий" onClick={() => step(-1)} className="absolute left-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary">
+                  <button
+                    type="button"
+                    aria-label="Предыдущий"
+                    onClick={() => step(-1)}
+                    className="absolute left-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary"
+                  >
                     <ChevronLeftIcon className="size-5" />
                   </button>
-                  <button type="button" aria-label="Следующий" onClick={() => step(1)} className="absolute right-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary">
+                  <button
+                    type="button"
+                    aria-label="Следующий"
+                    onClick={() => step(1)}
+                    className="absolute right-2 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white hover:bg-primary"
+                  >
                     <ChevronRightIcon className="size-5" />
                   </button>
                   <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-0.5 text-xs tabular-nums text-white">
@@ -870,7 +1051,9 @@ function AudiencePanel({ animeId }: { animeId: number }) {
   if (!data) return null;
   const rows = AUDIENCE_KEYS.flatMap(({ key, strength }) => {
     const value = data[key];
-    return value == null ? [] : [{ key: key as string, strength: strength as number, value }];
+    return value == null
+      ? []
+      : [{ key: key as string, strength: strength as number, value }];
   });
   if (rows.length === 0) return null;
   const sum = rows.reduce((n, row) => n + row.value, 0) || 1;
@@ -885,20 +1068,31 @@ function AudiencePanel({ animeId }: { animeId: number }) {
   };
   const tint = (key: string) => LIST_COLOR[key] ?? "var(--primary)";
   const mine = library?.find((e) => e.anime.id === animeId)?.status;
-  const MINE: Record<string, string> = { completed: "COMPLETED", watching: "WATCHING", planToWatch: "PLANNED", onHold: "ON_HOLD", dropped: "DROPPED" };
+  const MINE: Record<string, string> = {
+    completed: "COMPLETED",
+    watching: "WATCHING",
+    planToWatch: "PLANNED",
+    onHold: "ON_HOLD",
+    dropped: "DROPPED",
+  };
   const focus = hovered ?? picked;
   const focused = rows.find((r) => r.key === focus);
-  const label = (key: string) => t(`detail.audienceStats.${key}` as "detail.audienceStats.watching");
+  const label = (key: string) =>
+    t(`detail.audienceStats.${key}` as "detail.audienceStats.watching");
 
   return (
     <Panel icon={UsersIcon} title="Зрители">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="font-display text-3xl leading-none tabular-nums">
-            {focused ? `${Math.round((focused.value / sum) * 100)}%` : labels.compact(data.total ?? sum)}
+            {focused
+              ? `${Math.round((focused.value / sum) * 100)}%`
+              : labels.compact(data.total ?? sum)}
           </p>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {focused ? `${label(focused.key)} · ${labels.compact(focused.value)}` : "в списках у зрителей"}
+            {focused
+              ? `${label(focused.key)} · ${labels.compact(focused.value)}`
+              : "в списках у зрителей"}
           </p>
         </div>
       </div>
@@ -912,7 +1106,11 @@ function AudiencePanel({ animeId }: { animeId: number }) {
             onMouseEnter={() => setHovered(row.key)}
             onMouseLeave={() => setHovered(null)}
             className="h-full transition-opacity duration-200"
-            style={{ width: `${(row.value / sum) * 100}%`, background: tint(row.key), opacity: focus && focus !== row.key ? 0.25 : 1 }}
+            style={{
+              width: `${(row.value / sum) * 100}%`,
+              background: tint(row.key),
+              opacity: focus && focus !== row.key ? 0.25 : 1,
+            }}
           />
         ))}
       </div>
@@ -934,14 +1132,37 @@ function AudiencePanel({ animeId }: { animeId: number }) {
                   focus && !on && "opacity-55",
                 )}
               >
-                <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: tint(row.key) }} />
-                <span className="min-w-0 flex-1 truncate text-foreground/85">{label(row.key)}</span>
-                {isMine && <span className="rounded bg-primary/15 px-1.5 text-[10px] font-bold text-primary">вы</span>}
-                <span className="tabular-nums text-muted-foreground">{Math.round((row.value / sum) * 100)}%</span>
-                <span className="w-12 text-right font-semibold tabular-nums">{labels.compact(row.value)}</span>
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ background: tint(row.key) }}
+                />
+                <span className="min-w-0 flex-1 truncate text-foreground/85">
+                  {label(row.key)}
+                </span>
+                {isMine && (
+                  <span className="rounded bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
+                    вы
+                  </span>
+                )}
+                <span className="tabular-nums text-muted-foreground">
+                  {Math.round((row.value / sum) * 100)}%
+                </span>
+                <span className="w-12 text-right font-semibold tabular-nums">
+                  {labels.compact(row.value)}
+                </span>
               </button>
-              <span aria-hidden className="mx-2 mt-1 block h-1 overflow-hidden rounded-full bg-foreground/[0.06]">
-                <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(2, (row.value / Math.max(...rows.map((r) => r.value))) * 100)}%`, background: tint(row.key) }} />
+              <span
+                aria-hidden
+                className="mx-2 mt-1 block h-1 overflow-hidden rounded-full bg-foreground/[0.06]"
+              >
+                <span
+                  className="block h-full rounded-full transition-[width] duration-700"
+                  style={{
+                    width: `${Math.max(2, (row.value / Math.max(...rows.map((r) => r.value))) * 100)}%`,
+                    background: tint(row.key),
+                  }}
+                />
               </span>
             </li>
           );
@@ -1011,7 +1232,6 @@ function AboutBlock({ anime, oneLiner }: { anime: AnimeDetail; oneLiner: string 
           )}
         </div>
       )}
-
     </Panel>
   );
 }
@@ -1062,8 +1282,7 @@ function CharactersBlock({ animeId }: { animeId: number }) {
   // Mains first, then the rest — one dense grid, 3 per row on mobile.
   const ordered = [...withArt].sort(
     (a, b) =>
-      Number(b.role.toLowerCase() === "main") -
-      Number(a.role.toLowerCase() === "main"),
+      Number(b.role.toLowerCase() === "main") - Number(a.role.toLowerCase() === "main"),
   );
 
   const q = query.trim().toLowerCase();
@@ -1076,7 +1295,8 @@ function CharactersBlock({ animeId }: { animeId: number }) {
           (c.voiceActor?.name.toLowerCase().includes(q) ?? false),
       )
     : ordered;
-  const visible = searching || expanded ? matched : matched.slice(0, CHARACTERS_COLLAPSED);
+  const visible =
+    searching || expanded ? matched : matched.slice(0, CHARACTERS_COLLAPSED);
   const hidden = matched.length - CHARACTERS_COLLAPSED;
 
   return (
@@ -1112,7 +1332,10 @@ function CharactersBlock({ animeId }: { animeId: number }) {
       {isPending ? (
         <div className={CHARACTERS_GRID}>
           {Array.from({ length: CHARACTERS_COLLAPSED }, (_, i) => (
-            <div key={i} className="flex h-16 items-center gap-2 rounded-xl border border-border/50 p-2">
+            <div
+              key={i}
+              className="flex h-16 items-center gap-2 rounded-xl border border-border/50 p-2"
+            >
               <Skeleton className="size-11 shrink-0 rounded-xl" />
               <Skeleton className="h-3 w-16 rounded" />
             </div>
@@ -1132,7 +1355,10 @@ function CharactersBlock({ animeId }: { animeId: number }) {
               <CharacterCard key={c.id} character={c} compact onSelect={setSelected} />
             ))}
           </div>
-          <CharacterModal character={selected} onOpenChange={(open) => !open && setSelected(null)} />
+          <CharacterModal
+            character={selected}
+            onOpenChange={(open) => !open && setSelected(null)}
+          />
           {!searching && hidden > 0 && (
             <button
               type="button"

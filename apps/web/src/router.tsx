@@ -1,5 +1,10 @@
-import { createBrowserRouter, type LoaderFunctionArgs, redirect } from "react-router-dom";
+import {
+  createBrowserRouter,
+  type LoaderFunctionArgs,
+  redirect,
+} from "react-router-dom";
 import { prefetchAnime } from "@/lib/prefetch";
+import { FEATURES } from "@/lib/features";
 
 function animeLoader({ params }: LoaderFunctionArgs) {
   if (params.id) prefetchAnime(params.id);
@@ -40,11 +45,20 @@ export const router = createBrowserRouter([
         children: [
           { index: true, lazy: () => import("@/routes/discover") },
           { path: "browse", lazy: () => import("@/routes/browse") },
+          { path: "games", ...(FEATURES.arcade ? { lazy: () => import("@/routes/games") } : { loader: () => redirect("/#guess-anime") }) },
+          { path: "games/:mode", ...(FEATURES.arcade ? { lazy: () => import("@/routes/games") } : { loader: () => redirect("/#guess-anime") }) },
+          { path: "leaderboards", lazy: () => import("@/routes/leaderboards") },
           { path: "studios", lazy: () => import("@/routes/studios") },
           { path: "studios/:slug", lazy: () => import("@/routes/dub-studio") },
           { path: "studio/hon-kon", lazy: () => import("@/routes/studio-honkon") },
-          { path: "studio/hon-kon/releases", lazy: () => import("@/routes/studio-workspace") },
-          { path: "studio/hon-kon/workspace", loader: () => redirect("/studio/hon-kon/releases") },
+          {
+            path: "studio/hon-kon/releases",
+            lazy: () => import("@/routes/studio-workspace"),
+          },
+          {
+            path: "studio/hon-kon/workspace",
+            loader: () => redirect("/studio/hon-kon/releases"),
+          },
           // Landing pages for what people search for — one clean address each.
           { path: "genre/:slug", lazy: () => import("@/routes/landing") },
           { path: "top", lazy: () => import("@/routes/landing") },
@@ -56,10 +70,22 @@ export const router = createBrowserRouter([
           { path: "year/:year", lazy: () => import("@/routes/landing") },
           // The loader starts every request the page needs while its code
           // is still downloading — nothing waits for anything else.
-          { path: "anime/:id", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
+          {
+            path: "anime/:id",
+            loader: animeLoader,
+            lazy: () => import("@/routes/anime-detail"),
+          },
           // One address per episode ("<название> 5 серия" is what people search).
-          { path: "anime/:id/episode/:episode", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
-          { path: "anime/:id/:slug", loader: animeLoader, lazy: () => import("@/routes/anime-detail") },
+          {
+            path: "anime/:id/episode/:episode",
+            loader: animeLoader,
+            lazy: () => import("@/routes/anime-detail"),
+          },
+          {
+            path: "anime/:id/:slug",
+            loader: animeLoader,
+            lazy: () => import("@/routes/anime-detail"),
+          },
           { path: "library", lazy: () => import("@/routes/library") },
           { path: "recommendations", lazy: () => import("@/routes/recommendations") },
           { path: "frame-search", lazy: () => import("@/routes/frame-search") },
@@ -68,10 +94,19 @@ export const router = createBrowserRouter([
           { path: "party", lazy: () => import("@/routes/parties") },
           { path: "party/:code", lazy: () => import("@/routes/party") },
           { path: "collections/new", lazy: () => import("@/routes/collection-edit") },
-          { path: "collections/stats", lazy: () => import("@/routes/collections-stats") },
-          { path: "collections/c/:slug", lazy: () => import("@/routes/curated-collection") },
+          {
+            path: "collections/stats",
+            lazy: () => import("@/routes/collections-stats"),
+          },
+          {
+            path: "collections/c/:slug",
+            lazy: () => import("@/routes/curated-collection"),
+          },
           { path: "collections/:id", lazy: () => import("@/routes/collection") },
-          { path: "collections/:id/edit", lazy: () => import("@/routes/collection-edit") },
+          {
+            path: "collections/:id/edit",
+            lazy: () => import("@/routes/collection-edit"),
+          },
           { path: "profile", lazy: () => import("@/routes/profile") },
           { path: "profile/:username", lazy: () => import("@/routes/profile") },
           { path: "admin", lazy: () => import("@/routes/admin") },

@@ -19,7 +19,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useT } from "@/i18n";
@@ -28,7 +34,6 @@ import { activeFilterCount, AIRING_VALUES, TYPE_VALUES } from "@/lib/browse-para
 import { useLabels } from "@/lib/labels";
 import type { BrowseParams } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { HonkonGlyph } from "@/components/brand/honkon-glyph";
 
 export type FilterPatch = Record<string, string | null>;
 
@@ -47,7 +52,17 @@ export const AGE_RATINGS = [
  * A section of the filters that folds: its title, a dot when something in
  * it is set, and the chips under it. The most used are open at first.
  */
-function Fold({ title, defaultOpen = false, active, children }: { title: string; defaultOpen?: boolean; active: boolean; children: React.ReactNode }) {
+function Fold({
+  title,
+  defaultOpen = false,
+  active,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  active: boolean;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(defaultOpen || active);
   return (
     <div className="flex flex-col gap-2 border-b border-border/40 pb-3 last:border-0">
@@ -61,9 +76,18 @@ function Fold({ title, defaultOpen = false, active, children }: { title: string;
           {title}
           {active && <span className="size-1.5 rounded-full bg-primary" />}
         </span>
-        <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform duration-200", open && "rotate-180")} />
+        <ChevronDownIcon
+          className={cn(
+            "size-4 text-muted-foreground transition-transform duration-200",
+            open && "rotate-180",
+          )}
+        />
       </button>
-      {open && <div className="flex animate-in flex-col gap-3 duration-200 fade-in-0">{children}</div>}
+      {open && (
+        <div className="flex animate-in flex-col gap-3 duration-200 fade-in-0">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -72,7 +96,12 @@ function Fold({ title, defaultOpen = false, active, children }: { title: string;
 export const SCORE_STEPS = [6, 7, 7.5, 8, 8.5, 9] as const;
 
 /** Release periods, as one select instead of a two-thumb slider. */
-export const PERIODS: Array<{ key: string; label: string; from: number | null; to: number | null }> = [
+export const PERIODS: Array<{
+  key: string;
+  label: string;
+  from: number | null;
+  to: number | null;
+}> = [
   { key: "this", label: String(THIS_YEAR), from: THIS_YEAR, to: THIS_YEAR },
   { key: "last", label: String(THIS_YEAR - 1), from: THIS_YEAR - 1, to: THIS_YEAR - 1 },
   { key: "2020s", label: "2020-е", from: 2020, to: null },
@@ -95,7 +124,13 @@ export const EPISODE_PRESETS = [
  * The catalogue search box, at the top of the page; the term reaches the
  * URL after a short pause.
  */
-export function BrowseSearch({ params, onChange }: { params: BrowseParams; onChange: (patch: FilterPatch) => void }) {
+export function BrowseSearch({
+  params,
+  onChange,
+}: {
+  params: BrowseParams;
+  onChange: (patch: FilterPatch) => void;
+}) {
   const t = useT();
   const [term, setTerm] = useState(params.q ?? "");
   const debounced = useDebouncedValue(term.trim(), 250);
@@ -113,7 +148,7 @@ export function BrowseSearch({ params, onChange }: { params: BrowseParams; onCha
         placeholder={t("browse.searchPlaceholder")}
         type="search"
         aria-label={t("browse.search")}
-        className="h-11 w-full rounded-xl border border-border/70 bg-card/60 pl-11 pr-10 text-sm outline-none transition-[border-color,background-color,box-shadow] duration-200 placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring/20 [&::-webkit-search-cancel-button]:appearance-none"
+        className="h-12 w-full rounded-xl border border-border bg-background/70 pl-11 pr-10 text-sm outline-none transition-[border-color,background-color,box-shadow] duration-200 placeholder:text-muted-foreground/70 hover:border-primary/30 focus-visible:border-primary/60 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/15 sm:h-14 [&::-webkit-search-cancel-button]:appearance-none"
       />
       {term && (
         <button
@@ -160,14 +195,19 @@ export function BrowseFilters({
   const count = activeFilterCount(params);
 
   const periodKey =
-    PERIODS.find((p) => (params.yearFrom ?? null) === p.from && (params.yearTo ?? null) === p.to)?.key ?? null;
+    PERIODS.find(
+      (p) => (params.yearFrom ?? null) === p.from && (params.yearTo ?? null) === p.to,
+    )?.key ?? null;
   const episodePreset = EPISODE_PRESETS.find(
-    (p) => (params.episodesMin ?? null) === p.min && (params.episodesMax ?? null) === p.max,
+    (p) =>
+      (params.episodesMin ?? null) === p.min && (params.episodesMax ?? null) === p.max,
   );
 
   return (
     <div className="flex flex-col gap-3.5">
-      <div className={cn("flex items-center justify-between gap-2", !heading && "hidden")}>
+      <div
+        className={cn("flex items-center justify-between gap-2", !heading && "hidden")}
+      >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <SlidersHorizontalIcon className="size-4 text-primary" />
           {t("browse.filters")}
@@ -184,25 +224,35 @@ export function BrowseFilters({
         )}
       </div>
 
-      <button type="button" aria-pressed={params.dubbingStudio === "hon-kon"} onClick={() => onChange({ dubbingStudio: params.dubbingStudio ? null : "hon-kon" })}
-        className={cn("flex min-h-11 items-center gap-2 rounded-xl border px-3 text-left text-xs transition-colors", params.dubbingStudio ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>
-        <HonkonGlyph className="size-6" /><span>Озвучка Hon-Kon Studio</span>
-      </button>
-      <Fold title="Тип и выход" defaultOpen active={Boolean(params.type || params.airing)}>
+      <Fold
+        title="Тип и выход"
+        defaultOpen
+        active={Boolean(params.type || params.airing)}
+      >
         <ChipGroup
           label="Тип"
           value={params.type ?? null}
-          options={TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))}
+          options={TYPE_VALUES.map((value) => ({
+            value,
+            label: labels.typeLabel(value),
+          }))}
           onPick={(type) => onChange({ type })}
         />
         <ChipGroup
           label="Выход"
           value={params.airing ?? null}
-          options={AIRING_VALUES.map((value) => ({ value, label: labels.airingLabel(value) }))}
+          options={AIRING_VALUES.map((value) => ({
+            value,
+            label: labels.airingLabel(value),
+          }))}
           onPick={(airing) => onChange({ airing })}
         />
       </Fold>
-      <Fold title="Жанры" defaultOpen active={(params.genres?.length ?? 0) + (params.excludeGenres?.length ?? 0) > 0}>
+      <Fold
+        title="Жанры"
+        defaultOpen
+        active={(params.genres?.length ?? 0) + (params.excludeGenres?.length ?? 0) > 0}
+      >
         <GenrePicker params={params} genres={genres} onChange={onChange} />
       </Fold>
       <Fold title="Возраст и оценка" active={Boolean(params.rating || params.minScore)}>
@@ -219,47 +269,58 @@ export function BrowseFilters({
           onPick={(v) => onChange({ minScore: v, maxScore: null })}
         />
       </Fold>
-      <Fold title="Год, длина, студия" active={Boolean(periodKey || episodePreset || params.studio)}>
-      <ChipGroup
-        label={t("browse.yearRange")}
-        value={periodKey}
-        options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
-        onPick={(key) => {
-          const period = PERIODS.find((p) => p.key === key);
-          onChange({
-            year: null,
-            yearFrom: period?.from != null ? String(period.from) : null,
-            yearTo: period?.to != null ? String(period.to) : null,
-          });
-        }}
-      />
-      <ChipGroup
-        label={t("browse.episodes")}
-        value={episodePreset?.key ?? null}
-        options={EPISODE_PRESETS.map((p) => ({
-          value: p.key,
-          label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
-        }))}
-        onPick={(key) => {
-          const preset = EPISODE_PRESETS.find((p) => p.key === key);
-          onChange(
-            preset
-              ? { episodesMin: String(preset.min), episodesMax: preset.max != null ? String(preset.max) : null }
-              : { episodesMin: null, episodesMax: null },
-          );
-        }}
-      />
-      <Field label={t("browse.studio")}>
-        <StudioPicker value={params.studio ?? null} onPick={(name) => onChange({ studio: name })} />
-      </Field>
+      <Fold
+        title="Год, длина, студия"
+        active={Boolean(periodKey || episodePreset || params.studio)}
+      >
+        <ChipGroup
+          label={t("browse.yearRange")}
+          value={periodKey}
+          options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
+          onPick={(key) => {
+            const period = PERIODS.find((p) => p.key === key);
+            onChange({
+              year: null,
+              yearFrom: period?.from != null ? String(period.from) : null,
+              yearTo: period?.to != null ? String(period.to) : null,
+            });
+          }}
+        />
+        <ChipGroup
+          label={t("browse.episodes")}
+          value={episodePreset?.key ?? null}
+          options={EPISODE_PRESETS.map((p) => ({
+            value: p.key,
+            label: t(`browse.episodePreset.${p.key}` as "browse.episodePreset.one"),
+          }))}
+          onPick={(key) => {
+            const preset = EPISODE_PRESETS.find((p) => p.key === key);
+            onChange(
+              preset
+                ? {
+                    episodesMin: String(preset.min),
+                    episodesMax: preset.max != null ? String(preset.max) : null,
+                  }
+                : { episodesMin: null, episodesMax: null },
+            );
+          }}
+        />
+        <Field label={t("browse.studio")}>
+          <StudioPicker
+            value={params.studio ?? null}
+            onPick={(name) => onChange({ studio: name })}
+          />
+        </Field>
       </Fold>
 
       <div className="flex flex-col gap-0.5 rounded-xl border border-border/50 bg-foreground/[0.02] px-2 py-1">
         <Switch
           icon={PlayCircleIcon}
-          label="Показать и без плеера"
-          on={params.allTitles === true}
-          onClick={() => onChange({ all: params.allTitles ? null : "1", hasPlayer: null })}
+          label="Только доступные к просмотру"
+          on={params.hasPlayer === true}
+          onClick={() =>
+            onChange({ hasPlayer: params.hasPlayer ? null : "1", all: null })
+          }
         />
         {authed && (
           <Switch
@@ -280,11 +341,21 @@ export function BrowseFilters({
   );
 }
 
-export function Field({ label, aside, children }: { label: string; aside?: React.ReactNode; children: React.ReactNode }) {
+export function Field({
+  label,
+  aside,
+  children,
+}: {
+  label: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <div className="flex min-h-5 items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+          {label}
+        </span>
         {aside}
       </div>
       {children}
@@ -298,9 +369,12 @@ const CHIP =
 function chipClass(state: "on" | "out" | "off"): string {
   return cn(
     CHIP,
-    state === "on" && "border-primary/55 bg-primary/15 text-foreground shadow-sm shadow-primary/10",
-    state === "out" && "border-rose-500/45 bg-rose-500/10 text-rose-200 line-through decoration-rose-400/70",
-    state === "off" && "border-border/60 bg-card/40 text-foreground/80 hover:border-foreground/25 hover:text-foreground",
+    state === "on" &&
+      "border-primary/55 bg-primary/15 text-foreground shadow-sm shadow-primary/10",
+    state === "out" &&
+      "border-rose-500/45 bg-rose-500/10 text-rose-200 line-through decoration-rose-400/70",
+    state === "off" &&
+      "border-border/60 bg-card/40 text-foreground/80 hover:border-foreground/25 hover:text-foreground",
   );
 }
 
@@ -342,7 +416,9 @@ export function ChipGroup({
               onClick={() => onPick(on ? null : o.value)}
               className={chipClass(on ? "on" : "off")}
             >
-              {on && <CheckIcon className="size-3 animate-in zoom-in-50 text-primary duration-200" />}
+              {on && (
+                <CheckIcon className="size-3 animate-in zoom-in-50 text-primary duration-200" />
+              )}
               {o.label}
             </button>
           );
@@ -371,9 +447,19 @@ export function Switch({
       onClick={onClick}
       className="flex h-8 items-center gap-2.5 rounded-lg px-1 text-left text-[13px] text-foreground/85 transition-colors hover:text-foreground"
     >
-      <Icon className={cn("size-4 shrink-0 transition-colors", on ? "text-primary" : "text-muted-foreground")} />
+      <Icon
+        className={cn(
+          "size-4 shrink-0 transition-colors",
+          on ? "text-primary" : "text-muted-foreground",
+        )}
+      />
       <span className="flex-1 truncate">{label}</span>
-      <span className={cn("relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200", on ? "bg-primary" : "bg-foreground/15")}>
+      <span
+        className={cn(
+          "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
+          on ? "bg-primary" : "bg-foreground/15",
+        )}
+      >
         <span
           className={cn(
             "absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform duration-200",
@@ -411,11 +497,17 @@ export function GenrePicker({
   const [mode, setMode] = useState<"in" | "out">("in");
   const [query, setQuery] = useState("");
   const included = useMemo(() => new Set(params.genres ?? []), [params.genres]);
-  const excluded = useMemo(() => new Set(params.excludeGenres ?? []), [params.excludeGenres]);
+  const excluded = useMemo(
+    () => new Set(params.excludeGenres ?? []),
+    [params.excludeGenres],
+  );
   const picked = included.size + excluded.size;
 
   const offered = useMemo(
-    () => genres.filter((g) => (g.count ?? 0) > 0 && !HIDDEN_GENRES.has(g.name)).sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
+    () =>
+      genres
+        .filter((g) => (g.count ?? 0) > 0 && !HIDDEN_GENRES.has(g.name))
+        .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
     [genres],
   );
 
@@ -441,7 +533,9 @@ export function GenrePicker({
     : [
         ...offered.slice(0, GENRES_SHOWN),
         // A picked genre stays in view even when it is not a top one.
-        ...offered.slice(GENRES_SHOWN).filter((g) => included.has(g.id) || excluded.has(g.id)),
+        ...offered
+          .slice(GENRES_SHOWN)
+          .filter((g) => included.has(g.id) || excluded.has(g.id)),
       ];
   const more = offered.length - GENRES_SHOWN;
 
@@ -460,7 +554,11 @@ export function GenrePicker({
         )
       }
     >
-      <div role="radiogroup" aria-label="Что делать с жанром" className="grid grid-cols-2 rounded-lg bg-foreground/[0.06] p-0.5">
+      <div
+        role="radiogroup"
+        aria-label="Что делать с жанром"
+        className="grid grid-cols-2 rounded-lg bg-foreground/[0.06] p-0.5"
+      >
         {(["in", "out"] as const).map((value) => (
           <button
             key={value}
@@ -489,25 +587,46 @@ export function GenrePicker({
           className="h-9 animate-in rounded-lg border border-border/70 bg-background/60 px-3 text-sm outline-none transition-colors fade-in-0 focus:border-foreground/30"
         />
       )}
-      <div className={cn("flex flex-wrap content-start gap-1", all && "max-h-64 overflow-y-auto pr-0.5 [scrollbar-width:thin]")}>
+      <div
+        className={cn(
+          "flex flex-wrap content-start gap-1",
+          all && "max-h-64 overflow-y-auto pr-0.5 [scrollbar-width:thin]",
+        )}
+      >
         {shown.map((genre) => {
-          const state = included.has(genre.id) ? "on" : excluded.has(genre.id) ? "out" : "off";
+          const state = included.has(genre.id)
+            ? "on"
+            : excluded.has(genre.id)
+              ? "out"
+              : "off";
           return (
             <button
               key={genre.id}
               type="button"
               onClick={() => toggle(genre.id)}
               aria-pressed={state !== "off"}
-              title={state === "off" ? (mode === "in" ? "Добавить" : "Исключить") : t("browse.genreRemove")}
+              title={
+                state === "off"
+                  ? mode === "in"
+                    ? "Добавить"
+                    : "Исключить"
+                  : t("browse.genreRemove")
+              }
               className={chipClass(state)}
             >
-              {state === "on" && <CheckIcon className="size-3 animate-in zoom-in-50 text-primary duration-200" />}
-              {state === "out" && <MinusIcon className="size-3 animate-in zoom-in-50 duration-200" />}
+              {state === "on" && (
+                <CheckIcon className="size-3 animate-in zoom-in-50 text-primary duration-200" />
+              )}
+              {state === "out" && (
+                <MinusIcon className="size-3 animate-in zoom-in-50 duration-200" />
+              )}
               {labels.genreLabel(genre.name)}
             </button>
           );
         })}
-        {shown.length === 0 && <p className="text-xs text-muted-foreground">{t("browse.noGenre")}</p>}
+        {shown.length === 0 && (
+          <p className="text-xs text-muted-foreground">{t("browse.noGenre")}</p>
+        )}
         {more > 0 && (
           <button
             type="button"
@@ -515,7 +634,10 @@ export function GenrePicker({
               setAll((v) => !v);
               setQuery("");
             }}
-            className={cn(CHIP, "border-dashed border-border/70 text-muted-foreground hover:border-foreground/30 hover:text-foreground")}
+            className={cn(
+              CHIP,
+              "border-dashed border-border/70 text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+            )}
           >
             {all ? (
               <>
@@ -536,7 +658,13 @@ export function GenrePicker({
 }
 
 /** Studio names as you type, from the local catalogue. */
-export function StudioPicker({ value, onPick }: { value: string | null; onPick: (name: string | null) => void }) {
+export function StudioPicker({
+  value,
+  onPick,
+}: {
+  value: string | null;
+  onPick: (name: string | null) => void;
+}) {
   const t = useT();
   const [text, setText] = useState(value ?? "");
   const [open, setOpen] = useState(false);
@@ -594,7 +722,9 @@ export function StudioPicker({ value, onPick }: { value: string | null; onPick: 
               className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-foreground/[0.07]"
             >
               <span className="truncate">{studio.name}</span>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{studio.count}</span>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {studio.count}
+              </span>
             </button>
           ))}
         </div>
@@ -657,7 +787,12 @@ export function SavedSets() {
   const save = () => {
     const label = name.trim();
     if (!label || !current) return;
-    write([{ name: label, query: current }, ...sets.filter((s) => s.name !== label)].slice(0, 12));
+    write(
+      [{ name: label, query: current }, ...sets.filter((s) => s.name !== label)].slice(
+        0,
+        12,
+      ),
+    );
     setName("");
     setNaming(false);
   };
@@ -677,7 +812,11 @@ export function SavedSets() {
         >
           <SelectTrigger className="h-10 min-w-0 flex-1" disabled={sets.length === 0}>
             <BookmarkIcon className="size-4" />
-            <SelectValue placeholder={sets.length === 0 ? t("browse.savedNone") : t("browse.saved")} />
+            <SelectValue
+              placeholder={
+                sets.length === 0 ? t("browse.savedNone") : t("browse.saved")
+              }
+            />
           </SelectTrigger>
           <SelectContent>
             {sets.map((set) => (
@@ -725,7 +864,10 @@ export function SavedSets() {
             placeholder={t("browse.setName")}
             className="h-10 min-w-0 flex-1 rounded-lg border border-border/70 bg-card/60 px-3 text-sm outline-none focus:border-foreground/30"
           />
-          <button type="submit" className="rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground">
+          <button
+            type="submit"
+            className="rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"
+          >
             OK
           </button>
         </form>

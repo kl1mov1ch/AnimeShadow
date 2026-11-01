@@ -16,6 +16,14 @@ import {
 } from "@/lib/query";
 import { useDocumentHead } from "@/lib/seo";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const STATUSES: Array<[DubStudioStatus, string]> = [
   ["all", "Все"],
@@ -37,8 +45,11 @@ const SORTS: Array<[DubStudioSort, string]> = [
   ["new", "Новые"],
   ["title", "По алфавиту"],
 ];
-const pick = <T extends string>(value: string | null, options: Array<[T, string]>, fallback: T): T =>
-  options.some(([key]) => key === value) ? (value as T) : fallback;
+const pick = <T extends string>(
+  value: string | null,
+  options: Array<[T, string]>,
+  fallback: T,
+): T => (options.some(([key]) => key === value) ? (value as T) : fallback);
 
 /**
  * One dub studio's catalogue: every title the site can play in its voices.
@@ -62,7 +73,13 @@ export function Component() {
       (current) => {
         const next = new URLSearchParams(current);
         for (const [key, value] of Object.entries(patch)) {
-          if (value == null || value === "" || value === "all" || (key === "sort" && value === "popular")) next.delete(key);
+          if (
+            value == null ||
+            value === "" ||
+            value === "all" ||
+            (key === "sort" && value === "popular")
+          )
+            next.delete(key);
           else next.set(key, value);
         }
         if (!("page" in patch)) next.delete("page");
@@ -76,7 +93,13 @@ export function Component() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const { data, isPending, isError, isFetching, refetch, error } = useDubStudio(slug, { q, sort, status, type, page });
+  const { data, isPending, isError, isFetching, refetch, error } = useDubStudio(slug, {
+    q,
+    sort,
+    status,
+    type,
+    page,
+  });
   const studio = data?.studio;
   const name = studio?.name ?? slug;
 
@@ -85,7 +108,12 @@ export function Component() {
     description: `Все аниме в озвучке ${name}${studio ? ` — ${studio.count} тайтлов` : ""}: онгоинги, фильмы и сериалы с русской озвучкой студии ${name}. Смотрите онлайн бесплатно на AnimeShadow.`,
     path: `/studios/${slug}`,
     image: studio?.posters[0],
-    noindex: page > 1 || Boolean(q) || status !== "all" || type !== "all" || sort !== "popular",
+    noindex:
+      page > 1 ||
+      Boolean(q) ||
+      status !== "all" ||
+      type !== "all" ||
+      sort !== "popular",
   });
 
   if (/^hon-?kon/.test(slug)) return <Navigate to="/studio/hon-kon" replace />;
@@ -98,24 +126,44 @@ export function Component() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
       {/* The studio: its mark over a blur of its best-known posters. */}
       <header className="relative isolate overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 sm:p-7">
-        <div aria-hidden className="absolute inset-0 -z-10 flex opacity-40 blur-2xl saturate-150">
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 flex opacity-40 blur-2xl saturate-150"
+        >
           {backdrop.map((poster) => (
-            <img key={poster} src={imageSrc(poster, 240)} alt="" decoding="async" className="h-full min-w-0 flex-1 object-cover" />
+            <img
+              key={poster}
+              src={imageSrc(poster, 240)}
+              alt=""
+              decoding="async"
+              className="h-full min-w-0 flex-1 object-cover"
+            />
           ))}
         </div>
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-background/95 via-background/80 to-background/40" />
-        <Link to="/studios" className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-gradient-to-r from-background/95 via-background/80 to-background/40"
+        />
+        <Link
+          to="/studios"
+          className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
           <ArrowLeftIcon className="size-3.5" />
           Все студии
         </Link>
         <div className="flex items-center gap-4">
-          <DubLogo name={name} className="size-16 rounded-2xl text-base shadow-xl sm:size-20 sm:text-lg" />
+          <DubLogo
+            name={name}
+            className="size-16 rounded-2xl text-base shadow-xl sm:size-20 sm:text-lg"
+          />
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <MicVocalIcon className="size-3.5" />
               Студия озвучки
             </p>
-            <h1 className="truncate font-display text-2xl leading-tight sm:text-4xl">{name}</h1>
+            <h1 className="truncate font-display text-2xl leading-tight sm:text-4xl">
+              {name}
+            </h1>
             <p className="text-sm text-muted-foreground">
               {studio ? `${studio.count} аниме в озвучке студии` : " "}
             </p>
@@ -124,7 +172,7 @@ export function Component() {
       </header>
 
       {/* Search and filters. */}
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 flex flex-col gap-2.5 border-b border-border/40 bg-background/90 px-4 py-2.5 backdrop-blur-md sm:mx-0 sm:rounded-2xl sm:border sm:px-3">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/40 p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-[12rem] flex-1">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -137,13 +185,28 @@ export function Component() {
               className="h-10 w-full rounded-xl border border-border/60 bg-card/60 pl-9 pr-9 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
             {search && (
-              <button type="button" onClick={() => setSearch("")} aria-label="Очистить" className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Очистить"
+                className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+              >
                 <XIcon className="size-3.5" />
               </button>
             )}
           </label>
-          <FilterSelect label="Формат" value={type} options={TYPES} onChange={(value) => set({ type: value })} />
-          <FilterSelect label="Сортировка" value={sort} options={SORTS} onChange={(value) => set({ sort: value })} />
+          <FilterSelect
+            label="Формат"
+            value={type}
+            options={TYPES}
+            onChange={(value) => set({ type: value })}
+          />
+          <FilterSelect
+            label="Сортировка"
+            value={sort}
+            options={SORTS}
+            onChange={(value) => set({ sort: value })}
+          />
         </div>
         <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {STATUSES.map(([key, label]) => (
@@ -173,13 +236,17 @@ export function Component() {
       {notFound ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <p className="font-display text-xl">Такой студии озвучки нет</p>
-          <Link to="/studios" className="text-sm text-primary hover:underline">Все студии</Link>
+          <Link to="/studios" className="text-sm text-primary hover:underline">
+            Все студии
+          </Link>
         </div>
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : isPending ? (
         <div className="grid grid-cols-3 gap-x-2 gap-y-4 sm:grid-cols-4 sm:gap-x-3 sm:gap-y-5 lg:grid-cols-6">
-          {Array.from({ length: 12 }, (_, i) => <AnimeCardSkeleton key={i} />)}
+          {Array.from({ length: 12 }, (_, i) => (
+            <AnimeCardSkeleton key={i} />
+          ))}
         </div>
       ) : data.items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -199,7 +266,11 @@ export function Component() {
         </div>
       ) : (
         <>
-          <AnimeGrid items={data.items} priorityCount={6} className={cn("transition-opacity", isFetching && "opacity-60")} />
+          <AnimeGrid
+            items={data.items}
+            priorityCount={6}
+            className={cn("transition-opacity", isFetching && "opacity-60")}
+          />
           <PaginationBar
             page={data.page}
             totalPages={data.pages}
@@ -230,22 +301,21 @@ function FilterSelect<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <label className="relative">
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-        className="h-10 cursor-pointer appearance-none rounded-xl border border-border/60 bg-card/60 pl-3 pr-8 text-sm outline-none transition-colors hover:border-primary/40 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-      >
-        {options.map(([key, text]) => (
-          <option key={key} value={key}>
-            {text}
-          </option>
-        ))}
-      </select>
-      <svg aria-hidden viewBox="0 0 16 16" className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground">
-        <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </label>
+    <div className="min-w-0 flex-1 sm:max-w-52">
+      <Select value={value} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger aria-label={label} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper">
+          <SelectGroup>
+            {options.map(([key, text]) => (
+              <SelectItem key={key} value={key}>
+                {text}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

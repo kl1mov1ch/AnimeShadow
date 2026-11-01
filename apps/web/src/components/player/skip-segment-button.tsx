@@ -1,26 +1,24 @@
-import { useEffect, useState } from "react";
 import { SkipForwardIcon } from "lucide-react";
 
-/** Mount once on entering a marked segment; five wall-clock seconds, even while paused. */
-export function SkipSegmentButton({ label, playing, onSkip }: { label: string; playing: boolean; onSkip: () => void }) {
-  const [left, setLeft] = useState(5);
-  const [started, setStarted] = useState(false);
-  useEffect(() => { if (playing) setStarted(true); }, [playing]);
-  useEffect(() => {
-    if (!started) return;
-    const start = performance.now();
-    const timer = setInterval(() => {
-      const remaining = Math.max(0, 5 - Math.floor((performance.now() - start) / 1000));
-      setLeft(remaining);
-      if (!remaining) clearInterval(timer);
-    }, 100);
-    return () => clearInterval(timer);
-  }, [started]);
-  if (!started || !left) return null;
-  return <button type="button" onClick={onSkip}
-    className="absolute bottom-[max(4rem,env(safe-area-inset-bottom))] right-[max(0.5rem,env(safe-area-inset-right))] z-20 flex min-h-10 max-w-[calc(100%-1rem)] items-center gap-2 rounded-xl border border-primary/40 bg-black/75 px-3 py-2 text-xs font-semibold text-white backdrop-blur-md motion-safe:animate-[skip-prompt_5s_ease-out_both] @lg/player:bottom-20 @lg/player:right-4 @lg/player:text-sm">
-    <SkipForwardIcon className="size-4 shrink-0 text-primary" />
-    <span className="truncate">Пропустить {label}</span>
-    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] tabular-nums" aria-label={`Осталось ${left} секунд`}>{left}</span>
-  </button>;
+/** Available throughout the marked segment, including while paused. */
+export function SkipSegmentButton({
+  label,
+  actionLabel,
+  onSkip,
+}: {
+  label: string;
+  actionLabel?: string;
+  playing: boolean;
+  onSkip: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSkip}
+      className="player-segment-action absolute right-[max(0.5rem,env(safe-area-inset-right))] top-[max(0.5rem,env(safe-area-inset-top))] z-20 flex min-h-9 max-w-[calc(100%-1rem)] touch-manipulation items-center gap-2 rounded-xl border border-white/20 bg-black/80 px-3 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-[background-color,transform] duration-150 hover:bg-primary hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-white active:scale-95 motion-safe:animate-[player-action-enter_.24s_ease-out_both] @lg/player:right-4 @lg/player:top-4 @lg/player:text-sm"
+    >
+      <SkipForwardIcon className="size-4 shrink-0 text-current" />
+      <span className="truncate">{actionLabel ?? `Пропустить ${label}`}</span>
+    </button>
+  );
 }

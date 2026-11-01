@@ -1,5 +1,6 @@
-
 import type { AnimeSummary } from "@animeshadow/shared";
+import { lazy, Suspense } from "react";
+import { WhenNear } from "@/components/common/when-near";
 import { Link } from "react-router-dom";
 import { AnimeRail } from "@/components/anime/anime-rail";
 import {
@@ -7,7 +8,6 @@ import {
   SpotlightHeroSkeleton,
 } from "@/components/anime/spotlight-hero";
 import { GenreCards } from "@/components/anime/genre-cards";
-import { AnimeCorner } from "@/components/home/anime-corner";
 import { HomeMoodPicker } from "@/components/home/mood-picker";
 import { HomeQuickLinks } from "@/components/home/quick-links";
 import { ErrorState } from "@/components/common/states";
@@ -15,14 +15,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/i18n";
 import { useLabels } from "@/lib/labels";
 import { useHomeGenres } from "@/lib/home-genres";
-import {
-  useContinueWatching,
-  useDiscover,
-  useHomeRecommendations,
-} from "@/lib/query";
+import { useContinueWatching, useDiscover, useHomeRecommendations } from "@/lib/query";
 import { useDocumentHead } from "@/lib/seo";
 import { FEATURES } from "@/lib/features";
-import { WhenNear } from "@/components/common/when-near";
+
+const HomeFrameGame = lazy(() => import("@/components/home/anime-corner").then(module => ({ default: module.AnimeCorner })));
 
 /**
  * Homepage rail order is a deliberate hierarchy, not an arbitrary list:
@@ -128,13 +125,13 @@ export function Component() {
       {/* From here down nothing is laid out, painted or animated until it
           scrolls near — the homepage used to render ~6,000 nodes up front. */}
       <div className="cv-auto">
-      <AnimeRail
-        title={t("home.trendingMonth")}
-        subtitle={t("home.trendingMonthSub")}
-        items={data?.trendingMonth ?? []}
-        loading={isPending}
-        href="/browse?orderBy=popularity"
-      />
+        <AnimeRail
+          title={t("home.trendingMonth")}
+          subtitle={t("home.trendingMonthSub")}
+          items={data?.trendingMonth ?? []}
+          loading={isPending}
+          href="/browse?orderBy=popularity"
+        />
       </div>
 
       <div className="cv-auto">
@@ -142,68 +139,66 @@ export function Component() {
       </div>
 
       {FEATURES.homeGenres && (
-      <div className="cv-auto">
-      <GenreCards
-        title={t("home.genresTitle")}
-        genres={homeGenres.genres}
-        personal={homeGenres.personal}
-        label={labels.genreLabel}
-        topFor={topFor}
-        countLabel={(count) => t("home.genreCount", { count })}
-        previewLabel={t("home.genrePreview")}
-      />
-      </div>
+        <div className="cv-auto">
+          <GenreCards
+            title={t("home.genresTitle")}
+            genres={homeGenres.genres}
+            personal={homeGenres.personal}
+            label={labels.genreLabel}
+            topFor={topFor}
+            countLabel={(count) => t("home.genreCount", { count })}
+            previewLabel={t("home.genrePreview")}
+          />
+        </div>
       )}
 
       {/* Something to do rather than something to scroll past — built from
           the titles this page already loaded. */}
       {/* The game fetches a round and the leaderboard — only once it's
           about to be on screen. */}
-      <WhenNear minHeight={420}>
-        <div className="cv-auto">
-          <AnimeCorner />
-        </div>
-      </WhenNear>
-
+      <section id="guess-anime" className="scroll-mt-24 flex flex-col gap-5">
+        <h2 className="font-display text-xl sm:text-2xl">Угадай аниме по картинке</h2>
+        <WhenNear minHeight={440} margin={400}>
+          <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-card" />}><HomeFrameGame compact /></Suspense>
+        </WhenNear>
+      </section>
 
       <div className="cv-auto flex flex-col gap-12">
-      <AnimeRail
-        title={t("home.recommended")}
-        subtitle={
-          !isAuthed ? (
-            t("home.recommendedSubAnon")
-          ) : recs?.basis === "liked" ? (
-            t("home.recommendedSubLiked")
-          ) : recs?.basis === "preferences" ? (
-            t("home.recommendedSub")
-          ) : recs?.basis === "history" ? (
-            t("home.recommendedSubHistory")
-          ) : (
-            // Signed in, but nothing to personalise from yet — this is the
-            // one case that's actually actionable, so it's the one case
-            // that gets a link instead of just describing the situation.
-            <>
-              {t("home.recommendedSubTrending")}{" "}
-              <Link to="/recommendations" className="text-primary hover:underline">
-                {t("recommendations.eyebrow")}
-              </Link>
-            </>
-          )
-        }
-        items={recs?.items ?? data?.mostPopular ?? []}
-        loading={recsPending && !recs}
-        href="/browse?orderBy=popularity"
-      />
-      <AnimeRail
-        title={t("home.topRated")}
-        subtitle={t("home.topRatedSub")}
-        items={data?.allTimeTop ?? []}
-        loading={isPending}
-        href="/browse?orderBy=score"
-      />
+        <AnimeRail
+          title={t("home.recommended")}
+          subtitle={
+            !isAuthed ? (
+              t("home.recommendedSubAnon")
+            ) : recs?.basis === "liked" ? (
+              t("home.recommendedSubLiked")
+            ) : recs?.basis === "preferences" ? (
+              t("home.recommendedSub")
+            ) : recs?.basis === "history" ? (
+              t("home.recommendedSubHistory")
+            ) : (
+              // Signed in, but nothing to personalise from yet — this is the
+              // one case that's actually actionable, so it's the one case
+              // that gets a link instead of just describing the situation.
+              <>
+                {t("home.recommendedSubTrending")}{" "}
+                <Link to="/recommendations" className="text-primary hover:underline">
+                  {t("recommendations.eyebrow")}
+                </Link>
+              </>
+            )
+          }
+          items={recs?.items ?? data?.mostPopular ?? []}
+          loading={recsPending && !recs}
+          href="/browse?orderBy=popularity"
+        />
+        <AnimeRail
+          title={t("home.topRated")}
+          subtitle={t("home.topRatedSub")}
+          items={data?.allTimeTop ?? []}
+          loading={isPending}
+          href="/browse?orderBy=score"
+        />
       </div>
-
     </div>
   );
 }
-

@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { Loader2Icon, UsersIcon } from "lucide-react";
 import { toast } from "sonner";
 import type { CreatePartyInput, StudioId } from "@animeshadow/shared";
-import { HonkonGlyph } from "@/components/brand/honkon-glyph";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,9 +34,7 @@ export function PartySetupDialog({
 }) {
   const navigate = useNavigate();
   const pro = useIsPro();
-  const [name, setName] = useState(() =>
-    `${studio ? "Hon-Kon · " : ""}${title}`.slice(0, 80),
-  );
+  const [name, setName] = useState(() => title.slice(0, 80));
   const [capacity, setCapacity] = useState(10);
   const [visibility, setVisibility] = useState<CreatePartyInput["visibility"]>("link");
   const [allControl, setAllControl] = useState(false);
@@ -50,16 +47,12 @@ export function PartySetupDialog({
       <DialogContent className="max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-md overflow-y-auto rounded-2xl p-5">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            {studio ? (
-              <HonkonGlyph className="size-8 text-primary" />
-            ) : (
-              <UsersIcon className="size-5 text-primary" />
-            )}
-            {studio ? "Комната Hon-Kon Studio" : "Смотреть вместе"}
+            <UsersIcon className="size-5 text-primary" />
+            Смотреть вместе
           </DialogTitle>
           <DialogDescription className="break-words text-xs">
             {title} · серия {episode}
-            {studio ? ". Озвучка Hon-Kon закреплена для всех участников." : ""}
+            {studio ? ". Озвучка закреплена для всех участников." : ""}
           </DialogDescription>
         </DialogHeader>
         <form

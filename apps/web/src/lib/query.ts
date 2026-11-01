@@ -124,7 +124,7 @@ export type BrowseParams = {
   episodesMin?: number;
   episodesMax?: number;
   hideListed?: boolean;
-  /** Titles with no player too — off by default: the catalogue shows what can be watched. */
+  /** Legacy shared-link flag. The full catalogue is now visible by default. */
   allTitles?: boolean;
 };
 
@@ -232,7 +232,7 @@ export function useBrowse(params: BrowseParams, enabled = true) {
         query: {
           ...params,
           allTitles: undefined,
-          hasPlayer: params.hasPlayer || !params.allTitles ? true : undefined,
+          hasPlayer: params.hasPlayer ? true : undefined,
           genres: params.genres?.length ? params.genres.join(",") : undefined,
           excludeGenres: params.excludeGenres?.length
             ? params.excludeGenres.join(",")
@@ -521,8 +521,12 @@ export function useUpdateProgress(animeId: number, ownerId?: string) {
         keepalive: true,
       }),
     onSuccess: (data, input) => {
-      const before = client.getQueryData<AnimeProgress>(episodeProgressKey(animeId, ownerId));
-      const wasDone = before?.episodes.find((row) => row.episode === input.episode)?.completed ?? false;
+      const before = client.getQueryData<AnimeProgress>(
+        episodeProgressKey(animeId, ownerId),
+      );
+      const wasDone =
+        before?.episodes.find((row) => row.episode === input.episode)?.completed ??
+        false;
       client.setQueryData(episodeProgressKey(animeId, ownerId), data);
       // A periodic save while watching only marks these stale — they reload
       // when next shown. Refetching all three every twenty seconds per viewer
@@ -1760,7 +1764,10 @@ export function useFriendsActivity(enabled = true) {
 
 /* ---------------- dub studios ---------------- */
 
-import type { AnimeSummary as StudioAnimeSummary, DubStudio } from "@animeshadow/shared";
+import type {
+  AnimeSummary as StudioAnimeSummary,
+  DubStudio,
+} from "@animeshadow/shared";
 
 export type DubStudioSort = "popular" | "score" | "new" | "title";
 export type DubStudioStatus = "all" | "airing" | "finished" | "upcoming";
@@ -1777,19 +1784,31 @@ export interface DubStudioPage {
 export function useDubStudios() {
   return useQuery({
     queryKey: ["dubs"],
-    queryFn: ({ signal }) => apiRequest<{ studios: DubStudio[] }>("/dubs", { signal }).then((r) => r.studios),
+    queryFn: ({ signal }) =>
+      apiRequest<{ studios: DubStudio[] }>("/dubs", { signal }).then((r) => r.studios),
     staleTime: 30 * 60_000,
   });
 }
 
 export function useDubStudio(
   slug: string,
-  params: { q: string; sort: DubStudioSort; status: DubStudioStatus; type: DubStudioType; page: number },
+  params: {
+    q: string;
+    sort: DubStudioSort;
+    status: DubStudioStatus;
+    type: DubStudioType;
+    page: number;
+  },
 ) {
   return useQuery({
     queryKey: ["dubs", slug, params],
-    queryFn: ({ signal }) => apiRequest<DubStudioPage>(`/dubs/${slug}`, { signal, query: { ...params, q: params.q.trim() || undefined } }),
-    placeholderData: (previous) => (previous?.studio.slug === slug ? previous : undefined),
+    queryFn: ({ signal }) =>
+      apiRequest<DubStudioPage>(`/dubs/${slug}`, {
+        signal,
+        query: { ...params, q: params.q.trim() || undefined },
+      }),
+    placeholderData: (previous) =>
+      previous?.studio.slug === slug ? previous : undefined,
     staleTime: 5 * 60_000,
   });
 }

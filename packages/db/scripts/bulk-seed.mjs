@@ -3,8 +3,12 @@ import { readFile, writeFile, rename } from "node:fs/promises";
 import { ShikimoriClient, toAnimeSummary } from "@animeshadow/shikimori";
 import { prisma, toAnimeListRow } from "../dist/index.js";
 
-const target = Number(process.env.BULK_SEED_TARGET ?? 20000);
-if (!Number.isSafeInteger(target) || target < 1 || target > 100000) throw new Error("BULK_SEED_TARGET must be 1–100000");
+const targetArg = process.argv
+  .find((arg) => arg.startsWith("--target="))
+  ?.slice("--target=".length);
+const target = Number(targetArg ?? process.env.BULK_SEED_TARGET ?? 15000);
+if (!Number.isSafeInteger(target) || target < 1 || target > 100000)
+  throw new Error("BULK_SEED_TARGET must be 1–100000");
 const checkpoint = new URL("../.catalog-import.json", import.meta.url);
 const temporary = new URL("../.catalog-import.json.tmp", import.meta.url);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,7 +21,13 @@ const shiki = new ShikimoriClient({
 async function loadCheckpoint() {
   try {
     const saved = JSON.parse(await readFile(checkpoint, "utf8"));
-    if (saved.version !== 1 || ![saved.shikimori, saved.jikan].every((page) => Number.isInteger(page) && page >= 1)) throw new Error("Invalid catalogue checkpoint");
+    if (
+      saved.version !== 1 ||
+      ![saved.shikimori, saved.jikan].every(
+        (page) => Number.isInteger(page) && page >= 1,
+      )
+    )
+      throw new Error("Invalid catalogue checkpoint");
     return saved;
   } catch (error) {
     if (error.code === "ENOENT") return { version: 1, shikimori: 1, jikan: 1 };
@@ -27,7 +37,13 @@ async function loadCheckpoint() {
 
 async function jikanPage(page) {
   const url = new URL("https://api.jikan.moe/v4/anime");
-  url.search = new URLSearchParams({ page: String(page), limit: "25", order_by: "mal_id", sort: "asc", sfw: "true" }).toString();
+  url.search = new URLSearchParams({
+    page: String(page),
+    limit: "25",
+    order_by: "mal_id",
+    sort: "asc",
+    sfw: "true",
+  }).toString();
   for (let attempt = 0; attempt < 4; attempt++) {
     await sleep(1100);
     try {
@@ -45,20 +61,41 @@ async function jikanPage(page) {
       if (!Array.isArray(body.data)) throw new Error("Jikan returned an invalid page");
       return {
         more: body.pagination?.has_next_page === true,
-        items: body.data.filter((item) => Number.isInteger(item.mal_id) && item.mal_id > 0 && !/^rx/i.test(item.rating ?? "")).map((item) => ({
-          ...toAnimeSummary({
-            id: item.mal_id, name: item.title, russian: null,
-            english: item.title_english ? [item.title_english] : [],
-            japanese: item.title_japanese ? [item.title_japanese] : [],
-            image: { original: item.images?.webp?.large_image_url ?? item.images?.jpg?.large_image_url, preview: item.images?.webp?.image_url ?? item.images?.jpg?.image_url },
-            kind: item.type?.toLowerCase(),
-            status: item.airing ? "ongoing" : item.status === "Not yet aired" ? "anons" : "released",
-            episodes: item.episodes, score: String(item.score ?? ""),
-            aired_on: item.aired?.from, description: item.synopsis,
-            genres: [], rates_statuses_stats: [{ value: item.members ?? 0 }],
-          }),
-          rating: item.rating ?? null,
-        })),
+        items: body.data
+          .filter(
+            (item) =>
+              Number.isInteger(item.mal_id) &&
+              item.mal_id > 0 &&
+              !/^rx/i.test(item.rating ?? ""),
+          )
+          .map((item) => ({
+            ...toAnimeSummary({
+              id: item.mal_id,
+              name: item.title,
+              russian: null,
+              english: item.title_english ? [item.title_english] : [],
+              japanese: item.title_japanese ? [item.title_japanese] : [],
+              image: {
+                original:
+                  item.images?.webp?.large_image_url ??
+                  item.images?.jpg?.large_image_url,
+                preview: item.images?.webp?.image_url ?? item.images?.jpg?.image_url,
+              },
+              kind: item.type?.toLowerCase(),
+              status: item.airing
+                ? "ongoing"
+                : item.status === "Not yet aired"
+                  ? "anons"
+                  : "released",
+              episodes: item.episodes,
+              score: String(item.score ?? ""),
+              aired_on: item.aired?.from,
+              description: item.synopsis,
+              genres: [],
+              rates_statuses_stats: [{ value: item.members ?? 0 }],
+            }),
+            rating: item.rating ?? null,
+          })),
       };
     } catch (error) {
       if (attempt === 3) throw error;
@@ -78,21 +115,38 @@ async function run() {
       const page = state[provider];
       let result;
       try {
-        result = provider === "shikimori"
-          ? await shiki.listAnimes({ order: "id", limit: 50, page, censored: true }).then((items) => ({ items: items.map(toAnimeSummary), more: items.length === 50 }))
-          : await jikanPage(page);
+        result =
+          provider === "shikimori"
+            ? await shiki
+                .listAnimes({ order: "id", limit: 50, page, censored: true })
+                .then((items) => ({
+                  items: items.map(toAnimeSummary),
+                  more: items.length === 50,
+                }))
+            : await jikanPage(page);
       } catch (error) {
         console.warn(`${provider} page ${page}: ${error.message}. Checkpoint kept.`);
         break;
       }
       const unique = [...new Map(result.items.map((item) => [item.id, item])).values()];
-      const existing = new Set((await prisma.anime.findMany({ where: { id: { in: unique.map((item) => item.id) } }, select: { id: true } })).map((row) => row.id));
+      const existing = new Set(
+        (
+          await prisma.anime.findMany({
+            where: { id: { in: unique.map((item) => item.id) } },
+            select: { id: true },
+          })
+        ).map((row) => row.id),
+      );
       const missing = unique.filter((item) => !existing.has(item.id));
       const batch = missing.slice(0, target - total);
-      if (batch.length) await prisma.anime.createMany({
-        data: batch.map((item) => ({ ...toAnimeListRow(item), rating: item.rating ?? null })),
-        skipDuplicates: true,
-      });
+      if (batch.length)
+        await prisma.anime.createMany({
+          data: batch.map((item) => ({
+            ...toAnimeListRow(item),
+            rating: item.rating ?? null,
+          })),
+          skipDuplicates: true,
+        });
       total = await prisma.anime.count();
       state[provider] = batch.length < missing.length || !result.more ? page : page + 1;
       await writeFile(temporary, JSON.stringify(state, null, 2) + "\n");
@@ -101,10 +155,17 @@ async function run() {
       if (!result.more) break;
     }
   }
-  console.log(`Finished: ${total} unique titles (${total - before} added). Target ${target}: ${total >= target ? "reached" : "not reached"}.`);
+  console.log(
+    `Finished: ${total} unique titles (${total - before} added). Target ${target}: ${total >= target ? "reached" : "not reached"}.`,
+  );
   if (total < target) process.exitCode = 2;
 }
 
-try { await run(); }
-catch (error) { console.error(error.message); process.exitCode = 1; }
-finally { await prisma.$disconnect(); }
+try {
+  await run();
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+} finally {
+  await prisma.$disconnect();
+}

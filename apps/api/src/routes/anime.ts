@@ -12,6 +12,7 @@ import { NotFoundError } from "../lib/errors.js";
 import { fetchSkipTimes } from "../lib/skip-times.js";
 import { parse } from "../lib/validation.js";
 import { kodikMasterPlaylist } from "../services/kodik-streams.js";
+import { registerAnimeDownloads } from "./anime-download.js";
 import { sendAnimeVostVideo } from "../lib/video-response.js";
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -55,6 +56,7 @@ function slimWatch(response: WatchResponse): WatchResponse {
 
 export const animeRoutes: FastifyPluginAsync = async (fastify) => {
   const { catalog, watch, episodeInfo } = fastify.services;
+  await registerAnimeDownloads(fastify, watch);
 
   fastify.get("/anime", { preHandler: fastify.optionalAuth }, async (request) => {
     const query = parse(animeQuerySchema, request.query);
@@ -293,6 +295,56 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     );
     return slimWatch(await (refresh ? watch.refreshSources(id) : watch.getSources(id)));
   });
+
+  fastify.get(
+    "/anime/:id/streams/alloha/:translationId/:episode/master.m3u8",
+    {
+      config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+      preHandler: fastify.optionalAuth,
+    },
+    async (request, reply) => {
+      const { id, translationId, episode } = parse(
+        z.object({
+          id: z.coerce.number().int().positive(),
+          translationId: z.string().regex(/^\d{1,12}$/),
+          episode: z.coerce.number().int().min(1).max(10000),
+        }),
+        request.params,
+      );
+      const allowAdult = await resolveAllowAdult(
+        fastify.prisma,
+        request.userId,
+        request.headers["x-adult-dob"],
+      );
+      const title = await fastify.prisma.anime.findFirst({
+        where: { id, ...contentGuardWhere(allowAdult) },
+        select: { id: true },
+      });
+      if (!title) throw new NotFoundError("Аниме не найдено.");
+      const manifest = await watch.getAllohaMaster(id, translationId, episode);
+      return reply
+        .header("cache-control", "private, no-store")
+        .type("application/vnd.apple.mpegurl")
+        .send(manifest);
+    },
+  );
+
+  fastify.get(
+    "/anime/:id/streams/alloha/session/:session/:asset",
+    { config: { rateLimit: { max: 600, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { id, session, asset } = parse(
+        z.object({
+          id: z.coerce.number().int().positive(),
+          session: z.string().uuid(),
+          asset: z.string().regex(/^[a-f0-9]{24}$/),
+        }),
+        request.params,
+      );
+      // Opaque, short-lived session already passed the title's content guard.
+      return watch.allohaStreams.sendAsset(id, session, asset, request, reply);
+    },
+  );
 
   fastify.get(
     "/anime/:id/streams/kodik/:translationId/:episode/master.m3u8",

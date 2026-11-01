@@ -75,6 +75,8 @@ export const watchSourceSchema = z.object({
 export type WatchSource = z.infer<typeof watchSourceSchema>;
 
 export const watchResponseSchema = z.object({
+  /** Optional Kodik embeds, offered explicitly in the existing engine picker. */
+  fallbackSources: z.array(watchSourceSchema).optional(),
   /** Optional providers are still resolving; the client can refresh briefly. */
   sourcesPending: z.boolean().optional(),
   available: z.boolean(),

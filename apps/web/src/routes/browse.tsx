@@ -18,12 +18,35 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
-import { BrowseFilters, type FilterPatch } from "@/components/anime/browse-filters";
-import { AnimeGrid, AnimeGridSkeleton, type AnimeViewMode } from "@/components/anime/anime-grid";
+import { CatalogIntro } from "@/components/anime/catalog-intro";
+import {
+  BrowseFilters,
+  BrowseSearch,
+  type FilterPatch,
+} from "@/components/anime/browse-filters";
+import {
+  AnimeGrid,
+  AnimeGridSkeleton,
+  type AnimeViewMode,
+} from "@/components/anime/anime-grid";
 import { PaginationBar } from "@/components/common/pagination-bar";
 import { ErrorState, NoResultsState } from "@/components/common/states";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/i18n";
@@ -106,10 +129,22 @@ export function Component() {
   // one, in groups — the quick answer at once, the thorough one (characters,
   // studios, plot) put in its place when it lands.
   const searchWithFilters =
-    isSearch && (activeFilterCount(params) > 0 || params.hasCustomPlayer === true || (params.orderBy ?? "popularity") !== "popularity");
-  const quickSearch = useSmartSearch(params.q ?? "", isSearch && !searchWithFilters, true);
-  const fullSearch = useSmartSearch(params.q ?? "", isSearch && !searchWithFilters, false);
-  const search = fullSearch.data && fullSearch.data.query === params.q ? fullSearch : quickSearch;
+    isSearch &&
+    (activeFilterCount(params) > 0 ||
+      params.hasCustomPlayer === true ||
+      (params.orderBy ?? "popularity") !== "popularity");
+  const quickSearch = useSmartSearch(
+    params.q ?? "",
+    isSearch && !searchWithFilters,
+    true,
+  );
+  const fullSearch = useSmartSearch(
+    params.q ?? "",
+    isSearch && !searchWithFilters,
+    false,
+  );
+  const search =
+    fullSearch.data && fullSearch.data.query === params.q ? fullSearch : quickSearch;
 
   const patch = useCallback(
     (changes: FilterPatch, opts: { resetPage?: boolean } = {}) => {
@@ -120,7 +155,10 @@ export function Component() {
       }
       if (opts.resetPage !== false) next.delete("page");
       // A filter changes the list in place; turning a page still starts at the top.
-      setSearchParams(next, { replace: true, preventScrollReset: !("page" in changes) });
+      setSearchParams(next, {
+        replace: true,
+        preventScrollReset: !("page" in changes),
+      });
     },
     [searchParams, setSearchParams],
   );
@@ -146,7 +184,7 @@ export function Component() {
   );
 
   const browse = useBrowse(params, !isSearch || searchWithFilters);
-  const total = browse.data?.meta.total;
+  const total = browse.isPlaceholderData ? undefined : browse.data?.meta.total;
   const filterCount = activeFilterCount(params);
 
   // The pill at the bottom: only once the toolbar is off the top of the
@@ -157,7 +195,9 @@ export function Component() {
     const el = toolbarRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(([entry]) => {
-      setToolbarAbove(entry != null && !entry.isIntersecting && entry.boundingClientRect.top < 0);
+      setToolbarAbove(
+        entry != null && !entry.isIntersecting && entry.boundingClientRect.top < 0,
+      );
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -166,52 +206,68 @@ export function Component() {
   // Once the filter row has scrolled away, the filters ride along at the
   // bottom of the screen as one pill — on every screen, whichever way the
   // page is being scrolled.
-  const pillShown = toolbarAbove && !sheetOpen;
+  const pillShown = toolbarAbove && !sheetOpen && !wide;
 
   const sort = (
-    <Select value={params.orderBy ?? "popularity"} onValueChange={(value) => patch({ orderBy: value })}>
+    <Select
+      value={params.orderBy ?? "popularity"}
+      onValueChange={(value) => patch({ orderBy: value })}
+    >
       <SelectTrigger className="h-10 w-full min-w-0" aria-label={t("browse.sortBy")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {SORT_VALUES.map((value) => (
-          <SelectItem key={value} value={value}>
-            {t(`sort.${value}`)}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {SORT_VALUES.map((value) => (
+            <SelectItem key={value} value={value}>
+              {t(`sort.${value}`)}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   );
 
-
   return (
-    <div className="flex min-w-0 flex-col gap-5 sm:gap-6">
-      <header className="flex flex-col gap-4 border-b border-border/40 pb-4 sm:pb-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h1 className="font-display text-xl sm:text-3xl">{t("browse.pageTitle")}</h1>
-          {total != null && (!isSearch || searchWithFilters) && (
-            <p className="shrink-0 text-xs tabular-nums text-muted-foreground sm:text-sm">{titlesCount(total)}</p>
-          )}
-        </div>
-        <PresetRow params={params} isSearch={isSearch} onChange={(changes) => patch(changes)} />
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <button type="button" aria-pressed={params.dubbingStudio === "hon-kon"} onClick={() => patch({ dubbingStudio: params.dubbingStudio ? null : "hon-kon" })} className={cn("inline-flex min-h-9 items-center gap-2 rounded-xl border px-3 transition-colors", params.dubbingStudio ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>Озвучка Hon-Kon Studio</button>
-          <Link to="/studio/hon-kon/releases" className="text-muted-foreground underline-offset-4 hover:text-primary hover:underline">Релизы студии</Link>
-        </div>
-      </header>
+    <div className="catalog-page flex min-w-0 flex-col gap-6 sm:gap-8">
+      <CatalogIntro items={browse.data?.items ?? []} searching={isSearch} playable={params.hasPlayer === true} onPlayable={() => patch({ hasPlayer: params.hasPlayer ? null : "1", all: null })}>
+        <BrowseSearch params={params} onChange={patch} />
+        <PresetRow
+          params={params}
+          isSearch={isSearch}
+          onChange={(changes) => patch(changes)}
+        />
+      </CatalogIntro>
 
-      <div className="flex flex-col gap-4">
+      <div className="grid items-start gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
+        <aside
+          aria-label="Фильтры каталога"
+          className="hidden max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border/60 bg-card/45 p-4 [scrollbar-width:thin] lg:sticky lg:top-24 lg:block"
+        >
+          <BrowseFilters
+            params={params}
+            genres={genres}
+            onChange={patch}
+            onReset={resetFilters}
+          />
+        </aside>
 
-        <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
+        <div className="catalog-results flex min-w-0 flex-col gap-4 sm:gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-base sm:text-lg">{isSearch ? "Результаты поиска" : filterCount ? "Под твой запрос" : "Выбирай, что смотреть"}</h2>
+            {total != null && (!isSearch || searchWithFilters) && <span className="text-xs tabular-nums text-muted-foreground">{titlesCount(total)}</span>}
+          </div>
           {/* The row: filters (on a phone or tablet), the order, and on a
               wider screen "pick one at random" and grid or list. */}
-          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2">
+          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-card/50 p-2.5">
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
               className={cn(
-                "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-colors",
-                filterCount > 0 ? "border-primary/50 bg-primary/10 text-foreground" : "border-border/70 bg-card/60 hover:border-foreground/20 hover:bg-card",
+                "inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-colors lg:hidden",
+                filterCount > 0
+                  ? "border-primary/50 bg-primary/10 text-foreground"
+                  : "border-border/70 bg-card/60 hover:border-foreground/20 hover:bg-card",
               )}
             >
               <SlidersHorizontalIcon className="size-4" />
@@ -222,8 +278,21 @@ export function Component() {
                 </span>
               )}
             </button>
-            {isSearch && <h2 className="min-w-0 flex-1 truncate font-display text-lg">«{params.q}»</h2>}
-            <div className={cn("min-w-0", isSearch ? "order-3 w-full sm:order-none sm:w-48" : "min-w-32 flex-1 sm:w-56 sm:flex-none")}>{sort}</div>
+            {isSearch && (
+              <h2 className="min-w-0 flex-1 truncate font-display text-lg">
+                «{params.q}»
+              </h2>
+            )}
+            <div
+              className={cn(
+                "min-w-0",
+                isSearch
+                  ? "order-3 w-full sm:order-none sm:w-48"
+                  : "min-w-32 flex-1 sm:w-56 sm:flex-none",
+              )}
+            >
+              {sort}
+            </div>
             {!isSearch && <RandomButton params={params} />}
             <ViewSwitch view={view} onView={changeView} />
           </div>
@@ -232,10 +301,13 @@ export function Component() {
               scrolls sideways on a phone. */}
           {filterCount > 0 && (
             <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
-              <ActiveFilterChips params={params} genres={genres} onChange={(changes) => patch(changes)} />
+              <ActiveFilterChips
+                params={params}
+                genres={genres}
+                onChange={(changes) => patch(changes)}
+              />
             </div>
           )}
-
 
           {isSearch && !searchWithFilters ? (
             <SearchResults
@@ -246,7 +318,12 @@ export function Component() {
               onRetry={() => void search.refetch()}
             />
           ) : (
-            <CatalogResults params={params} view={view} buildHref={goToPage} />
+            <CatalogResults
+              key={JSON.stringify(params)}
+              params={params}
+              view={view}
+              buildHref={goToPage}
+            />
           )}
         </div>
       </div>
@@ -257,15 +334,24 @@ export function Component() {
         <SheetContent
           side={wide ? "right" : "bottom"}
           onOpenAutoFocus={(event) => event.preventDefault()}
-          className={cn("flex flex-col gap-0 bg-background p-0", wide ? "w-[22rem] border-l border-border/60" : "max-h-[88dvh] rounded-t-2xl border-t border-border/60")}
+          className={cn(
+            "flex flex-col gap-0 bg-background p-0",
+            wide
+              ? "w-[22rem] border-l border-border/60"
+              : "max-h-[88dvh] rounded-t-2xl border-t border-border/60",
+          )}
         >
           <SheetHeader className="border-b border-border/60 px-4 py-3">
             <SheetTitle>{t("browse.filters")}</SheetTitle>
-            <SheetDescription className="sr-only">{t("browse.filtersHint")}</SheetDescription>
+            <SheetDescription className="sr-only">
+              {t("browse.filtersHint")}
+            </SheetDescription>
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{t("browse.sortBy")}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                {t("browse.sortBy")}
+              </span>
               {sort}
             </div>
             <BrowseFilters
@@ -288,7 +374,10 @@ export function Component() {
               </button>
             )}
             <SheetClose asChild>
-              <button type="button" className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground">
+              <button
+                type="button"
+                className="h-11 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+              >
                 {total != null && (!isSearch || searchWithFilters)
                   ? t("browse.showResults", { count: titlesCount(total) })
                   : t("browse.showResultsBare")}
@@ -302,7 +391,9 @@ export function Component() {
         aria-hidden={!pillShown}
         className={cn(
           "fixed bottom-[calc(var(--mobile-nav-space)+0.75rem)] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border border-border/70 bg-card/95 p-1 shadow-lg shadow-black/40 backdrop-blur transition-[opacity,transform] duration-300 ease-out",
-          pillShown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
+          pillShown
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0",
         )}
       >
         <button
@@ -442,7 +533,9 @@ function PresetRow({
       <button
         type="button"
         aria-pressed={!any && !isSearch}
-        onClick={() => onChange(Object.assign({}, ...PRESETS.map((p) => undo(p.patch)), { q: null }))}
+        onClick={() =>
+          onChange(Object.assign({}, ...PRESETS.map((p) => undo(p.patch)), { q: null }))
+        }
         className={chip(!any && !isSearch)}
       >
         <LayoutGridIcon className="size-4" />
@@ -483,7 +576,11 @@ function applyClientFilters(
     if (params.hasCustomPlayer && !a.hasCustomPlayer) return false;
     // Smart search has no server-side genre filter of its own — this is the
     // only place a genre filter can apply while a search term is active.
-    if (selectedGenreNames.size > 0 && !a.genres.some((name) => selectedGenreNames.has(name))) return false;
+    if (
+      selectedGenreNames.size > 0 &&
+      !a.genres.some((name) => selectedGenreNames.has(name))
+    )
+      return false;
     return true;
   });
 }
@@ -507,20 +604,33 @@ function SearchResults({
   if (isError) return <ErrorState onRetry={onRetry} />;
   if (isPending || !data) return <AnimeGridSkeleton count={12} view={view} />;
 
-  const selectedGenreNames = new Set(genres.filter((g) => params.genres?.includes(g.id)).map((g) => g.name));
+  const selectedGenreNames = new Set(
+    genres.filter((g) => params.genres?.includes(g.id)).map((g) => g.name),
+  );
   const groups = data.groups
-    .map((g) => ({ ...g, items: applyClientFilters(g.items, params, selectedGenreNames) }))
+    .map((g) => ({
+      ...g,
+      items: applyClientFilters(g.items, params, selectedGenreNames),
+    }))
     .filter((g) => g.items.length > 0);
 
   if (groups.length === 0) return <NoResultsState query={params.q} />;
 
   return (
-    <div className={cn("flex flex-col gap-10 transition-opacity", isFetching && "opacity-70")}>
+    <div
+      className={cn(
+        "flex flex-col gap-10 transition-opacity",
+        isFetching && "opacity-70",
+      )}
+    >
       {data.detectedGenres.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {t("search.detectedAs", { genres: "" })}
           {data.detectedGenres.map((g) => (
-            <span key={g} className="rounded-md border border-border/70 bg-foreground/[0.06] px-2 py-0.5 text-xs font-medium text-foreground">
+            <span
+              key={g}
+              className="rounded-md border border-border/70 bg-foreground/[0.06] px-2 py-0.5 text-xs font-medium text-foreground"
+            >
               {g}
             </span>
           ))}
@@ -532,9 +642,15 @@ function SearchResults({
           <h2 className="flex items-center gap-2 font-display text-lg tracking-tight">
             <span aria-hidden className="h-4 w-1 rounded-full bg-primary" />
             {groupTitle(group.reason, group.label, t)}
-            {isFetching && index === 0 && <Loader2Icon className="ml-2 inline size-3.5 animate-spin text-muted-foreground" />}
+            {isFetching && index === 0 && (
+              <Loader2Icon className="ml-2 inline size-3.5 animate-spin text-muted-foreground" />
+            )}
           </h2>
-          <AnimeGrid items={group.items} priorityCount={index === 0 ? 6 : 0} view={view} />
+          <AnimeGrid
+            items={group.items}
+            priorityCount={index === 0 ? 6 : 0}
+            view={view}
+          />
         </section>
       ))}
       <p className="text-xs text-muted-foreground">
@@ -591,10 +707,15 @@ function CatalogResults({
   const total = first.data?.meta.total ?? 0;
   const perPage = first.data?.meta.perPage ?? params.perPage;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
-  const pages = Array.from({ length: extra }, (_, i) => params.page + i + 1).filter((n) => n <= lastPage);
+  const pages = Array.from({ length: extra }, (_, i) => params.page + i + 1).filter(
+    (n) => n <= lastPage,
+  );
   // Warm the page after the last one shown, so "next" and "load more" open at once.
   const nextPage = params.page + pages.length + 1;
-  useBrowse({ ...params, page: nextPage }, Boolean(first.data) && !first.isPlaceholderData && nextPage <= lastPage);
+  useBrowse(
+    { ...params, page: nextPage },
+    Boolean(first.data) && !first.isPlaceholderData && nextPage <= lastPage,
+  );
 
   if (first.isError) return <ErrorState onRetry={() => void first.refetch()} />;
   if (first.isPending) return <AnimeGridSkeleton view={view} />;
@@ -602,7 +723,10 @@ function CatalogResults({
 
   return (
     <div
-      className={cn("flex flex-col gap-6 transition-opacity duration-300", first.isPlaceholderData && "opacity-60")}
+      className={cn(
+        "flex flex-col gap-6 transition-opacity duration-300",
+        first.isPlaceholderData && "opacity-60",
+      )}
       aria-busy={first.isPlaceholderData}
     >
       <AnimeGrid items={first.data.items} priorityCount={6} view={view} />
@@ -630,7 +754,15 @@ function CatalogResults({
 }
 
 /** One more page under the ones already shown. */
-function MorePage({ params, page, view }: { params: BrowseParams; page: number; view: AnimeViewMode }) {
+function MorePage({
+  params,
+  page,
+  view,
+}: {
+  params: BrowseParams;
+  page: number;
+  view: AnimeViewMode;
+}) {
   const { data, isPending } = useBrowse({ ...params, page });
   if (isPending || !data) return <AnimeGridSkeleton view={view} />;
   return (
@@ -641,14 +773,23 @@ function MorePage({ params, page, view }: { params: BrowseParams; page: number; 
 }
 
 /** Grid or wide cards. */
-function ViewSwitch({ view, onView }: { view: AnimeViewMode; onView: (view: string) => void }) {
+function ViewSwitch({
+  view,
+  onView,
+}: {
+  view: AnimeViewMode;
+  onView: (view: string) => void;
+}) {
   const { t } = useI18n();
   const options = [
     { value: "grid", icon: LayoutGridIcon, label: t("library.viewGrid") },
     { value: "list", icon: ListIcon, label: t("library.viewList") },
   ] as const;
   return (
-    <div role="radiogroup" className="hidden h-10 shrink-0 items-center gap-0.5 rounded-lg border border-border/70 bg-card/60 p-0.5 sm:flex">
+    <div
+      role="radiogroup"
+      className="hidden h-10 shrink-0 items-center gap-0.5 rounded-lg border border-border/70 bg-card/60 p-0.5 sm:flex"
+    >
       {options.map(({ value, icon: Icon, label }) => (
         <button
           key={value}
@@ -660,7 +801,9 @@ function ViewSwitch({ view, onView }: { view: AnimeViewMode; onView: (view: stri
           onClick={() => onView(value)}
           className={cn(
             "grid size-8 place-items-center rounded-md transition-colors",
-            view === value ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground",
+            view === value
+              ? "bg-foreground/10 text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           <Icon className="size-4" />

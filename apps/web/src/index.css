@@ -1985,6 +1985,20 @@ body:has([role="dialog"][data-state="open"]) main * {
   4%, 94% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(0); }
 }
+@keyframes player-action-enter {
+  from { opacity: 0; transform: translateY(6px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@container player (max-width: 480px) {
+  .player-net-stats { display: none; }
+  .player-controls button { min-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-segment-action, .player-control-button, [data-player-next] * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 .pic-range:focus-visible { outline: none; }
 .pic-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--primary), 0 2px 6px rgb(0 0 0 / 0.5); }
 @media (pointer: coarse) {
@@ -2001,3 +2015,42 @@ body:has([role="dialog"][data-state="open"]) main * {
 @media (prefers-reduced-motion: reduce) {
   .ep-progress-fill { transition: none; }
 }
+
+/* The catalogue gives cover art room to read; other poster rails keep their density. */
+.catalog-results .anime-grid-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem .8rem; }
+@media (min-width: 640px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.8rem 1rem; } }
+@media (min-width: 1024px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+:root { --music-player-space: 0px; }
+:root.has-music-player { --music-player-space: 7rem; }
+.catalog-page aside::-webkit-scrollbar { width: 4px; }
+.catalog-page aside::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.frame-peek { --peek-x: 50%; --peek-y: 50%; outline-offset: -3px; }
+.frame-peek[data-peeking="true"] .frame-peek-blur { mask-image: radial-gradient(circle 46px at var(--peek-x) var(--peek-y), transparent 40px, black 49px); }
+.frame-peek-ring { left: var(--peek-x); top: var(--peek-y); transform: translate(-50%, -50%); opacity: 0; }
+.frame-peek[data-peeking="true"] .frame-peek-ring { opacity: 1; }
+
+/* Cosmic background. Both images are static; only the small petals move. */
+.site-scenery { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; contain: strict; background: radial-gradient(ellipse at 4% 5%, #53253f24, transparent 42%), radial-gradient(ellipse at 98% 18%, #4941691c, transparent 35%), #0c0d16; }
+.scenery-stars { position: absolute; inset: 0; background: url('/background/stars.svg') top center / 1000px 800px repeat; opacity: .65; }
+.scenery-moon { position: absolute; right: 12px; top: 104px; width: clamp(120px, 14vw, 185px); aspect-ratio: 1; opacity: .4; }
+.scenery-moon::before { content: ""; position: absolute; inset: -55%; border-radius: 50%; background: radial-gradient(circle, #e0bbda24, #9c8dd916 38%, transparent 70%); }
+.scenery-moon picture, .scenery-moon img { position: relative; display: block; width: 100%; height: 100%; }
+.scenery-moon img { border-radius: 50%; mask-image: radial-gradient(circle closest-side, #000 97%, transparent 100%); }
+.scenery-content-shade { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, #0c0d164d 18%, #0c0d16bf 38%, #0c0d16bf 65%, #0c0d164d 83%, transparent); }
+.scenery-petals { position: absolute; inset: 0; overflow: hidden; }
+.scenery-petal { position: absolute; top: -30px; width: var(--petal-size); height: calc(var(--petal-size) * 1.25); opacity: 0; animation: scenery-fall var(--fall-time) linear var(--fall-delay) infinite; }
+.scenery-petal img { display: block; width: 100%; height: 100%; animation: scenery-sway var(--sway-time) ease-in-out var(--fall-delay) infinite alternate; }
+[data-site-background]:not([data-theme="light"]) { --background: #0c0d16; }
+.site-scenery[data-paused=true] *, .site-scenery[data-save-data=true] * { animation-play-state: paused !important; }
+.site-scenery[data-economy=true] .scenery-petal:nth-child(n+5), .site-scenery[data-save-data=true] .scenery-petals { display: none; }
+@keyframes scenery-fall { 0% { transform: translate3d(-12px, -30px, 0); opacity: 0; } 8% { opacity: .3; } 50% { transform: translate3d(22px, 50vh, 0); opacity: .26; } 94% { opacity: .12; } 100% { transform: translate3d(-8px, calc(100vh + 40px), 0); opacity: 0; } }
+@keyframes scenery-sway { from { transform: rotate(-25deg) rotateY(0deg); } to { transform: rotate(55deg) rotateY(65deg); } }
+@media (prefers-reduced-motion: reduce) { .site-scenery * { animation: none !important; } .scenery-petals { display: none; } }
+[data-theme="light"] .site-scenery { background: #f5f0f5; opacity: .6; }
+[data-theme="light"] .scenery-content-shade { background: linear-gradient(90deg, transparent, #f5f0f5ee 40%, #f5f0f5ee 65%, transparent); }
+
+.scenery-nebula { position: absolute; left: -160px; bottom: -150px; width: clamp(420px, 48vw, 700px); opacity: .24; }
+.scenery-nebula img { display: block; width: 100%; height: auto; }
+@media (max-width: 767px) { .scenery-petal:nth-child(n+7) { display: none; } .scenery-moon { width: 125px; right: -26px; top: 100px; opacity: .3; } .scenery-stars { opacity: .4; } .scenery-nebula { width: 360px; left: -160px; bottom: -70px; opacity: .2; } }

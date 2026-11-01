@@ -9,10 +9,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
-import Fastify, {
-  type FastifyError,
-  type FastifyInstance,
-} from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { env, isProduction } from "./config/env.js";
 import { loggerConfig } from "./lib/logger.js";
 import { AppError } from "./lib/errors.js";
@@ -29,6 +26,10 @@ import { commentRoutes } from "./routes/comments.js";
 import { discoverRoutes } from "./routes/discover.js";
 import { funRoutes } from "./routes/fun.js";
 import { gameRoutes } from "./routes/games.js";
+import { dailyChallengeRoutes } from "./routes/daily-challenge.js";
+import { leaderboardRoutes } from "./routes/leaderboards.js";
+import { openingGameRoutes } from "./routes/opening-game.js";
+import { animeMusicRoutes } from "./routes/anime-music.js";
 import { collectionRoutes } from "./routes/collections.js";
 import { genreRoutes } from "./routes/genres.js";
 import { healthRoutes } from "./routes/health.js";
@@ -52,7 +53,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: loggerConfig,
     // A line for every request filled the system journal; production counts
     // them in the hourly digest instead (LOG_REQUESTS=true brings them back).
-    disableRequestLogging: env.LOG_REQUESTS ? env.LOG_REQUESTS === "false" : isProduction,
+    disableRequestLogging: env.LOG_REQUESTS
+      ? env.LOG_REQUESTS === "false"
+      : isProduction,
     // Only the local reverse proxy (Caddy) may set X-Forwarded-For — trusting
     // it from anyone let a forged header reset the per-IP rate limit.
     trustProxy: ["127.0.0.1", "::1"],
@@ -107,7 +110,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   const PUBLIC_CACHE: Array<[RegExp, string]> = [
     [/^\/api\/discover(\?|$)/, "public, max-age=60, stale-while-revalidate=300"],
     [/^\/api\/genres(\?|$)/, "public, max-age=3600"],
-    [/^\/api\/anime\/by-slug\/[^/]+(\?|$)/, "public, max-age=120, stale-while-revalidate=600"],
+    [
+      /^\/api\/anime\/by-slug\/[^/]+(\?|$)/,
+      "public, max-age=120, stale-while-revalidate=600",
+    ],
     [/^\/api\/anime\/\d+(\?|$)/, "public, max-age=120, stale-while-revalidate=600"],
     [/^\/api\/anime(\?|$)/, "public, max-age=60, stale-while-revalidate=300"],
     [/^\/api\/search(\?|$)/, "public, max-age=60"],
@@ -173,9 +179,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
 
     request.log.error({ err: error }, "unhandled error");
-    logDigest.error(error.message || "unhandled error", `${request.method} ${request.routeOptions?.url ?? "unmatched"}`);
+    logDigest.error(
+      error.message || "unhandled error",
+      `${request.method} ${request.routeOptions?.url ?? "unmatched"}`,
+    );
     const status =
-      typeof error.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 500
+      typeof error.statusCode === "number" &&
+      error.statusCode >= 400 &&
+      error.statusCode < 500
         ? error.statusCode
         : 500;
     return reply.code(status).send({
@@ -201,6 +212,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(imageRoutes);
       await api.register(discoverRoutes);
       await api.register(animeRoutes);
+      await api.register(animeMusicRoutes);
       await api.register(studioRoutes);
       await api.register(searchRoutes);
       await api.register(genreRoutes);
@@ -213,6 +225,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       await api.register(recommendationRoutes);
       await api.register(funRoutes);
       await api.register(gameRoutes);
+      await api.register(openingGameRoutes);
+      await api.register(dailyChallengeRoutes);
+      await api.register(leaderboardRoutes);
       await api.register(collectionRoutes);
       await api.register(analyticsRoutes);
       await api.register(adminRoutes);

@@ -101,9 +101,9 @@ function toIso(date: string | null | undefined): string | null {
 
 function imageUrl(path: string | null | undefined): string | null {
   if (!path || path.includes("missing")) return null;
-  // Strip Shikimori's cache-busting query (?1711947446) so the proxy caches cleanly.
-  const clean = path.split("?")[0] ?? path;
-  return clean.startsWith("http") ? clean : `${SHIKIMORI_BASE}${clean}`;
+  // The timestamp is the image revision, not tracking. Keep it so replacing
+  // an announcement image gets a new proxy/browser cache key.
+  return path.startsWith("http") ? path : `${SHIKIMORI_BASE}${path}`;
 }
 
 /**
@@ -120,8 +120,8 @@ function posterFrom(
   const img = anime.image;
   if (!img) return null;
   return size === "original"
-    ? imageUrl(img.original) ?? imageUrl(img.preview)
-    : imageUrl(img.preview) ?? imageUrl(img.original);
+    ? (imageUrl(img.original) ?? imageUrl(img.preview))
+    : (imageUrl(img.preview) ?? imageUrl(img.original));
 }
 
 function sumStats(stats: Array<{ value: number }> | undefined): number | null {
@@ -317,7 +317,10 @@ export function toCharacterDetail(raw: {
  * "music"-kind nodes; those are just noise for a "seasons" list, so they're
  * dropped.
  */
-export function toFranchiseEntries(raw: ShikiFranchise, currentId: number): FranchiseEntry[] {
+export function toFranchiseEntries(
+  raw: ShikiFranchise,
+  currentId: number,
+): FranchiseEntry[] {
   return raw.nodes
     .map((node): FranchiseEntry => ({
       id: node.id,

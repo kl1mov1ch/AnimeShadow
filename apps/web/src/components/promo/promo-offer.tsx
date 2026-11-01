@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 
 /** Where the signed-in account stands with the welcome offer. */
 export function usePromo() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   return useQuery({
-    queryKey: ["me", "promo"],
+    queryKey: ["me", "promo", user?.id],
     queryFn: ({ signal }) => apiRequest<PromoState>("/promo", { signal }),
     enabled: status === "authenticated",
     staleTime: 5 * 60_000,
@@ -21,17 +21,20 @@ export function usePromo() {
 
 /** PRO now (paid, granted or the free month) — what the site's PRO features ask. Null while unknown. */
 export function useIsPro(): boolean | null {
+  const { status } = useAuth();
   const { data } = usePromo();
+  if (status !== "authenticated") return false;
   if (!data) return null;
   return data.phase === "pro" || data.phase === "trial";
 }
 
 export function useClaimPromo() {
+  const { user } = useAuth();
   const client = useQueryClient();
   return useMutation({
     mutationFn: () => apiRequest<PromoState>("/promo/claim", { method: "POST" }),
     onSuccess: (state) => {
-      client.setQueryData(["me", "promo"], state);
+      client.setQueryData(["me", "promo", user?.id], state);
       void client.invalidateQueries({ queryKey: ["me", "profile"] });
     },
   });

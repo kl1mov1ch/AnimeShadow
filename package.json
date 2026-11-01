@@ -16,6 +16,9 @@
     "db:grant-pro": "pnpm --filter @animeshadow/db grant-pro",
     "db:studio": "pnpm --filter @animeshadow/db studio",
     "catalog:expand": "pnpm --filter @animeshadow/db bulk-seed",
+    "test:arcade": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/arcade.test.ts ../../tests/artwork.test.ts",
+    "test:alloha": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/alloha-streams.test.ts",
+    "test:music": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/music.test.ts",
     "test:player": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/player.test.ts ../../tests/player-response.test.ts ../../tests/notifications.test.ts ../../tests/push-delivery.test.ts ../../tests/episode-info.test.ts ../../tests/payments.test.ts ../../tests/party.test.ts ../../tests/party-broadcast.test.ts ../../tests/preview.test.ts ../../tests/frame-search.test.ts ../../tests/mobile-navigation.test.ts ../../tests/tv.test.ts ../../tests/ux-rebuild.test.ts ../../tests/kodik-identities.test.ts ../../tests/studios.test.ts ../../tests/seo-episodes.test.ts",
     "packages:build": "pnpm --filter \"./packages/*\" -r build",
     "setup": "pnpm install && pnpm db:up && pnpm db:generate && pnpm packages:build && pnpm db:migrate && pnpm db:seed",
@@ -27,7 +30,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\"",
+    "test:download": "pnpm --filter @animeshadow/api exec tsx --test ../../tests/download.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

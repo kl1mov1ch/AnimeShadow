@@ -11,6 +11,7 @@ export interface AllohaClientOptions {
 }
 
 export interface AllohaResult {
+  kinopoiskId?: number;
   /** Aggregated iframe (Alloha's own player). */
   iframe: string;
   /** Per-translation iframes, keyed by translation id. */
@@ -28,10 +29,16 @@ const DEFAULTS = {
 interface AllohaResponse {
   status: string;
   data?: {
+    name?: string;
+    original_name?: string;
+    alternative_name?: string;
+    year?: number | string;
+    category?: number;
+    id_kp?: number | string;
     iframe?: string;
     quality?: string;
     translation_iframe?: Record<string, { iframe?: string; name?: string }>;
-    translation?: Record<string, string> | Array<{ id: number; name: string }>;
+    translation?: string | Record<string, string> | Array<{ id: number; name: string }>;
   };
 }
 
@@ -49,9 +56,44 @@ export class AllohaClient {
   }
 
   async getByKinopoiskId(kinopoiskId: number): Promise<AllohaResult | null> {
+    const data = await this.lookup("kp", String(kinopoiskId));
+    return data ? toResult(data) : null;
+  }
+
+  /** Independent lookup for titles Kodik does not have. Reject another season. */
+  async findByTitles(
+    titles: string[],
+    year: number,
+    type: string,
+  ): Promise<AllohaResult | null> {
+    const names = [...new Set(titles.map((t) => t.trim()).filter(Boolean))].slice(0, 3);
+    const normalized = new Set(names.map(normalizeTitle));
+    const rows = await Promise.all(names.map((name) => this.lookup("name", name)));
+    const matches = rows.filter((data): data is NonNullable<AllohaResponse["data"]> =>
+      Boolean(
+        data &&
+        Number(data.year) === year &&
+        data.category === (type === "MOVIE" ? 3 : 4) &&
+        [data.name, data.original_name, data.alternative_name].some(
+          (name) => name && normalized.has(normalizeTitle(name)),
+        ),
+      ),
+    );
+    if (
+      !matches.length ||
+      new Set(matches.map((data) => String(data.id_kp ?? data.iframe))).size !== 1
+    )
+      return null;
+    return toResult(matches[0]!);
+  }
+
+  private async lookup(
+    key: "kp" | "name",
+    value: string,
+  ): Promise<NonNullable<AllohaResponse["data"]> | null> {
     const url = new URL(this.baseUrl + "/");
     url.searchParams.set("token", this.token);
-    url.searchParams.set("kp", String(kinopoiskId));
+    url.searchParams.set(key, value);
 
     let response: Response;
     try {
@@ -61,33 +103,51 @@ export class AllohaClient {
     } catch {
       return null;
     }
-    if (!response.ok) return null;
+    if (!response.ok) {
+      void response.body?.cancel();
+      return null;
+    }
 
     const body = (await response.json().catch(() => null)) as AllohaResponse | null;
     if (!body || body.status !== "success" || !body.data?.iframe) return null;
-
-    const translationIframes: Record<string, string> = {};
-    for (const [id, entry] of Object.entries(body.data.translation_iframe ?? {})) {
-      if (entry?.iframe) translationIframes[id] = withScheme(entry.iframe);
-    }
-
-    const translations: Array<{ id: string; name: string }> = [];
-    const raw = body.data.translation;
-    if (Array.isArray(raw)) {
-      for (const t of raw) translations.push({ id: String(t.id), name: t.name });
-    } else if (raw) {
-      for (const [id, name] of Object.entries(raw)) {
-        translations.push({ id, name: String(name) });
-      }
-    }
-
-    return {
-      iframe: withScheme(body.data.iframe),
-      translationIframes,
-      translations,
-      quality: body.data.quality ?? null,
-    };
+    return body.data;
   }
+}
+
+function normalizeTitle(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function toResult(data: NonNullable<AllohaResponse["data"]>): AllohaResult {
+  const translationIframes: Record<string, string> = {};
+  for (const [id, entry] of Object.entries(data.translation_iframe ?? {})) {
+    if (entry?.iframe) translationIframes[id] = withScheme(entry.iframe);
+  }
+
+  const translations: Array<{ id: string; name: string }> = [];
+  const raw = data.translation;
+  if (Array.isArray(raw)) {
+    for (const t of raw) translations.push({ id: String(t.id), name: t.name });
+  } else if (raw && typeof raw === "object") {
+    for (const [id, name] of Object.entries(raw)) {
+      translations.push({ id, name: String(name) });
+    }
+  }
+  for (const [id, entry] of Object.entries(data.translation_iframe ?? {})) {
+    if (entry.name && !translations.some((t) => t.id === id))
+      translations.push({ id, name: entry.name });
+  }
+
+  return {
+    ...(Number(data.id_kp) > 0 ? { kinopoiskId: Number(data.id_kp) } : {}),
+    iframe: withScheme(data.iframe!),
+    translationIframes,
+    translations,
+    quality: data.quality ?? null,
+  };
 }
 
 function withScheme(url: string): string {

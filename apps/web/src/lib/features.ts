@@ -5,6 +5,8 @@
  * to `true` here, nothing else.
  */
 export const FEATURES = {
+  /** Arcade routes are kept for later; the frame game lives on the homepage. */
+  arcade: false,
   /**
    * Profile styling: avatar frames, progress-bar styles, the profile's own
    * colour and the block layout editor. Off: every profile looks the same

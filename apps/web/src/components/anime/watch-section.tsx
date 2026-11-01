@@ -65,6 +65,11 @@ import { formatTime, SeekBar } from "@/components/player/seek-bar";
 import { NetStats } from "@/components/player/net-stats";
 import { MemberFeature } from "@/components/player/member-feature";
 import { SkipSegmentButton } from "@/components/player/skip-segment-button";
+import { EpisodeDownload } from "@/components/player/episode-download";
+import { NextEpisodePrompt } from "@/components/player/next-episode-prompt";
+import { useWatchNavigation } from "@/hooks/use-watch-navigation";
+import { PLAYER_CONTROL_BUTTON as CONTROL_BUTTON, PLAYER_CENTER_BUTTON as CENTER_BUTTON } from "@/lib/player-appearance";
+import { musicSession } from "@/lib/music-session";
 import { type JumpDetail, publishClock, readPlayerClock } from "@/lib/player-clock";
 import type { CommentMark } from "@animeshadow/shared";
 import { fitSegments, SEGMENT_LABEL, segmentAt, type SkipSegment } from "@/lib/skip-times";
@@ -131,15 +136,14 @@ export function WatchSection({
   // Prepare our video on entry; sound and playback require one user action.
   const [activated, setActivated] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [preferOwn, setPreferOwn] = useState(() => {
-    try { return localStorage.getItem("as:player-mode") !== "kodik"; } catch { return true; }
-  });
+  const [preferOwn, setPreferOwn] = useState(true);
   const [switchStart, setSwitchStart] = useState<{ episode: number; seconds: number } | null>(null);
   // Same route, different title: the component is reused, so the choice to
   // load a player on one page must not carry over to the next.
   useEffect(() => {
     setActivated(false);
     setSwitchStart(null);
+    setPreferOwn(true);
   }, [anime.id]);
   const releaseDate = anime.airedFrom ? new Date(anime.airedFrom) : null;
   const notYetOut =
@@ -152,11 +156,13 @@ export function WatchSection({
   // The API exposes direct sources only; every dub uses the same controls.
   const scopedSources = sourceFilter ? rawData?.sources.filter(sourceFilter) : rawData?.sources;
   const ownSources = OWN_PLAYER_ENABLED ? (scopedSources?.filter((s) => s.format === "hls" || s.format === "mp4") ?? []) : [];
-  const providerSources: WatchSource[] = (directOnly ? [] : scopedSources ?? []).filter((s) => s.providerPlayer && isKodikUrl(s.providerPlayer.url)).map((s) => ({
+  const mappedProviderSources: WatchSource[] = (directOnly ? [] : scopedSources ?? []).filter((s) => s.providerPlayer && isKodikUrl(s.providerPlayer.url)).map((s) => ({
     ...s, format: "iframe", embedUrl: s.providerPlayer!.url,
     iframeEpisodes: Object.fromEntries(Object.entries(s.providerPlayer!.episodes).map(([n, url]) => [n, { url, thumbs: [] }])),
     hlsEpisodes: undefined, hlsVariants: undefined,
   }));
+  const rawFallbacks = sourceFilter ? rawData?.fallbackSources?.filter(sourceFilter) : rawData?.fallbackSources;
+  const providerSources = directOnly ? [] : [...new Map([...mappedProviderSources, ...(rawFallbacks ?? []).filter((s) => isKodikUrl(s.embedUrl))].map((source) => [source.id, source])).values()];
   // Our player's streaming code, fetched while the visitor reads the page —
   // not after "play" is pressed.
   const hasOwn = ownSources.length > 0;
@@ -272,7 +278,6 @@ export function WatchSection({
           const clock = readPlayerClock(anime.id);
           setSwitchStart(clock?.episode === episode ? { episode, seconds: clock.time } : { episode, seconds: 0 });
           setPreferOwn(next);
-          try { localStorage.setItem("as:player-mode", next ? "own" : "kodik"); } catch { /* Session only. */ }
         }}
       />
     );
@@ -831,12 +836,8 @@ const RESUME_MIN_SECONDS = 30;
  * video colour is the whole of what says this player is ours and not the
  * provider's. `group` is here so an icon inside can react to the hover.
  */
-const CONTROL_BUTTON =
-  "group flex size-8 items-center justify-center rounded-lg transition-all duration-200 active:scale-90";
 
 /** The round buttons in the middle of the picture: skip back, play, skip on. */
-const CENTER_BUTTON =
-  "relative grid place-items-center rounded-full bg-black/50 text-white ring-1 ring-white/10 transition-[transform,background-color] duration-200 active:scale-90";
 
 /**
  * Controls that have just appeared under a finger don't take that same tap:
@@ -895,6 +896,7 @@ export function CustomHlsPlayer({
   resumeFrom = 0,
   resumeExact = false,
   onEnded,
+  onNextEpisode,
   opening = null,
   segments = [],
   autoSkip = { op: false, ed: false },
@@ -909,12 +911,14 @@ export function CustomHlsPlayer({
   onStarted,
   onPlaybackChange,
   poster,
+  nextPromptActive = false,
 }: {
   src: string;
   format?: "hls" | "mp4";
   autoStart?: boolean;
   onStarted?: () => void;
   onPlaybackChange?: (playing: boolean) => void;
+  nextPromptActive?: boolean;
   poster?: string | undefined;
   mediaTitle?: string;
   onRefreshSource?: () => Promise<unknown>;
@@ -939,6 +943,7 @@ export function CustomHlsPlayer({
   resumeFrom?: number;
   /** The stream ran to its end — the page decides what happens next. */
   onEnded?: () => void;
+  onNextEpisode?: () => void;
   /** Where this episode's opening sits, when the provider marked it. */
   opening?: { start: number; stop: number } | null;
   /** AniSkip's marks for this episode (all lengths); fitted to this copy here. */
@@ -1141,7 +1146,7 @@ export function CustomHlsPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const proxied = format === "hls" && /\/(?:streams\/kodik\/|studios\/hon-kon\/(?:clips|uploads)\/)/.test(src);
+    const proxied = format === "hls" && /\/(?:streams\/(?:kodik|alloha)\/|studios\/hon-kon\/(?:clips|uploads)\/)/.test(src);
     const monitor = watchMediaResponse(
       video,
       () => onFailedRef.current(),
@@ -1219,7 +1224,7 @@ export function CustomHlsPlayer({
         setActiveHeight(picked ?? null);
         resumeIfWinner();
       };
-      if (new URL(src, location.href).pathname.includes("/streams/kodik/")) {
+      if (/\/streams\/(?:kodik|alloha)\//.test(new URL(src, location.href).pathname)) {
         void fetch(src, { signal: nativeRequest.signal })
           .then(async (response) => {
             if (!response.ok) throw new Error("Manifest unavailable");
@@ -1332,9 +1337,9 @@ export function CustomHlsPlayer({
   // minute kept), seconds loaded ahead. Closed by the viewer, it stays closed.
   const [netHidden, setNetHidden] = useState(() => {
     try {
-      return localStorage.getItem("as:net-stats") === "hidden";
+      return localStorage.getItem("as:net-stats") !== "shown";
     } catch {
-      return false;
+      return true;
     }
   });
   const toggleNet = (hide: boolean) => {
@@ -1969,7 +1974,11 @@ export function CustomHlsPlayer({
     skippedRef.current.done.add(key);
     const video = videoRef.current;
     if (!video) return;
-    if (seg.kind === "ed" && seg.stop >= duration - 5) onEndedRef.current?.();
+    if (seg.kind === "ed" && seg.stop >= duration - 5) {
+      video.pause();
+      video.currentTime = duration;
+      onEndedRef.current?.();
+    }
     else video.currentTime = seg.stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTime, isWinner, playing, duration, member]);
@@ -1986,7 +1995,7 @@ export function CustomHlsPlayer({
       : activeHeight
         ? `${activeHeight}p`
         : t("watch.ctl.qualityAuto");
-  const centerVisible = controlsVisible || !playing;
+  const centerVisible = !menuOpen && !nextPromptActive && (controlsVisible || !playing);
   // Preserve the real resolution, including 1080p/1440p and nonstandard encodes.
   const shownHeight = (() => {
     // Before the first switch: where the stream starts (the lowest, or the viewer's pick).
@@ -2001,9 +2010,9 @@ export function CustomHlsPlayer({
     return below.length ? below[below.length - 1]! : null;
   })();
   const netSpeed = netHistory.length ? netHistory[netHistory.length - 1]! : null;
-  const showNet = isWinner && !netHidden && duration > 0 && (controlsVisible || buffering || status.kind === "retrying");
   const fitted = useMemo(() => fitSegments(segments, duration, opening), [segments, duration, opening]);
   const activeSegment = segmentAt(fitted, currentTime);
+  const showNet = isWinner && !netHidden && !activeSegment && !menuOpen && !nextPromptActive && duration > 0 && (controlsVisible || buffering || status.kind === "retrying");
   const bandwidth = engineRef.current?.bandwidth() ?? 0;
   const loadingLine = [
     "Загрузка",
@@ -2029,6 +2038,8 @@ export function CustomHlsPlayer({
     >
       <video
         ref={videoRef}
+        data-watch-video
+        data-watch-active={isWinner ? "true" : undefined}
         crossOrigin="anonymous"
         playsInline
         preload="auto"
@@ -2080,7 +2091,7 @@ export function CustomHlsPlayer({
 
           <div
             className={cn(
-              "pointer-events-none absolute right-2 top-2 z-20 transition-[opacity,transform] duration-300 @md/player:right-3 @md/player:top-3",
+              "player-net-stats pointer-events-none absolute right-2 top-2 z-20 transition-[opacity,transform] duration-300 @md/player:right-3 @md/player:top-3",
               showNet ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
             )}
           >
@@ -2107,7 +2118,7 @@ export function CustomHlsPlayer({
               </span>
             </div>
           )}
-          {popped && momentsOn && (
+          {popped && momentsOn && !controlsVisible && !activeSegment && !menuOpen && !nextPromptActive && (
             <div className="absolute bottom-16 left-3 z-20 flex max-w-[min(20rem,calc(100%-1.5rem))] animate-in items-start gap-2 rounded-2xl border border-white/10 bg-black/70 p-2.5 pr-8 text-white shadow-xl backdrop-blur-md fade-in-0 slide-in-from-left-4 @lg/player:bottom-20">
               <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/30 text-[11px] font-bold">
                 {popped.avatarUrl ? <img src={imageSrc(popped.avatarUrl)} alt="" className="size-full object-cover" /> : popped.author.charAt(0)}
@@ -2135,7 +2146,7 @@ export function CustomHlsPlayer({
               </button>
             </div>
           )}
-          {autoMuted && muted && (
+          {autoMuted && muted && !activeSegment && !menuOpen && !nextPromptActive && (
             <button
               type="button"
               onClick={() => {
@@ -2143,7 +2154,7 @@ export function CustomHlsPlayer({
                 if (video) video.muted = false;
                 setAutoMuted(false);
               }}
-              className="absolute bottom-16 left-1/2 z-30 inline-flex -translate-x-1/2 animate-in items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-black shadow-lg fade-in-0 active:scale-95 @md/player:bottom-auto @md/player:top-3 @md/player:gap-2 @md/player:px-3.5 @md/player:py-2 @md/player:text-sm"
+              className="absolute left-12 top-2 z-20 inline-flex min-h-9 max-w-[calc(100%-4rem)] animate-in items-center gap-1.5 rounded-xl bg-white px-2 py-1.5 text-xs font-semibold text-black shadow-lg fade-in-0 active:scale-95"
             >
               <VolumeXIcon className="size-4" />
               Включить звук
@@ -2233,15 +2244,20 @@ export function CustomHlsPlayer({
 
           {/* "Пропустить …" while a marked part is on screen: the opening,
               the ending or a recap. */}
-          {activeSegment && (
+          {activeSegment && !menuOpen && !nextPromptActive && (
             <SkipSegmentButton
               key={`${src}:${activeSegment.kind}-${activeSegment.start}`}
               label={SEGMENT_LABEL[activeSegment.kind]}
+              actionLabel={activeSegment.kind === "ed" && activeSegment.stop >= duration - 5 && onNextEpisode ? "Следующая серия" : undefined}
               playing={playing}
               onSkip={() => {
                 const video = videoRef.current;
                 if (!video) return;
-                if (activeSegment.kind === "ed" && activeSegment.stop >= duration - 5) onEndedRef.current?.();
+                if (activeSegment.kind === "ed" && activeSegment.stop >= duration - 5) {
+                  video.pause();
+                  if (onNextEpisode) onNextEpisode();
+                  else { video.currentTime = duration; onEndedRef.current?.(); }
+                }
                 else video.currentTime = activeSegment.stop;
                 wake();
               }}
@@ -2261,7 +2277,7 @@ export function CustomHlsPlayer({
               // Slides down with the fade rather than only fading: the bar
               // belongs to the bottom edge, so leaving is a movement toward
               // it, the way every other panel on the site leaves.
-              "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-0.5 px-2 pb-1 pt-8 transition-all duration-300 ease-out @md/player:gap-1 @md/player:px-3 @md/player:pb-2",
+              "player-controls absolute inset-x-0 bottom-0 z-20 flex flex-col gap-0 px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-6 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none @md/player:gap-1 @md/player:px-3 @md/player:pb-2",
               tone.bar,
               controlsVisible
                 ? "translate-y-0 opacity-100"
@@ -2352,7 +2368,7 @@ export function CustomHlsPlayer({
                   aria-pressed={!netHidden}
                   aria-label={netHidden ? "Показать скорость интернета" : "Скрыть скорость интернета"}
                   title={netHidden ? "Показать скорость интернета" : "Скрыть скорость интернета"}
-                  className={cn(CONTROL_BUTTON, tone.button, "absolute left-12 top-2 bg-black/40 @sm/player:static @sm/player:bg-transparent", !netHidden && "text-emerald-300")}
+                  className={cn(CONTROL_BUTTON, tone.button, "hidden @lg/player:flex", !netHidden && "text-emerald-300")}
                 >
                   <SignalIcon className="size-4" />
                 </button>
@@ -2363,7 +2379,7 @@ export function CustomHlsPlayer({
                   aria-label={t("watch.ctl.settings")}
                   title={t("watch.ctl.settings")}
                   className={cn(
-                    "flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-1.5 text-xs font-medium transition-colors",
+                    "flex size-10 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-xl text-xs font-medium transition-[transform,background-color] active:scale-90 @md/player:w-auto @md/player:px-2",
                     tone.button,
                     menu === "main" && "bg-white/15 text-white",
                   )}
@@ -2496,7 +2512,11 @@ function Player({
   const navigate = useNavigate();
   const [partySetup, setPartySetup] = useState(false);
   const [actuallyPlaying, setActuallyPlaying] = useState(false);
-  const { picture } = usePlayerSettings();
+  const [pipWin, setPipWin] = useState<Window | null>(null);
+  const [mini, setMini] = useState(false);
+  const [nativePip, setNativePip] = useState(false);
+  useEffect(() => { if (actuallyPlaying) musicSession.pause(); }, [actuallyPlaying]);
+  const { picture, quality: downloadQuality } = usePlayerSettings();
   // Picture filters are PRO: without it the saved look isn't applied.
   const pro = useIsPro();
   const t = useT();
@@ -2575,6 +2595,13 @@ function Player({
   const containerRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
+    const enter = (event: Event) => { if (event.target instanceof Node && containerRef.current?.contains(event.target)) setNativePip(true); };
+    const leave = () => setNativePip(false);
+    document.addEventListener("enterpictureinpicture", enter, true);
+    document.addEventListener("leavepictureinpicture", leave, true);
+    return () => { document.removeEventListener("enterpictureinpicture", enter, true); document.removeEventListener("leavepictureinpicture", leave, true); };
+  }, []);
+  useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -2584,7 +2611,7 @@ function Player({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const watching = trackProgress && winnerId != null && inView && actuallyPlaying;
+  const watching = trackProgress && winnerId != null && (inView || mini || nativePip || pipWin != null) && actuallyPlaying;
 
   useWatchSession({ animeId, episode, active: watching });
   const update = useUpdateProgress(animeId, progressOwner);
@@ -2621,13 +2648,14 @@ function Player({
   // our own player. Nothing is silently skipped: the toggle sits right above
   // the picture, and it stops at the last episode.
   const handleEnded = () => {
-    if (autoNext && nextEpisode != null) onEpisodeChange(nextEpisode);
+    if (nextEpisode == null) return;
+    setEnded(true);
+    if (autoNext) setCountdown((current) => current ?? 5);
   };
 
   // ---- Kodik: its player API tells us where it is, and takes a seek. ----
   // The player moved into a real window of its own, outside the browser
   // (Document Picture-in-Picture: Chrome and Edge on a computer), if it is.
-  const [pipWin, setPipWin] = useState<Window | null>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const [kodikFrame, setKodikFrame] = useState<HTMLIFrameElement | null>(null);
   const winnerSource = data.sources.find((s) => s.id === winnerId) ?? null;
@@ -2666,7 +2694,6 @@ function Player({
   if (done.current.episode !== episode) done.current = { episode, resumed: false, opening: false, ending: false };
   const [notice, setNotice] = useState<string | null>(null);
   // The player folded into a small window in the corner of the page…
-  const [mini, setMini] = useState(false);
   // …or into a real window of its own (pipWin, declared with the frames).
   const folded = mini || pipWin != null;
   // Where playback was: moving the player to another window reloads the
@@ -2776,9 +2803,17 @@ function Player({
       setMini(true);
     }
   };
+  useWatchNavigation(actuallyPlaying, () => {
+    if (pipWin || document.pictureInPictureElement) return;
+    const video = containerRef.current?.querySelector<HTMLVideoElement>('video[data-watch-active="true"]');
+    if (video && video.readyState >= 2 && document.pictureInPictureEnabled && video.requestPictureInPicture) {
+      void video.requestPictureInPicture().catch(() => { void fold(); });
+    } else { void fold(); }
+  });
   // Leaving the page closes the window too.
   useEffect(() => () => pipWin?.close(), [pipWin]);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [ended, setEnded] = useState(false);
 
   const kodik = useKodikBridge(kodikFrame, {
     onStarted: () => {
@@ -2827,11 +2862,16 @@ function Player({
         else kodik.seek(ed.stop);
       }
     },
-    onEnded: () => {
-      if (autoNext && nextEpisode != null && countdown == null) setCountdown(5);
-    },
+    onEnded: handleEnded,
   });
   kodikSeekRef.current = (seconds) => kodik.seek(seconds);
+  const pauseKodikForMusic = useRef(kodik.pause);
+  pauseKodikForMusic.current = kodik.pause;
+  useEffect(() => {
+    const pause = () => { if (winnerIsKodikRef.current) pauseKodikForMusic.current(); };
+    window.addEventListener("as:music-start", pause);
+    return () => window.removeEventListener("as:music-start", pause);
+  }, []);
   winnerIsKodikRef.current = winnerIsKodik;
 
   // The next episode starts after a short, cancellable count.
@@ -2846,7 +2886,7 @@ function Player({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown]);
-  useEffect(() => setCountdown(null), [episode]);
+  useEffect(() => { setCountdown(null); setEnded(false); }, [episode]);
   // Which episode asked for the next one to be loaded ahead (see CustomHlsPlayer.onNearEnd).
   const [preloadFor, setPreloadFor] = useState<number | null>(null);
   useEffect(() => {
@@ -3042,6 +3082,7 @@ function Player({
                 }}
                 onPlaybackChange={setActuallyPlaying}
                 poster={poster}
+                nextPromptActive={countdown != null || ended}
                 key={episode}
                 src={url}
                 mediaTitle={`${title} · Серия ${episode}`}
@@ -3054,6 +3095,7 @@ function Player({
                 resumeFrom={handoff.current?.episode === episode ? handoff.current.seconds : momentStart ?? (localResume && !localResume.completed ? localResume.position : authed ? (episodeRecord?.positionSeconds ?? 0) : 0)}
                 resumeExact={handoff.current?.episode === episode || momentStart != null}
                 onEnded={handleEnded}
+                onNextEpisode={nextEpisode == null ? undefined : () => onEpisodeChange(nextEpisode)}
                 onTime={(time, length) => {
                   if (!isWinner) return;
                   lastTime.current = time;
@@ -3098,29 +3140,7 @@ function Player({
             {notice}
           </div>
         )}
-        {countdown != null && nextEpisode != null && (
-          <div className="absolute bottom-14 right-3 z-20 flex animate-in items-center gap-2 rounded-xl border border-white/15 bg-black/80 py-1.5 pl-3 pr-1.5 text-xs text-white fade-in-0 slide-in-from-bottom-2">
-            <span>{t("watch.nextIn", { n: nextEpisode, s: countdown })}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setCountdown(null);
-                onEpisodeChange(nextEpisode);
-              }}
-              className="rounded-md bg-primary px-2 py-1 font-semibold text-primary-foreground"
-            >
-              {t("watch.nextNow")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCountdown(null)}
-              aria-label={t("common.cancel")}
-              className="grid size-6 place-items-center rounded-md text-white/70 hover:bg-white/15 hover:text-white"
-            >
-              <XIcon className="size-3.5" />
-            </button>
-          </div>
-        )}
+        {(countdown != null || ended) && nextEpisode != null && <NextEpisodePrompt episode={nextEpisode} countdown={countdown} onPlay={() => { setCountdown(null); setEnded(false); onEpisodeChange(nextEpisode); }} onCancel={() => { setCountdown(null); setEnded(false); }} />}
         {searching && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70">
             <Loader2Icon className="size-6 animate-spin text-primary" />
@@ -3156,9 +3176,10 @@ function Player({
           <span className="shrink-0 rounded-md bg-primary/15 px-1.5 py-0.5 font-display tabular-nums text-primary">
             {episode}
           </span>
-          <span className="min-w-0 break-words font-medium leading-relaxed [overflow-wrap:anywhere]">
+          <span className="min-w-0 flex-1 break-words font-medium leading-relaxed [overflow-wrap:anywhere]">
             {catalog.info.get(episode)?.title ?? t("detail.episodeNumber", { n: episode })}
           </span>
+          <EpisodeDownload animeId={animeId} sourceId={displaySource.id} episode={episode} quality={downloadQuality} available={winnerId != null && ["hls", "mp4"].includes(displaySource.format)} />
         </span>
         {searching && (
           <span className="hidden shrink-0 items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">

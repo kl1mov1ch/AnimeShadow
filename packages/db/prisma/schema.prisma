@@ -108,6 +108,8 @@ model User {
   /// every write, so a key here is never trusted on its own.
   avatarFrame           String?
   guessScore            GuessScore?
+  openingScore          OpeningScore?
+  dailyAttempts         DailyAttempt[]
   /// Which profile blocks show, in what order: { order: string[], hidden: string[], autoAccent?: boolean }.
   profileLayout         Json?
   /// Up to five anime ids, in order — the "my five" showcase on the profile.
@@ -872,6 +874,41 @@ model GuessScore {
   updatedAt DateTime @updatedAt
 
   @@index([best])
+}
+
+/// Separate records for the opening quiz; frame records remain intact.
+model OpeningScore {
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @id
+  best      Int      @default(0)
+  current   Int      @default(0)
+  played    Int      @default(0)
+  bestAt    DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([best(sort: Desc), bestAt])
+}
+
+/// An immutable question set shared by everyone on one Moscow calendar day.
+model DailyChallenge {
+  day       String   @id
+  questions Json
+  createdAt DateTime @default(now())
+  attempts  DailyAttempt[]
+}
+
+model DailyAttempt {
+  day        String
+  challenge  DailyChallenge @relation(fields: [day], references: [day], onDelete: Cascade)
+  userId     String
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answered   Int @default(0)
+  score      Int @default(0)
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  @@id([day, userId])
+  @@index([day, score(sort: Desc), finishedAt])
 }
 
 /// A user's collection: a titled article about a set of anime — text and

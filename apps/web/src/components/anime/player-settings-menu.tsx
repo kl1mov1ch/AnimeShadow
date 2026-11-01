@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, ContrastIcon, DropletIcon, EyeIcon, GaugeIcon, PaletteIcon, RotateCcwIcon, RotateCwIcon, SunIcon, Volume2Icon, CaptionsIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ContrastIcon, DropletIcon, EyeIcon, GaugeIcon, PaletteIcon, RotateCcwIcon, RotateCwIcon, SunIcon, Volume2Icon, CaptionsIcon, XIcon } from "lucide-react";
 import { forwardRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useIsPro } from "@/components/promo/promo-offer";
@@ -77,6 +77,7 @@ export const PlayerSettingsMenu = forwardRef<
         className,
       )}
     >
+      <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3"><span className="text-sm font-semibold">Настройки</span><button type="button" onClick={onClose} aria-label="Закрыть настройки плеера" className="grid size-9 place-items-center rounded-xl text-white/70 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white"><XIcon className="size-4" /></button></div>
       {page === "main" ? (
         <div className="flex min-h-0 flex-col overflow-y-auto overscroll-contain p-1.5">
           <Row
