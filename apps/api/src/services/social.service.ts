@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@animeshadow/db";
+import { effectiveAvatarFrame } from "@animeshadow/shared";
 import { canSeePart } from "../lib/privacy.js";
 import { proActive } from "../lib/pro.js";
 import type {
@@ -31,6 +32,7 @@ const CARD_SELECT = {
   titleUnlocked: true,
   onlineStatus: true,
   avatarFrame: true,
+  createdAt: true,
   profileTitle: true,
   titlePrefix: true,
   titleIcon: true,
@@ -436,7 +438,12 @@ export class SocialService {
       isPro: proActive(r),
       onlineStatus: (r.onlineStatus as UserCard["onlineStatus"]) ?? "OFFLINE",
       episodes: eps.get(r.id) ?? 0,
-      avatarFrame: r.avatarFrame as UserCard["avatarFrame"],
+      avatarFrame: effectiveAvatarFrame(r.avatarFrame, {
+        earnedIds: [],
+        level: 1,
+        pro: proActive(r),
+        memberSince: r.createdAt.toISOString(),
+      }),
       profileTitle: r.profileTitle as UserCard["profileTitle"],
       // PRO-only, as on the profile: a lapsed subscription shows no custom title.
       titlePrefix: proActive(r) || r.titleUnlocked ? r.titlePrefix : null,

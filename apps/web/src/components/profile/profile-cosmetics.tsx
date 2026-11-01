@@ -27,6 +27,8 @@ import { requirementText, titleCosmetic } from "@/lib/cosmetics";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
+import { shadowFrame } from "@/lib/avatar-frames";
+import { ShadowAvatarFrame } from "./shadow-avatar-frame";
 
 /**
  * A frame is a thin turning rim plus what moves on the avatar — see
@@ -66,6 +68,9 @@ export function AvatarFrameRing({
   badge?: FrameBadge;
   children: ReactNode;
 }) {
+  if (frame && shadowFrame(frame)) {
+    return <ShadowAvatarFrame frame={frame} animated={cap}>{children}</ShadowAvatarFrame>;
+  }
   if (!FEATURES.avatarFrames || !frame || !hasFrame(frame)) {
     return (
       <div className={cn("rounded-full ring-4 ring-offset-2 ring-offset-card", fallback)}>

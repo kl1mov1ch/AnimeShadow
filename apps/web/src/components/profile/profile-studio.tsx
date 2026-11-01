@@ -24,11 +24,13 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { HoloAchievementBadge } from "@/components/holo-achievement-badge";
 import { CosmeticsPicker } from "@/components/profile/cosmetics-picker";
+import { AvatarFrameCollection } from "@/components/profile/avatar-frame-gallery";
 import { AccentSection, PortabilitySection, PrivacySection, SettingsSearchProvider } from "@/components/profile/profile-settings-extras";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n";
 import { FEATURES } from "@/lib/features";
+import { SHADOW_FRAMES } from "@/lib/avatar-frames";
 import { imageSrc } from "@/lib/format";
 import { useSetUsername, useUpdateProfile } from "@/lib/query";
 import { cn } from "@/lib/utils";
@@ -59,8 +61,8 @@ const SECTIONS: Array<{ id: StudioTab; icon: typeof PaletteIcon; title: string; 
  * each with what is in it; the section on the right with its own title.
  * On a phone it fills the screen, the sections a row of pills on top.
  *
- * Every change applies the moment it is made, except the description,
- * which has its own save.
+ * Most changes apply immediately. The description and avatar-frame preview
+ * have their own explicit save actions.
  */
 export function ProfileStudio({
   profile,
@@ -191,6 +193,13 @@ export function ProfileStudio({
                 {tab === "profile" && <ProfileBasics profile={profile} />}
                 {tab === "look" && (
                   <div className="flex flex-col gap-6">
+                    <section className="flex flex-col gap-4" aria-label="Рамки аватара">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 className="text-sm font-semibold">Рамки аватара</h3>
+                        <span className="text-xs text-muted-foreground">{SHADOW_FRAMES.length} в коллекции</span>
+                      </div>
+                      <AvatarFrameCollection profile={profile} own />
+                    </section>
                     <LevelPreview profile={profile} />
                     <CosmeticsPicker profile={profile} />
                     {FEATURES.profileCustomization && <AccentSection profile={profile} />}

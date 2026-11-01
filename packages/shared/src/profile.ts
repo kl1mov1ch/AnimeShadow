@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { earnedAchievementSchema } from "./achievements.js";
+import { earnedAchievementSchema, isEarlyAdopter } from "./achievements.js";
 import { animeSummarySchema } from "./anime.js";
 import { libraryStatusSchema } from "./enums.js";
 
@@ -31,10 +31,78 @@ export interface CosmeticContext {
   earnedIds: readonly string[];
   level: number;
   pro: boolean;
+  /** Account creation time, for the existing early-adopter entitlement. */
+  memberSince?: string;
 }
+
+/** The public gallery; the remaining frames stay valid for existing selections. */
+export const SHADOW_AVATAR_FRAMES = [
+  {
+    id: "shadow-standard",
+    name: "AnimeShadow",
+    description: "Фирменная рамка AnimeShadow.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-pro",
+    name: "AnimeShadow PRO",
+    description: "Рамка для пользователей с активным PRO, включая пробный период.",
+    requirementLabel: "Активная подписка PRO",
+    requires: null,
+    pro: true,
+  },
+  {
+    id: "shadow-founder",
+    name: "Ранний пользователь",
+    description: "Для тех, кто присоединился к AnimeShadow до 1 марта 2027 года.",
+    requirementLabel: "Достижение «Ранний пользователь»",
+    requires: "early-adopter",
+  },
+  {
+    id: "shadow-one-piece",
+    name: "Ван-Пис",
+    description: "Приключения под знаком пиратского флага.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-jujutsu",
+    name: "Магическая битва",
+    description: "Рамка с энергией мира магов и проклятий.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-tokyo-ghoul",
+    name: "Токийский гуль",
+    description: "Тёмная эстетика ночного Токио.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-black-clover",
+    name: "Чёрный клевер",
+    description: "Магия гримуаров и сила непоколебимой воли.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-frieren",
+    name: "Фрирен",
+    description: "Тихая магия долгого путешествия.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+] as const satisfies readonly (Cosmetic & {
+  name: string;
+  description: string;
+  requirementLabel: string;
+})[];
 
 /** Rings drawn around the avatar. Ten, plus the bare one. */
 export const AVATAR_FRAMES = [
+  ...SHADOW_AVATAR_FRAMES,
   { id: "none", requires: null },
   { id: "sakura", requires: "first-episode" },
   { id: "ember", requires: "hot-start" },
@@ -137,7 +205,26 @@ export function cosmeticUnlocked(
   if (!entry) return false;
   if (entry.level != null && ctx.level < entry.level) return false;
   if (entry.pro && !ctx.pro) return false;
+  if (entry.requires === "early-adopter" && ctx.memberSince && isEarlyAdopter(ctx.memberSince)) return true;
   return entry.requires == null || ctx.earnedIds.includes(entry.requires);
+}
+
+/**
+ * Resolve a saved selection without overwriting it. Subscription expiry hides
+ * PRO frames until renewal; legacy earned/level frames retain their behavior.
+ */
+export function effectiveAvatarFrame(
+  selected: string | null,
+  context: CosmeticContext,
+): AvatarFrame | null {
+  const frame = AVATAR_FRAMES.find((entry) => entry.id === selected);
+  if (!frame) return null;
+  const current = SHADOW_AVATAR_FRAMES.some((entry) => entry.id === frame.id);
+  if (("pro" in frame && frame.pro && !context.pro) ||
+      (current && !cosmeticUnlocked(AVATAR_FRAMES, frame.id, context))) {
+    return "shadow-standard";
+  }
+  return frame.id;
 }
 
 export const rankSchema = z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]);
@@ -352,6 +439,8 @@ export const themePreferenceSchema = z.enum(["light", "dark", "system"]);
 export type ThemePreference = z.infer<typeof themePreferenceSchema>;
 
 export const myProfileSchema = publicProfileSchema.extend({
+  /** Saved preference, which may differ from avatarFrame after PRO expires. */
+  selectedAvatarFrame: avatarFrameSchema.nullable().optional(),
   email: z.string(),
   /** Saved so the choice follows the account across devices, not just this browser. */
   theme: themePreferenceSchema.nullable(),

@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+/** The existing early-adopter achievement and its profile frame share one rule. */
+export const EARLY_ADOPTER_CUTOFF_ISO = "2027-03-01T00:00:00Z";
+
+export function isEarlyAdopter(memberSince: string): boolean {
+  const joined = Date.parse(memberSince);
+  return Number.isFinite(joined) && joined < Date.parse(EARLY_ADOPTER_CUTOFF_ISO);
+}
+
 export const achievementRaritySchema = z.enum([
   "common",
   "rare",

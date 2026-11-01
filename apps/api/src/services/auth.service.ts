@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { LEGAL_VERSION } from "@animeshadow/shared";
+import { effectiveAvatarFrame, LEGAL_VERSION } from "@animeshadow/shared";
 import { newReferralCode, referrerFor } from "../lib/referral.js";
-import { trialEnd } from "../lib/pro.js";
+import { proActive, trialEnd } from "../lib/pro.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { UserImageStore } from "../lib/user-images.js";
@@ -694,7 +694,12 @@ function toPublicUser(user: User): PublicUser {
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
-    avatarFrame: user.avatarFrame,
+    avatarFrame: effectiveAvatarFrame(user.avatarFrame, {
+      earnedIds: [],
+      level: 1,
+      pro: proActive(user),
+      memberSince: user.createdAt.toISOString(),
+    }),
     createdAt: user.createdAt.toISOString(),
     role: user.role === "ADMIN" ? "ADMIN" : "USER",
     emailVerified: user.emailVerifiedAt != null,

@@ -1,4 +1,4 @@
-import { ACHIEVEMENT_MILESTONES } from "@animeshadow/shared";
+import { ACHIEVEMENT_MILESTONES, isEarlyAdopter } from "@animeshadow/shared";
 import type { PrismaClient } from "@animeshadow/db";
 import { SECRET_RULES } from "../lib/secret-achievements.js";
 import { ACHIEVEMENTS, type EarnedAchievement } from "@animeshadow/shared";
@@ -8,7 +8,6 @@ export interface AchievementServiceDeps {
   proForAll?: boolean;
 }
 
-const EARLY_ADOPTER_CUTOFF = new Date("2027-03-01T00:00:00Z");
 const EPISODE_SECONDS = 1440; // 24 min fallback when no session data
 
 interface Snapshot {
@@ -179,7 +178,7 @@ export class AchievementService {
         return p(s.completedLongSeries, 1);
       case "early-adopter":
         return {
-          earned: s.createdAt < EARLY_ADOPTER_CUTOFF,
+          earned: isEarlyAdopter(s.createdAt.toISOString()),
           progress: null,
         };
       case "veteran":

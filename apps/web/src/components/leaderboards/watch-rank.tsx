@@ -65,10 +65,13 @@ export function PodiumCard({
     <article
       className={cn("hall-podium-card", !row && "hall-podium-vacant")}
       data-metal={rankMetal(rank)}
+      aria-label={`${rank}-е место${row ? `: ${row.displayName}` : " свободно"}`}
     >
       <div className="hall-podium-top">
         <RankSeal rank={rank} />
-        <span>{rank === 1 ? "Лидер рейтинга" : rank === 2 ? "Серебро" : "Бронза"}</span>
+        <span className="hall-podium-rank-label">
+          {rank === 1 ? "Лидер" : rank === 2 ? "Серебро" : "Бронза"}
+        </span>
         {proDays && (
           <span className="hall-prize">
             <CrownIcon className="size-3" />+{proDays} {proDays === 3 ? "дня" : "дней"}{" "}
@@ -85,7 +88,9 @@ export function PodiumCard({
           )}
         </div>
         <div className="min-w-0">
-          <h3 className="hall-podium-name">{row?.displayName ?? "Место свободно"}</h3>
+          <h3 className="hall-podium-name" title={row?.displayName}>
+            {row?.displayName ?? "Место свободно"}
+          </h3>
           <p className="hall-podium-handle">
             {mine
               ? "Это ты"

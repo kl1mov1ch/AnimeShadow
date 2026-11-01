@@ -12,6 +12,7 @@ import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PresenceDot } from "../identity-extras";
 import { AvatarFrameRing, ProfileTitleBadge } from "../profile-cosmetics";
+import { AvatarFrameGallery } from "../avatar-frame-gallery";
 import { levelOf } from "../profile-level";
 import { BannerEditButtons } from "../profile-media-editor";
 import { ProfileBanner } from "../profile-banner";
@@ -239,7 +240,10 @@ export function ProfileStage({
           )}
         </div>
         {/* Friends, followers, following — under the buttons, on the right. */}
-        <SocialLine userId={profile.id} onOpen={onPeople} className="xl:justify-end" views={profile.views} />
+        <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+          <AvatarFrameGallery profile={profile} own={own} />
+          <SocialLine userId={profile.id} onOpen={onPeople} className="xl:justify-end" views={profile.views} />
+        </div>
         </div>
       </div>
       <AchievementDetailDialog achievement={opened} onOpenChange={(open) => !open && setOpened(null)} />

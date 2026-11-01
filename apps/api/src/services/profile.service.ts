@@ -17,12 +17,14 @@ import type {
 } from "@animeshadow/shared";
 import {
   AVATAR_FRAMES,
+  avatarFrameSchema,
   DEFAULT_PROFILE_LAYOUT,
   MAX_SHOWCASE_ACHIEVEMENTS,
   PROFILE_BLOCKS,
   profileLayoutSchema,
   PROFILE_TITLES,
   cosmeticUnlocked,
+  effectiveAvatarFrame,
   earnedSources,
   levelOf,
 } from "@animeshadow/shared";
@@ -127,6 +129,7 @@ export class ProfileService {
         : null;
     return {
       ...base,
+      selectedAvatarFrame: avatarFrameSchema.safeParse(user.avatarFrame).data ?? null,
       email: user.email,
       theme,
       birthDate: user.birthDate ? user.birthDate.toISOString().slice(0, 10) : null,
@@ -157,6 +160,7 @@ export class ProfileService {
         earnedIds: own.achievements.filter((a) => a.earned).map((a) => a.id),
         level: levelOf(own).level,
         pro: own.isPro,
+        memberSince: own.memberSince,
       };
       if (
         input.avatarFrame != null &&
@@ -577,11 +581,14 @@ export class ProfileService {
       showcaseAchievementIds: hidden.achievements
         ? []
         : user.showcaseAchievementIds.filter((id) => achievements.some((a) => a.id === id && a.earned)),
-      // PRO-only — re-checked on every read, not just at save time, so a
-      // lapsed subscription can't leave a stale title on display.
-      // Cosmetics are earned, so they do not depend on PRO the way the
-      // free-text title does.
-      avatarFrame: user.avatarFrame as PublicProfile["avatarFrame"],
+      // Use the owner's unfiltered achievements: privacy must not change
+      // what they may wear. Keep the saved selection for a later PRO renewal.
+      avatarFrame: effectiveAvatarFrame(user.avatarFrame, {
+        earnedIds: achievements.filter((achievement) => achievement.earned).map((achievement) => achievement.id),
+        level: 1, // Legacy level frames keep their existing display behavior.
+        pro: proActive(user),
+        memberSince: user.createdAt.toISOString(),
+      }),
       profileTitle: user.profileTitle as PublicProfile["profileTitle"],
       titlePrefix: proActive(user) || user.titleUnlocked ? user.titlePrefix : null,
       titleIcon:
