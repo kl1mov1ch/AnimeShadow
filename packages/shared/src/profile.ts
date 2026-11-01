@@ -94,6 +94,55 @@ export const SHADOW_AVATAR_FRAMES = [
     requirementLabel: "Доступна всем",
     requires: null,
   },
+  {
+    id: "shadow-naruto",
+    name: "Наруто",
+    description: "Путь ниндзя и воля огня.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-demon-slayer",
+    name: "Клинок, рассекающий демонов",
+    description: "Узоры клинка и дыхание воды.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-attack-on-titan",
+    name: "Атака титанов",
+    description: "Крылья свободы за пределами стен.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-death-note",
+    name: "Тетрадь смерти",
+    description: "Чернила судьбы и тень синигами.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-chainsaw-man",
+    name: "Человек-бензопила",
+    description: "Стальная цепь и неудержимая энергия.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-halloween-pumpkin",
+    name: "Тыквенная ночь",
+    description: "Тёплый свет тыквенных фонарей в осенней ночи.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-halloween-witch",
+    name: "Лунная ведьма",
+    description: "Лунный свет, колдовские узоры и ночная магия.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
 ] as const satisfies readonly (Cosmetic & {
   name: string;
   description: string;

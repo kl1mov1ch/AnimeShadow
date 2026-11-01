@@ -104,10 +104,13 @@ function fixture() {
   return { user, achievements, prisma, service, writes: () => writes };
 }
 
-test("gallery contains eight current frames, while legacy IDs and resets remain accepted", () => {
+test("gallery contains fifteen current frames, while legacy IDs and resets remain accepted", () => {
   assert.deepEqual(SHADOW_AVATAR_FRAMES.map((frame) => frame.id), [
     "shadow-standard", "shadow-pro", "shadow-founder", "shadow-one-piece",
     "shadow-jujutsu", "shadow-tokyo-ghoul", "shadow-black-clover", "shadow-frieren",
+    "shadow-naruto", "shadow-demon-slayer", "shadow-attack-on-titan",
+    "shadow-death-note", "shadow-chainsaw-man", "shadow-halloween-pumpkin",
+    "shadow-halloween-witch",
   ]);
   for (const id of ["sakura", "aurora", "sovereign", "none", ...SHADOW_AVATAR_FRAMES.map((frame) => frame.id)]) {
     assert.equal(avatarFrameSchema.parse(id), id);
@@ -119,9 +122,10 @@ test("gallery contains eight current frames, while legacy IDs and resets remain 
   assert.equal(effectiveAvatarFrame("sovereign", { earnedIds: [], level: 1, pro: false }), "sovereign");
 });
 
-test("all five anime frames can be saved and displayed without PRO or early-adopter rights", async () => {
+test("all twelve anime and Halloween frames can be saved and displayed without PRO or early-adopter rights", async () => {
   const f = fixture();
   f.user.createdAt = new Date("2027-03-01T00:00:00Z");
+  assert.equal(SHADOW_AVATAR_FRAMES.slice(3).length, 12);
   for (const frame of SHADOW_AVATAR_FRAMES.slice(3)) {
     assert.equal(cosmeticUnlocked(AVATAR_FRAMES, frame.id, { earnedIds: [], level: 1, pro: false }), true);
     const mine = await f.service.update("owner", updateProfileInputSchema.parse({ avatarFrame: frame.id }));

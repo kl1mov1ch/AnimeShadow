@@ -6,6 +6,7 @@
   padding: var(--frame-pad);
   vertical-align: middle;
   line-height: 1;
+  --frame-tempo: 5s;
 }
 .shadow-avatar-frame__face {
   display: block;
@@ -14,7 +15,8 @@
 }
 .shadow-avatar-frame__art,
 .shadow-avatar-frame__lights,
-.shadow-avatar-frame__mask {
+.shadow-avatar-frame__mask,
+.shadow-avatar-frame__orbit {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -22,12 +24,13 @@
   pointer-events: none;
 }
 .shadow-avatar-frame__art {
-  z-index: 1;
+  z-index: 2;
   object-fit: contain;
   max-width: none;
 }
 .shadow-avatar-frame__lights {
-  z-index: 2;
+  z-index: 3;
+  color: var(--frame-accent);
 }
 .shadow-avatar-frame__mask {
   overflow: hidden;
@@ -35,16 +38,101 @@
   mask-size: 100% 100%;
   mask-repeat: no-repeat;
 }
+.shadow-avatar-frame .shadow-avatar-frame__animated {
+  animation-play-state: paused;
+}
+.shadow-avatar-frame[data-playing="true"] .shadow-avatar-frame__animated {
+  animation-play-state: running;
+}
 .shadow-avatar-frame__shine {
   position: absolute;
   inset: -30%;
-  background: linear-gradient(110deg, transparent 40%, #fff8 49%, transparent 58%);
-  animation: shadow-frame-shine 11s ease-in-out infinite;
-  transform: translateX(-100%);
+  background: linear-gradient(110deg, transparent 41%, #fff9 49%, transparent 57%);
+  animation: shadow-frame-shine 6.4s ease-in-out infinite;
+}
+.shadow-avatar-frame__glow {
+  position: absolute;
+  inset: 0;
+  background: var(--frame-accent);
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: shadow-frame-glow var(--frame-tempo) ease-in-out infinite;
+}
+.shadow-avatar-frame__lantern {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 86% 25%, #ffc45d90, transparent 12%),
+    radial-gradient(circle at 18% 74%, #ffc45d90, transparent 12%);
+  mix-blend-mode: screen;
+  animation: shadow-frame-lantern 3.3s ease-in-out infinite;
+}
+.shadow-avatar-frame__orbit {
+  opacity: 0.68;
+  animation: shadow-frame-orbit 18s linear infinite;
+}
+.shadow-avatar-frame__orbit > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.shadow-avatar-frame__mote {
+  position: absolute;
+  width: 4.2%;
+  height: 4.2%;
+  opacity: 0;
+  animation: shadow-frame-mote var(--frame-tempo) ease-in-out infinite;
+}
+.shadow-avatar-frame__mote > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.shadow-avatar-frame__mote--0 {
+  left: 11%;
+  top: 25%;
+}
+.shadow-avatar-frame__mote--1 {
+  right: 9%;
+  top: 44%;
+  animation-delay: -1.7s;
+}
+.shadow-avatar-frame__mote--2 {
+  left: 35%;
+  bottom: 7%;
+  animation-delay: -3.3s;
+}
+.shadow-avatar-frame__silk {
+  position: absolute;
+  z-index: 1;
+  left: 78%;
+  top: 70%;
+  width: 19%;
+  height: 27%;
+  pointer-events: none;
+}
+.shadow-avatar-frame__strand {
+  position: absolute;
+  inset: 0;
+  transform-origin: 12% 6%;
+}
+.shadow-avatar-frame__strand > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.shadow-avatar-frame__strand--back {
+  animation: shadow-silk-back 4.2s ease-in-out infinite;
+  opacity: 0.9;
+}
+.shadow-avatar-frame__strand--front {
+  animation: shadow-silk-front 3.8s ease-in-out infinite;
 }
 .shadow-avatar-frame__logo {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   left: 46%;
   top: 79.2%;
   width: 8%;
@@ -53,144 +141,178 @@
   place-items: center;
   color: var(--frame-accent);
   pointer-events: none;
+  animation: shadow-frame-emblem 3.6s ease-in-out infinite;
 }
 .shadow-avatar-frame__logo > svg {
   width: 100%;
   height: 100%;
 }
-.shadow-avatar-frame__ribbon {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  pointer-events: none;
-  transform-origin: 84% 78%;
-}
-.shadow-avatar-frame__ribbon > img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-}
-.shadow-avatar-frame[data-playing="true"] .shadow-avatar-frame__ribbon {
-  animation: shadow-frame-ribbon 6s ease-in-out infinite;
-}
 .shadow-avatar-frame[data-motion="voyage"] {
-  --frame-ribbon-angle: 1.6deg;
+  --frame-tempo: 4.4s;
 }
 .shadow-avatar-frame[data-motion="seal"] {
-  --frame-ribbon-angle: 0.9deg;
+  --frame-tempo: 4.8s;
 }
 .shadow-avatar-frame[data-motion="ember"] {
-  --frame-ribbon-angle: 1.2deg;
+  --frame-tempo: 3.9s;
 }
 .shadow-avatar-frame[data-motion="grimoire"] {
-  --frame-ribbon-angle: 1deg;
+  --frame-tempo: 5.4s;
 }
 .shadow-avatar-frame[data-motion="journey"] {
-  --frame-ribbon-angle: 0.7deg;
+  --frame-tempo: 6.1s;
 }
-.shadow-avatar-frame[data-motion="voyage"] .shadow-avatar-frame__ribbon {
-  animation-duration: 4.8s;
+.shadow-avatar-frame[data-motion="journey"] .shadow-avatar-frame__strand {
+  animation-duration: 5.8s;
 }
-.shadow-avatar-frame[data-motion="seal"] .shadow-avatar-frame__ribbon {
-  animation-duration: 7.2s;
+.shadow-avatar-frame[data-motion="chakra"] .shadow-avatar-frame__orbit {
+  animation-duration: 12s;
 }
-.shadow-avatar-frame[data-motion="journey"] .shadow-avatar-frame__ribbon {
-  animation-duration: 8.2s;
+.shadow-avatar-frame[data-motion="water"] .shadow-avatar-frame__orbit {
+  animation-direction: reverse;
 }
-.shadow-avatar-frame[data-playing="true"] .shadow-avatar-frame__logo {
-  animation: shadow-frame-emblem 6s ease-in-out infinite;
+.shadow-avatar-frame[data-motion="feather"] .shadow-avatar-frame__mote {
+  animation-name: shadow-frame-feather;
 }
-.shadow-avatar-frame__spark {
-  position: absolute;
-  width: 3.5%;
-  height: 3.5%;
-  background: #fff3ea;
-  clip-path: polygon(
-    50% 0,
-    60% 39%,
-    100% 50%,
-    60% 61%,
-    50% 100%,
-    40% 61%,
-    0 50%,
-    40% 39%
-  );
-  opacity: 0;
-  animation: shadow-frame-spark 7s ease-in-out infinite;
+.shadow-avatar-frame[data-motion="lantern"] .shadow-avatar-frame__glow {
+  animation: shadow-frame-lantern 3.3s ease-in-out infinite;
 }
-.shadow-avatar-frame__spark--one {
-  left: 48.25%;
-  top: 8%;
+.shadow-avatar-frame[data-motion="lantern"] .shadow-avatar-frame__orbit {
+  opacity: 0.35;
 }
-.shadow-avatar-frame__spark--two {
-  left: 13%;
-  top: 42%;
-  animation-delay: 2.5s;
+.shadow-avatar-frame[data-motion="witch"] .shadow-avatar-frame__mote {
+  width: 6%;
+  height: 6%;
+  animation-name: shadow-frame-bat;
+  animation-duration: 5.8s;
 }
-.shadow-avatar-frame__spark--three {
-  right: 13%;
-  bottom: 30%;
-  animation-delay: 4.5s;
-}
-.shadow-avatar-frame[data-playing="false"] .shadow-avatar-frame__shine,
-.shadow-avatar-frame[data-playing="false"] .shadow-avatar-frame__spark {
-  animation-play-state: paused;
-  opacity: 0;
+.shadow-avatar-frame[data-playing="false"] .shadow-avatar-frame__lights {
+  visibility: hidden;
 }
 @keyframes shadow-frame-shine {
   0%,
-  72% {
+  42% {
     transform: translateX(-100%);
   }
-  95%,
+  90%,
   100% {
     transform: translateX(100%);
   }
 }
-@keyframes shadow-frame-spark {
+@keyframes shadow-frame-glow {
   0%,
-  65%,
+  100% {
+    opacity: 0.03;
+  }
+  50% {
+    opacity: 0.18;
+  }
+}
+@keyframes shadow-frame-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes shadow-frame-mote {
+  0%,
   100% {
     opacity: 0;
-    transform: scale(0.45);
+    transform: translateY(3px) scale(0.55) rotate(-12deg);
   }
-  78% {
-    opacity: 0.85;
-    transform: scale(1);
+  30% {
+    opacity: 0.9;
   }
-  89% {
+  70% {
+    opacity: 0.4;
+  }
+  85% {
     opacity: 0;
-    transform: scale(0.65);
+    transform: translateY(-8px) scale(1.05) rotate(15deg);
+  }
+}
+@keyframes shadow-frame-feather {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(-2px, -5px) rotate(-18deg);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0;
+    transform: translate(5px, 8px) rotate(28deg);
+  }
+}
+@keyframes shadow-frame-bat {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(-4px, 3px) rotate(-8deg) scaleX(0.8);
+  }
+  25% {
+    opacity: 0.85;
+    transform: translate(0, -2px) rotate(4deg) scaleX(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: translate(5px, -6px) rotate(-4deg) scaleX(0.7);
+  }
+  85% {
+    opacity: 0;
+    transform: translate(10px, -10px) rotate(8deg) scaleX(1);
+  }
+}
+@keyframes shadow-frame-lantern {
+  0%,
+  100% {
+    opacity: 0.04;
+  }
+  30% {
+    opacity: 0.22;
+  }
+  48% {
+    opacity: 0.1;
+  }
+  65% {
+    opacity: 0.19;
+  }
+  80% {
+    opacity: 0.09;
   }
 }
 @keyframes shadow-frame-emblem {
   0%,
   100% {
-    opacity: 0.7;
+    opacity: 0.62;
   }
   50% {
     opacity: 1;
   }
 }
-@keyframes shadow-frame-ribbon {
+@keyframes shadow-silk-front {
   0%,
   100% {
-    transform: rotate(calc(var(--frame-ribbon-angle, 4deg) * -1));
+    transform: rotate(-6deg) scaleX(0.97);
   }
   50% {
-    transform: rotate(var(--frame-ribbon-angle, 4deg)) translateY(1%);
+    transform: rotate(9deg) scaleX(1.03) translateY(1px);
+  }
+}
+@keyframes shadow-silk-back {
+  0%,
+  100% {
+    transform: rotate(5deg);
+  }
+  50% {
+    transform: rotate(-8deg) translateY(-1px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shadow-avatar-frame .shadow-avatar-frame__shine,
-  .shadow-avatar-frame .shadow-avatar-frame__spark,
-  .shadow-avatar-frame .shadow-avatar-frame__ribbon,
-  .shadow-avatar-frame .shadow-avatar-frame__logo {
-    animation: none;
+  .shadow-avatar-frame .shadow-avatar-frame__animated {
+    animation: none !important;
   }
-  .shadow-avatar-frame__shine,
-  .shadow-avatar-frame__spark {
+  .shadow-avatar-frame__lights {
     display: none;
   }
 }

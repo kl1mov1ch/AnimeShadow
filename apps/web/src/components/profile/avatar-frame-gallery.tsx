@@ -21,8 +21,13 @@ import { ShadowAvatarFrame } from "./shadow-avatar-frame";
 import "./avatar-frame-gallery.css";
 
 type GalleryProps = { profile: PublicProfile; own?: boolean; className?: string };
-type CollectionFilter = "all" | "anime" | "brand";
-const BRAND_FRAME_IDS = new Set<string>(["shadow-standard", "shadow-pro", "shadow-founder"]);
+const FRAME_COLLECTIONS = [
+  { id: "all", name: "Все" },
+  { id: "anime", name: "Аниме" },
+  { id: "brand", name: "AnimeShadow" },
+  { id: "halloween", name: "Хэллоуин" },
+] as const;
+type CollectionFilter = (typeof FRAME_COLLECTIONS)[number]["id"];
 
 /** Public discovery and local preview; opening this never changes a profile. */
 export function AvatarFrameGallery({ profile, own = false, className }: GalleryProps) {
@@ -67,9 +72,11 @@ export function AvatarFrameCollection({ profile, own = false, className }: Galle
   const available = cosmeticUnlocked(SHADOW_AVATAR_FRAMES, selected.id, context);
   const worn = profile.avatarFrame === selected.id;
   const remembered = saved === selected.id && !worn && !available;
-  const animeCount = SHADOW_FRAMES.filter((frame) => !BRAND_FRAME_IDS.has(frame.id)).length;
-  const visibleFrames = SHADOW_FRAMES.filter((frame) => collection === "all"
-    || (collection === "brand" ? BRAND_FRAME_IDS.has(frame.id) : !BRAND_FRAME_IDS.has(frame.id)));
+  const collections = FRAME_COLLECTIONS.map((entry) => ({
+    ...entry,
+    count: entry.id === "all" ? SHADOW_FRAMES.length : SHADOW_FRAMES.filter((frame) => frame.category === entry.id).length,
+  })).filter((entry) => entry.count > 0);
+  const visibleFrames = SHADOW_FRAMES.filter((frame) => collection === "all" || frame.category === collection);
 
   function save(frame: string | null) {
     if (!owner || update.isPending) return;
@@ -127,19 +134,24 @@ export function AvatarFrameCollection({ profile, own = false, className }: Galle
           </div>
 
           <div className="avatar-frame-collection__browser">
-            {animeCount > 0 && (
+            {collections.length > 1 && (
               <ToggleGroup
                 type="single"
                 value={collection}
-                onValueChange={(value) => { if (value === "all" || value === "anime" || value === "brand") setCollection(value); }}
+                onValueChange={(value) => {
+                  const next = FRAME_COLLECTIONS.find((entry) => entry.id === value);
+                  if (next) setCollection(next.id);
+                }}
                 spacing={1}
                 size="sm"
                 aria-label="Коллекция рамок"
                 className="avatar-frame-collection__filters"
               >
-                <ToggleGroupItem value="all">Все <span className="text-muted-foreground">{SHADOW_FRAMES.length}</span></ToggleGroupItem>
-                <ToggleGroupItem value="anime">Аниме <span className="text-muted-foreground">{animeCount}</span></ToggleGroupItem>
-                <ToggleGroupItem value="brand">AnimeShadow</ToggleGroupItem>
+                {collections.map((entry) => (
+                  <ToggleGroupItem key={entry.id} value={entry.id}>
+                    {entry.name}<span className="text-muted-foreground tabular-nums">{entry.count}</span>
+                  </ToggleGroupItem>
+                ))}
               </ToggleGroup>
             )}
             <ToggleGroup
