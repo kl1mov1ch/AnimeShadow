@@ -82,6 +82,8 @@ export interface CatalogServiceDeps {
   logger: CatalogLogger;
   translation: TranslationService;
   translator: Translator;
+  /** Uses the normal catalogue writer; injectable for isolated recovery tests. */
+  persistDetail?: typeof persistAnimeDetail;
 }
 
 const CURRENT_SEASON = (() => {
@@ -137,6 +139,10 @@ export class CatalogService {
   private readonly logger: CatalogLogger;
   private readonly translation: TranslationService;
   private readonly translator: Translator;
+  private readonly persistDetail: typeof persistAnimeDetail;
+  private readonly detailLoads = new Map<string, Promise<AnimeDetail>>();
+  private readonly detailRefreshes = new Map<number, Promise<void>>();
+  private readonly detailRefreshAttempts = new TtlCache<true>(60_000, 2000);
 
   // The home page's rails. Building them cold takes upstream calls — a
   // trending list, spotlight details, missing posters — that can add up to
@@ -183,6 +189,7 @@ export class CatalogService {
     this.logger = deps.logger;
     this.translation = deps.translation;
     this.translator = deps.translator;
+    this.persistDetail = deps.persistDetail ?? persistAnimeDetail;
   }
 
   // -- Discover ---------------------------------------------------------
@@ -962,6 +969,17 @@ export class CatalogService {
     lang: Locale = DEFAULT_LOCALE,
     allowAdult = false,
   ): Promise<AnimeDetail> {
+    // Keep concurrent visitors/prefetches on one load without sharing access decisions.
+    const key = `${id}:${lang}:${allowAdult}`;
+    const pending = this.detailLoads.get(key);
+    if (pending) return pending;
+    const request = this.loadAnimeDetail(id, lang, allowAdult)
+      .finally(() => this.detailLoads.delete(key));
+    this.detailLoads.set(key, request);
+    return request;
+  }
+
+  private async loadAnimeDetail(id: number, lang: Locale, allowAdult: boolean): Promise<AnimeDetail> {
     const cacheKey = `${id}:${lang}`;
     const hit = this.detailCache.get(cacheKey);
     if (hit) {
@@ -983,23 +1001,36 @@ export class CatalogService {
       this.scheduleHealBanner(existing);
       const detail = toDetailDto(existing);
       await this.enrichDetail(detail);
-      const localized = await this.translation.localizeDetail(detail, lang);
+      const localized = await withTimeout(this.translation.localizeDetail(detail, lang), 300, detail);
       this.detailCache.set(cacheKey, localized);
       return localized;
+    }
+
+    if (existing) {
+      // A catalogue/search row is enough to open its page. Upstream freshness
+      // must never turn a known title into a slow or missing one.
+      this.assertViewable(existing.rating, allowAdult);
+      this.scheduleDetailRefresh(id);
+      this.scheduleHealBanner(existing);
+      const detail = toDetailDto(existing);
+      // Do not cache this stale DTO: a completed background refresh should be
+      // visible on the next read, including any corrected content rating.
+      return withTimeout(this.translation.localizeDetail(detail, lang), 300, detail);
     }
 
     try {
       const full = await this.shikimori.getAnime(id);
       const detail = shikiToDetail(full);
+      if (detail.id !== id) throw new UpstreamUnavailableError();
       this.assertViewable(detail.rating, allowAdult);
-      let row = await persistAnimeDetail(detail);
+      let row = await this.persistDetail(detail);
       if (!row.imageUrl) {
         row = await this.healPoster(row);
       }
       this.scheduleHealBanner(row);
       const dto = toDetailDto(row);
       await this.enrichDetail(dto);
-      const localized = await this.translation.localizeDetail(dto, lang);
+      const localized = await withTimeout(this.translation.localizeDetail(dto, lang), 300, dto);
       this.detailCache.set(cacheKey, localized);
       return localized;
     } catch (error) {
@@ -1008,18 +1039,38 @@ export class CatalogService {
       if (error instanceof AgeVerificationRequiredError || error instanceof NotFoundError) {
         throw error;
       }
-      if (existing) {
-        this.assertViewable(existing.rating, allowAdult);
-        this.logger.warn({ error, id }, "serving stale anime detail");
-        const stale = toDetailDto(existing);
-        stale.studioLogos = await this.getStudioLogos(stale.studios);
-        return this.translation.localizeDetail(stale, lang);
+      // Search/import may have persisted the row while the cold lookup ran.
+      // Check once more before treating the upstream's 404 as authoritative.
+      const recovered = await this.prisma.anime.findUnique({
+        where: { id }, include: ANIME_WITH_GENRES_INCLUDE,
+      });
+      if (recovered) {
+        this.assertViewable(recovered.rating, allowAdult);
+        const detail = toDetailDto(recovered);
+        return withTimeout(this.translation.localizeDetail(detail, lang), 300, detail);
       }
       if (error instanceof ShikimoriError && error.status === 404) {
         throw new NotFoundError("Аниме не найдено.");
       }
       throw new UpstreamUnavailableError();
     }
+  }
+
+  private scheduleDetailRefresh(id: number): void {
+    const key = String(id);
+    if (this.detailRefreshes.has(id) || this.detailRefreshAttempts.get(key) || this.detailRefreshes.size >= MAX_CONCURRENT_HEALS) return;
+    this.detailRefreshAttempts.set(key, true);
+    const work = inBackground(async () => {
+      const detail = shikiToDetail(await this.shikimori.getAnime(id));
+      if (detail.id !== id) throw new UpstreamUnavailableError();
+      await this.persistDetail(detail);
+      // Every following presentation rechecks the freshly stored rating.
+      this.detailCache.delete(`${id}:ru`);
+      this.detailCache.delete(`${id}:en`);
+    }).catch((error) => {
+      this.logger.warn({ error, id }, "anime detail background refresh failed; keeping catalogue row");
+    }).finally(() => this.detailRefreshes.delete(id));
+    this.detailRefreshes.set(id, work);
   }
 
   /**

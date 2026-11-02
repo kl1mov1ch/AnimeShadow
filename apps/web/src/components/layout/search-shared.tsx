@@ -1,15 +1,40 @@
-import type { AnimeSummary, CollectionSummary, SearchGroup, SearchPulse, UserCard } from "@animeshadow/shared";
+import type {
+  AnimeSummary,
+  CollectionSummary,
+  SearchGroup,
+  SearchPulse,
+  UserCard,
+} from "@animeshadow/shared";
 import Fuse from "fuse.js";
-import { ArrowLeftIcon, ClockIcon, FlameIcon, FolderHeartIcon, HandshakeIcon, LayersIcon, SearchIcon, SparklesIcon, StarIcon, TvIcon, UserCheckIcon, UsersIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ClockIcon,
+  FlameIcon,
+  FolderHeartIcon,
+  HandshakeIcon,
+  LayersIcon,
+  SearchIcon,
+  SparklesIcon,
+  StarIcon,
+  TvIcon,
+  UserCheckIcon,
+  UsersIcon,
+} from "lucide-react";
 import { ProMark } from "@/components/common/pro-mark";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
-import { useBrowse, useCollections, usePopularPeople, useSearchPeople } from "@/lib/query";
+import {
+  useBrowse,
+  useCollections,
+  usePopularPeople,
+  useSearchPeople,
+} from "@/lib/query";
 import { imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Everything the header's inline search and the ⌘K palette both need.
@@ -142,15 +167,33 @@ export function Chip({
 /** What the search looks through: titles, people's collections, or people. */
 export type SearchMode = "anime" | "collections" | "people";
 
-export function ModeSwitch({ mode, onMode }: { mode: SearchMode; onMode: (mode: SearchMode) => void }) {
+export function ModeSwitch({
+  mode,
+  onMode,
+}: {
+  mode: SearchMode;
+  onMode: (mode: SearchMode) => void;
+}) {
   const { t } = useI18n();
+  const { status } = useAuth();
+  useEffect(() => {
+    if (status === "anonymous" && mode === "people") onMode("anime");
+  }, [status, mode, onMode]);
   const options: Array<{ id: SearchMode; label: string; icon: typeof TvIcon }> = [
     { id: "anime", label: t("search.modeAnime"), icon: TvIcon },
     { id: "collections", label: t("search.modeCollections"), icon: LayersIcon },
-    { id: "people", label: "Люди", icon: UsersIcon },
+    ...(status === "authenticated"
+      ? [{ id: "people" as const, label: "Люди", icon: UsersIcon }]
+      : []),
   ];
   return (
-    <div role="tablist" className="grid grid-cols-3 gap-1 rounded-xl bg-foreground/[0.05] p-1">
+    <div
+      role="tablist"
+      className={cn(
+        "grid gap-1 rounded-xl bg-foreground/[0.05] p-1",
+        status === "authenticated" ? "grid-cols-3" : "grid-cols-2",
+      )}
+    >
       {options.map((o) => {
         const on = o.id === mode;
         return (
@@ -164,7 +207,9 @@ export function ModeSwitch({ mode, onMode }: { mode: SearchMode; onMode: (mode: 
             onClick={() => onMode(o.id)}
             className={cn(
               "inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-[background-color,color,box-shadow] duration-200",
-              on ? "bg-card text-foreground shadow-sm ring-1 ring-[var(--accent-line-soft)]" : "text-muted-foreground hover:text-foreground",
+              on
+                ? "bg-card text-foreground shadow-sm ring-1 ring-[var(--accent-line-soft)]"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             <o.icon className={cn("size-3.5", on && "text-primary")} />
@@ -201,7 +246,8 @@ export function IdleState({
   let order = 0;
   const searches = pulse?.searches ?? [];
   // While few people have searched yet, titles being watched fill in.
-  const hot = searches.length < 4 ? (pulse?.hot ?? []).slice(0, 6 - searches.length) : [];
+  const hot =
+    searches.length < 4 ? (pulse?.hot ?? []).slice(0, 6 - searches.length) : [];
   return (
     <div className="flex flex-col gap-3.5 p-3">
       {recent.length > 0 && (
@@ -244,9 +290,27 @@ export function IdleState({
           <SectionLabel>{t("search.watchedNow")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {hot.map((a) => (
-              <Chip key={a.id} index={order++} onClick={() => onPick(labels.title({ title: a.title, titleLocalized: a.titleLocalized, titleEnglish: null }))}>
+              <Chip
+                key={a.id}
+                index={order++}
+                onClick={() =>
+                  onPick(
+                    labels.title({
+                      title: a.title,
+                      titleLocalized: a.titleLocalized,
+                      titleEnglish: null,
+                    }),
+                  )
+                }
+              >
                 <TvIcon className="size-3 shrink-0 opacity-70" />
-                <span className="max-w-[14rem] truncate">{labels.title({ title: a.title, titleLocalized: a.titleLocalized, titleEnglish: null })}</span>
+                <span className="max-w-[14rem] truncate">
+                  {labels.title({
+                    title: a.title,
+                    titleLocalized: a.titleLocalized,
+                    titleEnglish: null,
+                  })}
+                </span>
               </Chip>
             ))}
           </div>
@@ -257,7 +321,13 @@ export function IdleState({
           <SectionLabel>{t("search.popularGenres")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {pulse!.genres.map((g) => (
-              <Chip key={g.id} index={order++} onClick={() => onPickGenre({ id: g.id, label: labels.genreLabel(g.name) })}>
+              <Chip
+                key={g.id}
+                index={order++}
+                onClick={() =>
+                  onPickGenre({ id: g.id, label: labels.genreLabel(g.name) })
+                }
+              >
                 {labels.genreLabel(g.name)}
               </Chip>
             ))}
@@ -269,7 +339,12 @@ export function IdleState({
           <SectionLabel>{t("search.forYou")}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {favoriteGenres.map((genre) => (
-              <Chip key={genre.id} index={order++} accent onClick={() => onPickGenre(genre)}>
+              <Chip
+                key={genre.id}
+                index={order++}
+                accent
+                onClick={() => onPickGenre(genre)}
+              >
                 <SparklesIcon className="size-3 shrink-0" />
                 {genre.label}
               </Chip>
@@ -299,7 +374,13 @@ export function GenreResults({
 }) {
   const { t } = useI18n();
   const labels = useLabels();
-  const { data, isPending } = useBrowse({ genres: [genre.id], orderBy: "popularity", sort: "desc", page: 1, perPage: 6 });
+  const { data, isPending } = useBrowse({
+    genres: [genre.id],
+    orderBy: "popularity",
+    sort: "desc",
+    page: 1,
+    perPage: 6,
+  });
   const items = data?.items ?? [];
   return (
     <div className="flex flex-col">
@@ -328,15 +409,31 @@ export function GenreResults({
               style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
             >
               <span className="h-12 w-[34px] shrink-0 overflow-hidden rounded-md bg-muted">
-                {anime.imageUrl && <img src={imageSrc(anime.imageUrl)} alt="" loading="lazy" className="size-full object-cover" />}
+                {anime.imageUrl && (
+                  <img
+                    src={imageSrc(anime.imageUrl)}
+                    alt=""
+                    loading="lazy"
+                    className="size-full object-cover"
+                  />
+                )}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-sm font-medium leading-snug">{labels.title(anime)}</span>
+                <span className="truncate text-sm font-medium leading-snug">
+                  {labels.title(anime)}
+                </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime)].filter(Boolean).join(" · ")}
+                  {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime)]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </span>
-              {anime.score != null && <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums text-amber-500"><StarIcon className="size-3 fill-current" />{anime.score.toFixed(1)}</span>}
+              {anime.score != null && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums text-amber-500">
+                  <StarIcon className="size-3 fill-current" />
+                  {anime.score.toFixed(1)}
+                </span>
+              )}
             </CommandItem>
           ))}
           <CommandItem
@@ -345,7 +442,9 @@ export function GenreResults({
             className="mt-1 justify-center rounded-lg bg-primary/10 py-2 text-sm font-semibold text-primary data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground"
           >
             <SearchIcon />
-            <span className="truncate">{t("search.genreAll", { genre: genre.label })}</span>
+            <span className="truncate">
+              {t("search.genreAll", { genre: genre.label })}
+            </span>
           </CommandItem>
         </CommandGroup>
       )}
@@ -369,15 +468,26 @@ export function CollectionResults({
   const { t } = useI18n();
   const q = term.trim();
   const searching = q.length >= 2;
-  const { data, isPending } = useCollections({ ...(searching ? { q } : {}), sort: "popular", page: 1, perPage: 6 });
+  const { data, isPending } = useCollections({
+    ...(searching ? { q } : {}),
+    sort: "popular",
+    page: 1,
+    perPage: 6,
+  });
   if (isPending && !data) return <LoadingRows count={4} />;
   const items = data?.items ?? [];
   if (items.length === 0) {
-    return <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t("search.collectionsNone")}</p>;
+    return (
+      <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+        {t("search.collectionsNone")}
+      </p>
+    );
   }
   return (
     <CommandGroup
-      heading={searching ? t("search.collectionsFound") : t("search.popularCollections")}
+      heading={
+        searching ? t("search.collectionsFound") : t("search.popularCollections")
+      }
       className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
     >
       {items.map((c, i) => {
@@ -391,12 +501,26 @@ export function CollectionResults({
             style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
           >
             <span className="grid h-12 w-[34px] shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground">
-              {cover ? <img src={imageSrc(cover)} alt="" loading="lazy" className="size-full object-cover" /> : <FolderHeartIcon className="size-4" />}
+              {cover ? (
+                <img
+                  src={imageSrc(cover)}
+                  alt=""
+                  loading="lazy"
+                  className="size-full object-cover"
+                />
+              ) : (
+                <FolderHeartIcon className="size-4" />
+              )}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate text-sm font-medium leading-snug">{c.title}</span>
+              <span className="truncate text-sm font-medium leading-snug">
+                {c.title}
+              </span>
               <span className="truncate text-xs text-muted-foreground">
-                {t("search.collectionMeta", { n: c.animeCount, author: c.author.displayName })}
+                {t("search.collectionMeta", {
+                  n: c.animeCount,
+                  author: c.author.displayName,
+                })}
               </span>
             </span>
           </CommandItem>
@@ -421,25 +545,61 @@ export function CollectionResults({
  * or without "@"); before that, people worth meeting. Each row shows who
  * they are — face, name, nick, PRO — and how they relate to the viewer.
  */
-export function PeopleResults({ term, onSelect }: { term: string; onSelect: (user: UserCard) => void }) {
+export function PeopleResults({
+  term,
+  onSelect,
+  onSeeAll,
+}: {
+  term: string;
+  onSelect: (user: UserCard) => void;
+  onSeeAll?: (query: string) => void;
+}) {
+  const { status } = useAuth();
   const q = term.trim();
-  const searching = q.replace(/^@+/, "").length >= 2;
-  const found = useSearchPeople(q, searching);
-  // Always there: the popular and active people of the last two weeks —
-  // before typing, and when a search finds nobody.
-  const popular = usePopularPeople(true);
+  const searching = q.replace(/^@+/, "").trim().length >= 2;
+  const found = useSearchPeople(q, searching && status === "authenticated");
+  // Fetch discovery only before typing; searching must not start a second request.
+  const popular = usePopularPeople(!searching && status === "authenticated");
+  if (status !== "authenticated")
+    return (
+      <p className="p-5 text-center text-sm text-muted-foreground">
+        Поиск людей доступен после входа.
+      </p>
+    );
   if (searching && found.isPending && !found.data) return <LoadingRows count={4} />;
   const hits = searching ? (found.data ?? []).slice(0, 8) : [];
   const top = (popular.data ?? []).slice(0, searching ? 4 : 8);
-  if (!searching && popular.isPending && !popular.data) return <LoadingRows count={4} />;
+  if (!searching && popular.isPending && !popular.data)
+    return <LoadingRows count={4} />;
   return (
     <>
       {searching && hits.length === 0 && (
-        <p className="px-4 pb-1 pt-5 text-center text-sm text-muted-foreground">Никого не нашлось — попробуйте ник или часть имени.</p>
+        <p className="px-4 pb-1 pt-5 text-center text-sm text-muted-foreground">
+          Никого не нашлось — попробуйте ник или часть имени.
+        </p>
       )}
-      {hits.length > 0 && <PeopleGroup heading="Люди" items={hits} onSelect={onSelect} />}
+      {hits.length > 0 && (
+        <PeopleGroup heading="Люди" items={hits} onSelect={onSelect} />
+      )}
       {top.length > 0 && (!searching || hits.length === 0) && (
-        <PeopleGroup heading="Популярные и активные за 2 недели" items={top} onSelect={onSelect} ranked />
+        <PeopleGroup
+          heading="Популярные и активные за 2 недели"
+          items={top}
+          onSelect={onSelect}
+          ranked
+        />
+      )}
+      {searching && onSeeAll && (
+        <CommandGroup>
+          <CommandItem
+            value="see-all-people"
+            onSelect={() => onSeeAll(q)}
+            className="mx-2 justify-center rounded-xl bg-primary/10 text-primary data-[selected=true]:bg-primary/15"
+          >
+            <SearchIcon />
+            Все результаты по запросу «{q}»
+          </CommandItem>
+        </CommandGroup>
       )}
     </>
   );
@@ -457,7 +617,10 @@ function PeopleGroup({
   ranked?: boolean;
 }) {
   return (
-    <CommandGroup heading={heading} className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide">
+    <CommandGroup
+      heading={heading}
+      className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
+    >
       {items.map((u, i) => {
         const friends = u.following && u.followsYou;
         return (
@@ -469,7 +632,16 @@ function PeopleGroup({
             style={{ animationDelay: `${i * 30}ms`, animationFillMode: "backwards" }}
           >
             <span className="relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-sm font-semibold">
-              {u.avatarUrl ? <img src={imageSrc(u.avatarUrl)} alt="" loading="lazy" className="size-full object-cover" /> : u.displayName.charAt(0).toUpperCase()}
+              {u.avatarUrl ? (
+                <img
+                  src={imageSrc(u.avatarUrl)}
+                  alt=""
+                  loading="lazy"
+                  className="size-full object-cover"
+                />
+              ) : (
+                u.displayName.charAt(0).toUpperCase()
+              )}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium leading-snug">
@@ -477,10 +649,14 @@ function PeopleGroup({
                 {u.isPro && <ProMark className="text-[11px]" />}
               </span>
               <span className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-                {ranked && i < 3 && <FlameIcon className="size-3 shrink-0 text-orange-400" />}
+                {ranked && i < 3 && (
+                  <FlameIcon className="size-3 shrink-0 text-orange-400" />
+                )}
                 <span className="truncate">
                   {u.username ? `@${u.username}` : "без ника"}
-                  {ranked && u.weekHours ? ` · ${u.weekHours} ч за 2 нед.` : ` · ${u.episodes} эп.`}
+                  {ranked && u.weekHours
+                    ? ` · ${u.weekHours} ч за 2 нед.`
+                    : ` · ${u.episodes} эп.`}
                   {ranked && u.followers ? ` · ${u.followers} подп.` : ""}
                 </span>
               </span>
@@ -496,7 +672,9 @@ function PeopleGroup({
                 Подписаны
               </span>
             ) : u.followsYou ? (
-              <span className="shrink-0 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-sky-300">Читает вас</span>
+              <span className="shrink-0 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-sky-300">
+                Читает вас
+              </span>
             ) : null}
           </CommandItem>
         );
@@ -556,7 +734,11 @@ export function ResultGroup({
             <Highlighted
               text={labels.title(anime)}
               ranges={matches.get(anime.id)}
-              className={roomy ? "text-sm font-semibold leading-snug" : "text-sm font-medium leading-snug"}
+              className={
+                roomy
+                  ? "text-sm font-semibold leading-snug"
+                  : "text-sm font-medium leading-snug"
+              }
             />
             <span className="truncate text-xs text-muted-foreground">
               {[labels.typeLabel(anime.type), labels.seasonYearLabel(anime)]
@@ -639,7 +821,10 @@ export function useTitleMatches(flat: AnimeSummary[], query: string): MatchMap {
         ["title", "titleEnglish", "titleJapanese"].includes(m.key ?? ""),
       );
       if (match?.indices?.length) {
-        map.set(result.item.id, match.indices as ReadonlyArray<readonly [number, number]>);
+        map.set(
+          result.item.id,
+          match.indices as ReadonlyArray<readonly [number, number]>,
+        );
       }
     }
     return map;

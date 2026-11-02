@@ -6,7 +6,7 @@ import { RouterProvider } from "react-router-dom";
 import { ThemeSync } from "@/components/theme-sync";
 import { AuthProvider } from "@/hooks/use-auth";
 import { I18nProvider } from "@/i18n";
-import { queryClient } from "@/lib/query";
+import { queryClient } from "@/lib/query-client";
 import { router } from "@/router";
 
 // A view transition that is cut short rejects its promise with an error

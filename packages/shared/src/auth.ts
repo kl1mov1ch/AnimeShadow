@@ -54,6 +54,8 @@ export const publicUserSchema = z.object({
   avatarUrl: z.string().nullable().default(null),
   /** The frame the account wears — drawn on its avatar in the header too. */
   avatarFrame: z.string().nullable().default(null),
+  weeklyWatchPlace: z.number().int().min(1).max(999).nullable().optional(),
+  monthlyWatchPlace: z.number().int().min(1).max(999).nullable().optional(),
   createdAt: z.string(),
   role: roleSchema.default("USER"),
   /// Every account created through normal signup already confirmed a code

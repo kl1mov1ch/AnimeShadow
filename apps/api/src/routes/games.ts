@@ -342,7 +342,7 @@ export const gameRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get(
     "/games/guess/leaderboard",
-    { preHandler: fastify.optionalAuth },
+    { preHandler: fastify.authenticate },
     async (request) => {
       const top = await fastify.prisma.guessScore.findMany({
         where: { best: { gt: 0 }, user: { isBanned: false } },

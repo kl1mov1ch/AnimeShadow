@@ -49,6 +49,7 @@ import {
   useGenres,
   useMyProfile,
   usePublicProfile,
+  usePublicProfileById,
   useReactionGif,
   useResendVerification,
   useSetGenrePreferences,
@@ -66,10 +67,11 @@ import type { StudioTab } from "@/components/profile/profile-studio";
 
 export function Component() {
   const t = useT();
-  const { username } = useParams();
+  const { username, userId } = useParams();
   const { status } = useAuth();
 
   if (username) return <PublicView username={username.replace(/^@/, "")} />;
+  if (userId) return <PublicView userId={userId} />;
 
   if (status === "loading") return <ProfileSkeleton />;
   if (status !== "authenticated") {
@@ -91,10 +93,12 @@ export function Component() {
   return <OwnView />;
 }
 
-function PublicView({ username }: { username: string }) {
+function PublicView({ username, userId }: { username?: string; userId?: string }) {
   const t = useT();
   const { user } = useAuth();
-  const { data, isPending, isError } = usePublicProfile(username);
+  const byName = usePublicProfile(username);
+  const byId = usePublicProfileById(userId);
+  const { data, isPending, isError } = username ? byName : byId;
   const viewed = data && (!user || data.id !== user.id) ? data.id : null;
   useEffect(() => {
     if (!viewed) return;

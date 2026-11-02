@@ -8,8 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
-import { shadowFrame } from "@/lib/avatar-frames";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { avatarFrameFit, shadowFrame } from "@/lib/avatar-frames";
 import { cn } from "@/lib/utils";
+import { RasterFrameEffects } from "./raster-frame-effects";
 import "./shadow-avatar-frame.css";
 
 /** Whole artwork and whole silk layers: nothing is cut out of the painted rim. */
@@ -19,6 +21,7 @@ export function ShadowAvatarFrame({
   animated = false,
   className,
   size,
+  place,
 }: {
   frame: string;
   children: ReactNode;
@@ -26,12 +29,14 @@ export function ShadowAvatarFrame({
   className?: string;
   /** Avatar diameter, excluding the reserved rim. Auto-measured when omitted. */
   size?: number;
+  place?: number | null;
 }) {
   const definition = shadowFrame(frame);
   const faceRef = useRef<HTMLSpanElement>(null);
   const rootRef = useRef<HTMLSpanElement>(null);
   const [diameter, setDiameter] = useState(size ?? 40);
   const [playing, setPlaying] = useState(false);
+  const [rankTipOpen, setRankTipOpen] = useState(false);
   const silkId = useId();
   useLayoutEffect(() => {
     if (size != null) return;
@@ -44,6 +49,8 @@ export function ShadowAvatarFrame({
     return () => observer.disconnect();
   }, [size]);
   const actualSize = size ?? diameter;
+  const fit = avatarFrameFit(frame);
+  const boxSize = actualSize * fit.scale;
   useEffect(() => {
     if (!animated || actualSize < 72) return;
     const element = rootRef.current;
@@ -75,6 +82,11 @@ export function ShadowAvatarFrame({
       : frame === "shadow-standard"
         ? "petal"
         : "star";
+  const award = frame === "shadow-weekly" || frame === "shadow-monthly";
+  const rank =
+    place != null && Number.isInteger(place) && place >= 1 && place <= 999
+      ? place
+      : null;
   return (
     <span
       ref={rootRef}
@@ -84,8 +96,11 @@ export function ShadowAvatarFrame({
       data-motion={motion}
       style={
         {
-          "--frame-pad": `${actualSize * 0.21}px`,
+          "--frame-box": `${boxSize}px`,
+          "--frame-face-x": `${(boxSize * fit.x) / 100}px`,
+          "--frame-face-y": `${(boxSize * fit.y) / 100}px`,
           "--frame-accent": definition.accent,
+          "--frame-diameter": `${boxSize}px`,
           "--frame-mask": `url("${asset}")`,
         } as CSSProperties
       }
@@ -159,28 +174,61 @@ export function ShadowAvatarFrame({
         draggable={false}
         decoding="async"
       />
-      {animated && actualSize >= 72 && (
+      {frame === "shadow-halloween-zombie" && (
+        <span className="shadow-avatar-frame__hands" aria-hidden>
+          {["left", "right"].map((side) => (
+            <span
+              key={side}
+              className={`shadow-avatar-frame__hand shadow-avatar-frame__hand--${side} shadow-avatar-frame__animated`}
+            >
+              <img
+                src={
+                  actualSize <= 64
+                    ? "/frames/zombie-hand-thumb.webp"
+                    : "/frames/zombie-hand.webp"
+                }
+                alt=""
+                draggable={false}
+                decoding="async"
+              />
+            </span>
+          ))}
+        </span>
+      )}
+      {frame === "shadow-halloween-phantom" && (
+        <span className="shadow-avatar-frame__ghosts" aria-hidden>
+          {[0, 1].map((index) => (
+            <span
+              key={index}
+              className={`shadow-avatar-frame__ghost shadow-avatar-frame__ghost--${index} shadow-avatar-frame__animated`}
+            >
+              <svg viewBox="0 0 40 52" fill="none">
+                <path
+                  d="M5 24C5 4 35 4 35 24V45L28 40L21 46L13 40L5 46Z"
+                  fill="#c8d8ed"
+                  fillOpacity=".8"
+                />
+                <ellipse cx="15" cy="24" rx="2" ry="3" fill="#252b42" />
+                <ellipse cx="26" cy="24" rx="2" ry="3" fill="#252b42" />
+                <path
+                  d="M18 33Q21 35 24 33"
+                  stroke="#606781"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+          ))}
+        </span>
+      )}
+      {animated && actualSize >= 72 && "rasterPack" in definition && <RasterFrameEffects pack={definition.rasterPack} />}
+      {animated && actualSize >= 72 && !("rasterPack" in definition) && (
         <span className="shadow-avatar-frame__lights" aria-hidden>
           <span className="shadow-avatar-frame__mask">
             <span className="shadow-avatar-frame__glow shadow-avatar-frame__animated" />
-            <span className="shadow-avatar-frame__shine shadow-avatar-frame__animated" />
             {motion === "lantern" && (
               <span className="shadow-avatar-frame__lantern shadow-avatar-frame__animated" />
             )}
-          </span>
-          <span className="shadow-avatar-frame__orbit shadow-avatar-frame__animated">
-            <svg viewBox="0 0 100 100" fill="none">
-              <circle
-                cx="50"
-                cy="50"
-                r="43.8"
-                pathLength="100"
-                stroke="currentColor"
-                strokeWidth=".7"
-                strokeDasharray="11 38 3 48"
-                strokeLinecap="round"
-              />
-            </svg>
           </span>
           {[0, 1, 2].map((index) => (
             <span
@@ -199,6 +247,48 @@ export function ShadowAvatarFrame({
         >
           <LogoGlyph className="size-full" />
         </span>
+      )}
+      {award && (
+        <>
+          <span
+            className="shadow-avatar-frame__award-logo shadow-avatar-frame__animated"
+            aria-hidden
+          >
+            <LogoGlyph className="size-full" />
+          </span>
+          <Tooltip open={rankTipOpen} onOpenChange={setRankTipOpen}>
+            <TooltipTrigger asChild>
+              <span
+                className="shadow-avatar-frame__rank"
+                role={actualSize >= 72 ? "button" : undefined}
+                data-interactive={actualSize >= 72}
+                tabIndex={actualSize >= 72 ? 0 : -1}
+                aria-label={`Награда за ${rank ? `${rank}-е место` : "топ-999"} в рейтинге просмотров ${frame === "shadow-weekly" ? "недели" : "месяца"}`}
+                onClick={(event) => {
+                  if (actualSize < 72) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setRankTipOpen((value) => !value);
+                }}
+                onKeyDown={(event) => {
+                  if (actualSize < 72) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setRankTipOpen((value) => !value);
+                  }
+                }}
+              >
+                №{rank ?? "—"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-60 text-center">
+              {rank ? `${rank}-е место` : "Топ-999"} в рейтинге просмотров{" "}
+              {frame === "shadow-weekly" ? "за неделю" : "за календарный месяц"}. Рамка
+              сохраняется навсегда.
+            </TooltipContent>
+          </Tooltip>
+        </>
       )}
     </span>
   );

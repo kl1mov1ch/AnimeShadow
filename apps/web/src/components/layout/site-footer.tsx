@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n";
 import { TiktokIcon } from "@/components/home/social-icons";
 import { shareInvite, TELEGRAM_CHANNEL, TIKTOK_URL } from "@/lib/community";
 import { glideTo } from "@/lib/glide";
+import { useAuth } from "@/hooks/use-auth";
 
 const SOCIALS: Array<{
   label: string;
@@ -38,6 +39,7 @@ const SOCIALS: Array<{
  * on a phone, and the community links named, not as bare logos.
  */
 export function SiteFooter() {
+  const { status } = useAuth();
   const { t } = useI18n();
   const year = new Date().getFullYear();
   const links = [
@@ -45,7 +47,7 @@ export function SiteFooter() {
     { to: "/ongoing", label: "Онгоинги" },
     { to: "/top", label: "Топ аниме" },
     { to: "/#guess-anime", label: "Угадай аниме по кадру" },
-    { to: "/leaderboards", label: "Топ зрителей" },
+    ...(status === "authenticated" ? [{ to: "/leaderboards", label: "Топ зрителей" }] : []),
     { to: "/collections", label: t("nav.collections") },
     { to: "/studios", label: "Студии озвучки" },
     { to: "/schedule", label: "Расписание" },

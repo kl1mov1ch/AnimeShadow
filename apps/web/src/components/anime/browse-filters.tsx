@@ -12,7 +12,6 @@ import {
   PlayCircleIcon,
   PlusIcon,
   RotateCcwIcon,
-  SearchIcon,
   SlidersHorizontalIcon,
   Trash2Icon,
   XIcon,
@@ -121,50 +120,6 @@ export const EPISODE_PRESETS = [
 ] as const;
 
 /**
- * The catalogue search box, at the top of the page; the term reaches the
- * URL after a short pause.
- */
-export function BrowseSearch({
-  params,
-  onChange,
-}: {
-  params: BrowseParams;
-  onChange: (patch: FilterPatch) => void;
-}) {
-  const t = useT();
-  const [term, setTerm] = useState(params.q ?? "");
-  const debounced = useDebouncedValue(term.trim(), 250);
-  useEffect(() => {
-    if (debounced !== (params.q ?? "")) onChange({ q: debounced || null });
-  }, [debounced, params.q, onChange]);
-  useEffect(() => setTerm(params.q ?? ""), [params.q]);
-  return (
-    <div className="group relative">
-      <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
-      <input
-        id="browse-search"
-        value={term}
-        onChange={(event) => setTerm(event.target.value)}
-        placeholder={t("browse.searchPlaceholder")}
-        type="search"
-        aria-label={t("browse.search")}
-        className="h-12 w-full rounded-xl border border-border bg-background/70 pl-11 pr-10 text-sm outline-none transition-[border-color,background-color,box-shadow] duration-200 placeholder:text-muted-foreground/70 hover:border-primary/30 focus-visible:border-primary/60 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/15 sm:h-14 [&::-webkit-search-cancel-button]:appearance-none"
-      />
-      {term && (
-        <button
-          type="button"
-          onClick={() => setTerm("")}
-          aria-label={t("common.clear")}
-          className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-        >
-          <XIcon className="size-4" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/**
  * Every filter, out in the open: each one a row of chips you tap — no
  * dropdown to open first, and what is on is lit. Tapping a lit chip turns
  * it off. The best-known genres are always on show (the rest a tap away),
@@ -206,7 +161,7 @@ export function BrowseFilters({
   return (
     <div className="flex flex-col gap-3.5">
       <div
-        className={cn("flex items-center justify-between gap-2", !heading && "hidden")}
+        className={cn("browse-filter-heading flex items-center justify-between gap-2", !heading && "hidden")}
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <SlidersHorizontalIcon className="size-4 text-primary" />

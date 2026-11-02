@@ -24,7 +24,7 @@ export function HeaderAvatar({ user, className }: { user: PublicUser; className?
     .slice(0, 2)
     .toUpperCase();
   return (
-    <AvatarFrameRing frame={frame as MyProfile["avatarFrame"]} fallback="ring-1 ring-border/70 ring-offset-0" cap={false}>
+    <AvatarFrameRing frame={frame as MyProfile["avatarFrame"]} weeklyPlace={profile?.weeklyWatchAward?.place ?? user.weeklyWatchPlace} monthlyPlace={profile?.monthlyWatchAward?.place ?? user.monthlyWatchPlace} fallback="ring-1 ring-border/70 ring-offset-0" cap={false}>
       <Avatar className={cn("size-9", className)}>
         {avatarUrl && <AvatarImage src={imageSrc(avatarUrl)} alt="" />}
         <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>

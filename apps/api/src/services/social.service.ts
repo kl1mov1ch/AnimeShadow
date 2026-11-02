@@ -1,5 +1,8 @@
 import type { Prisma, PrismaClient } from "@animeshadow/db";
-import { effectiveAvatarFrame } from "@animeshadow/shared";
+import { effectiveAvatarFrame, effectiveProfileTitle } from "@animeshadow/shared";
+import { weeklyWatchAwards } from "../lib/weekly-watch-awards.js";
+import { monthlyWatchAwards } from "../lib/monthly-watch-awards.js";
+import { animeQualifiedEpisodes, frameWatchProgress } from "../lib/frame-watch-progress.js";
 import { canSeePart } from "../lib/privacy.js";
 import { proActive } from "../lib/pro.js";
 import type {
@@ -418,14 +421,17 @@ export class SocialService {
   private async decorate(rows: CardRow[], viewerId: string | null): Promise<UserCard[]> {
     if (rows.length === 0) return [];
     const ids = [...new Set(rows.map((r) => r.id))];
-    const [episodes, viewerFollows, followViewer] = await Promise.all([
+    const [episodes, viewerFollows, awards, followViewer, monthlyAwards, frameProgress] = await Promise.all([
       this.prisma.watchProgress.groupBy({ by: ["userId"], where: { userId: { in: ids }, completed: true }, _count: { _all: true } }),
       viewerId
         ? this.prisma.follow.findMany({ where: { followerId: viewerId, followingId: { in: ids } }, select: { followingId: true } })
         : Promise.resolve([]),
+      weeklyWatchAwards(this.prisma, ids),
       viewerId
         ? this.prisma.follow.findMany({ where: { followingId: viewerId, followerId: { in: ids } }, select: { followerId: true } })
         : Promise.resolve([]),
+      monthlyWatchAwards(this.prisma, ids),
+      frameWatchProgress(this.prisma, ids),
     ]);
     const eps = new Map(episodes.map((e) => [e.userId, e._count._all]));
     const following = new Set(viewerFollows.map((f) => f.followingId));
@@ -436,6 +442,8 @@ export class SocialService {
       displayName: r.displayName,
       avatarUrl: r.avatarUrl,
       isPro: proActive(r),
+      weeklyWatchPlace: awards.get(r.id)?.award?.place ?? null,
+      monthlyWatchPlace: monthlyAwards.get(r.id)?.place ?? null,
       onlineStatus: (r.onlineStatus as UserCard["onlineStatus"]) ?? "OFFLINE",
       episodes: eps.get(r.id) ?? 0,
       avatarFrame: effectiveAvatarFrame(r.avatarFrame, {
@@ -443,8 +451,13 @@ export class SocialService {
         level: 1,
         pro: proActive(r),
         memberSince: r.createdAt.toISOString(),
+        weeklyWatchPlace: awards.get(r.id)?.award?.place,
+        monthlyWatchPlace: monthlyAwards.get(r.id)?.place,
+        animeQualifiedEpisodes: animeQualifiedEpisodes(frameProgress.get(r.id)),
       }),
-      profileTitle: r.profileTitle as UserCard["profileTitle"],
+      profileTitle: effectiveProfileTitle(r.profileTitle, {
+        earnedIds: [], level: 1, pro: proActive(r), weeklyWatchPlaces: awards.get(r.id)?.places,
+      }),
       // PRO-only, as on the profile: a lapsed subscription shows no custom title.
       titlePrefix: proActive(r) || r.titleUnlocked ? r.titlePrefix : null,
       titleIcon: proActive(r) || r.titleUnlocked ? (r.titleIcon as UserCard["titleIcon"]) : null,

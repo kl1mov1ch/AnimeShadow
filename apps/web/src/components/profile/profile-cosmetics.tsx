@@ -18,7 +18,7 @@ import {
   TvIcon,
   ZapIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
 import { FrameFx, FrameRing, frameGlow, hasFrame } from "@/components/profile/frame-fx";
 import { useT } from "@/i18n";
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { FEATURES } from "@/lib/features";
 import { shadowFrame } from "@/lib/avatar-frames";
 import { ShadowAvatarFrame } from "./shadow-avatar-frame";
+import "./profile-cosmetics.css";
 
 /**
  * A frame is a thin turning rim plus what moves on the avatar — see
@@ -55,12 +56,16 @@ export function AvatarFrameRing({
   fallback,
   badge,
   cap = true,
+  weeklyPlace,
+  monthlyPlace,
   children,
 }: {
   frame: PublicProfile["avatarFrame"];
   /** The 影 mark on top of the ring — off where there is no room above it,
    *  like the header. */
   cap?: boolean;
+  weeklyPlace?: number | null;
+  monthlyPlace?: number | null;
   /** The rank ring, used when no frame is worn. */
   fallback: string;
   /** Only shown on a worn frame — the caps sit on the ring, so with no ring
@@ -69,11 +74,27 @@ export function AvatarFrameRing({
   children: ReactNode;
 }) {
   if (frame && shadowFrame(frame)) {
-    return <ShadowAvatarFrame frame={frame} animated={cap}>{children}</ShadowAvatarFrame>;
+    return (
+      <ShadowAvatarFrame
+        frame={frame}
+        animated={cap}
+        place={
+          frame === "shadow-weekly"
+            ? weeklyPlace
+            : frame === "shadow-monthly"
+              ? monthlyPlace
+              : undefined
+        }
+      >
+        {children}
+      </ShadowAvatarFrame>
+    );
   }
   if (!FEATURES.avatarFrames || !frame || !hasFrame(frame)) {
     return (
-      <div className={cn("rounded-full ring-4 ring-offset-2 ring-offset-card", fallback)}>
+      <div
+        className={cn("rounded-full ring-4 ring-offset-2 ring-offset-card", fallback)}
+      >
         {children}
       </div>
     );
@@ -88,13 +109,15 @@ export function AvatarFrameRing({
           so the mark reads as set into the frame rather than parked above
           it. No percentages: `top-0` plus a half-translate lands on the
           edge at every avatar size. */}
-      {cap && <span
-        aria-hidden
-        className="frame-cap-mark absolute left-1/2 top-0 z-20 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-card bg-card text-[color:var(--cap)] shadow-lg"
-        style={{ "--cap": frameGlow(frame) } as React.CSSProperties}
-      >
-        <LogoGlyph className="size-4" />
-      </span>}
+      {cap && (
+        <span
+          aria-hidden
+          className="frame-cap-mark absolute left-1/2 top-0 z-20 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-card bg-card text-[color:var(--cap)] shadow-lg"
+          style={{ "--cap": frameGlow(frame) } as React.CSSProperties}
+        >
+          <LogoGlyph className="size-4" />
+        </span>
+      )}
 
       {badge && <FrameCapBadge badge={badge} colour={frameGlow(frame)} />}
     </div>
@@ -120,7 +143,13 @@ function FrameCapBadge({ badge, colour }: { badge: FrameBadge; colour: string })
 
 /** The swatch in the picker: the same ring at thumbnail size, with the card
  *  colour standing in for the avatar. */
-export function FramePreview({ frame, className }: { frame: string; className?: string }) {
+export function FramePreview({
+  frame,
+  className,
+}: {
+  frame: string;
+  className?: string;
+}) {
   if (!hasFrame(frame)) {
     return (
       <span
@@ -147,15 +176,38 @@ export function FramePreview({ frame, className }: { frame: string; className?: 
  */
 const TITLE_STYLE: Record<
   string,
-  { icon: LucideIcon; c1: string; c2: string; fx: "shimmer" | "neon" | "glitch" | "aurora" }
+  {
+    icon: LucideIcon;
+    c1: string;
+    c2: string;
+    fx: "shimmer" | "neon" | "glitch" | "aurora";
+  }
 > = {
+  "weekly-watch-1": { icon: CrownIcon, c1: "#e8c67b", c2: "#fff0bf", fx: "shimmer" },
+  "weekly-watch-2": { icon: MedalIcon, c1: "#c1d0e8", c2: "#f1f5ff", fx: "shimmer" },
+  "weekly-watch-3": { icon: MedalIcon, c1: "#d8a17e", c2: "#f5d4b8", fx: "shimmer" },
   "thousand-episodes": { icon: MedalIcon, c1: "#fbbf24", c2: "#e2e8f0", fx: "shimmer" },
-  "three-thousand-episodes": { icon: CrownIcon, c1: "#fb7185", c2: "#e2e8f0", fx: "shimmer" },
+  "three-thousand-episodes": {
+    icon: CrownIcon,
+    c1: "#fb7185",
+    c2: "#e2e8f0",
+    fx: "shimmer",
+  },
   "ten-series": { icon: CheckCheckIcon, c1: "#34d399", c2: "#e2e8f0", fx: "shimmer" },
-  "twenty-five-series": { icon: LibraryIcon, c1: "#38bdf8", c2: "#e2e8f0", fx: "shimmer" },
+  "twenty-five-series": {
+    icon: LibraryIcon,
+    c1: "#38bdf8",
+    c2: "#e2e8f0",
+    fx: "shimmer",
+  },
   "fifty-series": { icon: CompassIcon, c1: "#fbbf24", c2: "#e2e8f0", fx: "shimmer" },
   "review-explorer": { icon: GemIcon, c1: "#fb7185", c2: "#e2e8f0", fx: "shimmer" },
-  "collection-architect": { icon: LibraryIcon, c1: "#34d399", c2: "#e2e8f0", fx: "shimmer" },
+  "collection-architect": {
+    icon: LibraryIcon,
+    c1: "#34d399",
+    c2: "#e2e8f0",
+    fx: "shimmer",
+  },
   "collection-library": { icon: GemIcon, c1: "#38bdf8", c2: "#e2e8f0", fx: "shimmer" },
   "curator-crowd": { icon: SparklesIcon, c1: "#fbbf24", c2: "#e2e8f0", fx: "shimmer" },
   "century-comments": { icon: CoffeeIcon, c1: "#fb7185", c2: "#e2e8f0", fx: "shimmer" },
@@ -178,17 +230,126 @@ const TITLE_STYLE: Record<
   benefactor: { icon: HeartHandshakeIcon, c1: "#f472b6", c2: "#fde68a", fx: "aurora" },
 };
 
-export function TitleMark({ title, size = 46, className }: { title: string; size?: number; className?: string }) {
-  const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
+export function TitleMark({
+  title,
+  size = 46,
+  className,
+}: {
+  title: string;
+  size?: number;
+  className?: string;
+}) {
+  const podiumPlace = weeklyTitlePlace(title);
+  if (podiumPlace)
+    return <WatchPodiumMedal place={podiumPlace} size={size} className={className} />;
+  const style = TITLE_STYLE[title] ?? {
+    icon: SparklesIcon,
+    c1: "var(--primary)",
+    c2: "#ffffff",
+    fx: "shimmer" as const,
+  };
   const Icon = style.icon;
   return (
     <span
       aria-hidden
-      className={cn("grid shrink-0 place-items-center rounded-full text-white shadow-lg ring-2 ring-white/20", className)}
-      style={{ width: size, height: size, background: `linear-gradient(135deg, ${style.c1}, ${style.c2})`, boxShadow: `0 6px 18px -6px ${style.c1}` }}
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full text-white shadow-lg ring-2 ring-white/20",
+        className,
+      )}
+      style={{
+        width: size,
+        height: size,
+        background: `linear-gradient(135deg, ${style.c1}, ${style.c2})`,
+        boxShadow: `0 6px 18px -6px ${style.c1}`,
+      }}
     >
-      <Icon className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]" style={{ width: size * 0.45, height: size * 0.45 }} />
+      <Icon
+        className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]"
+        style={{ width: size * 0.45, height: size * 0.45 }}
+      />
     </span>
+  );
+}
+
+const weeklyTitlePlace = (title: string) =>
+  title === "weekly-watch-1"
+    ? 1
+    : title === "weekly-watch-2"
+      ? 2
+      : title === "weekly-watch-3"
+        ? 3
+        : null;
+
+/** Vector medal: readable at nameplate size, with no image download or loop. */
+function WatchPodiumMedal({
+  place,
+  size = 28,
+  className,
+}: {
+  place: number;
+  size?: number;
+  className?: string;
+}) {
+  const id = useId();
+  const [metal, light] =
+    place === 1
+      ? ["#d9ac59", "#fff0b7"]
+      : place === 2
+        ? ["#8c9dbb", "#eaf1ff"]
+        : ["#ae7152", "#f4c9a4"];
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 44 44"
+      width={size}
+      height={size}
+      className={cn("watch-podium-medal", className)}
+    >
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop stopColor={light} />
+          <stop offset=".48" stopColor={metal} />
+          <stop offset="1" stopColor={light} />
+        </linearGradient>
+      </defs>
+      <path d="m15 30-2 11 9-4 9 4-2-11" fill={metal} opacity=".65" />
+      <g fill={metal} stroke={metal} strokeWidth=".7">
+        <path d="M13 33C4 29 4 16 10 10M31 33c9-4 9-17 3-23" fill="none" />
+        <ellipse cx="7.5" cy="15" rx="1.6" ry="3.6" transform="rotate(-32 7.5 15)" />
+        <ellipse cx="6.5" cy="23" rx="1.7" ry="3.5" transform="rotate(-50 6.5 23)" />
+        <ellipse cx="10" cy="30" rx="1.7" ry="3.5" transform="rotate(-58 10 30)" />
+        <ellipse cx="36.5" cy="15" rx="1.6" ry="3.6" transform="rotate(32 36.5 15)" />
+        <ellipse cx="37.5" cy="23" rx="1.7" ry="3.5" transform="rotate(50 37.5 23)" />
+        <ellipse cx="34" cy="30" rx="1.7" ry="3.5" transform="rotate(58 34 30)" />
+      </g>
+      <circle
+        cx="22"
+        cy="23"
+        r="12.7"
+        fill={`url(#${id})`}
+        stroke={light}
+        strokeWidth=".8"
+      />
+      <circle cx="22" cy="23" r="10.2" fill="#1a1720" stroke={metal} strokeWidth=".7" />
+      <path
+        d="m15 10-1-6 5 3 3-5 3 5 5-3-1 6z"
+        fill={`url(#${id})`}
+        stroke={light}
+        strokeWidth=".5"
+        strokeLinejoin="round"
+      />
+      <text
+        x="22"
+        y="27.3"
+        fill={light}
+        fontSize="12"
+        fontWeight="800"
+        textAnchor="middle"
+        fontFamily="inherit"
+      >
+        {place}
+      </text>
+    </svg>
   );
 }
 
@@ -206,16 +367,25 @@ export function ProfileTitleBadge({
 }) {
   const t = useT();
   if (!title) return null;
-  const style = TITLE_STYLE[title] ?? { icon: SparklesIcon, c1: "var(--primary)", c2: "#ffffff", fx: "shimmer" as const };
+  const style = TITLE_STYLE[title] ?? {
+    icon: SparklesIcon,
+    c1: "var(--primary)",
+    c2: "#ffffff",
+    fx: "shimmer" as const,
+  };
   const Icon = style.icon;
-  const label = t(`profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer");
+  const label = t(
+    `profile.cosmetics.titleNames.${title}` as "profile.cosmetics.titleNames.newcomer",
+  );
   const cosmetic = titleCosmetic(title);
+  const podiumPlace = weeklyTitlePlace(title);
 
   const badge = (
     <span
       data-fx={style.fx}
       className={cn(
         "inline-flex max-w-full cursor-default items-center gap-1.5 overflow-hidden rounded-lg border font-medium",
+        podiumPlace && "watch-podium-title",
         size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
         className,
       )}
@@ -223,16 +393,24 @@ export function ProfileTitleBadge({
         {
           "--t1": style.c1,
           "--t2": style.c2,
-          borderColor: `color-mix(in srgb, ${style.c1} 55%, transparent)`,
-          background: `linear-gradient(120deg, color-mix(in srgb, ${style.c1} 20%, transparent), color-mix(in srgb, ${style.c2} 8%, transparent))`,
+          borderColor: podiumPlace
+            ? undefined
+            : `color-mix(in srgb, ${style.c1} 55%, transparent)`,
+          background: podiumPlace
+            ? undefined
+            : `linear-gradient(120deg, color-mix(in srgb, ${style.c1} 20%, transparent), color-mix(in srgb, ${style.c2} 8%, transparent))`,
         } as React.CSSProperties
       }
     >
-      <Icon className={cn("shrink-0", size === "md" ? "size-3.5" : "size-3")} style={{ color: style.c1 }} />
-      <span
-        className="truncate"
-        style={{ color: style.c1 }}
-      >
+      {podiumPlace ? (
+        <WatchPodiumMedal place={podiumPlace} size={size === "md" ? 32 : 28} />
+      ) : (
+        <Icon
+          className={cn("shrink-0", size === "md" ? "size-3.5" : "size-3")}
+          style={{ color: style.c1 }}
+        />
+      )}
+      <span className="truncate" style={{ color: style.c1 }}>
         {label}
       </span>
     </span>
@@ -245,7 +423,11 @@ export function ProfileTitleBadge({
       <TooltipContent side="bottom" className="max-w-60">
         <span className="flex flex-col gap-0.5">
           <span className="font-semibold">Приписка «{label}»</span>
-          {cosmetic && <span className="text-xs opacity-80">{requirementText(cosmetic, t as never)}</span>}
+          {cosmetic && (
+            <span className="text-xs opacity-80">
+              {requirementText(cosmetic, t as never)}
+            </span>
+          )}
         </span>
       </TooltipContent>
     </Tooltip>

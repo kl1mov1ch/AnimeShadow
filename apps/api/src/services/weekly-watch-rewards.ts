@@ -6,7 +6,7 @@ import { watchWeek, WEEK_MS, WEEKLY_PRO_DAYS } from "../lib/watch-week.js";
 const COMPETITION = "watch-weekly-pro";
 type Winner = { userId: string; seconds: bigint; titles: bigint };
 
-/** One transaction owns the checkpoint, the three grants and the immutable receipts. */
+/** One transaction owns the checkpoint, three PRO grants and up to 999 receipts. */
 export async function settleWatchWeeks(tx: Prisma.TransactionClient, now = new Date()) {
   const [lock] = await tx.$queryRaw<{ acquired: boolean }[]>`
     SELECT pg_try_advisory_xact_lock(726401, 1) AS acquired
@@ -17,7 +17,7 @@ export async function settleWatchWeeks(tx: Prisma.TransactionClient, now = new D
   const cursor = await tx.leaderboardRewardCursor.upsert({
     where: { id: COMPETITION },
     // Activation starts with this week. Never grant years of historical prizes on first boot.
-    create: { id: COMPETITION, nextWeek: current },
+    create: { id: COMPETITION, nextWeek: watchWeek(now).start },
     update: {},
   });
   let start = cursor.nextWeek;
@@ -34,25 +34,25 @@ export async function settleWatchWeeks(tx: Prisma.TransactionClient, now = new D
         AND COALESCE(u."profilePrivacy"->>'profile', 'public') = 'public'
         AND COALESCE(u."profilePrivacy"->>'stats', 'public') = 'public'
       GROUP BY u.id
-      ORDER BY seconds DESC, titles DESC, u.id ASC LIMIT 3
+      ORDER BY seconds DESC, titles DESC, u.id ASC LIMIT 999
     `;
+    const receipts: Prisma.WeeklyWatchRewardCreateManyInput[] = [];
     for (const [index, winner] of winners.entries()) {
-      const days = WEEKLY_PRO_DAYS[index]!;
-      const { proUntil } = await addProDays(tx, winner.userId, days, now);
-      await tx.weeklyWatchReward.create({
-        data: {
-          weekStart: start,
-          userId: winner.userId,
-          place: index + 1,
-          days,
-          seconds: winner.seconds,
-          titles: Number(winner.titles),
-          proUntilAfter: proUntil,
-          awardedAt: now,
-        },
+      const days = WEEKLY_PRO_DAYS[index] ?? 0;
+      const proUntil = days > 0 ? (await addProDays(tx, winner.userId, days, now)).proUntil : null;
+      receipts.push({
+        weekStart: start,
+        userId: winner.userId,
+        place: index + 1,
+        days,
+        seconds: winner.seconds,
+        titles: Number(winner.titles),
+        proUntilAfter: proUntil,
+        awardedAt: now,
       });
-      granted++;
     }
+    if (receipts.length > 0) await tx.weeklyWatchReward.createMany({ data: receipts });
+    granted += receipts.length;
     start = end;
     await tx.leaderboardRewardCursor.update({
       where: { id: COMPETITION },
@@ -71,7 +71,7 @@ export function startWeeklyWatchRewards(prisma: PrismaClient, log: FastifyBaseLo
       const granted = await prisma.$transaction((tx) => settleWatchWeeks(tx), {
         timeout: 30_000,
       });
-      if (granted) log.info({ granted }, "Weekly watch PRO rewards issued");
+      if (granted) log.info({ granted }, "Weekly watch rewards issued");
     } catch (err) {
       log.error({ err }, "Weekly watch rewards failed; will retry next minute");
     } finally {

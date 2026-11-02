@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@animeshadow/db";
 import {
   type AnimeSummary,
+  animeIdFromReference,
   genreSlug,
   isStudioName,
   studioSlug,
@@ -12,8 +13,9 @@ import {
   shiftSeason,
 } from "@animeshadow/shared";
 import { env } from "../config/env.js";
-import { contentGuardWhere } from "../lib/content-guard.js";
+import { contentGuardWhere, isAdultRating, isHentaiRating } from "../lib/content-guard.js";
 import { TtlCache } from "../lib/cache.js";
+import { NotFoundError, UpstreamUnavailableError } from "../lib/errors.js";
 import type { LandingService } from "../services/landing.service.js";
 import { dubStudios, STUDIO_MIN_TITLES } from "../services/dub-studios.js";
 import { BRAND, SITE, absolute, clip, esc, jsonLd, plural } from "./html.js";
@@ -75,7 +77,10 @@ export interface SeoRendererDeps {
   prisma: PrismaClient;
   landing: LandingService;
   /** For the home page's hero: its data and first frame are preloaded. */
-  catalog?: { getDiscover: (lang: "ru", allowAdult: boolean) => Promise<{ spotlights?: Array<{ screenshots: string[] }> | null; spotlight?: { screenshots: string[] } | null }> };
+  catalog?: {
+    getDiscover: (lang: "ru", allowAdult: boolean) => Promise<{ spotlights?: Array<{ screenshots: string[] }> | null; spotlight?: { screenshots: string[] } | null }>;
+    getAnimeById?: (id: number, lang: "ru", allowAdult: boolean) => Promise<unknown>;
+  };
   logger?: { warn: (obj: unknown, msg?: string) => void };
 }
 
@@ -119,6 +124,7 @@ export class SeoRenderer {
   private readonly landing: LandingService;
   private readonly catalog: SeoRendererDeps["catalog"];
   private readonly cache = new TtlCache<PagePart>(5 * 60_000, 2000);
+  private readonly pending = new Map<string, Promise<PagePart>>();
 
   constructor(deps: SeoRendererDeps) {
     this.logger = deps.logger;
@@ -145,9 +151,22 @@ export class SeoRenderer {
       [...params.keys()].some((key) => key !== "page") ? "filtered=1" : null,
     ].filter(Boolean);
     const search = kept.length > 0 ? `?${kept.join("&")}` : "";
-    const part = await this.cache.wrap(`${pathname}${search}`, () =>
-      this.renderUncached(pathname, search, `${rawPath || "/"}${search}`),
-    );
+    const key = `${pathname}${search}`;
+    let part = this.cache.get(key);
+    if (!part) {
+      let pending = this.pending.get(key);
+      if (!pending) {
+        pending = this.renderUncached(pathname, search, `${rawPath || "/"}${search}`)
+          .then((page) => {
+            // A cold miss or an upstream outage must not outlive recovery.
+            if (page.status >= 200 && page.status < 400) this.cache.set(key, page);
+            return page;
+          })
+          .finally(() => this.pending.delete(key));
+        this.pending.set(key, pending);
+      }
+      part = await pending;
+    }
     if (part.redirect) return { status: part.status, redirect: part.redirect };
     return { status: part.status, html: fillShell(part.head ?? defaultHead(), part.body ?? "") };
   }
@@ -303,12 +322,31 @@ export class SeoRenderer {
     };
   }
 
-  private async anime(param: string, path: string): Promise<PageModel | { redirect: string }> {
-    const id = /^(\d+)/.exec(param)?.[1];
-    const row = await this.prisma.anime.findFirst({
-      where: id ? { OR: [{ slug: param }, { id: Number(id) }] } : { slug: param },
+  private async resolveAnimeRow(param: string) {
+    const id = animeIdFromReference(param);
+    const load = () => this.prisma.anime.findFirst({
+      where: id != null ? { id } : { slug: param },
       include: { genres: { include: { genre: true } } },
     });
+    const cached = await load();
+    if (cached || id == null || !this.catalog?.getAnimeById) return cached;
+    try {
+      await this.catalog.getAnimeById(id, "ru", false);
+    } catch (error) {
+      // Hydration can persist a real title before applying age/content gates.
+      // Reuse the same SSR gates as a warm database lookup in that case.
+      const hydrated = await load();
+      if (hydrated) return hydrated;
+      if (error instanceof NotFoundError) return null;
+      throw error;
+    }
+    const hydrated = await load();
+    if (!hydrated) throw new UpstreamUnavailableError("The title is not yet available in the catalogue cache.");
+    return hydrated;
+  }
+
+  private async anime(param: string, path: string): Promise<PageModel | { redirect: string }> {
+    const row = await this.resolveAnimeRow(param);
     if (!row) return this.notFound();
     const canonical = `/anime/${row.slug}`;
     if (path !== canonical) return { redirect: canonical };
@@ -707,11 +745,9 @@ export class SeoRenderer {
    * episodes some player has; past that, there is no page.
    */
   private async episode(param: string, n: number, path: string): Promise<PageModel | { redirect: string }> {
-    const id = /^(\d+)/.exec(param)?.[1];
-    const row = await this.prisma.anime.findFirst({
-      where: { AND: [id ? { OR: [{ slug: param }, { id: Number(id) }] } : { slug: param }, contentGuardWhere(false)] },
-    });
-    if (!row) return this.notFound();
+    const row = await this.resolveAnimeRow(param);
+    // Episode pages remain public-only, including on their first cold lookup.
+    if (!row || isHentaiRating(row.rating) || isAdultRating(row.rating)) return this.notFound();
     const base = `/anime/${row.slug}`;
     if (row.type === "MOVIE") return { redirect: base };
     const canonical = `${base}/episode/${n}`;

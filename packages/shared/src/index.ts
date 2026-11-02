@@ -2,6 +2,7 @@ export * from "./enums.js";
 export * from "./locale.js";
 export * from "./pagination.js";
 export * from "./anime.js";
+export * from "./anime-reference.js";
 export * from "./auth.js";
 export * from "./library.js";
 export * from "./progress.js";

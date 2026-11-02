@@ -23,7 +23,7 @@ export function ProfileBanner({
   const t = useT();
   const tint = accent ?? "var(--primary)";
   return (
-    <div className={cn("relative w-full overflow-hidden", className)}>
+    <div className={cn("cover-edge-fade relative w-full overflow-hidden", className)}>
       {url ? (
         <img src={imageSrc(url)} alt="" className="absolute inset-0 size-full object-cover" />
       ) : (

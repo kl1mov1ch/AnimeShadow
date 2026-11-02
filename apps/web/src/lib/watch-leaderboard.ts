@@ -1,3 +1,5 @@
+import type { TitleIcon } from "@animeshadow/shared";
+
 export interface WatchRank {
   rank: number;
   userId: string;
@@ -6,11 +8,19 @@ export interface WatchRank {
   avatarUrl: string | null;
   seconds: number;
   titles: number;
+  avatarFrame?: string | null;
+  isPro?: boolean;
+  weeklyWatchPlace?: number | null;
+  monthlyWatchPlace?: number | null;
+  profileTitle?: string | null;
+  titlePrefix?: string | null;
+  titleIcon?: TitleIcon | null;
+  episodes?: number | null;
+  xp?: number | null;
 }
 export interface WatchBoard {
   top: WatchRank[];
   me: WatchRank | null;
-  participants: number;
   week: { startsAt: string; endsAt: string; proDays: number[] };
 }
 

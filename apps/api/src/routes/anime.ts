@@ -1,6 +1,7 @@
 import { ANIME_WITH_GENRES_INCLUDE, toSummaryDto } from "@animeshadow/db";
 import {
   animeQuerySchema,
+  animeIdFromReference,
   localeQuerySchema,
   type WatchResponse,
 } from "@animeshadow/shared";
@@ -199,18 +200,20 @@ export const animeRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const { slug } = parse(slugParams, request.params);
       const { lang } = parse(localeQuerySchema, request.query);
-      const row = await fastify.prisma.anime.findFirst({
-        where: { slug },
-        select: { id: true },
-        orderBy: { members: "desc" },
-      });
-      if (!row) throw new NotFoundError("Аниме не найдено.");
+      // Numeric-prefix links keep their identity when providers rename a title.
+      const stableId = animeIdFromReference(slug);
+      const id = stableId ?? (await fastify.prisma.anime.findFirst({
+          where: { slug },
+          select: { id: true },
+          orderBy: { members: "desc" },
+        }))?.id;
+      if (id == null) throw new NotFoundError("Аниме не найдено.");
       const allowAdult = await resolveAllowAdult(
         fastify.prisma,
         request.userId,
         request.headers["x-adult-dob"],
       );
-      return catalog.getAnimeById(row.id, lang, allowAdult);
+      return catalog.getAnimeById(id, lang, allowAdult);
     },
   );
 

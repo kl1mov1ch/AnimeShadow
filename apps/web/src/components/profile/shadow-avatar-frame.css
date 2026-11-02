@@ -3,20 +3,25 @@
   display: inline-grid;
   flex: 0 0 auto;
   isolation: isolate;
-  padding: var(--frame-pad);
+  width: var(--frame-box);
+  height: var(--frame-box);
+  aspect-ratio: 1;
+  place-items: center;
   vertical-align: middle;
   line-height: 1;
   --frame-tempo: 5s;
 }
 .shadow-avatar-frame__face {
-  display: block;
+  display: grid;
   position: relative;
   border-radius: 50%;
+  place-items: center;
+  line-height: 0;
+  transform: translate(var(--frame-face-x), var(--frame-face-y));
 }
 .shadow-avatar-frame__art,
 .shadow-avatar-frame__lights,
-.shadow-avatar-frame__mask,
-.shadow-avatar-frame__orbit {
+.shadow-avatar-frame__mask {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -44,12 +49,6 @@
 .shadow-avatar-frame[data-playing="true"] .shadow-avatar-frame__animated {
   animation-play-state: running;
 }
-.shadow-avatar-frame__shine {
-  position: absolute;
-  inset: -30%;
-  background: linear-gradient(110deg, transparent 41%, #fff9 49%, transparent 57%);
-  animation: shadow-frame-shine 6.4s ease-in-out infinite;
-}
 .shadow-avatar-frame__glow {
   position: absolute;
   inset: 0;
@@ -66,15 +65,6 @@
     radial-gradient(circle at 18% 74%, #ffc45d90, transparent 12%);
   mix-blend-mode: screen;
   animation: shadow-frame-lantern 3.3s ease-in-out infinite;
-}
-.shadow-avatar-frame__orbit {
-  opacity: 0.68;
-  animation: shadow-frame-orbit 18s linear infinite;
-}
-.shadow-avatar-frame__orbit > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
 }
 .shadow-avatar-frame__mote {
   position: absolute;
@@ -147,6 +137,126 @@
   width: 100%;
   height: 100%;
 }
+.shadow-avatar-frame__award-logo {
+  position: absolute;
+  z-index: 4;
+  left: 46.5%;
+  top: 8.5%;
+  width: 7%;
+  height: 7%;
+  color: var(--frame-accent);
+  pointer-events: none;
+  animation: shadow-frame-emblem 4.6s ease-in-out infinite;
+}
+.shadow-avatar-frame__award-logo > svg {
+  width: 100%;
+  height: 100%;
+}
+.shadow-avatar-frame__rank {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 87%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: max(30%, 24px);
+  height: clamp(12px, calc(var(--frame-diameter) * 0.075), 22px);
+  border-radius: 4px;
+  color: #f3e8df;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(7px, calc(var(--frame-diameter) * 0.065), 18px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-shadow: 0 1px 2px #000a;
+  cursor: help;
+  pointer-events: auto;
+}
+.shadow-avatar-frame[data-frame="shadow-monthly"] .shadow-avatar-frame__rank {
+  top: 84.1%;
+}
+.shadow-avatar-frame[data-frame="shadow-monthly"] .shadow-avatar-frame__award-logo {
+  top: 8%;
+}
+.shadow-avatar-frame__rank:focus-visible {
+  outline: 2px solid var(--frame-accent);
+  outline-offset: 2px;
+}
+.shadow-avatar-frame__rank[data-interactive="false"] {
+  pointer-events: none;
+}
+.shadow-avatar-frame__hands,
+.shadow-avatar-frame__ghosts {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+.shadow-avatar-frame__hand {
+  position: absolute;
+  width: 21%;
+  height: 29%;
+  top: 55%;
+  transform-origin: 50% 85%;
+  animation: shadow-zombie-hand 4.8s ease-in-out infinite;
+}
+.shadow-avatar-frame__hand--left {
+  left: 0;
+}
+.shadow-avatar-frame__hand--right {
+  right: 0;
+  animation-delay: -2.2s;
+  animation-direction: reverse;
+}
+.shadow-avatar-frame__hand img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.shadow-avatar-frame__hand--right img {
+  transform: scaleX(-1);
+}
+.shadow-avatar-frame__ghost {
+  position: absolute;
+  width: 12%;
+  height: 18%;
+  color: #c9dbef;
+  animation: shadow-ghost-float 5.6s ease-in-out infinite;
+}
+.shadow-avatar-frame__ghost--0 {
+  left: 3%;
+  top: 54%;
+}
+.shadow-avatar-frame__ghost--1 {
+  right: 4%;
+  top: 22%;
+  animation-delay: -2.8s;
+}
+.shadow-avatar-frame__ghost svg {
+  width: 100%;
+  height: 100%;
+}
+@keyframes shadow-zombie-hand {
+  0%,
+  100% {
+    transform: rotate(-5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(6deg) translateY(-2px);
+  }
+}
+@keyframes shadow-ghost-float {
+  0%,
+  100% {
+    transform: translateY(2px) rotate(-3deg);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translateY(-4px) rotate(3deg);
+    opacity: 0.95;
+  }
+}
 .shadow-avatar-frame[data-motion="voyage"] {
   --frame-tempo: 4.4s;
 }
@@ -165,20 +275,11 @@
 .shadow-avatar-frame[data-motion="journey"] .shadow-avatar-frame__strand {
   animation-duration: 5.8s;
 }
-.shadow-avatar-frame[data-motion="chakra"] .shadow-avatar-frame__orbit {
-  animation-duration: 12s;
-}
-.shadow-avatar-frame[data-motion="water"] .shadow-avatar-frame__orbit {
-  animation-direction: reverse;
-}
 .shadow-avatar-frame[data-motion="feather"] .shadow-avatar-frame__mote {
   animation-name: shadow-frame-feather;
 }
 .shadow-avatar-frame[data-motion="lantern"] .shadow-avatar-frame__glow {
   animation: shadow-frame-lantern 3.3s ease-in-out infinite;
-}
-.shadow-avatar-frame[data-motion="lantern"] .shadow-avatar-frame__orbit {
-  opacity: 0.35;
 }
 .shadow-avatar-frame[data-motion="witch"] .shadow-avatar-frame__mote {
   width: 6%;
@@ -189,28 +290,13 @@
 .shadow-avatar-frame[data-playing="false"] .shadow-avatar-frame__lights {
   visibility: hidden;
 }
-@keyframes shadow-frame-shine {
-  0%,
-  42% {
-    transform: translateX(-100%);
-  }
-  90%,
-  100% {
-    transform: translateX(100%);
-  }
-}
 @keyframes shadow-frame-glow {
   0%,
   100% {
     opacity: 0.03;
   }
   50% {
-    opacity: 0.18;
-  }
-}
-@keyframes shadow-frame-orbit {
-  to {
-    transform: rotate(360deg);
+    opacity: 0.1;
   }
 }
 @keyframes shadow-frame-mote {

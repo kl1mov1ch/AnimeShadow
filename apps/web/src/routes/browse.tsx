@@ -9,19 +9,18 @@ import {
   Loader2Icon,
   type LucideIcon,
   RadioIcon,
+  SearchIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
   TimerIcon,
   TrophyIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ActiveFilterChips } from "@/components/anime/active-filter-chips";
-import { CatalogIntro } from "@/components/anime/catalog-intro";
 import {
   BrowseFilters,
-  BrowseSearch,
   type FilterPatch,
 } from "@/components/anime/browse-filters";
 import {
@@ -54,6 +53,8 @@ import { activeFilterCount, parseBrowseParams, SORT_VALUES } from "@/lib/browse-
 import { type BrowseParams, useBrowse, useGenres, useSmartSearch } from "@/lib/query";
 import { cn } from "@/lib/utils";
 import { useDocumentHead } from "@/lib/seo";
+import { openGlobalSearch } from "@/lib/search-events";
+import "./browse.css";
 
 const VIEW_KEY = "animeshadow.browse.view.v1";
 
@@ -82,14 +83,9 @@ function titlesCount(n: number): string {
 /**
  * The catalogue.
  *
- * Top to bottom: the name and how much there is, a search box, one-tap
- * lists (ongoing, top, films…), a row with the filters and the order, and
- * the results. Nothing stays pinned over the posters while they scroll:
- * on a computer the filters stand beside the results; on a phone they open
- * as a sheet from the bottom, and once the row with their button has
- * scrolled away, a small "filters · back to top" pill comes back at the
- * bottom of the screen whenever the list is scrolled up — and keeps out
- * of the way while it is read down. Every choice applies at once.
+ * Compact heading and shared search, one-tap lists, then the poster wall.
+ * Desktop filters stay in a viewport-sized sidebar with their own scroll;
+ * phones use the filter sheet. Every choice updates the current URL/list.
  */
 export function Component() {
   const { t } = useI18n();
@@ -230,19 +226,34 @@ export function Component() {
 
   return (
     <div className="catalog-page flex min-w-0 flex-col gap-6 sm:gap-8">
-      <CatalogIntro items={browse.data?.items ?? []} searching={isSearch} playable={params.hasPlayer === true} onPlayable={() => patch({ hasPlayer: params.hasPlayer ? null : "1", all: null })}>
-        <BrowseSearch params={params} onChange={patch} />
+      <header className="catalog-heading">
+        <div>
+          <h1>Каталог аниме</h1>
+          <p>Выберите историю под настроение</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => openGlobalSearch({ mode: "anime", query: params.q ?? "" })}
+          className="catalog-search-trigger catalog-panel"
+          aria-label="Найти аниме в общем поиске"
+        >
+          <SearchIcon aria-hidden />
+          <span>{params.q ? `Поиск: ${params.q}` : "Найти аниме"}</span>
+          <kbd>Ctrl + K</kbd>
+        </button>
+      </header>
+      <div className="catalog-presets">
         <PresetRow
           params={params}
           isSearch={isSearch}
           onChange={(changes) => patch(changes)}
         />
-      </CatalogIntro>
+      </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[16rem_minmax(0,1fr)]">
         <aside
           aria-label="Фильтры каталога"
-          className="hidden max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border/60 bg-card/45 p-4 [scrollbar-width:thin] lg:sticky lg:top-24 lg:block"
+          className="catalog-filter-panel catalog-filter-scroll catalog-panel hidden lg:block"
         >
           <BrowseFilters
             params={params}
@@ -259,7 +270,7 @@ export function Component() {
           </div>
           {/* The row: filters (on a phone or tablet), the order, and on a
               wider screen "pick one at random" and grid or list. */}
-          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 bg-card/50 p-2.5">
+          <div ref={toolbarRef} className="catalog-panel flex flex-wrap items-center gap-2 rounded-2xl border border-border/60 p-2.5">
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
@@ -347,7 +358,7 @@ export function Component() {
               {t("browse.filtersHint")}
             </SheetDescription>
           </SheetHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+          <div className="catalog-filter-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
             <div className="flex flex-col gap-2">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
                 {t("browse.sortBy")}

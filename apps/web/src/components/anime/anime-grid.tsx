@@ -50,7 +50,7 @@ export function AnimeGrid({
 }
 
 export function AnimeGridSkeleton({
-  count = 18,
+  count = 24,
   view = "grid",
 }: {
   count?: number;

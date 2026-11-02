@@ -39,13 +39,14 @@ export function DailyChallenge() {
     staleTime: 0,
   });
   const board = useQuery({
-    queryKey: ["games", "daily-board"],
+    queryKey: ["games", "daily-board", user?.id],
     queryFn: ({ signal }) =>
       apiRequest<{ day: string; top: Array<PlayerRow & { score: number }> }>(
         "/games/daily/leaderboard",
         { signal },
       ),
     staleTime: 15_000,
+    enabled: status === "authenticated",
     refetchInterval: 60_000,
   });
   const [busy, setBusy] = useState(false);
@@ -233,7 +234,7 @@ export function DailyChallenge() {
           <TrophyIcon className="size-5 text-primary" />
           Рейтинг дня
         </h2>
-        {board.isError ? (
+        {status !== "authenticated" ? <p className="text-sm leading-relaxed text-muted-foreground">Результаты участников доступны после входа.</p> : board.isError ? (
           <ErrorState onRetry={() => void board.refetch()} />
         ) : board.isPending ? (
           <Skeleton className="h-40" />

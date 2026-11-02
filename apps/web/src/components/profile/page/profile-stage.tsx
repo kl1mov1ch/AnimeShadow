@@ -10,6 +10,7 @@ import { useScrollDirection } from "@/hooks/use-scroll-direction";
 import { useT } from "@/i18n";
 import { imageSrc } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { shadowFrame } from "@/lib/avatar-frames";
 import { PresenceDot } from "../identity-extras";
 import { AvatarFrameRing, ProfileTitleBadge } from "../profile-cosmetics";
 import { AvatarFrameGallery } from "../avatar-frame-gallery";
@@ -72,6 +73,7 @@ export function ProfileStage({
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
   const since = new Date(profile.memberSince).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
   const presence = PRESENCE_TEXT[profile.onlineStatus];
+  const framed = Boolean(shadowFrame(profile.avatarFrame));
   const pinned = profile.showcaseAchievementIds
     .map((id) => profile.achievements.find((a) => a.id === id && a.earned))
     .filter((a): a is EarnedAchievement => a != null);
@@ -91,7 +93,7 @@ export function ProfileStage({
   );
   const avatar = (
     <div className="relative shrink-0">
-      <AvatarFrameRing frame={profile.avatarFrame} fallback={RANK_RING[profile.rank]}>
+      <AvatarFrameRing frame={profile.avatarFrame} weeklyPlace={profile.weeklyWatchAward?.place} monthlyPlace={profile.monthlyWatchAward?.place} fallback={RANK_RING[profile.rank]}>
         {own ? (
           <button
             type="button"
@@ -106,8 +108,8 @@ export function ProfileStage({
           face
         )}
       </AvatarFrameRing>
-      <PresenceDot status={profile.onlineStatus} className="right-2 top-2 z-20 sm:right-3 sm:top-3" />
-      <span className="absolute -bottom-1 -left-1 z-20 rounded-full bg-background p-0.5 shadow-lg shadow-black/40" title={`${level.level} уровень · ${level.tier.name}`}>
+      <PresenceDot status={profile.onlineStatus} className={cn("z-30", framed ? "right-[15%] top-[15%]" : "right-2 top-2 sm:right-3 sm:top-3")} />
+      <span className={cn("absolute z-30 rounded-full bg-background p-0.5 shadow-lg shadow-black/40", framed ? "bottom-[7%] left-[4%]" : "-bottom-1 -left-1")} title={`${level.level} уровень · ${level.tier.name}`}>
         <LevelBadge info={level} size={44} />
       </span>
       {own && (
@@ -118,9 +120,9 @@ export function ProfileStage({
             disabled={media.avatarBusy}
             aria-label="Случайный аватар"
             title="Случайный аватар"
-            className="absolute -bottom-0.5 -right-0.5 z-20 grid size-8 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm transition-transform hover:scale-110 disabled:pointer-events-none disabled:opacity-60"
+            className={cn("absolute z-30 grid size-8 place-items-center rounded-full border-2 border-background bg-card text-primary shadow-sm transition-colors hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-60", framed ? "bottom-[9%] right-[6%]" : "-bottom-0.5 -right-0.5")}
           >
-            <ShuffleIcon className="size-3.5" />
+            {media.avatarBusy ? <Loader2Icon className="size-3.5 animate-spin" /> : <ShuffleIcon className="size-3.5" />}
           </button>
         </>
       )}
@@ -132,7 +134,7 @@ export function ProfileStage({
       {/* The cover, edge to edge, fading into the page. */}
       <div className="full-bleed relative h-44 overflow-hidden sm:h-60 lg:h-72">
         <ProfileBanner url={profile.bannerUrl} accent={profile.accentColor} className="absolute inset-0 h-full" />
-        <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-background via-background/35 to-background/10" />
+        <div aria-hidden className="cover-edge-fade absolute inset-0 bg-gradient-to-t from-background via-background/35 to-background/10" />
         {!profile.bannerUrl && <LogoWatermark className="-right-10 top-1/2 size-80 -translate-y-1/2 rotate-6 text-foreground/[0.05]" />}
         {own && (
           <div className="absolute inset-x-0 top-3 mx-auto flex max-w-[1400px] justify-end px-4 sm:top-4 sm:px-6">

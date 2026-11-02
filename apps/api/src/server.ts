@@ -5,10 +5,15 @@ import { logDigest } from "./lib/log-digest-instance.js";
 import { env } from "./config/env.js";
 import { startIndexNow } from "./seo/indexnow.js";
 import { startWeeklyWatchRewards } from "./services/weekly-watch-rewards.js";
+import { startMonthlyWatchRewards } from "./services/monthly-watch-rewards.js";
 
 const app = await buildApp();
 let stopWeeklyRewards: (() => void) | undefined;
-app.addHook("onClose", async () => stopWeeklyRewards?.());
+let stopMonthlyRewards: (() => Promise<void>) | undefined;
+app.addHook("onClose", async () => {
+  stopWeeklyRewards?.();
+  await stopMonthlyRewards?.();
+});
 
 closeWithGrace({ delay: 10_000 }, async ({ signal, err }) => {
   if (err) {
@@ -25,6 +30,7 @@ closeWithGrace({ delay: 10_000 }, async ({ signal, err }) => {
 try {
   await app.listen({ port: env.API_PORT, host: env.API_HOST });
   stopWeeklyRewards = startWeeklyWatchRewards(app.prisma, app.log);
+  stopMonthlyRewards = startMonthlyWatchRewards(app.prisma, app.log);
   app.log.info(
     `AnimeShadow API ready on http://${env.API_HOST}:${env.API_PORT}/api`,
   );

@@ -36,10 +36,20 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useI18n } from "@/i18n";
 import { animeHref } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
-import { logSearch, useGenrePreferences, useGenres, useSearchPulse, useSmartSearch } from "@/lib/query";
+import {
+  logSearch,
+  useGenrePreferences,
+  useGenres,
+  useSearchPulse,
+  useSmartSearch,
+} from "@/lib/query";
 import { SlicedGlyph } from "@/components/brand/sliced-glyph";
 import { ReactionMedia } from "@/components/common/states";
-import { type ProfileModalTarget, UserProfileModal } from "@/components/user-profile-modal";
+import {
+  type ProfileModalTarget,
+  UserProfileModal,
+} from "@/components/user-profile-modal";
+import type { GlobalSearchRequest } from "@/lib/search-events";
 
 /** Room for eight in the palette — it's a full surface, not a dropdown
  *  hanging off a 360px field, so it can afford more than the header's six. */
@@ -57,16 +67,18 @@ const MAX_PALETTE_RESULTS = 8;
 export function SearchCommandDialog({
   open,
   onOpenChange: setOpen,
+  request,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  request: GlobalSearchRequest & { id: number };
 }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const labels = useLabels();
   const { status } = useAuth();
 
-  const [term, setTerm] = useState("");
+  const [term, setTerm] = useState(request.query ?? "");
   const [recent, setRecent] = useState<string[]>([]);
   const debounced = useDebouncedValue(term.trim(), 220);
 
@@ -74,7 +86,9 @@ export function SearchCommandDialog({
   const { data: genres = [] } = useGenres();
   const { data: favoriteGenreIds = [] } = useGenrePreferences(isAuthed);
   const { data: pulse } = useSearchPulse(open);
-  const [mode, setMode] = useState<SearchMode>("anime");
+  const [mode, setMode] = useState<SearchMode>(() =>
+    request.mode === "people" && !isAuthed ? "anime" : (request.mode ?? "anime"),
+  );
   // A genre picked from the chips: its top titles show in the panel.
   const [genre, setGenre] = useState<{ id: number; label: string } | null>(null);
   const favoriteGenres = favoriteGenreIds
@@ -87,13 +101,20 @@ export function SearchCommandDialog({
   // last search reads as stale, and the history chips are right there.
   useEffect(() => {
     if (open) {
-      setTerm("");
+      setTerm(request.query ?? "");
+      setMode(
+        request.mode === "people" && !isAuthed ? "anime" : (request.mode ?? "anime"),
+      );
+      setGenre(null);
       setRecent(readRecent());
     }
-  }, [open]);
+  }, [open, request, isAuthed]);
 
   const showResults = debounced.length >= 2;
-  const { data, isFetching } = useSmartSearch(debounced, open && showResults && mode === "anime");
+  const { data, isFetching } = useSmartSearch(
+    debounced,
+    open && showResults && mode === "anime",
+  );
   const matches = useTitleMatches(data?.flat ?? [], debounced);
 
   const close = useCallback(() => setOpen(false), [setOpen]);
@@ -101,7 +122,14 @@ export function SearchCommandDialog({
   const submit = useCallback(
     (value: string) => {
       const q = value.trim();
-      if (!q || mode === "people") return;
+      if (!q) return;
+      if (mode === "people") {
+        if (isAuthed && q.replace(/^@+/, "").trim().length >= 2) {
+          close();
+          navigate(`/people?q=${encodeURIComponent(q)}`);
+        }
+        return;
+      }
       setRecent(pushRecent(q));
       close();
       if (mode === "collections") {
@@ -111,7 +139,7 @@ export function SearchCommandDialog({
       logSearch(q);
       navigate(`/browse?q=${encodeURIComponent(q)}`);
     },
-    [close, navigate, mode],
+    [close, navigate, mode, isAuthed],
   );
 
   const goToAnime = useCallback(
@@ -139,165 +167,198 @@ export function SearchCommandDialog({
     navigate(`/collections/${collection.id}`);
   };
 
-
-
   return (
     <>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent
-        showCloseButton={false}
-        // `sm:` on the width deliberately: DialogContent's own base class is
-        // `sm:max-w-lg`, and tailwind-merge treats a prefixed and an
-        // unprefixed utility as different groups — an unprefixed `max-w-2xl`
-        // here would simply lose to it from 640px up.
-        className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-2xl"
-      >
-        <DialogTitle className="sr-only">{t("search.open")}</DialogTitle>
-        <DialogDescription className="sr-only">
-          {t("search.placeholder")}
-        </DialogDescription>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          showCloseButton={false}
+          // `sm:` on the width deliberately: DialogContent's own base class is
+          // `sm:max-w-lg`, and tailwind-merge treats a prefixed and an
+          // unprefixed utility as different groups — an unprefixed `max-w-2xl`
+          // here would simply lose to it from 640px up.
+          className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-2xl"
+        >
+          <DialogTitle className="sr-only">{t("search.open")}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("search.placeholder")}
+          </DialogDescription>
 
-        <Command shouldFilter={false} loop className="bg-transparent">
-          {/* The field is the top of the panel itself — no border-box within
+          <Command shouldFilter={false} loop className="bg-transparent">
+            {/* The field is the top of the panel itself — no border-box within
               a border-box. Same glyph-and-bloom behaviour as the header's
               pill, scaled up for a surface you opened on purpose. */}
-          <div className="group relative flex items-center border-b border-border/60 px-4">
-            <SearchIcon className="pointer-events-none size-5 shrink-0 text-muted-foreground transition-colors duration-200 group-focus-within:text-primary" />
-            <input
-              autoFocus
-              value={term}
-              onChange={(event) => {
-                setTerm(event.target.value);
-                setGenre(null);
-              }}
-              placeholder={mode === "anime" ? t("search.placeholder") : mode === "people" ? "Ник или имя человека" : t("search.hintCollections")}
-              aria-label={t("search.open")}
-              className="h-14 w-full bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground/70"
-            />
-            <div className="flex shrink-0 items-center gap-1.5">
-              {isFetching && showResults && (
-                <Loader2Icon className="size-4 animate-spin text-primary" />
-              )}
-              {term && (
-                <button
-                  type="button"
-                  onClick={() => setTerm("")}
-                  aria-label={t("common.clear")}
-                  className="animate-in zoom-in-75 flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                >
-                  <XIcon className="size-4" />
-                </button>
-              )}
-              <kbd className="pointer-events-none hidden select-none rounded-md border border-border/70 bg-secondary/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/80 sm:inline-block">
-                ESC
-              </kbd>
+            <div className="group relative flex items-center border-b border-border/60 px-4">
+              <SearchIcon className="pointer-events-none size-5 shrink-0 text-muted-foreground transition-colors duration-200 group-focus-within:text-primary" />
+              <input
+                autoFocus
+                value={term}
+                onChange={(event) => {
+                  setTerm(event.target.value);
+                  setGenre(null);
+                }}
+                placeholder={
+                  mode === "anime"
+                    ? t("search.placeholder")
+                    : mode === "people"
+                      ? "Ник или имя человека"
+                      : t("search.hintCollections")
+                }
+                aria-label={t("search.open")}
+                className="h-14 w-full bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground/70"
+              />
+              <div className="flex shrink-0 items-center gap-1.5">
+                {isFetching && showResults && (
+                  <Loader2Icon className="size-4 animate-spin text-primary" />
+                )}
+                {term && (
+                  <button
+                    type="button"
+                    onClick={() => setTerm("")}
+                    aria-label={t("common.clear")}
+                    className="animate-in zoom-in-75 flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  >
+                    <XIcon className="size-4" />
+                  </button>
+                )}
+                <kbd className="pointer-events-none hidden select-none rounded-md border border-border/70 bg-secondary/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/80 sm:inline-block">
+                  ESC
+                </kbd>
+              </div>
             </div>
-          </div>
 
-          <div className="border-b border-border/50 px-3 py-2">
-            <ModeSwitch mode={mode} onMode={setMode} />
-          </div>
-          <CommandList className="max-h-[min(68vh,34rem)]">
-            {mode === "people" ? (
+            <div className="border-b border-border/50 px-3 py-2">
+              <ModeSwitch mode={mode} onMode={setMode} />
+            </div>
+            <CommandList className="max-h-[min(68vh,34rem)]">
+              {mode === "people" ? (
                 <div className="p-1">
-                  <PeopleResults term={debounced} onSelect={goToPerson} />
+                  <PeopleResults
+                    term={debounced}
+                    onSelect={goToPerson}
+                    onSeeAll={submit}
+                  />
                 </div>
               ) : mode === "collections" ? (
-              <div className="p-1">
-                <CollectionResults term={debounced} onSelect={goToCollection} onSeeAll={submit} />
-              </div>
-            ) : !showResults && genre ? (
-              <div className="p-1">
-                <GenreResults
-                  genre={genre}
-                  onSelect={goToAnime}
-                  onBack={() => setGenre(null)}
-                  onSeeAll={(id) => {
-                    close();
-                    navigate(`/browse?genres=${id}`);
+                <div className="p-1">
+                  <CollectionResults
+                    term={debounced}
+                    onSelect={goToCollection}
+                    onSeeAll={submit}
+                  />
+                </div>
+              ) : !showResults && genre ? (
+                <div className="p-1">
+                  <GenreResults
+                    genre={genre}
+                    onSelect={goToAnime}
+                    onBack={() => setGenre(null)}
+                    onSeeAll={(id) => {
+                      close();
+                      navigate(`/browse?genres=${id}`);
+                    }}
+                  />
+                </div>
+              ) : !showResults ? (
+                <IdleState
+                  recent={recent}
+                  onClearRecent={() => {
+                    clearRecent();
+                    setRecent([]);
                   }}
+                  onPick={setTerm}
+                  pulse={pulse}
+                  favoriteGenres={favoriteGenres}
+                  onPickGenre={setGenre}
                 />
-              </div>
-            ) : !showResults ? (
-              <IdleState
-                recent={recent}
-                onClearRecent={() => {
-                  clearRecent();
-                  setRecent([]);
-                }}
-                onPick={setTerm}
-                pulse={pulse}
-                favoriteGenres={favoriteGenres}
-                onPickGenre={setGenre}
-              />
-            ) : isFetching && !data ? (
-              <LoadingRows count={5} />
-            ) : data && data.flat.length > 0 ? (
-              <>
-                {data.detectedGenres.length > 0 && (
-                  <p className="flex items-center gap-1.5 px-4 pb-1 pt-3 text-xs text-muted-foreground">
-                    <SparklesIcon className="size-3 text-primary" />
-                    {t("search.detectedAs", {
-                      genres: data.detectedGenres.join(", "),
-                    })}
-                  </p>
-                )}
-                {(() => {
-                  const budgeted = budgetGroups(data.groups, MAX_PALETTE_RESULTS);
-                  const shown = budgeted.reduce((n, g) => n + g.items.length, 0);
-                  const hasMore = shown < data.flat.length;
-                  return (
-                    <>
-                      {budgeted.map(({ group, items }, index) => (
-                        <ResultGroup
-                          key={`${group.reason}-${index}`}
-                          group={group}
-                          items={items}
-                          heading={groupHeading(group, t)}
-                          matches={matches}
-                          onSelect={goToAnime}
-                          size="roomy"
-                        />
-                      ))}
-                      <div className="p-2 pt-1">
-                        <CommandItem
-                          value="see-all"
-                          onSelect={() => submit(term)}
-                          className="group relative justify-center overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg"
-                        >
-                          <SearchIcon className="relative z-10 text-primary-foreground!" />
-                          <span className="relative z-10 truncate">
-                            {hasMore
-                              ? t("search.seeMore", { query: term.trim() })
-                              : t("search.seeAll", { query: term.trim() })}
-                          </span>
-                          <Sheen tone="light" />
-                        </CommandItem>
-                      </div>
-                    </>
-                  );
-                })()}
-              </>
-            ) : (
-              <CommandEmpty>
-                {isFetching ? (
-                  <span className="block py-4 text-center text-sm text-muted-foreground">{t("search.searching")}…</span>
-                ) : (
-                  <span className="flex items-center gap-3 px-3 py-3 text-left">
-                    <ReactionMedia category="shrug" fallback={<span aria-hidden className="font-display text-3xl text-primary/30"><SlicedGlyph /></span>} className="!size-16 sm:!size-16" />
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-sm font-semibold text-foreground">{t("search.noMatches")}</span>
-                      <span className="text-xs text-muted-foreground">Проверьте написание или попробуйте другое название — японское, английское или сокращение.</span>
+              ) : isFetching && !data ? (
+                <LoadingRows count={5} />
+              ) : data && data.flat.length > 0 ? (
+                <>
+                  {data.detectedGenres.length > 0 && (
+                    <p className="flex items-center gap-1.5 px-4 pb-1 pt-3 text-xs text-muted-foreground">
+                      <SparklesIcon className="size-3 text-primary" />
+                      {t("search.detectedAs", {
+                        genres: data.detectedGenres.join(", "),
+                      })}
+                    </p>
+                  )}
+                  {(() => {
+                    const budgeted = budgetGroups(data.groups, MAX_PALETTE_RESULTS);
+                    const shown = budgeted.reduce((n, g) => n + g.items.length, 0);
+                    const hasMore = shown < data.flat.length;
+                    return (
+                      <>
+                        {budgeted.map(({ group, items }, index) => (
+                          <ResultGroup
+                            key={`${group.reason}-${index}`}
+                            group={group}
+                            items={items}
+                            heading={groupHeading(group, t)}
+                            matches={matches}
+                            onSelect={goToAnime}
+                            size="roomy"
+                          />
+                        ))}
+                        <div className="p-2 pt-1">
+                          <CommandItem
+                            value="see-all"
+                            onSelect={() => submit(term)}
+                            className="group relative justify-center overflow-hidden rounded-full bg-gradient-to-r from-primary via-primary/85 to-primary py-2 text-center text-sm font-semibold text-primary-foreground shadow-md transition-all duration-200 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[selected=true]:shadow-lg"
+                          >
+                            <SearchIcon className="relative z-10 text-primary-foreground!" />
+                            <span className="relative z-10 truncate">
+                              {hasMore
+                                ? t("search.seeMore", { query: term.trim() })
+                                : t("search.seeAll", { query: term.trim() })}
+                            </span>
+                            <Sheen tone="light" />
+                          </CommandItem>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <CommandEmpty>
+                  {isFetching ? (
+                    <span className="block py-4 text-center text-sm text-muted-foreground">
+                      {t("search.searching")}…
                     </span>
-                  </span>
-                )}
-              </CommandEmpty>
-            )}
-          </CommandList>
-        </Command>
-      </DialogContent>
-    </Dialog>
-      <UserProfileModal target={person} onOpenChange={(open) => !open && setPerson(null)} />
+                  ) : (
+                    <span className="flex items-center gap-3 px-3 py-3 text-left">
+                      <ReactionMedia
+                        category="shrug"
+                        fallback={
+                          <span
+                            aria-hidden
+                            className="font-display text-3xl text-primary/30"
+                          >
+                            <SlicedGlyph />
+                          </span>
+                        }
+                        className="!size-16 sm:!size-16"
+                      />
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-sm font-semibold text-foreground">
+                          {t("search.noMatches")}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Проверьте написание или попробуйте другое название — японское,
+                          английское или сокращение.
+                        </span>
+                      </span>
+                    </span>
+                  )}
+                </CommandEmpty>
+              )}
+            </CommandList>
+          </Command>
+        </DialogContent>
+      </Dialog>
+      <UserProfileModal
+        target={person}
+        onOpenChange={(open) => !open && setPerson(null)}
+      />
     </>
   );
 }

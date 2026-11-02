@@ -1,6 +1,7 @@
 import { genreHref } from "@/lib/format";
 import { useMarkNotificationsRead, useUnreadNotifications } from "@/lib/notifications";
 import type { AnimeDetail, Character } from "@animeshadow/shared";
+import { animeIdFromReference } from "@animeshadow/shared";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpenIcon,
@@ -79,7 +80,7 @@ export function Component() {
   const { id } = useParams();
 
   // Accepts a numeric id ("/anime/1535") or a slug ("/anime/death-note").
-  if (!id || !/^[\w-]+$/.test(id)) {
+  if (!id || (animeIdFromReference(id) == null && !/^[\p{L}\p{N}_-]+$/u.test(id))) {
     return (
       <ErrorState title={t("detail.notValid")} message={t("detail.notValidBody")} />
     );

@@ -157,6 +157,7 @@ model User {
   commentReports CommentReport[]
   sessions      WatchSession[]
   weeklyWatchRewards WeeklyWatchReward[]
+  monthlyWatchAwards MonthlyWatchAward[]
   achievements  UserAchievement[]
   genrePrefs    UserGenrePreference[]
   likedAnime    UserLikedAnime[]
@@ -417,9 +418,12 @@ model WatchSession {
   startedAt DateTime
   endedAt   DateTime?
   seconds   Int       @default(0)
+  /// Bounded new playback heartbeats eligible for cosmetic unlocks; legacy rows stay zero.
+  rewardSeconds Int   @default(0)
   createdAt DateTime  @default(now())
 
   @@index([userId, startedAt])
+  @@index([userId, animeId, episode])
   @@index([animeId, startedAt])
   // Backs the homepage's "trending now / this month" rails — a
   // groupBy(animeId) filtered to a recent window over the whole table, with
@@ -433,7 +437,7 @@ model LeaderboardRewardCursor {
   nextWeek DateTime
 }
 
-/// Receipt: one place and one prize per account per Moscow calendar week.
+/// Permanent weekly cosmetic receipt for places 1..999; PRO days only for 1..3.
 model WeeklyWatchReward {
   weekStart     DateTime
   place         Int
@@ -448,6 +452,22 @@ model WeeklyWatchReward {
   @@id([weekStart, place])
   @@unique([weekStart, userId])
   @@index([userId, awardedAt])
+  @@index([userId, place, awardedAt(sort: Desc)])
+}
+
+/// Permanent monthly cosmetics for the top 999; these never grant PRO days.
+model MonthlyWatchAward {
+  monthStart DateTime
+  place      Int
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seconds    BigInt
+  titles     Int
+  awardedAt  DateTime @default(now())
+
+  @@id([monthStart, place])
+  @@unique([monthStart, userId])
+  @@index([userId, place, awardedAt(sort: Desc)])
 }
 
 /// Time with the player open, from someone who isn't signed in. Kept apart

@@ -30,6 +30,7 @@ import { AvatarFrameRing, ProfileTitleBadge } from "@/components/profile/profile
 import { levelOf } from "@/components/profile/profile-level";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { UserTitleBadge } from "@/components/user-title-badge";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, useT } from "@/i18n";
@@ -38,6 +39,7 @@ import { animeHref, displayTitle, imageSrc } from "@/lib/format";
 import { useLabels } from "@/lib/labels";
 import { useFollow, usePublicProfile, usePublicProfileById, useSocial } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { publicProfileHref } from "@/lib/public-identity";
 
 const RANK_RING: Record<Rank, string> = {
   NOVICE: "ring-muted-foreground/40",
@@ -228,7 +230,7 @@ function ProfileModalBody({
     .map((id) => profile.achievements.find((a) => a.id === id && a.earned))
     .filter((a): a is EarnedAchievement => a != null);
   const earned = profile.achievements.filter((a) => a.earned).length;
-  const href = profile.username ? `/profile/${profile.username}` : null;
+  const href = publicProfileHref(profile.username, profile.id);
   const online = ONLINE[profile.onlineStatus] ?? ONLINE.OFFLINE!;
   const friends = Boolean(social?.isFollowing && social.followsYou);
   const level = useMemo(() => levelOf(profile), [profile]);
@@ -270,13 +272,16 @@ function ProfileModalBody({
           <img src={imageSrc(profile.bannerUrl)} alt="" decoding="async" className="absolute inset-0 size-full object-cover" />
         )}
         <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-card via-card/25 to-transparent" />
+        <Button asChild variant="secondary" size="sm" className="absolute left-4 top-3.5">
+          <Link to={href} onClick={onClose}>Перейти в профиль<ArrowRightIcon data-icon="inline-end" /></Link>
+        </Button>
       </div>
 
       <div className="relative -mt-14 flex min-w-0 flex-col gap-3.5 px-4 pb-5 sm:px-5">
         {/* Who: face with level and status, name, title, handle. */}
         <div className="flex items-end gap-3.5">
           <div className="relative shrink-0">
-            <AvatarFrameRing frame={profile.avatarFrame} fallback={RANK_RING[profile.rank]}>
+            <AvatarFrameRing frame={profile.avatarFrame} weeklyPlace={profile.weeklyWatchAward?.place} monthlyPlace={profile.monthlyWatchAward?.place} fallback={RANK_RING[profile.rank]}>
               <div className="flex size-24 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary/60 via-fuchsia-500/40 to-sky-500/40 font-display text-3xl text-white">
                 {profile.avatarUrl ? <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" /> : initial}
               </div>

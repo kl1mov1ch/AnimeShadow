@@ -1,0 +1,14 @@
+.hall-podium-avatar.hall-podium-avatar--framed { width: auto; height: auto; min-height: 102px; padding: 0; border: 0; background: none; }
+.hall-podium-public-name { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.hall-public-details { display: flex; min-width: 0; flex-direction: column; gap: 4px; margin-top: 4px; }
+.hall-public-details__meta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 10px; }
+.hall-public-details__titles { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 4px; }
+.hall-public-details--podium { align-items: center; margin-top: 8px; }
+.hall-public-details--podium .hall-public-details__meta, .hall-public-details--podium .hall-public-details__titles { justify-content: center; }
+@media (max-width: 480px) { .hall-public-details__titles > * { max-width: 100%; } }
+@media (max-width: 700px) {
+  .hall-podium-avatar.hall-podium-avatar--framed { --hall-avatar-size: 44px; min-height: 64px; }
+  .hall-podium-public-name { justify-content: flex-start; }
+  .hall-public-details--podium { align-items: flex-start; }
+  .hall-public-details--podium .hall-public-details__meta, .hall-public-details--podium .hall-public-details__titles { justify-content: flex-start; }
+}

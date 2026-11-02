@@ -198,7 +198,7 @@ export const openingGameRoutes: FastifyPluginAsync = async (app) => {
   );
   app.get(
     "/games/opening/leaderboard",
-    { preHandler: app.optionalAuth },
+    { preHandler: app.authenticate },
     async (req) => {
       const top = await app.prisma.openingScore.findMany({
         where: { best: { gt: 0 }, user: { isBanned: false } },

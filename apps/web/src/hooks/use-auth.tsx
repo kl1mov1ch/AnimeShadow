@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import { apiRequest, setAuthToken, ApiRequestError } from "@/lib/api";
-import { queryClient } from "@/lib/query";
+import { queryClient } from "@/lib/query-client";
 import type { TelegramAuthData } from "@/lib/telegram-auth";
 
 const STORAGE_KEY = "animeshadow.auth.v1";

@@ -1492,6 +1492,12 @@ body:has([role="dialog"][data-state="open"]) main * {
 .hero-frame {
   contain: paint;
   transform: translateZ(0);
+  -webkit-mask-image: linear-gradient(to bottom, #000 48%, #000b 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 48%, #000b 72%, transparent 100%);
+}
+.cover-edge-fade {
+  -webkit-mask-image: linear-gradient(to bottom, #000 38%, #000e 58%, #0008 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 38%, #000e 58%, #0008 78%, transparent 100%);
 }
 .hero-clock {
   position: absolute;
@@ -1610,11 +1616,11 @@ body:has([role="dialog"][data-state="open"]) main * {
   .hero-frame {
     -webkit-mask-image:
       linear-gradient(to right, transparent 0, #000 30%),
-      linear-gradient(to top, transparent 0, #000 20%);
+      linear-gradient(to top, transparent 0, #000b 22%, #000 44%);
     -webkit-mask-composite: source-in;
     mask-image:
       linear-gradient(to right, transparent 0, #000 30%),
-      linear-gradient(to top, transparent 0, #000 20%);
+      linear-gradient(to top, transparent 0, #000b 22%, #000 44%);
     mask-composite: intersect;
   }
 }
@@ -2020,7 +2026,7 @@ body:has([role="dialog"][data-state="open"]) main * {
 .catalog-results .anime-grid-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem .8rem; }
 @media (min-width: 640px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.8rem 1rem; } }
 @media (min-width: 1024px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (min-width: 1536px) { .catalog-results .anime-grid-wall { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 :root { --music-player-space: 0px; }
 :root.has-music-player { --music-player-space: 7rem; }
 .catalog-page aside::-webkit-scrollbar { width: 4px; }

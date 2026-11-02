@@ -1,4 +1,5 @@
 import type { AnimeStats, WatchResponse } from "@animeshadow/shared";
+import { animeIdFromReference } from "@animeshadow/shared";
 import { readLocale } from "@/i18n";
 import { apiRequest } from "./api";
 import { animeQueryOptions, queryClient, queryKeys } from "./query";
@@ -24,8 +25,8 @@ export function prefetchAnime(param: string, full = true): void {
   void loadPage();
   void queryClient.prefetchQuery(animeQueryOptions(param, readLocale()));
   if (!full) return;
-  const id = Number(/^(\d+)/.exec(param)?.[1]);
-  if (!Number.isInteger(id) || id <= 0) return;
+  const id = animeIdFromReference(param);
+  if (id == null) return;
   void queryClient.prefetchQuery({
     queryKey: queryKeys.watch(id),
     queryFn: ({ signal }) => apiRequest<WatchResponse>(`/anime/${id}/watch`, { signal }),

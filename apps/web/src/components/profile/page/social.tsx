@@ -55,7 +55,7 @@ function Face({ user, size = 40, className }: { user: Pick<UserCard, "displayNam
 /** A face in the frame its owner wears — plain when they wear none. */
 function FramedFace({ user, size, className }: { user: UserCard; size: number; className?: string }) {
   return (
-    <AvatarFrameRing frame={user.avatarFrame} fallback="ring-0 ring-offset-0" cap={false}>
+    <AvatarFrameRing frame={user.avatarFrame} weeklyPlace={user.weeklyWatchPlace} monthlyPlace={user.monthlyWatchPlace} fallback="ring-0 ring-offset-0" cap={false}>
       <Face user={user} size={size} className={className} />
     </AvatarFrameRing>
   );

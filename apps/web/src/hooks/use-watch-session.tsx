@@ -4,11 +4,9 @@ import { logGuestSession, useLogSession } from "@/lib/query";
 import { getVisitorId } from "@/lib/visitor";
 
 /**
- * Records a coarse viewing session while the player is mounted — on the
- * account for a signed-in viewer, against the random browser id for a guest
- * (counted for the admin dashboard, tied to nobody). The embed is a third-party iframe we can't read playback from, so this
- * measures "time with the player open on this page" — enough for the hours-watched
- * and average-session stats. Flushes on unmount, tab hide and page unload.
+ * Counts elapsed wall time only while the parent reports active playback.
+ * Pauses, hidden tabs and off-screen players stop counting. The API bounds
+ * heartbeats and excludes overlapping tabs before awarding cosmetic time.
  */
 export function useWatchSession({
   animeId,

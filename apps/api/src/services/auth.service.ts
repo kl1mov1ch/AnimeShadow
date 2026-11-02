@@ -2,6 +2,9 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { effectiveAvatarFrame, LEGAL_VERSION } from "@animeshadow/shared";
 import { newReferralCode, referrerFor } from "../lib/referral.js";
 import { proActive, trialEnd } from "../lib/pro.js";
+import { weeklyWatchAwards } from "../lib/weekly-watch-awards.js";
+import { monthlyWatchAwards } from "../lib/monthly-watch-awards.js";
+import { animeQualifiedEpisodes, frameWatchProgress } from "../lib/frame-watch-progress.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { UserImageStore } from "../lib/user-images.js";
@@ -9,6 +12,7 @@ import { Prisma, type PrismaClient, type User } from "@animeshadow/db";
 import type {
   LoginInput,
   PublicUser,
+  CosmeticContext,
   RegisterInput,
   TelegramAuthInput,
 } from "@animeshadow/shared";
@@ -147,7 +151,7 @@ export class AuthService {
         return created;
       });
       registrationsTotal.inc();
-      return toPublicUser(await this.ensureAdminRole(user));
+      return this.publicUser(await this.ensureAdminRole(user));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new ConflictError("An account with that email already exists.");
@@ -305,7 +309,7 @@ export class AuthService {
     }
 
     registrationsTotal.inc();
-    return toPublicUser(await this.ensureAdminRole(user));
+    return this.publicUser(await this.ensureAdminRole(user));
   }
 
   /** Re-sends the signup code onto the same pending row — a fresh code,
@@ -369,7 +373,7 @@ export class AuthService {
       throw new UnauthorizedError("This account has been suspended.");
     }
     loginsTotal.inc({ method: "password" });
-    return toPublicUser(await this.ensureAdminRole(user));
+    return this.publicUser(await this.ensureAdminRole(user));
   }
 
   // -- email verification (signup) ---------------------------------------
@@ -380,14 +384,14 @@ export class AuthService {
    * attacker probing the endpoint. */
   async verifyEmail(userId: string, code: string): Promise<PublicUser> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    if (user.emailVerifiedAt) return toPublicUser(user);
+    if (user.emailVerifiedAt) return this.publicUser(user);
 
     await this.consumeCode(userId, "VERIFY_EMAIL", code);
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { emailVerifiedAt: new Date() },
     });
-    return toPublicUser(updated);
+    return this.publicUser(updated);
   }
 
   /** Re-sends the signup code — invalidates any still-outstanding one first,
@@ -526,7 +530,7 @@ export class AuthService {
         throw new UnauthorizedError("This account has been suspended.");
       }
       loginsTotal.inc({ method: "telegram" });
-      return toPublicUser(await this.ensureAdminRole(existing));
+      return this.publicUser(await this.ensureAdminRole(existing));
     }
 
     const displayName =
@@ -570,7 +574,7 @@ export class AuthService {
       });
       registrationsTotal.inc();
       loginsTotal.inc({ method: "telegram" });
-      return toPublicUser(await this.ensureAdminRole(user));
+      return this.publicUser(await this.ensureAdminRole(user));
     } catch (error) {
       // Someone else's login raced this one to the same telegramId — extremely
       // unlikely (one person, one Telegram account) but cheap to handle right.
@@ -579,7 +583,7 @@ export class AuthService {
         error.code === "P2002"
       ) {
         const raced = await this.prisma.user.findUnique({ where: { telegramId } });
-        if (raced) return toPublicUser(await this.ensureAdminRole(raced));
+        if (raced) return this.publicUser(await this.ensureAdminRole(raced));
       }
       throw error;
     }
@@ -592,7 +596,7 @@ export class AuthService {
     // takes effect for someone who was already logged in — no need to check
     // it on every single authenticated request just for this.
     if (user.isBanned) throw new UnauthorizedError("This account has been suspended.");
-    return toPublicUser(await this.ensureAdminRole(user));
+    return this.publicUser(await this.ensureAdminRole(user));
   }
 
   /**
@@ -628,6 +632,23 @@ export class AuthService {
    * removing an email from ADMIN_EMAILS shouldn't silently undo a promotion
    * an admin later granted someone else through the admin panel itself.
    */
+  private async publicUser(user: User): Promise<PublicUser> {
+    const [weekly, monthly, progress] = await Promise.all([
+      weeklyWatchAwards(this.prisma, [user.id]),
+      monthlyWatchAwards(this.prisma, [user.id]),
+      frameWatchProgress(this.prisma, [user.id]),
+    ]);
+    return toPublicUser(user, {
+      earnedIds: [],
+      level: 1,
+      pro: proActive(user),
+      memberSince: user.createdAt.toISOString(),
+      weeklyWatchPlace: weekly.get(user.id)?.award?.place ?? null,
+      monthlyWatchPlace: monthly.get(user.id)?.place ?? null,
+      animeQualifiedEpisodes: animeQualifiedEpisodes(progress.get(user.id)),
+    });
+  }
+
   private async ensureAdminRole(user: User): Promise<User> {
     if (user.role === "ADMIN") return user;
     if (!this.adminEmails.includes(user.email.toLowerCase())) return user;
@@ -688,18 +709,15 @@ export class AuthService {
   }
 }
 
-function toPublicUser(user: User): PublicUser {
+function toPublicUser(user: User, cosmetics: CosmeticContext): PublicUser {
   return {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
-    avatarFrame: effectiveAvatarFrame(user.avatarFrame, {
-      earnedIds: [],
-      level: 1,
-      pro: proActive(user),
-      memberSince: user.createdAt.toISOString(),
-    }),
+    weeklyWatchPlace: cosmetics.weeklyWatchPlace ?? null,
+    monthlyWatchPlace: cosmetics.monthlyWatchPlace ?? null,
+    avatarFrame: effectiveAvatarFrame(user.avatarFrame, cosmetics),
     createdAt: user.createdAt.toISOString(),
     role: user.role === "ADMIN" ? "ADMIN" : "USER",
     emailVerified: user.emailVerifiedAt != null,

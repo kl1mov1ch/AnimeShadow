@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { LogoGlyph } from "@/components/brand/logo-glyph";
@@ -81,6 +81,18 @@ import { toast } from "sonner";
 import { VideoUpscaler } from "@/components/player/video-upscaler";
 import { effectiveQuality, qualityHeights, qualityLevel, qualityName, qualityOutputHeight } from "@/lib/player-quality";
 import { useIsPro } from "@/components/promo/promo-offer";
+
+const MOBILE_PLAYER_QUERY = "(max-width: 639px), (pointer: coarse)";
+const mobilePlayerSnapshot = () => window.matchMedia(MOBILE_PLAYER_QUERY).matches;
+const subscribeMobilePlayer = (onChange: () => void) => {
+  const media = window.matchMedia(MOBILE_PLAYER_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+};
+/** Includes landscape phones without changing a desktop player's controls. */
+function useMobilePlayer() {
+  return useSyncExternalStore(subscribeMobilePlayer, mobilePlayerSnapshot, () => false);
+}
 
 interface WatchSectionProps {
   studio?: StudioId;
@@ -1045,6 +1057,12 @@ export function CustomHlsPlayer({
   };
 
   const [playing, setPlaying] = useState(false);
+  const mobilePlayer = useMobilePlayer();
+  // `play` can precede buffering or a rejected autoplay request. Only actual
+  // decoded playback opens the phone's controls, and a new episode starts clean.
+  const [startedSource, setStartedSource] = useState<string | null>(null);
+  const playbackStarted = startedSource === src;
+  const mobileBeforeStart = mobilePlayer && !playbackStarted;
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState<Array<[number, number]>>([]);
@@ -1552,17 +1570,19 @@ export function CustomHlsPlayer({
       playRequestedRef.current = true;
       engineRef.current?.setPreloadOnly(false);
       onStartedRef.current?.();
-      onPlaybackChangeRef.current?.(true);
       setPlaying(true);
     };
     const onPause = () => { setPlaying(false); onPlaybackChangeRef.current?.(false); };
     const onWaiting = () => {
+      onPlaybackChangeRef.current?.(false);
       bufferingRef.current = true;
       setBuffering(true);
     };
     const onPlaying = () => {
+      onPlaybackChangeRef.current?.(true);
       bufferingRef.current = false;
       playedRef.current = true;
+      setStartedSource(src);
       setBuffering(false);
       setStatus({ kind: "ok" });
     };
@@ -1571,7 +1591,10 @@ export function CustomHlsPlayer({
       setBuffering(false);
       previewRef.current?.capture(video);
     };
+    const onSeekingForSession = () => onPlaybackChangeRef.current?.(false);
+    const onSeekedForSession = () => onPlaybackChangeRef.current?.(!video.paused && !video.ended && video.readyState >= 3);
     const onError = () => {
+      onPlaybackChangeRef.current?.(false);
       // hls.js owns its retries; Safari's native HLS needs an explicit error path.
       if (engineRef.current || !video.error) return;
       console.warn("[AnimeShadow] Native video failed", format, video.error.code, video.error.message);
@@ -1593,6 +1616,9 @@ export function CustomHlsPlayer({
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("playing", onPlaying);
     video.addEventListener("canplay", onCanPlay);
+    video.addEventListener("seeking", onSeekingForSession);
+    video.addEventListener("seeked", onSeekedForSession);
+    video.addEventListener("ended", onSeekingForSession);
     video.addEventListener("volumechange", onVolumeChange);
     video.addEventListener("ratechange", onRateChange);
     video.addEventListener("resize", onResize);
@@ -1606,12 +1632,15 @@ export function CustomHlsPlayer({
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("canplay", onCanPlay);
+      video.removeEventListener("seeking", onSeekingForSession);
+      video.removeEventListener("seeked", onSeekedForSession);
+      video.removeEventListener("ended", onSeekingForSession);
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("ratechange", onRateChange);
       video.removeEventListener("resize", onResize);
       video.removeEventListener("error", onError);
     };
-  }, [isWinner, format]);
+  }, [isWinner, format, src]);
 
   useEffect(() => {
     const onFsChange = () => {
@@ -1631,6 +1660,7 @@ export function CustomHlsPlayer({
   playingRef.current = playing;
   const shownAtRef = useRef(0);
   const overBarRef = useRef(false);
+  const focusedControlsRef = useRef(false);
   const wake = () => {
     if (!controlsVisibleRef.current) shownAtRef.current = performance.now();
     setControlsVisible(true);
@@ -1639,7 +1669,7 @@ export function CustomHlsPlayer({
       // Not while the pointer rests on the bar — looking at a frame preview
       // or about to press something is not "nothing touched".
       const hide = () => {
-        if (overBarRef.current) hideTimerRef.current = setTimeout(hide, CONTROLS_HIDE_MS);
+        if (overBarRef.current || focusedControlsRef.current) hideTimerRef.current = setTimeout(hide, CONTROLS_HIDE_MS);
         else setControlsVisible(false);
       };
       hideTimerRef.current = setTimeout(hide, CONTROLS_HIDE_MS);
@@ -1727,6 +1757,10 @@ export function CustomHlsPlayer({
   };
 
   const onSurfaceTap = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (mobileBeforeStart) {
+      wake();
+      return;
+    }
     const tap = tapRef.current;
     const now = performance.now();
     const quick = now - tap.at < 300;
@@ -1790,7 +1824,9 @@ export function CustomHlsPlayer({
     if (!video) return;
     video.volume = next;
     video.muted = next === 0;
-    showVolumeOsd(next);
+    // iOS uses the device's volume buttons and may ignore `video.volume`.
+    // Never show a percentage that the element did not actually accept.
+    if (Math.abs(video.volume - next) < 0.01) showVolumeOsd(video.volume);
     wake();
   };
   // A changed volume, said big in the middle for a moment: "65%".
@@ -1995,7 +2031,11 @@ export function CustomHlsPlayer({
       : activeHeight
         ? `${activeHeight}p`
         : t("watch.ctl.qualityAuto");
-  const centerVisible = !menuOpen && !nextPromptActive && (controlsVisible || !playing);
+  const loadingOverlay = (playing && buffering) || status.kind === "retrying";
+  const barVisible = controlsVisible && !mobileBeforeStart;
+  const centerVisible = !menuOpen && !nextPromptActive && (controlsVisible || !playing)
+    && (!mobilePlayer || (status.kind !== "failed" && !loadingOverlay && (!playbackStarted || !playing)));
+  const centerPlaying = playing && !mobileBeforeStart;
   // Preserve the real resolution, including 1080p/1440p and nonstandard encodes.
   const shownHeight = (() => {
     // Before the first switch: where the stream starts (the lowest, or the viewer's pick).
@@ -2012,7 +2052,7 @@ export function CustomHlsPlayer({
   const netSpeed = netHistory.length ? netHistory[netHistory.length - 1]! : null;
   const fitted = useMemo(() => fitSegments(segments, duration, opening), [segments, duration, opening]);
   const activeSegment = segmentAt(fitted, currentTime);
-  const showNet = isWinner && !netHidden && !activeSegment && !menuOpen && !nextPromptActive && duration > 0 && (controlsVisible || buffering || status.kind === "retrying");
+  const showNet = isWinner && !mobileBeforeStart && !netHidden && !activeSegment && !menuOpen && !nextPromptActive && duration > 0 && (controlsVisible || buffering || status.kind === "retrying");
   const bandwidth = engineRef.current?.bandwidth() ?? 0;
   const loadingLine = [
     "Загрузка",
@@ -2026,6 +2066,9 @@ export function CustomHlsPlayer({
     <div
       ref={containerRef}
       data-animeshadow-player=""
+      data-mobile-player={mobilePlayer ? "true" : undefined}
+      data-playback-started={playbackStarted ? "true" : "false"}
+      data-controls-visible={barVisible ? "true" : "false"}
       className={cn(
         "@container/player absolute inset-0 size-full select-none bg-black",
         !isWinner && "pointer-events-none opacity-0",
@@ -2146,7 +2189,7 @@ export function CustomHlsPlayer({
               </button>
             </div>
           )}
-          {autoMuted && muted && !activeSegment && !menuOpen && !nextPromptActive && (
+          {autoMuted && muted && !mobileBeforeStart && !activeSegment && !menuOpen && !nextPromptActive && (
             <button
               type="button"
               onClick={() => {
@@ -2180,7 +2223,7 @@ export function CustomHlsPlayer({
                 </button>
               </div>
             </div>
-          ) : (playing && buffering) || status.kind === "retrying" ? (
+          ) : loadingOverlay ? (
             <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
               {/* A phone gets the spinner and one line; the joke is for a big screen. */}
               <div className="flex max-w-[70%] flex-col items-center gap-1.5 rounded-2xl bg-black/55 px-3 py-2 backdrop-blur-sm @md/player:max-w-xs @md/player:gap-2 @md/player:px-4 @md/player:py-3">
@@ -2195,14 +2238,16 @@ export function CustomHlsPlayer({
             </div>
           ) : null}
 
-          {/* The middle of the picture: skip back, play, skip on — where a
-              thumb is on a phone. With a mouse only the play button, and
-              only while paused; the bar below has the rest. */}
+          {/* A phone starts with one Play button, then uses the bottom bar.
+              While paused, Play can also sit in the free picture above it.
+              Desktop keeps its existing central and lower controls. */}
           <div
             onClickCapture={guardFresh}
+            inert={!centerVisible || (mobilePlayer && playbackStarted && Boolean(activeSegment))}
+            aria-hidden={!centerVisible || (mobilePlayer && playbackStarted && Boolean(activeSegment))}
             className={cn(
-              "pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-[10%] transition-opacity duration-200",
-              centerVisible ? "opacity-100" : "opacity-0",
+              "player-center-controls pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-[10%] transition-opacity duration-200 motion-reduce:transition-none",
+              centerVisible && !(mobilePlayer && playbackStarted && activeSegment) ? "opacity-100" : "opacity-0",
             )}
           >
             <SkipButton
@@ -2211,25 +2256,25 @@ export function CustomHlsPlayer({
               size="center"
               onSkip={() => skip(-settings.step)}
               label={t("watch.ctl.back", { n: settings.step })}
-              className={cn("pointer-fine:hidden", centerVisible && "pointer-events-auto")}
+              className={cn("pointer-fine:hidden", mobilePlayer && "hidden!", centerVisible && "pointer-events-auto")}
             />
             <button
               type="button"
               onClick={togglePlay}
-              aria-label={playing ? t("watch.pause") : t("watch.play")}
+              aria-label={centerPlaying ? t("watch.pause") : t("watch.play")}
               className={cn(
                 CENTER_BUTTON,
                 "size-14 @md/player:size-16",
-                playing ? "pointer-fine:hidden" : "bg-primary/90 text-primary-foreground ring-primary/40",
+                centerPlaying ? "pointer-fine:hidden" : "bg-primary/90 text-primary-foreground ring-primary/40",
                 playing && buffering && "invisible",
                 centerVisible && "pointer-events-auto",
               )}
             >
               <MorphIcon
-                on={playing}
+                on={centerPlaying}
                 off={PlayIcon}
                 onIcon={PauseIcon}
-                className={cn("size-6 fill-current @md/player:size-7", !playing && "translate-x-0.5")}
+                className={cn("size-6 fill-current @md/player:size-7", !centerPlaying && "translate-x-0.5")}
               />
             </button>
             <SkipButton
@@ -2238,13 +2283,13 @@ export function CustomHlsPlayer({
               size="center"
               onSkip={() => skip(settings.step)}
               label={t("watch.ctl.forward", { n: settings.step })}
-              className={cn("pointer-fine:hidden", centerVisible && "pointer-events-auto")}
+              className={cn("pointer-fine:hidden", mobilePlayer && "hidden!", centerVisible && "pointer-events-auto")}
             />
           </div>
 
           {/* "Пропустить …" while a marked part is on screen: the opening,
               the ending or a recap. */}
-          {activeSegment && !menuOpen && !nextPromptActive && (
+          {activeSegment && !mobileBeforeStart && !menuOpen && !nextPromptActive && (
             <SkipSegmentButton
               key={`${src}:${activeSegment.kind}-${activeSegment.start}`}
               label={SEGMENT_LABEL[activeSegment.kind]}
@@ -2265,7 +2310,26 @@ export function CustomHlsPlayer({
           )}
 
           <div
-            onPointerDown={wake}
+            inert={!barVisible}
+            aria-hidden={!barVisible}
+            onFocusCapture={(event) => {
+              focusedControlsRef.current = (event.target as HTMLElement).matches(":focus-visible");
+              wake();
+            }}
+            onKeyDownCapture={() => {
+              focusedControlsRef.current = true;
+              wake();
+            }}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                focusedControlsRef.current = false;
+                wake();
+              }
+            }}
+            onPointerDown={() => {
+              focusedControlsRef.current = false;
+              wake();
+            }}
             onPointerEnter={(e) => {
               if (e.pointerType === "mouse") overBarRef.current = true;
             }}
@@ -2279,7 +2343,7 @@ export function CustomHlsPlayer({
               // it, the way every other panel on the site leaves.
               "player-controls absolute inset-x-0 bottom-0 z-20 flex flex-col gap-0 px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-6 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none @md/player:gap-1 @md/player:px-3 @md/player:pb-2",
               tone.bar,
-              controlsVisible
+              barVisible
                 ? "translate-y-0 opacity-100"
                 : "pointer-events-none translate-y-2 opacity-0",
             )}
@@ -2302,12 +2366,12 @@ export function CustomHlsPlayer({
               }}
             />
 
-            <div className="flex items-center gap-0.5 text-white">
+            <div className="player-controls-row flex items-center gap-0.5 text-white">
               <button
                 type="button"
                 onClick={togglePlay}
                 aria-label={playing ? t("watch.pause") : t("watch.play")}
-                className={cn(CONTROL_BUTTON, tone.button, "pointer-coarse:hidden!")}
+                className={cn(CONTROL_BUTTON, tone.button, !mobilePlayer && "pointer-coarse:hidden!")}
               >
                 <MorphIcon
                   on={playing}
@@ -2339,7 +2403,7 @@ export function CustomHlsPlayer({
                 labels={{ mute: t("watch.mute"), unmute: t("watch.unmute"), volume: t("watch.ctl.volume") }}
               />
 
-              <span className="ml-1 shrink-0 whitespace-nowrap font-display text-[11px] tabular-nums text-white/85 @md/player:text-xs">
+              <span className="player-clock ml-1 shrink-0 whitespace-nowrap font-display text-[11px] tabular-nums text-white/85 @md/player:text-xs">
                 {formatTime(shownTime)}
                 <span className="hidden text-white/45 @sm/player:inline"> / {formatTime(duration)}</span>
               </span>
@@ -2352,7 +2416,7 @@ export function CustomHlsPlayer({
                     aria-label={`${t("watch.ctl.quality")}: ${qualityLabel}`}
                     title={t("watch.ctl.quality")}
                     className={cn(
-                      "flex h-8 items-center rounded-lg px-1.5 transition-colors",
+                      "player-quality-shortcut flex h-8 items-center rounded-lg px-1.5 transition-colors",
                       tone.button,
                       menu === "quality" && "bg-white/15",
                     )}

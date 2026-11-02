@@ -1,6 +1,9 @@
 import { ANIME_WITH_GENRES_INCLUDE, type PrismaClient, toSummaryDto } from "@animeshadow/db";
 import { canSeePart, readPrivacy, visibleParts } from "../lib/privacy.js";
 import { proActive } from "../lib/pro.js";
+import { weeklyWatchAwards } from "../lib/weekly-watch-awards.js";
+import { monthlyWatchAwards } from "../lib/monthly-watch-awards.js";
+import { animeQualifiedEpisodes, frameWatchProgress } from "../lib/frame-watch-progress.js";
 import { boundedWatchSession } from "../lib/watch-session.js";
 import { watchWeek } from "../lib/watch-week.js";
 import type {
@@ -25,6 +28,7 @@ import {
   PROFILE_TITLES,
   cosmeticUnlocked,
   effectiveAvatarFrame,
+  effectiveProfileTitle,
   earnedSources,
   levelOf,
 } from "@animeshadow/shared";
@@ -161,6 +165,10 @@ export class ProfileService {
         level: levelOf(own).level,
         pro: own.isPro,
         memberSince: own.memberSince,
+        weeklyWatchPlace: own.weeklyWatchAward?.place,
+        weeklyWatchPlaces: own.weeklyWatchPlaces,
+        monthlyWatchPlace: own.monthlyWatchAward?.place,
+        animeQualifiedEpisodes: animeQualifiedEpisodes(own.frameWatchProgress),
       };
       if (
         input.avatarFrame != null &&
@@ -425,17 +433,22 @@ export class ProfileService {
       let previous = await tx.watchSession.findFirst({ where: { userId, endedAt: { not: null } }, orderBy: { startedAt: "desc" }, select: { id: true, startedAt: true, endedAt: true, animeId: true, episode: true } });
       const bounded = boundedWatchSession(input, previous?.endedAt ?? null);
       if (!bounded) return 0;
+      // A delayed/forged first timestamp cannot instantly unlock a cosmetic.
+      // Heartbeats arrive each minute; the user lock also excludes parallel tabs.
+      let rewardBudget = Math.min(bounded.seconds, 75);
       // A session crossing Monday belongs partly to each week, not entirely to its start.
       let start = bounded.startedAt;
       while (start < bounded.endedAt) {
         const end = new Date(Math.min(watchWeek(start).end.getTime(), bounded.endedAt.getTime()));
         const seconds = Math.floor((end.getTime() - start.getTime()) / 1000);
         if (seconds > 0) {
+          const rewardSeconds = Math.min(seconds, rewardBudget);
+          rewardBudget -= rewardSeconds;
           const merge = previous?.endedAt && previous.animeId === input.animeId && previous.episode === input.episode &&
             start.getTime() - previous.endedAt.getTime() <= 5000 && watchWeek(previous.startedAt).start.getTime() === watchWeek(start).start.getTime();
           // The heartbeat updates the current session, instead of adding a row every minute.
-          if (merge) await tx.watchSession.update({ where: { id: previous!.id }, data: { seconds: { increment: seconds }, endedAt: end } });
-          else await tx.watchSession.create({ data: { userId, animeId: input.animeId, episode: input.episode, seconds, startedAt: start, endedAt: end } });
+          if (merge) await tx.watchSession.update({ where: { id: previous!.id }, data: { seconds: { increment: seconds }, rewardSeconds: { increment: rewardSeconds }, endedAt: end } });
+          else await tx.watchSession.create({ data: { userId, animeId: input.animeId, episode: input.episode, seconds, rewardSeconds, startedAt: start, endedAt: end } });
           previous = null;
         }
         start = end;
@@ -515,14 +528,28 @@ export class ProfileService {
     return n === 2;
   }
 
-  private async build(userId: string, viewerId: string | null): Promise<PublicProfile> {
-    const [user, stats, achievements, standing, counters] = await Promise.all([
+  private async build(userId: string, viewerId: string | null): Promise<PublicProfile & Pick<MyProfile, "frameWatchProgress">> {
+    const [user, stats, achievements, standing, counters, weeklyAwards, frameProgress, monthlyAwards] = await Promise.all([
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
       this.computeStats(userId),
       this.achievements.list(userId),
       this.getCommenterStanding(userId),
       this.counters(userId),
+      weeklyWatchAwards(this.prisma, [userId]),
+      frameWatchProgress(this.prisma, [userId]),
+      monthlyWatchAwards(this.prisma, [userId]),
     ]);
+    const weekly = weeklyAwards.get(userId);
+    const cosmetics = {
+      earnedIds: achievements.filter((achievement) => achievement.earned).map((achievement) => achievement.id),
+      level: 1, // Legacy level frames keep their existing display behavior.
+      pro: proActive(user),
+      memberSince: user.createdAt.toISOString(),
+      weeklyWatchPlace: weekly?.award?.place,
+      weeklyWatchPlaces: weekly?.places,
+      monthlyWatchPlace: monthlyAwards.get(userId)?.place,
+      animeQualifiedEpisodes: animeQualifiedEpisodes(frameProgress.get(userId)),
+    };
 
     // Privacy is decided here, once, and every block downstream only has to
     // honour a boolean.
@@ -546,7 +573,7 @@ export class ProfileService {
     };
 
     const favoriteRows =
-      user.favoriteAnimeIds.length > 0 && !hidden.favorites
+      user.favoriteAnimeIds.length > 0
         ? await this.prisma.anime.findMany({
             where: { id: { in: user.favoriteAnimeIds } },
             include: ANIME_WITH_GENRES_INCLUDE,
@@ -558,9 +585,10 @@ export class ProfileService {
       .map(toSummaryDto);
 
     const profile: PublicProfile = {
+      ...(own ? { frameWatchProgress: frameProgress.get(userId) ?? [] } : {}),
       id: user.id,
       layout: readLayout(user.profileLayout),
-      favorites,
+      favorites: hidden.favorites ? [] : favorites,
       hidden,
       views: hidden.views ? null : user.profileViews,
       username: user.username,
@@ -572,6 +600,9 @@ export class ProfileService {
       onlineStatus: user.onlineStatus as PublicProfile["onlineStatus"],
       rank: rankOf(stats.hoursWatched),
       isPro: proActive(user),
+      weeklyWatchAward: weekly?.award ?? null,
+      weeklyWatchPlaces: weekly?.places ?? [],
+      monthlyWatchAward: monthlyAwards.get(userId) ?? null,
       memberSince: user.createdAt.toISOString(),
       stats: hidden.stats ? EMPTY_STATS : stats,
       achievements: hidden.achievements ? [] : achievements,
@@ -583,13 +614,8 @@ export class ProfileService {
         : user.showcaseAchievementIds.filter((id) => achievements.some((a) => a.id === id && a.earned)),
       // Use the owner's unfiltered achievements: privacy must not change
       // what they may wear. Keep the saved selection for a later PRO renewal.
-      avatarFrame: effectiveAvatarFrame(user.avatarFrame, {
-        earnedIds: achievements.filter((achievement) => achievement.earned).map((achievement) => achievement.id),
-        level: 1, // Legacy level frames keep their existing display behavior.
-        pro: proActive(user),
-        memberSince: user.createdAt.toISOString(),
-      }),
-      profileTitle: user.profileTitle as PublicProfile["profileTitle"],
+      avatarFrame: effectiveAvatarFrame(user.avatarFrame, cosmetics),
+      profileTitle: effectiveProfileTitle(user.profileTitle, cosmetics),
       titlePrefix: proActive(user) || user.titleUnlocked ? user.titlePrefix : null,
       titleIcon:
         proActive(user) || user.titleUnlocked ? (user.titleIcon as PublicProfile["titleIcon"]) : null,
@@ -602,9 +628,12 @@ export class ProfileService {
     };
     // What the hidden parts are worth goes along as one number, so the
     // level is the same for every viewer.
-    if (hidden.stats || hidden.list || hidden.achievements) {
+    if (hidden.stats || hidden.list || hidden.achievements || hidden.favorites || hidden.profile) {
       const xpOf = (p: PublicProfile) => earnedSources(p).reduce((sum, s) => sum + s.xp, 0);
-      profile.hiddenXp = Math.max(0, xpOf({ ...profile, stats, counters, achievements }) - xpOf(profile));
+      profile.hiddenXp = Math.max(0, xpOf({
+        ...profile, stats, counters, achievements, favorites, bio: user.bio,
+        showcaseAchievementIds: user.showcaseAchievementIds.filter((id) => achievements.some((entry) => entry.id === id && entry.earned)),
+      }) - xpOf(profile));
     }
     return profile;
   }

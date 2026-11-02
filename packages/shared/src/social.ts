@@ -13,6 +13,8 @@ export const userCardSchema = z.object({
   episodes: z.number().int(),
   /** What they wear on their profile, so they look like themselves everywhere. */
   avatarFrame: avatarFrameSchema.nullable().default(null),
+  weeklyWatchPlace: z.number().int().min(1).max(999).nullable().optional(),
+  monthlyWatchPlace: z.number().int().min(1).max(999).nullable().optional(),
   profileTitle: profileTitleSchema.nullable().default(null),
   /** The PRO custom title; null without PRO. */
   titlePrefix: z.string().nullable().default(null),
@@ -22,6 +24,21 @@ export const userCardSchema = z.object({
   followsYou: z.boolean(),
 });
 export type UserCard = z.infer<typeof userCardSchema>;
+
+/** Public directory identity, with hidden viewing totals represented honestly. */
+export const directoryUserCardSchema = userCardSchema.omit({ episodes: true }).extend({
+  episodes: z.number().int().nonnegative().nullable(),
+  titlesCompleted: z.number().int().nonnegative().nullable().optional(),
+  xp: z.number().int().nonnegative().nullable(),
+});
+export type DirectoryUserCard = z.infer<typeof directoryUserCardSchema>;
+
+export const peopleDirectoryResponseSchema = z.object({
+  items: z.array(directoryUserCardSchema),
+  page: z.number().int().positive(),
+  hasMore: z.boolean(),
+});
+export type PeopleDirectoryResponse = z.infer<typeof peopleDirectoryResponseSchema>;
 
 /** Followers, following and friends of one account, and how the viewer relates to it. */
 export const socialSummarySchema = z.object({

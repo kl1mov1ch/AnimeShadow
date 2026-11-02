@@ -625,21 +625,19 @@ export function Leaderboard({ mode = "guess", compact = false }: { mode?: "guess
     queryKey: ["games", "leaderboard", mode, user?.id],
     queryFn: ({ signal }) =>
       apiRequest<Board>(`/games/${mode}/leaderboard`, { signal }),
+    enabled: status === "authenticated",
     staleTime: 30_000,
   });
 
   const mine = data?.top.some((row) => row.userId === user?.id) ?? false;
+
+  if (status !== "authenticated") return <article className={cn(PANEL, "min-w-0 justify-center gap-3 p-5", compact && "h-full")}><PanelLabel icon={CrownIcon}>{t("home.game.board")}</PanelLabel><p className="text-xs leading-relaxed text-muted-foreground">Рейтинг и результаты участников доступны после входа.</p><Link to="/login" className="text-xs font-semibold text-primary">Войти в сообщество</Link></article>;
 
   return (
     <article className={cn(PANEL, "isolate min-w-0 gap-2 p-3 sm:p-3", compact && "h-full")}>
       {!compact && <LogoWatermark className="-bottom-16 -right-12 size-56 -rotate-12" />}
       <div className="flex items-center justify-between gap-2">
         <PanelLabel icon={CrownIcon}>{t("home.game.board")}</PanelLabel>
-        {data && data.top.length > 0 && (
-          <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
-            {t("home.game.boardCount", { n: data.top.length })}
-          </span>
-        )}
       </div>
 
       {isError ? (

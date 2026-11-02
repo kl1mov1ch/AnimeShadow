@@ -1,0 +1,54 @@
+[
+  {
+    "id": "culling/frame",
+    "prompt": "Use case: stylized-concept. Production transparent PNG asset for an anime avatar frame. Exquisite painted 2D fantasy game cosmetic, precise clean detailed contours, sophisticated craft, no crude vector look. Square canvas, centered perfectly CIRCULAR geometry: outer circle diameter94percentcanvas, perfectly round transparent avatar opening diameter74percentcanvas centered exactly50%X50%Y. Uniform narrow rim, theme details confined to border. No text, no watermark, no avatar, no character portrait, no backdrop, true transparent alpha outside AND in center. No fabric scraps, no gigantic spikes. Jujutsu Kaisen Culling Game theme: black obsidian metallic rim with restrained cobalt and violet cursed energy inset, small abstract seal engravings and thin silver borders, ominous geometric sorcery motifs, tiny dark crimson jewels. STATIC rim only, no floating symbols or glitch strokes; those are separate animation layers."
+  },
+  {
+    "id": "culling/runes",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. Square ring-shaped overlay with eight small beautifully painted glowing violet-blue abstract cursed rune sigils spaced around a circle at radius42percentcanvas. Leave entire central disk diameter74percentcanvas completely transparent and all gaps transparent. All glyphs lie in narrow outer annulus; no physical rim. Tiny subtle glow, not readable language."
+  },
+  {
+    "id": "culling/glitch",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. Square overlay with six very thin broken cyan/violet/magenta digital glitch streaks, horizontal, positioned ONLY near left and right edges of an imaginary circle radius43percentcanvas: x8..20percent and80..92percent at y25,45,70percent. Center disk diameter74percentcanvas must remain entirely transparent. Crisp fragmented chromatic offset pixels with soft tiny luminous edge; NO solid rectangle, NO complete ring, no broad bars across center."
+  },
+  {
+    "id": "hells-paradise/frame",
+    "prompt": "Use case: stylized-concept. Production transparent PNG asset for an anime avatar frame. Exquisite painted 2D fantasy game cosmetic, precise clean detailed contours, sophisticated craft, no crude vector look. Square canvas, centered perfectly CIRCULAR geometry: outer circle diameter94percentcanvas, perfectly round transparent avatar opening diameter74percentcanvas centered exactly50%X50%Y. Uniform narrow rim, theme details confined to border. No text, no watermark, no avatar, no character portrait, no backdrop, true transparent alpha outside AND in center. No fabric scraps, no gigantic spikes. Hell's Paradise Jigokuraku theme: elegant dark wooden roots and beautifully intertwined thin flowering branches, warm ivory bark with emerald jade and subtle crimson accents, tiny lotus and white flower details hugging border, mythical paradise botanical craft, refined and dangerous. STATIC branches only, no loose falling petals (separate effect layer)."
+  },
+  {
+    "id": "hells-paradise/petals",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. ONE single small delicately curled sakura/lotus petal, soft ivory with pale blush-pink gradient and a subtle crimson edge, realistic painted silk-like translucency. Centered isolated sprite, petal occupies60percentcanvas with generous transparent padding, NOT a collection, no flower or branch."
+  },
+  {
+    "id": "dorohedoro/frame",
+    "prompt": "Use case: stylized-concept. Production transparent PNG asset for an anime avatar frame. Exquisite painted 2D fantasy game cosmetic, precise clean detailed contours, sophisticated craft, no crude vector look. Square canvas, centered perfectly CIRCULAR geometry: outer circle diameter94percentcanvas, perfectly round transparent avatar opening diameter74percentcanvas centered exactly50%X50%Y. Uniform narrow rim, theme details confined to border. No text, no watermark, no avatar, no character portrait, no backdrop, true transparent alpha outside AND in center. No fabric scraps, no gigantic spikes. DOROHEDORO theme: dark weathered industrial gunmetal circle with intricate bolts, oxidized green copper accents, restrained alchemical mushroom motifs, subtle reptile-scale engraving on rim, gritty high-end craftsmanship, tiny amber caution gems. STATIC metal only, no smoke painted into the rim; smoke is separate effect layer."
+  },
+  {
+    "id": "dorohedoro/smoke",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. ONE isolated airy upward drifting wisp of smoky sage-green/charcoal vapor, small puff with a gently curling tail at bottom, hand-painted nuanced translucent volume, low opacity with thin soft alpha edges. Centered sprite with transparent padding; no scene, no flame, no physical rim, no opaque cloudy square."
+  },
+  {
+    "id": "atelier/frame",
+    "prompt": "Use case: stylized-concept. Production transparent PNG asset for an anime avatar frame. Exquisite painted 2D fantasy game cosmetic, precise clean detailed contours, sophisticated craft, no crude vector look. Square canvas, centered perfectly CIRCULAR geometry: outer circle diameter94percentcanvas, perfectly round transparent avatar opening diameter74percentcanvas centered exactly50%X50%Y. Uniform narrow rim, theme details confined to border. No text, no watermark, no avatar, no character portrait, no backdrop, true transparent alpha outside AND in center. No fabric scraps, no gigantic spikes. Witch Hat Atelier Tongari Boushi theme: graceful fine antique gold circular line made of delicately engraved drawing-pen filigree, miniature ink nib and tiny brush details inset into rim, pale cream parchment enamel accents, restrained forest green crystals, elegant magical calligraphy craftsmanship. STATIC gold line only, no orbiting sparkles or glow layer baked into art."
+  },
+  {
+    "id": "atelier/sparks",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. ONE tiny four-point magical golden starlight spark, a polished luminous amber-gold center with short delicate rays and fine glowing dust, warm cream highlights, soft transparent edge. Centered sprite occupies50percentcanvas, elegant painted light not a flat vector icon, no other objects."
+  },
+  {
+    "id": "atelier/glow",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. Square annular glow overlay: a VERY soft thin warm champagne-gold halo following a perfectly circular radius43percentcanvas. Center disk diameter74percentcanvas completely transparent; outside beyond49percentcanvas transparent. Delicate photographic magical bloom, no sharp ring line, no solid background, no symbols. Rim glow opacity softly translucent."
+  },
+  {
+    "id": "reze/frame",
+    "prompt": "Use case: stylized-concept. Production transparent PNG asset for an anime avatar frame. Exquisite painted 2D fantasy game cosmetic, precise clean detailed contours, sophisticated craft, no crude vector look. Square canvas, centered perfectly CIRCULAR geometry: outer circle diameter94percentcanvas, perfectly round transparent avatar opening diameter74percentcanvas centered exactly50%X50%Y. Uniform narrow rim, theme details confined to border. No text, no watermark, no avatar, no character portrait, no backdrop, true transparent alpha outside AND in center. No fabric scraps, no gigantic spikes. Chainsaw Man Reze Arc theme: clean elegant dark industrial steel and deep plum rim, muted magenta floral details and small violet iris flowers, tiny silver pull-pin detail inset into bottom rim, romantic melancholic nighttime city mood, tasteful small copper/pink jewels. STATIC rim only; iridescence and heartbeat are separate effect layers."
+  },
+  {
+    "id": "reze/rainbow",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. Square annular pearlescent iridescent sheen overlay around radius43percentcanvas: smoky rose pink, violet, pale teal, warm amber subtly transition around circle, painted luminous satin highlight texture. Absolutely clear center disk diameter74percentcanvas and outside49percentcanvas. Thin soft translucent sheen, no hard neon line, no rim or text."
+  },
+  {
+    "id": "reze/pulse",
+    "prompt": "Use case: stylized-concept. Separate hand-painted RASTER VFX sprite for an anime avatar cosmetic. Genuine transparent alpha everywhere except the requested effect; no backdrop, no solid black rectangle, no checkerboard, no watermark or words, no avatar. High quality clean soft alpha edges, delicately painted not crude vector. Square annular soft rose-magenta light overlay around perfectly circular radius43percentcanvas, delicate warm pink diffuse patches of light spaced evenly on narrow ring. Entire center disk diameter74percentcanvas fully transparent; outside49percentcanvas transparent. Designed for subtle heartbeat opacity/scale animation, no heart icon, no sharp lines, no backdrop."
+  }
+]

@@ -1665,6 +1665,9 @@ export const ru: Dict = {
         aurora: "Аврора",
       },
       titleNames: {
+        "weekly-watch-1": "Чемпион недели",
+        "weekly-watch-2": "Серебро недели",
+        "weekly-watch-3": "Бронза недели",
         "thousand-episodes": "Хранитель историй",
         "three-thousand-episodes": "Летописец",
         "ten-series": "Собиратель финалов",

@@ -109,6 +109,8 @@ export const router = createBrowserRouter([
           },
           { path: "profile", lazy: () => import("@/routes/profile") },
           { path: "profile/:username", lazy: () => import("@/routes/profile") },
+          { path: "people", lazy: () => import("@/routes/people") },
+          { path: "people/:userId", lazy: () => import("@/routes/profile") },
           { path: "admin", lazy: () => import("@/routes/admin") },
           { path: "about", lazy: () => import("@/routes/about") },
           { path: "legal", lazy: () => import("@/routes/legal") },

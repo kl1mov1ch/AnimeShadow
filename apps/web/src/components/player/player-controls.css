@@ -1,0 +1,61 @@
+/* Touch controls reserve one bottom strip; the picture keeps its own space. */
+[data-mobile-player="true"] .player-controls {
+  padding: 8px 8px 4px;
+  gap: 0;
+}
+[data-mobile-player="true"] .player-controls-row {
+  min-height: 44px;
+  gap: 0;
+}
+[data-mobile-player="true"] .player-controls-row button {
+  min-width: 44px;
+  min-height: 44px;
+}
+[data-mobile-player="true"] .player-volume {
+  padding-right: 0;
+}
+[data-mobile-player="true"] .player-volume-slider,
+[data-mobile-player="true"] .player-volume-level {
+  display: none;
+}
+[data-mobile-player="true"] .player-clock {
+  margin-left: 2px;
+  font-size: 11px;
+}
+[data-mobile-player="true"][data-playback-started="true"] .player-center-controls {
+  bottom: 88px;
+}
+[data-mobile-player="true"][data-playback-started="true"]
+  .player-center-controls
+  > button {
+  width: 48px;
+  height: 48px;
+}
+/* These rules also cover the parent frame: it owns fullscreen across episodes. */
+:fullscreen [data-mobile-player="true"] .player-controls,
+[data-mobile-player="true"]:fullscreen .player-controls {
+  padding-right: max(12px, env(safe-area-inset-right));
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  padding-left: max(12px, env(safe-area-inset-left));
+}
+:fullscreen
+  [data-mobile-player="true"][data-playback-started="true"]
+  .player-center-controls,
+[data-mobile-player="true"][data-playback-started="true"]:fullscreen
+  .player-center-controls {
+  bottom: calc(84px + max(4px, env(safe-area-inset-bottom)));
+}
+@media (max-width: 360px) {
+  [data-mobile-player="true"] .player-quality-shortcut {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-animeshadow-player] .player-center-controls,
+  [data-animeshadow-player] .player-controls,
+  [data-animeshadow-player] .group\/skip *,
+  [data-animeshadow-player] .player-volume * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

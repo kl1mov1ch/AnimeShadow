@@ -109,7 +109,94 @@ export class AchievementService {
       this.prisma.userAchievement.findMany({ where: { userId } }),
     ]);
     const earnedMap = new Map(earned.map((e) => [e.achievementId, e.earnedAt]));
+    return this.describe(snap, earnedMap);
+  }
 
+  /** Directory/ranking cards evaluate the same rules with a fixed query count. */
+  async listMany(userIds: readonly string[]): Promise<Map<string, EarnedAchievement[]>> {
+    const ids = [...new Set(userIds)];
+    const result = new Map<string, EarnedAchievement[]>();
+    if (ids.length === 0) return result;
+    const byUser = { userId: { in: ids } };
+    const [progress, sessions, library, comments, authored, ratings, collectionComments, views, guesses, board, users, earned] = await Promise.all([
+      this.prisma.watchProgress.findMany({ where: { ...byUser, completed: true }, select: { userId: true, animeId: true, updatedAt: true } }),
+      this.prisma.watchSession.groupBy({ by: ["userId"], where: byUser, _sum: { seconds: true } }),
+      this.prisma.libraryEntry.findMany({ where: byUser, select: { userId: true, status: true, score: true, notes: true, anime: { select: { episodes: true } } } }),
+      this.prisma.comment.groupBy({ by: ["userId", "mode"], where: { ...byUser, deletedAt: null }, _count: { _all: true } }),
+      this.prisma.collection.groupBy({ by: ["userId"], where: byUser, _count: { _all: true }, _sum: { viewCount: true, ratingSum: true, ratingCount: true, commentCount: true } }),
+      this.prisma.collectionRating.groupBy({ by: ["userId"], where: byUser, _count: { _all: true } }),
+      this.prisma.collectionComment.groupBy({ by: ["userId"], where: { ...byUser, deletedAt: null }, _count: { _all: true } }),
+      this.prisma.collectionView.groupBy({ by: ["userId", "collectionId"], where: byUser }),
+      this.prisma.guessScore.findMany({ where: byUser, select: { userId: true, best: true, played: true } }),
+      this.prisma.guessScore.findMany({ where: { best: { gt: 0 } }, orderBy: [{ best: "desc" }, { bestAt: "asc" }], take: 51, select: { userId: true, best: true } }),
+      this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, createdAt: true } }),
+      this.prisma.userAchievement.findMany({ where: byUser, select: { userId: true, achievementId: true, earnedAt: true } }),
+    ]);
+    const links = progress.length > 0 ? await this.prisma.genreOnAnime.findMany({
+      where: { animeId: { in: [...new Set(progress.map((row) => row.animeId))] } },
+      select: { animeId: true, genreId: true },
+    }) : [];
+    const now = Date.now();
+    for (const user of users) {
+      const completed = progress.filter((row) => row.userId === user.id);
+      const episodesByAnime = new Map<number, number>();
+      const days = new Map<string, number>();
+      for (const row of completed) {
+        episodesByAnime.set(row.animeId, (episodesByAnime.get(row.animeId) ?? 0) + 1);
+        const day = row.updatedAt.toISOString().slice(0, 10);
+        days.set(day, (days.get(day) ?? 0) + 1);
+      }
+      const genres = new Map<number, number>();
+      for (const link of links) {
+        const count = episodesByAnime.get(link.animeId) ?? 0;
+        if (count > 0) genres.set(link.genreId, (genres.get(link.genreId) ?? 0) + count);
+      }
+      const entries = library.filter((row) => row.userId === user.id);
+      const ownComments = comments.filter((row) => row.userId === user.id);
+      const collections = authored.find((row) => row.userId === user.id);
+      const ratingCount = collections?._sum.ratingCount ?? 0;
+      const guess = guesses.find((row) => row.userId === user.id);
+      const best = guess?.best ?? 0;
+      const otherBoard = board.filter((row) => row.userId !== user.id);
+      const need = (place: number) => otherBoard.length >= place ? otherBoard[place - 1]!.best + 1 : 1;
+      const seconds = sessions.find((row) => row.userId === user.id)?._sum.seconds ?? 0;
+      const snap: Snapshot = {
+        episodesByAnime,
+        episodesWatched: completed.length,
+        totalHours: (seconds > 0 ? seconds : completed.length * EPISODE_SECONDS) / 3600,
+        reviewCount: entries.filter((row) => row.score != null || row.notes != null).length,
+        commentCount: ownComments.reduce((sum, row) => sum + row._count._all, 0),
+        anonCommentCount: ownComments.find((row) => row.mode === "ANON")?._count._all ?? 0,
+        plannedCount: entries.filter((row) => row.status === "PLANNED").length,
+        completedSeries: entries.filter((row) => row.status === "COMPLETED").length,
+        completedLongSeries: entries.filter((row) => row.status === "COMPLETED" && (row.anime.episodes ?? 0) >= 24).length,
+        topGenreEpisodes: Math.max(0, ...genres.values()),
+        episodesLast7Days: completed.filter((row) => now - row.updatedAt.getTime() <= 7 * 86_400_000).length,
+        maxEpisodesInDay: Math.max(0, ...days.values()),
+        hasNightActivity: completed.some((row) => row.updatedAt.getUTCHours() < 5),
+        maxStreakDays: longestStreak([...days.keys()]),
+        createdAt: user.createdAt,
+        collections: collections?._count._all ?? 0,
+        collectionViews: collections?._sum.viewCount ?? 0,
+        ratingsReceived: ratingCount,
+        ratingAverage: ratingCount > 0 ? (collections?._sum.ratingSum ?? 0) / ratingCount : 0,
+        commentsReceived: collections?._sum.commentCount ?? 0,
+        collectionsRated: ratings.find((row) => row.userId === user.id)?._count._all ?? 0,
+        collectionComments: collectionComments.find((row) => row.userId === user.id)?._count._all ?? 0,
+        collectionsRead: views.filter((row) => row.userId === user.id).length,
+        guessPlayed: guess?.played ?? 0,
+        guessBest: best,
+        // Above rank 50 only the fact it is outside the podium rules matters.
+        guessRank: best > 0 ? board.filter((row) => row.best > best).length + 1 : null,
+        guessNeed: { top50: need(50), top10: need(10), top1: need(1) },
+      };
+      const saved = new Map(earned.filter((row) => row.userId === user.id).map((row) => [row.achievementId, row.earnedAt]));
+      result.set(user.id, this.describe(snap, saved));
+    }
+    return result;
+  }
+
+  private describe(snap: Snapshot, earnedMap: ReadonlyMap<string, Date>): EarnedAchievement[] {
     return ACHIEVEMENTS.map((def) => {
       const at = earnedMap.get(def.id);
       const proUnlocked =

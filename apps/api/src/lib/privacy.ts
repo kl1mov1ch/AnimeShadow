@@ -3,7 +3,8 @@ import { DEFAULT_PROFILE_PRIVACY, type ProfilePrivacy, profilePrivacySchema, typ
 
 /** A stored privacy setting, made whole (parts added since get their default). */
 export function readPrivacy(raw: unknown): ProfilePrivacy {
-  const parsed = profilePrivacySchema.safeParse(raw ?? {});
+  const stored = raw != null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const parsed = profilePrivacySchema.safeParse({ ...DEFAULT_PROFILE_PRIVACY, ...stored });
   return parsed.success ? parsed.data : DEFAULT_PROFILE_PRIVACY;
 }
 

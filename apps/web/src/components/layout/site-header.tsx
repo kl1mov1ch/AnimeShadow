@@ -141,7 +141,10 @@ export function SiteHeader() {
       end: false,
       Icon: LibraryBigIcon,
     },
-    { to: "/leaderboards", label: "Топ зрителей", end: false, Icon: TrophyIcon },
+    ...(status === "authenticated" ? [
+      { to: "/leaderboards", label: "Топ зрителей", end: false, Icon: TrophyIcon },
+      { to: "/people", label: "Сообщество", end: false, Icon: UsersIcon },
+    ] : []),
     { to: "/schedule", label: "Расписание", end: false, Icon: CalendarClockIcon },
     ...(status === "authenticated"
       ? [{ to: "/library", label: t("nav.library"), end: false, Icon: BookmarkIcon }]

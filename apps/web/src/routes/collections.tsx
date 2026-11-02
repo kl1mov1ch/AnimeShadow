@@ -1,4 +1,9 @@
-import { COLLECTION_SORTS, COLLECTION_TAGS, type CollectionSort, type CollectionTag } from "@animeshadow/shared";
+import {
+  COLLECTION_SORTS,
+  COLLECTION_TAGS,
+  type CollectionSort,
+  type CollectionTag,
+} from "@animeshadow/shared";
 import {
   BarChart3Icon,
   BookmarkIcon,
@@ -17,14 +22,24 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CollectionCard } from "@/components/collections/collection-card";
 import { CuratedCard, DailyCurated } from "@/components/collections/curated-card";
 import { PaginationBar } from "@/components/common/pagination-bar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useT } from "@/i18n";
-import { useCollections, useCuratedCollections, useMyCollectionsStats } from "@/lib/query";
+import {
+  useCollections,
+  useCuratedCollections,
+  useMyCollectionsStats,
+} from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { StudioFeatureCard } from "@/components/studio/studio-feature-card";
+import { openGlobalSearch } from "@/lib/search-events";
+import { Button } from "@/components/ui/button";
 
 const ANY_TAG = "__any";
 
@@ -60,18 +75,28 @@ export function Component() {
   const authed = status === "authenticated";
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const sort = (COLLECTION_SORTS as readonly string[]).includes(params.get("sort") ?? "")
+  const sort = (COLLECTION_SORTS as readonly string[]).includes(
+    params.get("sort") ?? "",
+  )
     ? (params.get("sort") as CollectionSort)
     : "popular";
   const tagParam = params.get("tag");
-  const tag = (COLLECTION_TAGS as readonly string[]).includes(tagParam ?? "") ? (tagParam as CollectionTag) : undefined;
+  const tag = (COLLECTION_TAGS as readonly string[]).includes(tagParam ?? "")
+    ? (tagParam as CollectionTag)
+    : undefined;
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const [search, setSearch] = useState(params.get("q") ?? "");
-  const q = useDebouncedValue(search.trim(), 300);
+  const q = (params.get("q") ?? "").trim();
   const [rolls, setRolls] = useState(0);
 
   const saved = authed && params.get("scope") === "saved";
-  const { data, isPending } = useCollections({ sort, tag, q: q || undefined, page, perPage: 18, ...(saved ? { scope: "saved" as const } : {}) });
+  const { data, isPending } = useCollections({
+    sort,
+    tag,
+    q: q || undefined,
+    page,
+    perPage: 18,
+    ...(saved ? { scope: "saved" as const } : {}),
+  });
   const curated = useCuratedCollections();
   const { data: mine } = useMyCollectionsStats(authed);
   const limit = mine?.limit;
@@ -88,7 +113,8 @@ export function Component() {
     setParams(next, { replace: true, preventScrollReset: !("page" in patch) });
   };
 
-  const tagLabel = (tg: CollectionTag) => t(`collections.tags.${tg}` as "collections.tags.cozy");
+  const tagLabel = (tg: CollectionTag) =>
+    t(`collections.tags.${tg}` as "collections.tags.cozy");
   const top = page === 1 && !q && !tag;
 
   const chip = (active: boolean) =>
@@ -104,8 +130,12 @@ export function Component() {
       <header className="flex flex-col gap-3">
         <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col gap-1">
-            <h1 className="font-display text-2xl sm:text-3xl">{t("collections.eyebrow")}</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">{t("collections.lead")}</p>
+            <h1 className="font-display text-2xl sm:text-3xl">
+              {t("collections.eyebrow")}
+            </h1>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              {t("collections.lead")}
+            </p>
           </div>
           <div className="flex flex-col items-start gap-1 sm:items-end">
             {authed ? (
@@ -135,41 +165,54 @@ export function Component() {
         </div>
       </header>
 
-      {page === 1 && !q && !tag && !saved && <><StudioFeatureCard /><CuratedHub data={curated.data} pending={curated.isPending} /></>}
+      {page === 1 && !q && !tag && !saved && (
+        <CuratedHub data={curated.data} pending={curated.isPending} />
+      )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-display text-lg sm:text-xl">{t("collections.fromViewers")}</h2>
-        <div className="group relative">
-          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              set({ q: e.target.value.trim() || null });
-            }}
-            placeholder={t("collections.search")}
-            className="h-11 w-full rounded-xl border border-border/70 bg-card/60 pl-11 pr-10 text-sm outline-none transition-[border-color,background-color] duration-200 placeholder:text-muted-foreground/70 hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:bg-card"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                set({ q: null });
-              }}
-              aria-label={t("common.clear")}
-              className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-            >
-              <XIcon className="size-4" />
-            </button>
+        <h2 className="font-display text-lg sm:text-xl">
+          {t("collections.fromViewers")}
+        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full justify-start gap-2 bg-card/60 sm:w-auto"
+            onClick={() => openGlobalSearch({ mode: "collections", query: q })}
+          >
+            <SearchIcon data-icon="inline-start" />
+            Найти подборку
+            <kbd className="ml-4 hidden text-[10px] text-muted-foreground sm:inline">
+              Ctrl + K
+            </kbd>
+          </Button>
+          {q && (
+            <span className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-border/60 px-3 py-1 text-xs text-muted-foreground">
+              <span className="truncate">Поиск: «{q}»</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Сбросить поиск подборок"
+                onClick={() => set({ q: null })}
+              >
+                <XIcon />
+              </Button>
+            </span>
           )}
         </div>
-
         <div className="flex flex-wrap items-center gap-2">
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
             {authed && (
-              <button type="button" aria-pressed={saved} onClick={() => set({ scope: saved ? null : "saved" })} className={chip(saved)}>
-                <BookmarkIcon className={cn("size-4", saved && "fill-current text-primary")} />
+              <button
+                type="button"
+                aria-pressed={saved}
+                onClick={() => set({ scope: saved ? null : "saved" })}
+                className={chip(saved)}
+              >
+                <BookmarkIcon
+                  className={cn("size-4", saved && "fill-current text-primary")}
+                />
                 Избранное
               </button>
             )}
@@ -191,8 +234,14 @@ export function Component() {
           </div>
           <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
             <div className="min-w-0 flex-1 sm:w-48 sm:flex-none">
-              <Select value={tag ?? ANY_TAG} onValueChange={(v) => set({ tag: v === ANY_TAG ? null : v })}>
-                <SelectTrigger className="h-9 w-full" aria-label={t("collections.theme")}>
+              <Select
+                value={tag ?? ANY_TAG}
+                onValueChange={(v) => set({ tag: v === ANY_TAG ? null : v })}
+              >
+                <SelectTrigger
+                  className="h-9 w-full"
+                  aria-label={t("collections.theme")}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -209,15 +258,22 @@ export function Component() {
               <button
                 type="button"
                 onClick={() => {
-                  const pick = data.items[Math.floor(Math.random() * data.items.length)]!;
+                  const pick =
+                    data.items[Math.floor(Math.random() * data.items.length)]!;
                   setRolls((r) => r + 1);
-                  window.setTimeout(() => navigate(`/collections/${pick.id}`, { viewTransition: true }), 450);
+                  window.setTimeout(
+                    () => navigate(`/collections/${pick.id}`, { viewTransition: true }),
+                    450,
+                  );
                 }}
                 aria-label={t("collections.random")}
                 title={t("collections.random")}
                 className="grid size-9 shrink-0 place-items-center rounded-lg border border-border/70 bg-card/60 text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
               >
-                <DicesIcon key={rolls} className={cn("size-4", rolls > 0 && "dice-roll")} />
+                <DicesIcon
+                  key={rolls}
+                  className={cn("size-4", rolls > 0 && "dice-roll")}
+                />
               </button>
             )}
             {authed && (
@@ -234,7 +290,9 @@ export function Component() {
         </div>
         {(data || tag || q) && (
           <p className="text-sm text-muted-foreground">
-            <span className="tabular-nums">{data ? collectionsCount(data.meta.total) : "…"}</span>
+            <span className="tabular-nums">
+              {data ? collectionsCount(data.meta.total) : "…"}
+            </span>
             {q && <> · «{q}»</>}
             {tag && <> · {tagLabel(tag)}</>}
           </p>
@@ -245,7 +303,10 @@ export function Component() {
         {isPending ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className={cn("h-80 rounded-2xl", i === 0 && "sm:col-span-2")} />
+              <Skeleton
+                key={i}
+                className={cn("h-80 rounded-2xl", i === 0 && "sm:col-span-2")}
+              />
             ))}
           </div>
         ) : !data || data.items.length === 0 ? (

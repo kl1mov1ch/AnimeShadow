@@ -2,6 +2,7 @@ import { createProfileReportInputSchema, createWallPostInputSchema, followKindSc
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { parse } from "../lib/validation.js";
+import { peopleDirectory } from "../lib/people-directory.js";
 
 const userParams = z.object({ id: z.string().min(1).max(64) });
 const postParams = z.object({ postId: z.string().min(1).max(64) });
@@ -11,6 +12,17 @@ const wallQuery = z.object({ cursor: z.string().min(1).max(64).optional() });
 /** Following, friends, the profile wall and friends' activity. */
 export const socialRoutes: FastifyPluginAsync = async (fastify) => {
   const social = fastify.services.social;
+
+  fastify.get("/people/directory", {
+    preHandler: fastify.authenticate,
+    config: { rateLimit: { max: 90, timeWindow: "1 minute" } },
+  }, async (request) => {
+    const { q, page } = parse(z.object({
+      q: z.string().trim().max(60).default(""),
+      page: z.coerce.number().int().min(1).max(100_000).default(1),
+    }), request.query);
+    return peopleDirectory(fastify.prisma, q, page, request.userId ?? null);
+  });
 
   fastify.get("/users/:id/social", { preHandler: fastify.optionalAuth }, async (request) => {
     const { id } = parse(userParams, request.params);
@@ -84,7 +96,7 @@ export const socialRoutes: FastifyPluginAsync = async (fastify) => {
   // Find people by nick or name (the search window's "People").
   fastify.get(
     "/people/search",
-    { preHandler: fastify.optionalAuth, config: { rateLimit: { max: 90, timeWindow: "1 minute" } } },
+    { preHandler: fastify.authenticate, config: { rateLimit: { max: 90, timeWindow: "1 minute" } } },
     async (request) => {
       const { q } = parse(z.object({ q: z.string().trim().min(1).max(60) }), request.query);
       return { items: await social.searchPeople(q, request.userId ?? null) };
@@ -92,11 +104,11 @@ export const socialRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // The search window's people before anything is typed: popular and active lately.
-  fastify.get("/people/popular", { preHandler: fastify.optionalAuth }, async (request) => {
+  fastify.get("/people/popular", { preHandler: fastify.authenticate }, async (request) => {
     return { items: await social.popularPeople(request.userId ?? null) };
   });
 
-  fastify.get("/people/suggested", { preHandler: fastify.optionalAuth }, async (request) => {
+  fastify.get("/people/suggested", { preHandler: fastify.authenticate }, async (request) => {
     return { items: await social.suggestions(request.userId ?? null) };
   });
 

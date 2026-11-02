@@ -105,12 +105,11 @@ function plural(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
-type LevelInput = Pick<
+export type LevelInput = Pick<
   PublicProfile,
   | "achievements"
   | "stats"
   | "totalCommentLikes"
-  | "favorites"
   | "showcaseAchievementIds"
   | "avatarUrl"
   | "bannerUrl"
@@ -118,7 +117,7 @@ type LevelInput = Pick<
   | "bonusXp"
   | "counters"
   | "hiddenXp"
->;
+> & { favorites: readonly unknown[] };
 
 /** The experience an account earned itself, without what was granted. */
 export function earnedSources(profile: LevelInput): XpSource[] {

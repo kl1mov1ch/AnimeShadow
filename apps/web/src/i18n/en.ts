@@ -1664,6 +1664,9 @@ export const en = {
         aurora: "Aurora",
       },
       titleNames: {
+        "weekly-watch-1": "Weekly champion",
+        "weekly-watch-2": "Weekly silver",
+        "weekly-watch-3": "Weekly bronze",
         "thousand-episodes": "Story keeper",
         "three-thousand-episodes": "Chronicler",
         "ten-series": "Finale collector",

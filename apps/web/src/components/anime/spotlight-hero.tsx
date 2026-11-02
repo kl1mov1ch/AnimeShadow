@@ -155,14 +155,15 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         if (e.key === "ArrowLeft") go(index - 1, true);
         if (e.key === "ArrowRight") go(index + 1, true);
       }}
-      className="full-bleed relative isolate overflow-hidden border-b border-border/50 bg-background outline-none"
+      className="full-bleed relative isolate overflow-hidden outline-none"
     >
       {/* The slide's clock: invisible, it only says when the slide is over. */}
       {count > 1 && !calm && (
         <span key={slideKey} aria-hidden className="hero-clock" style={timing} />
       )}
 
-      <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(120%_80%_at_70%_0%,color-mix(in_srgb,var(--primary)_10%,transparent),transparent_60%)]" />
+      <div aria-hidden className="cover-edge-fade absolute inset-0 -z-20 bg-background" />
+      <div aria-hidden className="cover-edge-fade absolute inset-0 -z-10 bg-[radial-gradient(120%_80%_at_70%_0%,color-mix(in_srgb,var(--primary)_10%,transparent),transparent_60%)]" />
 
       <div className="relative mx-auto w-full max-w-[1400px] px-4 pb-4 sm:px-6 lg:static lg:h-[32rem] lg:pb-0">
         {/* The frame. */}
@@ -215,7 +216,7 @@ export function SpotlightHero({ items }: { items: AnimeDetail[] }) {
         {/* A computer: a soft shade behind the pitch, where it overlaps the frame. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 hidden w-3/5 bg-gradient-to-r from-background/85 via-background/45 to-transparent lg:block"
+          className="cover-edge-fade pointer-events-none absolute inset-y-0 left-0 hidden w-3/5 bg-gradient-to-r from-background/85 via-background/45 to-transparent lg:block"
         />
 
         <div className="relative z-10 -mt-[5.75rem] flex min-w-0 flex-col gap-3.5 sm:-mt-28 lg:mt-0 lg:h-full lg:max-w-[min(34rem,46%)] lg:justify-center lg:gap-5">

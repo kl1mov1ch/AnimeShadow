@@ -1,3 +1,5 @@
+import { useAuth } from "@/hooks/use-auth";
+import { animeRequestIdentity } from "./anime-request";
 import type {
   AdminAnalytics,
   AdminAnalyticsBreakdownGroup,
@@ -64,7 +66,6 @@ import type {
   WatchResponse,
 } from "@animeshadow/shared";
 import {
-  QueryClient,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -75,22 +76,13 @@ import { apiRequest } from "./api.js";
 import { episodeProgressKey } from "./episode-progress";
 import { pickGif, useGifLibrary } from "./gifs";
 
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      gcTime: 10 * 60_000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+export { queryClient } from "./query-client";
 
 export const queryKeys = {
   discover: (lang: string) => ["discover", lang] as const,
   genres: ["genres"] as const,
   browse: (params: Record<string, unknown>) => ["browse", params] as const,
-  anime: (id: number, lang: string) => ["anime", id, lang] as const,
+  anime: (id: number | string, lang: string) => animeRequestIdentity(id, lang).queryKey,
   characters: (id: number) => ["anime", id, "characters"] as const,
   recommendations: (id: number) => ["anime", id, "recommendations"] as const,
   franchise: (id: number) => ["anime", id, "franchise"] as const,
@@ -250,11 +242,9 @@ export function useBrowse(params: BrowseParams, enabled = true) {
  * page never reads, and cost a request for nothing.
  */
 export function animeQueryOptions(idOrSlug: number | string, locale: string) {
-  const key = String(idOrSlug);
-  const numeric = typeof idOrSlug === "number" || /^\d+$/.test(key);
-  const path = numeric ? `/anime/${key}` : `/anime/by-slug/${encodeURIComponent(key)}`;
+  const { path, queryKey } = animeRequestIdentity(idOrSlug, locale);
   return {
-    queryKey: ["anime", key, locale] as const,
+    queryKey,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       apiRequest<AnimeDetail>(path, { signal, query: { lang: locale } }),
     staleTime: 10 * 60_000,
@@ -660,6 +650,7 @@ export function useRemoveBanner() {
 }
 
 export function useLogSession() {
+  const client = useQueryClient();
   return useMutation({
     mutationFn: (input: {
       animeId: number;
@@ -668,6 +659,9 @@ export function useLogSession() {
       startedAt: string;
     }) =>
       apiRequest<void>("/me/session", { method: "POST", body: input, keepalive: true }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["me", "profile"], refetchType: "none" });
+    },
   });
 }
 
@@ -1678,24 +1672,26 @@ export function usePeople(
 
 /** People by nick or name (the search window's "People"). */
 export function useSearchPeople(q: string, enabled = true) {
+  const { status, user } = useAuth();
+  const normalized = q.trim().replace(/^@+/, "").trim().toLocaleLowerCase("ru-RU").slice(0, 60);
   return useQuery({
-    queryKey: ["people", "search", q],
-    enabled: enabled && q.trim().replace(/^@+/, "").length >= 2,
+    queryKey: ["people", "search", user?.id, normalized],
+    enabled: status === "authenticated" && enabled && normalized.length >= 2,
     queryFn: ({ signal }) =>
       apiRequest<{ items: UserCard[] }>("/people/search", {
         signal,
-        query: { q },
+        query: { q: normalized },
       }).then((r) => r.items),
     staleTime: 60_000,
-    placeholderData: (previous) => previous,
   });
 }
 
 /** Popular and active people of the last two weeks (the search window's people). */
 export function usePopularPeople(enabled = true) {
+  const { status, user } = useAuth();
   return useQuery({
-    queryKey: ["people", "popular"],
-    enabled,
+    queryKey: ["people", "popular", user?.id],
+    enabled: status === "authenticated" && enabled,
     queryFn: ({ signal }) =>
       apiRequest<{ items: Array<UserCard & { weekHours: number; followers: number }> }>(
         "/people/popular",
@@ -1706,9 +1702,10 @@ export function usePopularPeople(enabled = true) {
 }
 
 export function useSuggestedPeople(enabled = true) {
+  const { status, user } = useAuth();
   return useQuery({
-    queryKey: ["people", "suggested"],
-    enabled,
+    queryKey: ["people", "suggested", user?.id],
+    enabled: status === "authenticated" && enabled,
     queryFn: ({ signal }) =>
       apiRequest<{ items: UserCard[] }>("/people/suggested", { signal }).then(
         (r) => r.items,

@@ -127,14 +127,16 @@ export function useProfileMedia(profile: Pick<PublicProfile, "bannerUrl">): Prof
     hasBanner: Boolean(profile.bannerUrl),
     pickAvatar: () => avatarInput.current?.click(),
     pickBanner: () => bannerInput.current?.click(),
-    randomAvatar: () =>
+    randomAvatar: () => {
+      if (avatarBusy) return;
       randomAvatar.mutate(undefined, {
         onSuccess: (res) => {
           toast.success(t("profile.settings.avatarRandomDone"));
           updateUser({ avatarUrl: res.avatarUrl });
         },
         onError: fail,
-      }),
+      });
+    },
     randomBanner: () =>
       randomBanner.mutate(undefined, {
         onSuccess: (res) =>

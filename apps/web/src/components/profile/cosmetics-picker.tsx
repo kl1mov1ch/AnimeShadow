@@ -1,10 +1,21 @@
 import type { Cosmetic, MyProfile } from "@animeshadow/shared";
-import { AVATAR_FRAMES, PROFILE_TITLES, cosmeticUnlocked, levelOf } from "@animeshadow/shared";
+import {
+  AVATAR_FRAMES,
+  PROFILE_TITLES,
+  cosmeticUnlocked,
+  levelOf,
+} from "@animeshadow/shared";
 import { CheckIcon, LockIcon } from "lucide-react";
 import { useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n";
-import { requirementProgress, requirementTag, requirementText } from "@/lib/cosmetics";
+import {
+  profileCosmeticContext,
+  requirementProgress,
+  requirementTag,
+  requirementText,
+} from "@/lib/cosmetics";
+import { shadowFrame } from "@/lib/avatar-frames";
 import { FEATURES } from "@/lib/features";
 import { imageSrc } from "@/lib/format";
 import { useAchievements, useUpdateProfile } from "@/lib/query";
@@ -23,18 +34,18 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
   const update = useUpdateProfile();
   const { data: achievements } = useAchievements();
   const level = useMemo(() => levelOf(profile).level, [profile]);
-  const has = {
-    earnedIds: profile.achievements.filter((a) => a.earned).map((a) => a.id),
-    level,
-    pro: profile.isPro,
-  };
+  const has = profileCosmeticContext(profile, level);
   const initial = (profile.displayName || "?").charAt(0).toUpperCase();
 
   const frames = [...(AVATAR_FRAMES as readonly Cosmetic[])].sort(
-    (a, b) => Number(cosmeticUnlocked([b], b.id, has)) - Number(cosmeticUnlocked([a], a.id, has)),
+    (a, b) =>
+      Number(cosmeticUnlocked([b], b.id, has)) -
+      Number(cosmeticUnlocked([a], a.id, has)),
   );
   const titles = [...(PROFILE_TITLES as readonly Cosmetic[])].sort(
-    (a, b) => Number(cosmeticUnlocked([b], b.id, has)) - Number(cosmeticUnlocked([a], a.id, has)),
+    (a, b) =>
+      Number(cosmeticUnlocked([b], b.id, has)) -
+      Number(cosmeticUnlocked([a], a.id, has)),
   );
   const openFrames = frames.filter((f) => cosmeticUnlocked([f], f.id, has)).length;
   const openTitles = titles.filter((f) => cosmeticUnlocked([f], f.id, has)).length;
@@ -53,9 +64,18 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
             {frames.map((frame) => {
               const unlocked = cosmeticUnlocked([frame], frame.id, has);
               const selected = (profile.avatarFrame ?? "none") === frame.id;
-              const progress = unlocked ? null : requirementProgress(frame, level, achievements);
-              const percent = progress && progress.target > 0 ? Math.min(100, (progress.current / progress.target) * 100) : null;
-              const name = t(`profile.cosmetics.frameNames.${frame.id}` as "profile.cosmetics.frameNames.none");
+              const progress = unlocked
+                ? null
+                : requirementProgress(frame, level, achievements, has);
+              const percent =
+                progress && progress.target > 0
+                  ? Math.min(100, (progress.current / progress.target) * 100)
+                  : null;
+              const name =
+                shadowFrame(frame.id)?.name ??
+                t(
+                  `profile.cosmetics.frameNames.${frame.id}` as "profile.cosmetics.frameNames.none",
+                );
               return (
                 <li key={frame.id}>
                   <Tooltip>
@@ -63,7 +83,11 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                       <button
                         type="button"
                         disabled={!unlocked || update.isPending}
-                        onClick={() => update.mutate({ avatarFrame: frame.id === "none" ? null : frame.id })}
+                        onClick={() =>
+                          update.mutate({
+                            avatarFrame: frame.id === "none" ? null : frame.id,
+                          })
+                        }
                         aria-pressed={selected}
                         className={cn(
                           "group relative flex w-full flex-col items-center gap-2 rounded-2xl border px-2 pb-2.5 pt-3.5 text-center transition-[border-color,background-color,transform] duration-200",
@@ -74,14 +98,29 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                               : "cursor-not-allowed border-[var(--accent-line-soft)] opacity-70",
                         )}
                       >
-                        <span className={cn("relative isolate block size-14 rounded-full", !unlocked && "grayscale-[0.6]")}>
+                        <span
+                          className={cn(
+                            "relative isolate block size-14 rounded-full",
+                            !unlocked && "grayscale-[0.6]",
+                          )}
+                        >
                           {hasFrame(frame.id) && <FrameRing frame={frame.id} />}
                           <span className="relative grid size-full place-items-center overflow-hidden rounded-full bg-card font-display text-lg ring-1 ring-black/30">
-                            {profile.avatarUrl ? <img src={imageSrc(profile.avatarUrl)} alt="" className="size-full object-cover" /> : initial}
+                            {profile.avatarUrl ? (
+                              <img
+                                src={imageSrc(profile.avatarUrl)}
+                                alt=""
+                                className="size-full object-cover"
+                              />
+                            ) : (
+                              initial
+                            )}
                           </span>
                           {hasFrame(frame.id) && <FrameFx frame={frame.id} small />}
                         </span>
-                        <span className="line-clamp-1 text-[11px] font-medium">{name}</span>
+                        <span className="line-clamp-1 text-[11px] font-medium">
+                          {name}
+                        </span>
                         {selected ? (
                           <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
                             <CheckIcon className="size-3" />
@@ -95,8 +134,14 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                           )
                         )}
                         {percent != null && (
-                          <span aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-foreground/10">
-                            <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.max(4, percent)}%` }} />
+                          <span
+                            aria-hidden
+                            className="h-1 w-full overflow-hidden rounded-full bg-foreground/10"
+                          >
+                            <span
+                              className="block h-full rounded-full bg-primary"
+                              style={{ width: `${Math.max(4, percent)}%` }}
+                            />
                           </span>
                         )}
                       </button>
@@ -104,7 +149,9 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                     <TooltipContent side="top" className="max-w-56">
                       <span className="flex flex-col gap-0.5">
                         <span className="font-semibold">Рамка «{name}»</span>
-                        <span className="text-xs opacity-80">{requirementText(frame, t as never)}</span>
+                        <span className="text-xs opacity-80">
+                          {requirementText(frame, t as never)}
+                        </span>
                         {progress && !unlocked && (
                           <span className="text-[11px] tabular-nums opacity-70">
                             {progress.current} из {progress.target}
@@ -144,7 +191,9 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
           {titles.map((title) => {
             const unlocked = cosmeticUnlocked([title], title.id, has);
             const selected = profile.profileTitle === title.id;
-            const progress = unlocked ? null : requirementProgress(title, level, achievements);
+            const progress = unlocked
+              ? null
+              : requirementProgress(title, level, achievements, has);
             return (
               <Tooltip key={title.id}>
                 <TooltipTrigger asChild>
@@ -155,7 +204,8 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                     aria-pressed={selected}
                     className={cn(
                       "relative rounded-full p-0.5 transition-opacity",
-                      selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                      selected &&
+                        "ring-2 ring-primary ring-offset-2 ring-offset-background",
                       // A locked one leaves room for its lock: it never sits on the name.
                       !unlocked && "cursor-not-allowed pr-3 opacity-45",
                     )}
@@ -170,7 +220,9 @@ export function CosmeticsPicker({ profile }: { profile: MyProfile }) {
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-56">
                   <span className="flex flex-col gap-0.5">
-                    <span className="text-xs opacity-80">{requirementText(title, t as never)}</span>
+                    <span className="text-xs opacity-80">
+                      {requirementText(title, t as never)}
+                    </span>
                     {progress && !unlocked && (
                       <span className="text-[11px] tabular-nums opacity-70">
                         {progress.current} из {progress.target}

@@ -161,7 +161,7 @@ export const dailyChallengeRoutes: FastifyPluginAsync = async (app) => {
     };
   });
   const boards = new TtlCache<unknown>(15_000, 2);
-  app.get("/games/daily/leaderboard", async () => {
+  app.get("/games/daily/leaderboard", { preHandler: app.authenticate }, async () => {
     const day = moscowDay();
     return boards.wrap(day, async () => {
       const rows = await app.prisma.dailyAttempt.findMany({

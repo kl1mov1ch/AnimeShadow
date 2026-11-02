@@ -23,6 +23,73 @@ test("another settlement worker does not issue rewards while the database lock i
   assert.equal(await settleWatchWeeks(tx as never), 0);
 });
 
+test("activation starts at the current week and never backfills historical PRO or invented medals", async () => {
+  const now = new Date("2037-11-09T12:00:00Z");
+  const current = watchWeek(now).start;
+  let queries = 0;
+  const tx = {
+    $queryRaw: async () => { queries++; return [{ acquired: true }]; },
+    leaderboardRewardCursor: { upsert: async ({ create }: { create: { nextWeek: Date } }) => {
+      assert.equal(create.nextWeek.toISOString(), current.toISOString());
+      return { nextWeek: create.nextWeek };
+    } },
+  };
+  assert.equal(await settleWatchWeeks(tx as never, now), 0);
+  assert.equal(queries, 1, "no historical ranking or PRO query runs on activation");
+  const justAfterMidnight = new Date(current.getTime() + 60_000);
+  assert.equal(await settleWatchWeeks(tx as never, justAfterMidnight), 0);
+  assert.equal(queries, 2, "activation during heartbeat grace also skips the historical week");
+});
+
+test("weekly settlement batches 999 permanent receipts, grants PRO only to three, and never replays settled weeks", async () => {
+  const now = new Date("2037-11-09T12:00:00Z");
+  const current = watchWeek(now).start;
+  const start = new Date(current.getTime() - WEEK_MS);
+  let nextWeek = start;
+  const proUsers: string[] = [];
+  const receipts: { place: number; days: number; userId: string; proUntilAfter: Date | null }[] = [];
+  let insertBatches = 0;
+  let rankings = 0;
+  const winners = Array.from({ length: 999 }, (_, index) => ({ userId: `rank-${String(index).padStart(4, "0")}`, seconds: 100n, titles: 1n }));
+  const tx = {
+    $queryRaw: async (parts: TemplateStringsArray, ...values: unknown[]) => {
+      const sql = parts.join("?");
+      if (sql.includes("pg_try_advisory_xact_lock")) return [{ acquired: true }];
+      if (sql.includes("FROM \"WatchSession\"")) {
+        rankings++;
+        assert.match(sql, /ORDER BY seconds DESC, titles DESC, u.id ASC LIMIT 999/);
+        assert.match(sql, /u\."isBanned" = false/);
+        assert.match(sql, /"profilePrivacy"->>'stats'/);
+        return winners;
+      }
+      assert.match(sql, /UPDATE "User"/);
+      proUsers.push(values.find((value) => typeof value === "string" && value.startsWith("rank-")) as string);
+      return [{ proUntil: new Date("2037-11-20T00:00:00Z") }];
+    },
+    leaderboardRewardCursor: {
+      upsert: async () => ({ nextWeek }),
+      update: async ({ data }: { data: { nextWeek: Date } }) => { nextWeek = data.nextWeek; },
+    },
+    weeklyWatchReward: { createMany: async ({ data }: { data: typeof receipts }) => {
+      insertBatches++;
+      receipts.push(...data);
+      return { count: data.length };
+    } },
+  };
+  assert.equal(await settleWatchWeeks(tx as never, now), 999);
+  assert.equal(insertBatches, 1);
+  assert.equal(rankings, 1);
+  assert.deepEqual(proUsers, ["rank-0000", "rank-0001", "rank-0002"]);
+  assert.deepEqual(receipts.slice(0, 4).map((receipt) => receipt.days), [7, 5, 3, 0]);
+  assert.equal(receipts[998]!.place, 999);
+  assert.ok(receipts.slice(3).every((receipt) => receipt.days === 0 && receipt.proUntilAfter === null));
+  assert.equal(await settleWatchWeeks(tx as never, now), 0);
+  assert.equal(proUsers.length, 3);
+  assert.equal(insertBatches, 1);
+  assert.equal(rankings, 1);
+  assert.equal(nextWeek.toISOString(), current.toISOString());
+});
+
 test(
   "weekly PRO: real PostgreSQL grants, privacy, ties, stacking, idempotency and rollback",
   {
@@ -86,7 +153,7 @@ test(
               0,
               "the final player heartbeat gets a two-minute grace window",
             );
-            assert.equal(await settleWatchWeeks(tx, now), 3);
+            assert.equal(await settleWatchWeeks(tx, now), 4);
             const receipts = await tx.weeklyWatchReward.findMany({
               where: { weekStart: start },
               orderBy: { place: "asc" },
@@ -97,6 +164,7 @@ test(
                 [`${prefix}-0`, 7],
                 [`${prefix}-1`, 5],
                 [`${prefix}-2`, 3],
+                [`${prefix}-3`, 0],
               ],
             );
             assert.equal(
@@ -112,6 +180,8 @@ test(
               null,
               "permanent PRO is never shortened",
             );
+            assert.equal(receipts[3]!.proUntilAfter, null, "fourth place receives cosmetics without PRO");
+            assert.equal((await tx.user.findUniqueOrThrow({ where: { id: `${prefix}-3` } })).proSince, null);
             assert.equal(
               await settleWatchWeeks(tx, now),
               0,
@@ -163,6 +233,21 @@ test(
               ).userId,
               `${prefix}-1`,
             );
+            // A dense tie fills every medal through 999 using stable IDs.
+            // The 1000th account gets neither a receipt nor PRO.
+            const boundaryStart = new Date(current.getTime() + WEEK_MS);
+            const boundaryIds = Array.from({ length: 1000 }, (_, i) => `${prefix}-rank-${String(i).padStart(4, "0")}`);
+            await tx.user.createMany({ data: boundaryIds.map((id) => ({ id, email: `${id}@example.invalid`, passwordHash: "test-only", displayName: "Rank boundary QA" })) });
+            await tx.watchSession.createMany({ data: boundaryIds.map((userId) => ({ userId, animeId: 1, startedAt: boundaryStart, seconds: 100 })) });
+            assert.equal(await settleWatchWeeks(tx, new Date(now.getTime() + 2 * WEEK_MS)), 999);
+            const medals = await tx.weeklyWatchReward.findMany({ where: { weekStart: boundaryStart }, orderBy: { place: "asc" } });
+            assert.equal(medals.length, 999);
+            assert.equal(medals[0]!.userId, boundaryIds[0]);
+            assert.equal(medals[998]!.userId, boundaryIds[998]);
+            assert.equal(medals[998]!.place, 999);
+            assert.equal(medals.filter((medal) => medal.days > 0).length, 3);
+            assert.equal(await tx.user.count({ where: { id: { in: boundaryIds }, proSince: { not: null } } }), 3);
+            assert.equal(await settleWatchWeeks(tx, new Date(now.getTime() + 2 * WEEK_MS)), 0);
             const { ProfileService } =
               await import("../apps/api/src/services/profile.service.ts");
             const profile = new ProfileService({

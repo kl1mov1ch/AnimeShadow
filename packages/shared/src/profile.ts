@@ -24,6 +24,12 @@ export interface Cosmetic {
   level?: number;
   /** For those who support the site (PRO / a donation). */
   pro?: boolean;
+  /** A permanent top-999 weekly watch award is required. */
+  weeklyWatch?: boolean;
+  /** Earn this exact historical podium place to wear the title. */
+  weeklyWatchTitlePlace?: 1 | 2 | 3;
+  monthlyWatch?: boolean;
+  watchAnime?: { animeId: number; requiredSeconds: number; episodeSeconds: number; episodesTotal: number; requiredEpisodes: number; scope?: string };
 }
 
 /** What an account has, for deciding what it may wear. */
@@ -33,6 +39,10 @@ export interface CosmeticContext {
   pro: boolean;
   /** Account creation time, for the existing early-adopter entitlement. */
   memberSince?: string;
+  weeklyWatchPlace?: number | null;
+  weeklyWatchPlaces?: readonly number[];
+  monthlyWatchPlace?: number | null;
+  animeQualifiedEpisodes?: Readonly<Record<number, number>>;
 }
 
 /** The public gallery; the remaining frames stay valid for existing selections. */
@@ -61,72 +71,82 @@ export const SHADOW_AVATAR_FRAMES = [
   },
   {
     id: "shadow-one-piece",
+    watchAnime: { animeId: 21, requiredSeconds: 17280, episodeSeconds: 1440, episodesTotal: 24, requiredEpisodes: 24, scope: "Стартовый блок из 24 серий: у онгоинга нет окончательной длительности" },
     name: "Ван-Пис",
     description: "Приключения под знаком пиратского флага.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-jujutsu",
+    watchAnime: { animeId: 40748, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 24, requiredEpisodes: 24 },
     name: "Магическая битва",
     description: "Рамка с энергией мира магов и проклятий.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-tokyo-ghoul",
+    watchAnime: { animeId: 22319, requiredSeconds: 8640, episodeSeconds: 1440, episodesTotal: 12, requiredEpisodes: 12 },
     name: "Токийский гуль",
     description: "Тёмная эстетика ночного Токио.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-black-clover",
+    watchAnime: { animeId: 34572, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 170, requiredEpisodes: 24 },
     name: "Чёрный клевер",
     description: "Магия гримуаров и сила непоколебимой воли.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-frieren",
+    watchAnime: { animeId: 52991, requiredSeconds: 17280, episodeSeconds: 1440, episodesTotal: 28, requiredEpisodes: 24 },
     name: "Фрирен",
     description: "Тихая магия долгого путешествия.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-naruto",
+    watchAnime: { animeId: 20, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 220, requiredEpisodes: 24 },
     name: "Наруто",
     description: "Путь ниндзя и воля огня.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-demon-slayer",
+    watchAnime: { animeId: 38000, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 26, requiredEpisodes: 24 },
     name: "Клинок, рассекающий демонов",
     description: "Узоры клинка и дыхание воды.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-attack-on-titan",
+    watchAnime: { animeId: 16498, requiredSeconds: 17280, episodeSeconds: 1440, episodesTotal: 25, requiredEpisodes: 24 },
     name: "Атака титанов",
     description: "Крылья свободы за пределами стен.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-death-note",
+    watchAnime: { animeId: 1535, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 37, requiredEpisodes: 24 },
     name: "Тетрадь смерти",
     description: "Чернила судьбы и тень синигами.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
     id: "shadow-chainsaw-man",
+    watchAnime: { animeId: 44511, requiredSeconds: 8640, episodeSeconds: 1440, episodesTotal: 12, requiredEpisodes: 12 },
     name: "Человек-бензопила",
     description: "Стальная цепь и неудержимая энергия.",
-    requirementLabel: "Доступна всем",
+    requirementLabel: "Подтверждённое время просмотра тайтла",
     requires: null,
   },
   {
@@ -143,6 +163,49 @@ export const SHADOW_AVATAR_FRAMES = [
     requirementLabel: "Доступна всем",
     requires: null,
   },
+  {
+    id: "shadow-weekly",
+    name: "Лидер недели",
+    description: "Постоянная награда за топ-999 недельного рейтинга просмотра. На рамке — ваше лучшее место.",
+    requirementLabel: "Топ-999 рейтинга просмотра за неделю",
+    requires: null,
+    weeklyWatch: true,
+  },
+  {
+    id: "shadow-halloween-zombie",
+    name: "Ночь зомби",
+    description: "Мрачная рамка для тех, кто не спит даже в ночь Хэллоуина.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-halloween-phantom",
+    name: "Призрачная ночь",
+    description: "Тени, лунный свет и лёгкое дыхание потустороннего мира.",
+    requirementLabel: "Доступна всем",
+    requires: null,
+  },
+  {
+    id: "shadow-monthly",
+    name: "Лидер месяца",
+    description: "Постоянная награда за топ-999 месячного рейтинга просмотра. На рамке — ваше лучшее место.",
+    requirementLabel: "Топ-999 рейтинга просмотра за месяц",
+    requires: null,
+    monthlyWatch: true,
+  },
+  { id: "shadow-culling", name: "Магическая битва: Смертельная миграция", description: "Печати и помехи проклятой энергии.", requirementLabel: "Подтверждённое время просмотра тайтла", requires: null, watchAnime: { animeId: 57658, requiredSeconds: 8280, episodeSeconds: 1380, episodesTotal: 12, requiredEpisodes: 12 } },
+  { id: "shadow-hells-paradise", name: "Адский рай", description: "Цветущие ветви и летящие лепестки.", requirementLabel: "Подтверждённое время просмотра тайтла", requires: null, watchAnime: { animeId: 46569, requiredSeconds: 9360, episodeSeconds: 1440, episodesTotal: 13, requiredEpisodes: 13 } },
+  { id: "shadow-dorohedoro", name: "Дорохэдоро", description: "Потемневший металл и поднимающийся дым.", requirementLabel: "Подтверждённое время просмотра тайтла", requires: null, watchAnime: { animeId: 38668, requiredSeconds: 8280, episodeSeconds: 1380, episodesTotal: 12, requiredEpisodes: 12 } },
+  { id: "shadow-witch-atelier", name: "Ателье колдовских колпаков", description: "Золотая линия, искры и мягкое свечение.", requirementLabel: "Подтверждённое время просмотра тайтла", requires: null, watchAnime: { animeId: 51553, requiredSeconds: 8970, episodeSeconds: 1380, episodesTotal: 13, requiredEpisodes: 13 } },
+  { id: "shadow-reze", name: "Человек-бензопила: История Резе", description: "Ночной перелив и пульсирующий свет.", requirementLabel: "Подтверждённое время просмотра тайтла", requires: null, watchAnime: { animeId: 57555, requiredSeconds: 2970, episodeSeconds: 5940, episodesTotal: 1, requiredEpisodes: 1 } },
+  { id: "shadow-solo-jinwoo", name: "Поднятие уровня в одиночку · Джин-Ву", description: "Обсидиан, клинки и тихое движение теней.", requirementLabel: "Посмотреть аниме «Поднятие уровня в одиночку»", requires: null, watchAnime: { animeId: 52299, requiredSeconds: 8280, episodeSeconds: 1380, episodesTotal: 12, requiredEpisodes: 12 } },
+  { id: "shadow-solo-beru", name: "Поднятие уровня в одиночку · Беру", description: "Теневые доспехи короля муравьёв.", requirementLabel: "Посмотреть аниме «Поднятие уровня в одиночку 2»", requires: null, watchAnime: { animeId: 58567, requiredSeconds: 8970, episodeSeconds: 1380, episodesTotal: 13, requiredEpisodes: 13 } },
+  { id: "shadow-sylphie", name: "Реинкарнация безработного · Сильфиетта", description: "Эльфийское серебро, листья и мягкий ветер.", requirementLabel: "Посмотреть аниме «Реинкарнация безработного 2»", requires: null, watchAnime: { animeId: 51179, requiredSeconds: 8280, episodeSeconds: 1380, episodesTotal: 12, requiredEpisodes: 12 } },
+  { id: "shadow-eris", name: "Реинкарнация безработного · Эрис", description: "Сталь мечника и спокойное колыхание алой ленты.", requirementLabel: "Посмотреть аниме «Реинкарнация безработного. Часть 2»", requires: null, watchAnime: { animeId: 45576, requiredSeconds: 8280, episodeSeconds: 1380, episodesTotal: 12, requiredEpisodes: 12 } },
+  { id: "shadow-roxy", name: "Реинкарнация безработного · Рокси", description: "Сапфиры, серебро и шёпот водяной магии.", requirementLabel: "Посмотреть аниме «Реинкарнация безработного»", requires: null, watchAnime: { animeId: 39535, requiredSeconds: 7590, episodeSeconds: 1380, episodesTotal: 11, requiredEpisodes: 11 } },
+  { id: "shadow-gojo", name: "Магическая битва · Сатору Годжо", description: "Белые волосы, повязка и холодный свет шести глаз.", requirementLabel: "Посмотреть аниме «Магическая битва»", requires: null, watchAnime: { animeId: 40748, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 24, requiredEpisodes: 24 } },
+  { id: "shadow-hunter", name: "Охотник × Охотник", description: "Удочка Гона, йо-йо Киллуа и лицензия охотника.", requirementLabel: "Посмотреть аниме «Охотник × Охотник»", requires: null, watchAnime: { animeId: 11061, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 148, requiredEpisodes: 24 } },
+  { id: "shadow-akame", name: "Убийца Акаме", description: "Мурасамэ, алый узел и символика Ночного рейда.", requirementLabel: "Посмотреть аниме «Убийца Акаме»", requires: null, watchAnime: { animeId: 22199, requiredSeconds: 16560, episodeSeconds: 1380, episodesTotal: 24, requiredEpisodes: 24 } },
 ] as const satisfies readonly (Cosmetic & {
   name: string;
   description: string;
@@ -187,6 +250,9 @@ export type AvatarFrame = (typeof AVATAR_FRAMES)[number]["id"];
  * that actually happened.
  */
 export const PROFILE_TITLES = [
+  { id: "weekly-watch-1", requires: null, weeklyWatchTitlePlace: 1 },
+  { id: "weekly-watch-2", requires: null, weeklyWatchTitlePlace: 2 },
+  { id: "weekly-watch-3", requires: null, weeklyWatchTitlePlace: 3 },
   { id: "thousand-episodes", requires: "thousand-episodes" },
   { id: "three-thousand-episodes", requires: "three-thousand-episodes" },
   { id: "ten-series", requires: "ten-series" },
@@ -254,6 +320,10 @@ export function cosmeticUnlocked(
   if (!entry) return false;
   if (entry.level != null && ctx.level < entry.level) return false;
   if (entry.pro && !ctx.pro) return false;
+  if (entry.weeklyWatch && (!Number.isInteger(ctx.weeklyWatchPlace) || ctx.weeklyWatchPlace! < 1 || ctx.weeklyWatchPlace! > 999)) return false;
+  if (entry.weeklyWatchTitlePlace != null && !ctx.weeklyWatchPlaces?.includes(entry.weeklyWatchTitlePlace)) return false;
+  if (entry.monthlyWatch && (!Number.isInteger(ctx.monthlyWatchPlace) || ctx.monthlyWatchPlace! < 1 || ctx.monthlyWatchPlace! > 999)) return false;
+  if (entry.watchAnime && (ctx.animeQualifiedEpisodes?.[entry.watchAnime.animeId] ?? 0) < entry.watchAnime.requiredEpisodes) return false;
   if (entry.requires === "early-adopter" && ctx.memberSince && isEarlyAdopter(ctx.memberSince)) return true;
   return entry.requires == null || ctx.earnedIds.includes(entry.requires);
 }
@@ -275,6 +345,35 @@ export function effectiveAvatarFrame(
   }
   return frame.id;
 }
+
+/** Weekly titles are permanent, but only an actual ledger receipt unlocks one. */
+export function effectiveProfileTitle(selected: string | null, context: CosmeticContext): ProfileTitle | null {
+  const title = PROFILE_TITLES.find((entry) => entry.id === selected);
+  if (!title) return null;
+  if ("weeklyWatchTitlePlace" in title && !cosmeticUnlocked(PROFILE_TITLES, title.id, context)) return null;
+  return title.id;
+}
+
+export const weeklyWatchAwardSchema = z.object({
+  place: z.number().int().min(1).max(999),
+  weekStart: z.string().datetime(),
+  awardedAt: z.string().datetime(),
+});
+export type WeeklyWatchAward = z.infer<typeof weeklyWatchAwardSchema>;
+
+export const monthlyWatchAwardSchema = weeklyWatchAwardSchema.omit({ weekStart: true }).extend({
+  monthStart: z.string().datetime(),
+});
+export type MonthlyWatchAward = z.infer<typeof monthlyWatchAwardSchema>;
+
+export const frameWatchProgressSchema = z.object({
+  animeId: z.number().int().positive(),
+  watchedSeconds: z.number().int().nonnegative(),
+  qualifiedEpisodes: z.number().int().nonnegative(),
+  requiredEpisodes: z.number().int().positive(),
+  requiredSeconds: z.number().int().positive(),
+});
+export type FrameWatchProgress = z.infer<typeof frameWatchProgressSchema>;
 
 export const rankSchema = z.enum(["NOVICE", "ADVANCED", "EXPERT", "LEGEND"]);
 export type Rank = z.infer<typeof rankSchema>;
@@ -421,6 +520,10 @@ export const DEFAULT_PROFILE_PRIVACY: ProfilePrivacy = {
 export const PRIVACY_PARTS = ["profile", "stats", "list", "watching", "activity", "favorites", "achievements", "social", "wall", "views"] as const;
 
 export const publicProfileSchema = z.object({
+  /** Public earned cosmetics, independent of stats/achievement privacy. */
+  weeklyWatchAward: weeklyWatchAwardSchema.nullable().optional(),
+  weeklyWatchPlaces: z.array(z.number().int().min(1).max(3)).optional(),
+  monthlyWatchAward: monthlyWatchAwardSchema.nullable().optional(),
   /** The account's id — what the profile's own sub-resources are keyed by,
    *  since a username is optional. */
   id: z.string(),
@@ -488,6 +591,7 @@ export const themePreferenceSchema = z.enum(["light", "dark", "system"]);
 export type ThemePreference = z.infer<typeof themePreferenceSchema>;
 
 export const myProfileSchema = publicProfileSchema.extend({
+  frameWatchProgress: z.array(frameWatchProgressSchema).optional(),
   /** Saved preference, which may differ from avatarFrame after PRO expires. */
   selectedAvatarFrame: avatarFrameSchema.nullable().optional(),
   email: z.string(),
